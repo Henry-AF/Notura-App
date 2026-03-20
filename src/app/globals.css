@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --notura-green: #0F6E56;
+    --notura-green-light: #E1F5EE;
+    --notura-green-dark: #085041;
+  }
+
+  body {
+    @apply bg-white text-notura-ink antialiased;
+    font-family: var(--font-dm-sans), system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Focus ring */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-notura-green/40 ring-offset-2;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-notura-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-notura-muted/50;
+  }
+}
+
+@layer components {
+  /* Status badges */
+  .badge-recording {
+    @apply bg-notura-green text-white text-xs font-medium px-2.5 py-0.5 rounded-full animate-pulse-slow;
+  }
+  .badge-processing {
+    @apply bg-amber-100 text-amber-800 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+  .badge-completed {
+    @apply bg-notura-green-light text-notura-green text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+  .badge-failed {
+    @apply bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+
+  /* Priority badges */
+  .priority-alta {
+    @apply bg-red-100 text-red-700;
+  }
+  .priority-media {
+    @apply bg-amber-100 text-amber-700;
+  }
+  .priority-baixa {
+    @apply bg-gray-100 text-gray-600;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

@@ -337,8 +337,8 @@ export default function DashboardPage() {
                           {meeting.task_count === 1 ? "tarefa" : "tarefas"}
                         </Badge>
                       )}
-                      <Badge variant={statusVariant(meeting.status)}>
-                        {statusLabel(meeting.status)}
+                      <Badge variant={statusVariant(meeting.status as MeetingStatus)}>
+                        {statusLabel(meeting.status as MeetingStatus)}
                       </Badge>
                     </div>
                   </CardContent>

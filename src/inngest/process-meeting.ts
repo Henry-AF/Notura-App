@@ -10,7 +10,7 @@ import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
 import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
 import { AssemblyAI } from "assemblyai";
 import Anthropic from "@anthropic-ai/sdk";
-import type { MeetingJSON, Priority, Confidence } from "@/types/database";
+import type { Json, MeetingJSON, Priority, Confidence } from "@/types/database";
 
 // ── External clients ─────────────────────────────────────────────────────────
 
@@ -401,7 +401,7 @@ export const processMeeting = inngest.createFunction(
         .from("meetings")
         .update({
           summary_whatsapp: summaryWhatsapp,
-          summary_json: summaryJson as unknown as Record<string, unknown>,
+          summary_json: summaryJson as unknown as Json,
           title: summaryJson.meeting?.title ?? "Reunião processada",
           prompt_version: PROMPT_VERSION,
         })

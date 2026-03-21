@@ -407,8 +407,8 @@ export default function TasksPage() {
                       >
                         {dueDateLabel(task.due_date)}
                       </span>
-                      <Badge variant={priorityVariant(task.priority)}>
-                        {priorityLabel(task.priority)}
+                      <Badge variant={priorityVariant(task.priority as Priority)}>
+                        {priorityLabel(task.priority as Priority)}
                       </Badge>
                     </div>
                   </div>

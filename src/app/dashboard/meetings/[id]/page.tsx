@@ -33,7 +33,7 @@ import {
   formatPhone,
   getInitials,
 } from "@/lib/utils";
-import type { MeetingWithRelations } from "@/types/database";
+import type { MeetingWithRelations, MeetingJSON } from "@/types/database";
 
 // ─── Processing State Component ─────────────────────────────────────────────
 
@@ -297,6 +297,7 @@ function confidenceVariant(c: string) {
 
 export default function MeetingDetailPage() {
   const meeting = mockMeeting;
+  const summaryJson = meeting.summary_json as MeetingJSON | null;
   const [taskStates, setTaskStates] = useState<Record<string, boolean>>(
     Object.fromEntries(meeting.tasks.map((t) => [t.id, t.completed]))
   );
@@ -360,7 +361,7 @@ export default function MeetingDetailPage() {
               <span>{formatDuration(meeting.duration_seconds)}</span>
               <span className="text-notura-border">·</span>
               <div className="flex items-center gap-1">
-                {meeting.summary_json?.meeting.participants.map((p) => (
+                {summaryJson?.meeting?.participants?.map((p) => (
                   <Badge key={p} variant="default" className="text-xs">
                     {p}
                   </Badge>
@@ -397,7 +398,7 @@ export default function MeetingDetailPage() {
                 {/* One-line summary callout */}
                 <div className="mb-4 rounded-md border border-notura-green/20 bg-notura-green-light/30 p-3">
                   <p className="text-sm font-medium text-notura-green">
-                    {meeting.summary_json?.summary_one_line}
+                    {summaryJson?.summary_one_line}
                   </p>
                 </div>
                 {/* WhatsApp formatted text */}

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import { buildR2Key, uploadAudio } from "@/lib/r2";
 import { inngest } from "@/lib/inngest";
+import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
@@ -23,6 +24,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Não autenticado. Faça login para continuar." },
         { status: 401 }
+      );
+    }
+
+    const { billingAccount, meetingsThisMonth, monthlyLimit } =
+      await getBillingStatus(user.id);
+
+    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
+      return NextResponse.json(
+        {
+          error:
+            billingAccount.plan === "free"
+              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
+              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
+        },
+        { status: 403 }
       );
     }
 
@@ -120,6 +136,12 @@ export async function POST(request: NextRequest) {
         userId: user.id,
       },
     });
+
+    try {
+      await syncMeetingsThisMonth(user.id, meetingsThisMonth + 1);
+    } catch (billingError) {
+      console.error("[upload] Failed to sync billing usage:", billingError);
+    }
 
     // ── Response ─────────────────────────────────────────────────────────
     return NextResponse.json(

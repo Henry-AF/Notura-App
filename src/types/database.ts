@@ -16,9 +16,6 @@ export interface Database {
           role: string | null
           company: string | null
           whatsapp_number: string | null
-          plan: string
-          meetings_this_month: number
-          stripe_customer_id: string | null
           created_at: string
         }
         Insert: {
@@ -27,9 +24,6 @@ export interface Database {
           role?: string | null
           company?: string | null
           whatsapp_number?: string | null
-          plan?: string
-          meetings_this_month?: number
-          stripe_customer_id?: string | null
           created_at?: string
         }
         Update: {
@@ -38,10 +32,34 @@ export interface Database {
           role?: string | null
           company?: string | null
           whatsapp_number?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      billing_accounts: {
+        Row: {
+          user_id: string
+          plan: string
+          meetings_this_month: number
+          stripe_customer_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
           plan?: string
           meetings_this_month?: number
           stripe_customer_id?: string | null
           created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          plan?: string
+          meetings_this_month?: number
+          stripe_customer_id?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -301,6 +319,7 @@ export type Task = Database["public"]["Tables"]["tasks"]["Row"]
 export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
+export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

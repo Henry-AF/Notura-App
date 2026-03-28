@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { saveOnboardingProfile } from "./actions";
 
 const plans = [
   {
@@ -37,43 +37,34 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<"free" | "pro" | "team">("free");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSavePhone() {
     setLoading(true);
+    setError(null);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ whatsapp_number: phone })
-          .eq("id", user.id);
+      const result = await saveOnboardingProfile({
+        whatsappNumber: phone,
+      });
+
+      if (!result.success) {
+        setError(result.error ?? "Não foi possível salvar seu número.");
+        return;
       }
     } catch {
-      // Silently continue — profile will be completed later
+      setError("Ocorreu um erro inesperado ao salvar seu número.");
     } finally {
       setLoading(false);
-      setStep(2);
     }
+
+    setStep(2);
   }
 
   async function handleSelectPlan() {
     setLoading(true);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ plan: selectedPlan })
-          .eq("id", user.id);
-      }
-    } catch {
-      // Continue
-    } finally {
-      setLoading(false);
-      setStep(3);
-    }
+    setError(null);
+    setLoading(false);
+    setStep(3);
   }
 
   return (
@@ -123,6 +114,10 @@ export default function OnboardingPage() {
             </div>
           </div>
 
+          {error && (
+            <p className="mt-3 text-sm text-red-600">{error}</p>
+          )}
+
           <Button
             className="mt-6 w-full"
             onClick={handleSavePhone}
@@ -151,7 +146,7 @@ export default function OnboardingPage() {
             Escolha seu plano
           </h1>
           <p className="mt-2 text-center text-sm text-notura-muted">
-            Você pode mudar a qualquer momento.
+            A ativação real do plano acontece no checkout e é confirmada pelo servidor.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -199,6 +194,10 @@ export default function OnboardingPage() {
               </Card>
             ))}
           </div>
+
+          <p className="mt-4 text-center text-xs text-notura-muted">
+            Esta etapa não libera acesso pago sozinha. O plano válido sempre vem do billing.
+          </p>
 
           <Button
             className="mt-6 w-full"

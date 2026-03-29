@@ -9,7 +9,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "flex h-10 w-full rounded-md border border-notura-border bg-white px-3 py-2 text-sm text-notura-ink placeholder:text-notura-muted/60 focus:border-notura-green focus:outline-none focus:ring-2 focus:ring-notura-green/20 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-11 w-full rounded-md border-[1.5px] border-notura-border bg-white px-4 py-3 text-sm text-notura-ink placeholder:text-notura-muted focus:border-violet-400 focus:outline-none focus:ring-3 focus:ring-violet-500/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         ref={ref}
@@ -27,7 +27,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         className={cn(
-          "flex min-h-[80px] w-full rounded-md border border-notura-border bg-white px-3 py-2 text-sm text-notura-ink placeholder:text-notura-muted/60 focus:border-notura-green focus:outline-none focus:ring-2 focus:ring-notura-green/20 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex min-h-[80px] w-full rounded-md border-[1.5px] border-notura-border bg-white px-4 py-3 text-sm text-notura-ink placeholder:text-notura-muted focus:border-violet-400 focus:outline-none focus:ring-3 focus:ring-violet-500/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         ref={ref}

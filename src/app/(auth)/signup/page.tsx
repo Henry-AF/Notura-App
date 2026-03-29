@@ -61,10 +61,10 @@ export default function SignupPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-semibold text-notura-ink">
+      <h1 className="font-display text-2xl font-bold text-notura-ink">
         Crie sua conta
       </h1>
-      <p className="mt-1.5 text-sm text-notura-muted">
+      <p className="mt-1.5 text-sm text-notura-secondary">
         Comece a economizar tempo nas suas reuniões.
       </p>
 
@@ -126,7 +126,7 @@ export default function SignupPage() {
 
       <div className="my-6 flex items-center gap-3">
         <Separator className="flex-1" />
-        <span className="text-xs text-notura-muted">ou</span>
+        <span className="text-xs text-notura-secondary">ou</span>
         <Separator className="flex-1" />
       </div>
 
@@ -156,9 +156,9 @@ export default function SignupPage() {
         Continuar com Google
       </Button>
 
-      <p className="mt-6 text-center text-sm text-notura-muted">
+      <p className="mt-6 text-center text-sm text-notura-secondary">
         Já tem uma conta?{" "}
-        <Link href="/login" className="font-medium text-notura-green hover:underline">
+        <Link href="/login" className="font-medium text-notura-primary hover:underline">
           Entrar
         </Link>
       </p>

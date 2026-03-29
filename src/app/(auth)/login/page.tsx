@@ -80,15 +80,15 @@ export default function LoginPage() {
   if (magicLinkSent) {
     return (
       <div className="text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-notura-green-light">
-          <svg className="h-7 w-7 text-notura-green" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
+          <svg className="h-7 w-7 text-violet-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0-8.69 5.76a2.25 2.25 0 0 1-2.5 0L2.25 6.75" />
           </svg>
         </div>
         <h1 className="mt-4 font-display text-2xl font-semibold text-notura-ink">
           Verifique seu email
         </h1>
-        <p className="mt-2 text-sm text-notura-muted">
+        <p className="mt-2 text-sm text-notura-secondary">
           Enviamos um link de acesso para <span className="font-medium text-notura-ink">{email}</span>.
           Clique no link para entrar.
         </p>
@@ -101,10 +101,10 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-semibold text-notura-ink">
+      <h1 className="font-display text-2xl font-bold text-notura-ink">
         Bem-vindo de volta
       </h1>
-      <p className="mt-1.5 text-sm text-notura-muted">
+      <p className="mt-1.5 text-sm text-notura-secondary">
         Entre na sua conta Notura.
       </p>
 
@@ -146,9 +146,9 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <button
+        <button
         onClick={handleMagicLink}
-        className="mt-3 w-full text-center text-sm text-notura-green hover:underline"
+        className="mt-3 w-full text-center text-sm text-notura-primary hover:underline font-medium"
         disabled={loading}
       >
         Entrar com link mágico (sem senha)
@@ -156,7 +156,7 @@ export default function LoginPage() {
 
       <div className="my-6 flex items-center gap-3">
         <Separator className="flex-1" />
-        <span className="text-xs text-notura-muted">ou</span>
+        <span className="text-xs text-notura-secondary">ou</span>
         <Separator className="flex-1" />
       </div>
 
@@ -174,9 +174,9 @@ export default function LoginPage() {
         Continuar com Google
       </Button>
 
-      <p className="mt-6 text-center text-sm text-notura-muted">
+      <p className="mt-6 text-center text-sm text-notura-secondary">
         Não tem uma conta?{" "}
-        <Link href="/signup" className="font-medium text-notura-green hover:underline">
+        <Link href="/signup" className="font-medium text-notura-primary hover:underline">
           Criar conta grátis
         </Link>
       </p>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   return (
-    <header className="fixed top-0 z-40 w-full border-b border-notura-border bg-white/80 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 w-full border-b border-[#F3F4F6] bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label="Notura home">
           <LogoFull iconSize={28} />

@@ -85,7 +85,7 @@ export default function OnboardingPage() {
             key={s}
             className={cn(
               "h-2 rounded-full transition-all",
-              s === step ? "w-8 bg-notura-green" : s < step ? "w-2 bg-notura-green" : "w-2 bg-notura-border"
+              s === step ? "w-8 bg-notura-primary" : s < step ? "w-2 bg-notura-primary" : "w-2 bg-notura-border"
             )}
           />
         ))}
@@ -94,13 +94,13 @@ export default function OnboardingPage() {
       {/* Step 1 — WhatsApp */}
       {step === 1 && (
         <div>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-notura-green-light">
-            <MessageCircle className="h-6 w-6 text-notura-green" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
+            <MessageCircle className="h-6 w-6 text-violet-600" />
           </div>
           <h1 className="mt-5 text-center font-display text-2xl font-semibold text-notura-ink">
             Seu número de WhatsApp
           </h1>
-          <p className="mt-2 text-center text-sm text-notura-muted">
+          <p className="mt-2 text-center text-sm text-notura-secondary">
             É para lá que enviaremos os resumos das reuniões.
           </p>
 
@@ -109,7 +109,7 @@ export default function OnboardingPage() {
               Número com DDD
             </label>
             <div className="flex gap-2">
-              <div className="flex h-10 items-center rounded-md border border-notura-border bg-notura-surface px-3 text-sm text-notura-muted">
+              <div className="flex h-11 items-center rounded-md border-[1.5px] border-notura-border bg-gray-50 px-3 text-sm text-notura-secondary">
                 +55
               </div>
               <Input
@@ -134,7 +134,7 @@ export default function OnboardingPage() {
 
           <button
             onClick={() => setStep(2)}
-            className="mt-3 w-full text-center text-sm text-notura-muted hover:text-notura-ink"
+            className="mt-3 w-full text-center text-sm text-notura-secondary hover:text-notura-ink"
           >
             Pular por enquanto
           </button>
@@ -144,13 +144,13 @@ export default function OnboardingPage() {
       {/* Step 2 — Plan */}
       {step === 2 && (
         <div>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-notura-green-light">
-            <Sparkles className="h-6 w-6 text-notura-green" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
+            <Sparkles className="h-6 w-6 text-violet-600" />
           </div>
           <h1 className="mt-5 text-center font-display text-2xl font-semibold text-notura-ink">
             Escolha seu plano
           </h1>
-          <p className="mt-2 text-center text-sm text-notura-muted">
+          <p className="mt-2 text-center text-sm text-notura-secondary">
             Você pode mudar a qualquer momento.
           </p>
 
@@ -161,7 +161,7 @@ export default function OnboardingPage() {
                 className={cn(
                   "cursor-pointer transition-all",
                   selectedPlan === plan.id
-                    ? "border-notura-green ring-1 ring-notura-green/20"
+                    ? "border-violet-500 ring-1 ring-violet-200"
                     : "hover:border-notura-muted/40"
                 )}
                 onClick={() => setSelectedPlan(plan.id)}
@@ -171,7 +171,7 @@ export default function OnboardingPage() {
                     className={cn(
                       "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors",
                       selectedPlan === plan.id
-                        ? "border-notura-green bg-notura-green"
+                        ? "border-violet-500 bg-violet-600"
                         : "border-notura-border"
                     )}
                   >
@@ -185,12 +185,12 @@ export default function OnboardingPage() {
                         {plan.name}
                       </span>
                       {plan.popular && (
-                        <span className="rounded-full bg-notura-green px-2 py-0.5 text-[10px] font-medium text-white">
+                        <span className="rounded-full bg-notura-primary px-2 py-0.5 text-[10px] font-semibold text-white">
                           Popular
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-notura-muted">{plan.desc}</p>
+                    <p className="text-xs text-notura-secondary">{plan.desc}</p>
                   </div>
                   <span className="text-sm font-semibold text-notura-ink">
                     {plan.price}
@@ -214,13 +214,13 @@ export default function OnboardingPage() {
       {/* Step 3 — Tutorial */}
       {step === 3 && (
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-notura-green-light">
-            <Check className="h-7 w-7 text-notura-green" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
+            <Check className="h-7 w-7 text-violet-600" />
           </div>
           <h1 className="mt-5 font-display text-2xl font-semibold text-notura-ink">
             Tudo pronto!
           </h1>
-          <p className="mt-2 text-sm text-notura-muted">
+          <p className="mt-2 text-sm text-notura-secondary">
             Agora é só fazer upload da gravação da sua reunião. Em poucos minutos, o resumo com
             decisões e tarefas chega no seu WhatsApp.
           </p>
@@ -232,7 +232,7 @@ export default function OnboardingPage() {
               "Receba o resumo no WhatsApp",
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-notura-green text-xs font-medium text-white">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
                   {i + 1}
                 </span>
                 <p className="text-sm text-notura-ink">{item}</p>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
 
 const plans = [
@@ -33,11 +34,85 @@ const plans = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<"free" | "pro" | "team">("free");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("free");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentVerifying, setPaymentVerifying] = useState(false);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const sessionId = searchParams.get("session_id");
+    const planParam = searchParams.get("plan");
+
+    if (planParam === "free" || planParam === "pro" || planParam === "team") {
+      setSelectedPlan(planParam);
+    }
+
+    if (payment === "canceled") {
+      setStep(2);
+      setError("Pagamento cancelado. Você pode tentar novamente quando quiser.");
+      window.history.replaceState({}, "", pathname);
+      return;
+    }
+
+    if (payment !== "success" || !sessionId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function verifyPayment() {
+      setStep(2);
+      setPaymentVerifying(true);
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/stripe/checkout/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || "Não foi possível confirmar o pagamento.");
+        }
+
+        if (!cancelled) {
+          setStep(3);
+          window.history.replaceState({}, "", pathname);
+        }
+      } catch (verifyError) {
+        if (!cancelled) {
+          const message =
+            verifyError instanceof Error
+              ? verifyError.message
+              : "Pagamento não confirmado.";
+          setError(message);
+          setStep(2);
+          window.history.replaceState({}, "", pathname);
+        }
+      } finally {
+        if (!cancelled) {
+          setPaymentVerifying(false);
+          setLoading(false);
+        }
+      }
+    }
+
+    void verifyPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, searchParams]);
 
   async function handleSavePhone() {
     setLoading(true);
@@ -63,8 +138,52 @@ export default function OnboardingPage() {
   async function handleSelectPlan() {
     setLoading(true);
     setError(null);
-    setLoading(false);
-    setStep(3);
+
+    if (selectedPlan === "free") {
+      setLoading(false);
+      setStep(3);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ plan: selectedPlan }),
+      });
+
+      const data = (await response.json()) as {
+        checkoutUrl?: string;
+        alreadyActive?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Falha ao iniciar o checkout.");
+      }
+
+      if (data.alreadyActive) {
+        setStep(3);
+        return;
+      }
+
+      if (!data.checkoutUrl) {
+        throw new Error("Checkout não retornou URL de redirecionamento.");
+      }
+
+      window.location.assign(data.checkoutUrl);
+      return;
+    } catch (checkoutError) {
+      const message =
+        checkoutError instanceof Error
+          ? checkoutError.message
+          : "Falha ao iniciar o pagamento.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -199,12 +318,24 @@ export default function OnboardingPage() {
             Esta etapa não libera acesso pago sozinha. O plano válido sempre vem do billing.
           </p>
 
+          {error && (
+            <p className="mt-3 text-center text-sm text-red-600">{error}</p>
+          )}
+
           <Button
             className="mt-6 w-full"
             onClick={handleSelectPlan}
-            disabled={loading}
+            disabled={loading || paymentVerifying}
           >
-            {loading ? "Salvando..." : "Continuar"}
+            {paymentVerifying
+              ? "Confirmando pagamento..."
+              : loading
+              ? selectedPlan === "free"
+                ? "Continuando..."
+                : "Redirecionando para pagamento..."
+              : selectedPlan === "free"
+              ? "Continuar"
+              : "Ir para pagamento"}
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </div>

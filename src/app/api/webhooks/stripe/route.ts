@@ -60,12 +60,25 @@ export async function POST(request: NextRequest) {
             ? session.customer
             : session.customer?.id ?? null;
 
+        const { data: existingBilling, error: existingBillingError } = await supabase
+          .from("billing_accounts")
+          .select("stripe_customer_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingBillingError) {
+          throw new Error(
+            `Failed to load billing account before webhook upsert: ${existingBillingError.message}`
+          );
+        }
+
         const { error } = await supabase
           .from("billing_accounts")
           .upsert({
             user_id: userId,
             plan,
-            stripe_customer_id: stripeCustomerId,
+            stripe_customer_id:
+              existingBilling?.stripe_customer_id ?? stripeCustomerId,
             updated_at: new Date().toISOString(),
           }, { onConflict: "user_id" });
 

@@ -72,13 +72,14 @@ export async function POST(request: NextRequest) {
     let customerId = billingAccount.abacatepay_customer_id;
 
     if (!customerId) {
+      const customerPhone = getAbacatePayCustomerPhone(
+        billingAccount,
+        user.phone || profile?.whatsapp_number || null
+      );
       const customer = await createAbacatePayCustomer({
         email: user.email,
         name: profile?.name || undefined,
-        cellphone: getAbacatePayCustomerPhone(
-          billingAccount,
-          user.phone || profile?.whatsapp_number || null
-        ),
+        cellphone: customerPhone,
         metadata: {
           userId: user.id,
           origin: "onboarding",
@@ -142,7 +143,12 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[abacatepay-checkout] Failed to create checkout session:", message);
     return NextResponse.json(
-      { error: "Falha ao iniciar pagamento com AbacatePay." },
+      {
+        error:
+          process.env.NODE_ENV === "development"
+            ? `Falha ao iniciar pagamento com AbacatePay: ${message}`
+            : "Falha ao iniciar pagamento com AbacatePay.",
+      },
       { status: 500 }
     );
   }

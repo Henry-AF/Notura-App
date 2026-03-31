@@ -19,7 +19,7 @@ export function getSupabaseBrowserConfig() {
 }
 
 export function getSupabaseServiceRoleKey(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key)
     throw new Error(
       "Missing environment variable SUPABASE_SERVICE_ROLE_KEY. Add it to .env.local and restart the dev server.",

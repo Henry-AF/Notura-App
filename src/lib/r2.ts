@@ -9,6 +9,8 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import https from "https";
 
 const r2Client = new S3Client({
   region: "auto",
@@ -17,6 +19,13 @@ const r2Client = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  // Em desenvolvimento, ignora erros de certificado causados por proxies corporativos.
+  // Em produção (Vercel) rejectUnauthorized fica true (padrão seguro).
+  ...(process.env.NODE_ENV === "development" && {
+    requestHandler: new NodeHttpHandler({
+      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    }),
+  }),
 });
 
 const BUCKET = process.env.R2_BUCKET_NAME || "notura-audio";

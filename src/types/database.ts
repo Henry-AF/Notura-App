@@ -42,6 +42,9 @@ export interface Database {
           plan: string
           meetings_this_month: number
           stripe_customer_id: string | null
+          abacatepay_customer_id: string | null
+          abacatepay_pending_checkout_id: string | null
+          abacatepay_pending_plan: string | null
           created_at: string
           updated_at: string
         }
@@ -50,6 +53,9 @@ export interface Database {
           plan?: string
           meetings_this_month?: number
           stripe_customer_id?: string | null
+          abacatepay_customer_id?: string | null
+          abacatepay_pending_checkout_id?: string | null
+          abacatepay_pending_plan?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -58,6 +64,9 @@ export interface Database {
           plan?: string
           meetings_this_month?: number
           stripe_customer_id?: string | null
+          abacatepay_customer_id?: string | null
+          abacatepay_pending_checkout_id?: string | null
+          abacatepay_pending_plan?: string | null
           created_at?: string
           updated_at?: string
         }

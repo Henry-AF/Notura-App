@@ -45,7 +45,6 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const payment = searchParams.get("payment");
-    const sessionId = searchParams.get("session_id");
     const planParam = searchParams.get("plan");
 
     if (planParam === "free" || planParam === "pro" || planParam === "team") {
@@ -59,7 +58,7 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (payment !== "success" || !sessionId) {
+    if (payment !== "success") {
       return;
     }
 
@@ -72,12 +71,8 @@ export default function OnboardingPage() {
       setError(null);
 
       try {
-        const response = await fetch("/api/stripe/checkout/verify", {
+        const response = await fetch("/api/abacatepay/checkout/verify", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ sessionId }),
         });
 
         const data = (await response.json()) as { error?: string };
@@ -146,7 +141,7 @@ export default function OnboardingPage() {
     }
 
     try {
-      const response = await fetch("/api/stripe/checkout", {
+      const response = await fetch("/api/abacatepay/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,7 +260,7 @@ export default function OnboardingPage() {
             Escolha seu plano
           </h1>
           <p className="mt-2 text-center text-sm text-notura-muted">
-            A ativação real do plano acontece no checkout e é confirmada pelo servidor.
+            A assinatura é gerada no checkout do AbacatePay e confirmada no backend antes de liberar acesso.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -315,7 +310,7 @@ export default function OnboardingPage() {
           </div>
 
           <p className="mt-4 text-center text-xs text-notura-muted">
-            Esta etapa não libera acesso pago sozinha. O plano válido sempre vem do billing.
+            Esta etapa não libera acesso pago sozinha. O plano válido só muda após confirmação do pagamento pelo gateway.
           </p>
 
           {error && (

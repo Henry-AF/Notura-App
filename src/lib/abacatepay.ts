@@ -1,8 +1,9 @@
 import type { BillingAccount, Plan } from "@/types/database";
 
-const ABACATEPAY_API_BASE_URL =
-  process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v1";
-const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
+const ABACATEPAY_API_BASE_URL = (
+  process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v1"
+).trim();
+const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY?.trim();
 
 const ABACATEPAY_PLAN_PRODUCT_IDS: Record<Exclude<Plan, "free">, string> = {
   pro:
@@ -15,6 +16,9 @@ const ABACATEPAY_PLAN_PRODUCT_IDS: Record<Exclude<Plan, "free">, string> = {
 
 interface AbacatePayEnvelope<T> {
   data: T;
+  error?: {
+    message?: string;
+  };
 }
 
 interface AbacatePayCustomer {
@@ -47,17 +51,27 @@ function getHeaders(): HeadersInit {
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = (await response.json()) as
     | AbacatePayEnvelope<T>
-    | { error?: { message?: string } };
+    | { error?: { message?: string }; message?: string };
 
   if (!response.ok) {
     const message =
       "error" in data && data.error?.message
         ? data.error.message
+        : "message" in data && typeof data.message === "string"
+          ? data.message
         : `HTTP ${response.status}`;
     throw new Error(message);
   }
 
-  if (!("data" in data)) {
+  if (
+    "error" in data &&
+    data.error?.message &&
+    (!("data" in data) || typeof data.data === "undefined")
+  ) {
+    throw new Error(data.error.message);
+  }
+
+  if (!("data" in data) || typeof data.data === "undefined") {
     throw new Error("AbacatePay response missing data payload");
   }
 
@@ -84,11 +98,9 @@ export async function createAbacatePayCustomer(input: {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
-        data: {
-          email: input.email,
-          ...(input.name ? { name: input.name } : {}),
-          ...(input.cellphone ? { cellphone: input.cellphone } : {}),
-        },
+        email: input.email,
+        ...(input.name ? { name: input.name } : {}),
+        ...(input.cellphone ? { cellphone: input.cellphone } : {}),
         ...(input.metadata ? { metadata: input.metadata } : {}),
       }),
     }

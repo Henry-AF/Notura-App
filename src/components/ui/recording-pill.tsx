@@ -20,7 +20,7 @@ function RecordingPill({ elapsedSeconds, onStop, className }: RecordingPillProps
   return (
     <div
       className={cn(
-        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-notura-green px-5 py-2.5 text-white shadow-elevated",
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-violet-600 px-5 py-2.5 text-white shadow-glow",
         className
       )}
     >

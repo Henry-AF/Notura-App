@@ -173,7 +173,7 @@ function priorityLabel(p: Priority) {
 }
 
 function dueDateColor(dueDate: string | null): string {
-  if (!dueDate) return "text-notura-muted";
+  if (!dueDate) return "text-notura-secondary";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate);
@@ -183,7 +183,7 @@ function dueDateColor(dueDate: string | null): string {
 
   if (daysDiff < 0) return "text-red-600 font-medium";
   if (daysDiff === 0) return "text-amber-600 font-medium";
-  return "text-notura-muted";
+  return "text-notura-secondary";
 }
 
 function dueDateLabel(dueDate: string | null): string {
@@ -207,13 +207,13 @@ function EmptyState() {
   return (
     <Card className="mt-6">
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-notura-green-light">
-          <CheckCircle className="h-8 w-8 text-notura-green" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100">
+          <CheckCircle className="h-8 w-8 text-violet-600" />
         </div>
         <h3 className="mt-4 font-display text-lg font-semibold text-notura-ink">
           Nenhuma tarefa pendente — você está em dia
         </h3>
-        <p className="mt-2 max-w-sm text-sm text-notura-muted">
+        <p className="mt-2 max-w-sm text-sm text-notura-secondary">
           As tarefas extraídas das suas reuniões aparecerão aqui
           automaticamente.
         </p>
@@ -285,10 +285,10 @@ export default function TasksPage() {
     <div>
       {/* Header */}
       <div>
-        <h1 className="font-display text-2xl font-semibold text-notura-ink">
+        <h1 className="font-display text-2xl font-bold text-notura-ink">
           Tarefas
         </h1>
-        <p className="mt-1 text-sm text-notura-muted">
+        <p className="mt-1 text-sm text-notura-secondary">
           Todas as tarefas extraídas das suas reuniões
         </p>
       </div>
@@ -296,7 +296,7 @@ export default function TasksPage() {
       {/* Filter bar */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Status filter — button group */}
-        <div className="flex rounded-md border border-notura-border bg-white">
+        <div className="flex rounded-lg border border-notura-border bg-white">
           {(
             [
               { key: "todas", label: "Todas" },
@@ -308,10 +308,10 @@ export default function TasksPage() {
               key={key}
               onClick={() => setStatusFilter(key)}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-md last:rounded-r-md",
+                "px-3 py-1.5 text-sm font-medium transition-all first:rounded-l-lg last:rounded-r-lg",
                 statusFilter === key
-                  ? "bg-notura-green text-white"
-                  : "text-notura-muted hover:bg-notura-surface hover:text-notura-ink"
+                  ? "bg-notura-primary text-white"
+                  : "text-notura-secondary hover:bg-gray-50 hover:text-notura-ink"
               )}
             >
               {label}
@@ -375,7 +375,7 @@ export default function TasksPage() {
                     <p
                       className={cn(
                         "text-sm text-notura-ink",
-                        isChecked && "line-through text-notura-muted"
+                        isChecked && "line-through text-notura-secondary"
                       )}
                     >
                       {task.description}
@@ -383,7 +383,7 @@ export default function TasksPage() {
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Link
                         href={`/dashboard/meetings/${task.meeting_id}`}
-                        className="text-xs text-notura-green hover:underline"
+                        className="text-xs text-notura-primary hover:underline"
                       >
                         {task.meeting_title}
                       </Link>
@@ -397,7 +397,7 @@ export default function TasksPage() {
                               {getInitials(task.owner)}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-xs text-notura-muted">
+                          <span className="text-xs text-notura-secondary">
                             {task.owner}
                           </span>
                         </div>

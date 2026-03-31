@@ -49,9 +49,9 @@ export function SocialProof() {
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.5 }}
         >
-          <span className="text-sm text-notura-muted">Usado por profissionais de</span>
+          <span className="text-sm text-notura-secondary">Usado por profissionais de</span>
           {segments.map((seg) => (
-            <Badge key={seg} variant="completed">
+            <Badge key={seg} variant="default">
               {seg}
             </Badge>
           ))}
@@ -78,8 +78,8 @@ export function SocialProof() {
                       <AvatarFallback name={t.name} />
                     </Avatar>
                     <div>
-                      <p className="text-sm font-medium text-notura-ink">{t.name}</p>
-                      <p className="text-xs text-notura-muted">
+                      <p className="text-sm font-semibold text-notura-ink">{t.name}</p>
+                      <p className="text-xs text-notura-secondary">
                         {t.role}, {t.company}
                       </p>
                     </div>

@@ -67,10 +67,10 @@ export default function SettingsPage() {
     <div>
       {/* Header */}
       <div>
-        <h1 className="font-display text-2xl font-semibold text-notura-ink">
+        <h1 className="font-display text-2xl font-bold text-notura-ink">
           Configurações
         </h1>
-        <p className="mt-1 text-sm text-notura-muted">
+        <p className="mt-1 text-sm text-notura-secondary">
           Gerencie seu perfil, integrações e plano
         </p>
       </div>
@@ -80,7 +80,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-notura-muted" />
+              <User className="h-5 w-5 text-notura-secondary" />
               Perfil
             </CardTitle>
             <CardDescription>
@@ -136,7 +136,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-notura-green" />
+              <MessageCircle className="h-5 w-5 text-violet-600" />
               WhatsApp
             </CardTitle>
             <CardDescription>
@@ -158,7 +158,7 @@ export default function SettingsPage() {
               <Button
                 variant="secondary"
                 size="md"
-                className="gap-2 border-notura-green text-notura-green hover:bg-notura-green-light"
+                className="gap-2"
                 onClick={handleTestWhatsapp}
                 disabled={testSending}
               >
@@ -168,11 +168,11 @@ export default function SettingsPage() {
             </div>
 
             {/* Connection status */}
-            <div className="flex items-center gap-2 rounded-md bg-notura-surface px-3 py-2.5">
+            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5">
               <span
                 className={cn(
                   "h-2.5 w-2.5 rounded-full",
-                  whatsappConnected ? "bg-notura-green" : "bg-red-500"
+                  whatsappConnected ? "bg-emerald-500" : "bg-red-500"
                 )}
               />
               <span className="text-sm text-notura-ink">
@@ -186,7 +186,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-notura-muted" />
+              <CreditCard className="h-5 w-5 text-notura-secondary" />
               Plano
             </CardTitle>
             <CardDescription>
@@ -196,8 +196,8 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-notura-green-light">
-                  <span className="font-display text-sm font-bold text-notura-green">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
+                  <span className="font-display text-sm font-bold text-violet-700">
                     {planName[0]}
                   </span>
                 </div>
@@ -205,7 +205,7 @@ export default function SettingsPage() {
                   <p className="font-medium text-notura-ink">
                     Plano {planName}
                   </p>
-                  <p className="text-xs text-notura-muted">
+                  <p className="text-xs text-notura-secondary">
                     R$ 79/mês
                   </p>
                 </div>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
 
             <div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">
+                <span className="text-notura-secondary">
                   {meetingsUsed} de {meetingsLimit} reuniões este mês
                 </span>
                 <span className="font-medium text-notura-ink">
@@ -236,7 +236,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-notura-muted" />
+              <Bell className="h-5 w-5 text-notura-secondary" />
               Notificações
             </CardTitle>
             <CardDescription>
@@ -249,7 +249,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-notura-ink">
                   Receber resumo no WhatsApp
                 </p>
-                <p className="text-xs text-notura-muted">
+                <p className="text-xs text-notura-secondary">
                   Enviar automaticamente após processar a reunião
                 </p>
               </div>
@@ -264,7 +264,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-notura-ink">
                   Receber email como backup
                 </p>
-                <p className="text-xs text-notura-muted">
+                <p className="text-xs text-notura-secondary">
                   Cópia do resumo enviada para seu email
                 </p>
               </div>
@@ -280,7 +280,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Plug className="h-5 w-5 text-notura-muted" />
+              <Plug className="h-5 w-5 text-notura-secondary" />
               Integrações
             </CardTitle>
             <CardDescription>
@@ -296,7 +296,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-notura-ink">Zoom</p>
-                  <p className="text-xs text-notura-muted">
+                  <p className="text-xs text-notura-secondary">
                     Importar gravações automaticamente
                   </p>
                 </div>
@@ -318,7 +318,7 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-notura-ink">
                     Google Calendar
                   </p>
-                  <p className="text-xs text-notura-muted">
+                  <p className="text-xs text-notura-secondary">
                     Sincronizar reuniões automaticamente
                   </p>
                 </div>
@@ -336,7 +336,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-notura-ink">Slack</p>
-                  <p className="text-xs text-notura-muted">
+                  <p className="text-xs text-notura-secondary">
                     Enviar resumos para canais
                   </p>
                 </div>

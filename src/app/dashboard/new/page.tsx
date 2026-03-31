@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Upload,
   FileAudio,
@@ -43,14 +44,15 @@ const ACCEPTED_EXTENSIONS = ".mp3,.mp4,.m4a,.webm,.wav,.ogg";
 // ─── Upload Tab ─────────────────────────────────────────────────────────────
 
 function UploadTab() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [meetingName, setMeetingName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [clientName, setClientName] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -83,22 +85,53 @@ function UploadTab() {
     if (!file) return;
     setUploading(true);
     setUploadProgress(0);
-    // Mock upload progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 400);
-  }, [file]);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append("audio", file);
+    if (clientName.trim()) formData.append("client_name", clientName.trim());
+    if (meetingDate) formData.append("meeting_date", meetingDate);
+    formData.append("whatsapp_number", whatsappNumber.trim());
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status === 201) {
+        const data = JSON.parse(xhr.responseText) as { meetingId: string };
+        router.push(`/dashboard/meetings/${data.meetingId}`);
+      } else {
+        let message = "Erro ao enviar arquivo. Tente novamente.";
+        try {
+          const data = JSON.parse(xhr.responseText) as { error?: string };
+          if (data.error) message = data.error;
+        } catch { /* ignore */ }
+        setUploadError(message);
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      setUploadError("Falha de conexão. Verifique sua internet e tente novamente.");
+      setUploading(false);
+      setUploadProgress(0);
+    });
+
+    xhr.open("POST", "/api/meetings/upload");
+    xhr.send(formData);
+  }, [file, clientName, meetingDate, whatsappNumber, router]);
 
   const removeFile = useCallback(() => {
     setFile(null);
     setUploading(false);
     setUploadProgress(0);
+    setUploadError(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -175,16 +208,6 @@ function UploadTab() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-            Nome da reunião
-          </label>
-          <Input
-            placeholder="Ex: Alinhamento semanal"
-            value={meetingName}
-            onChange={(e) => setMeetingName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-notura-ink">
             Data
           </label>
           <Input
@@ -215,9 +238,13 @@ function UploadTab() {
         </div>
       </div>
 
+      {uploadError && (
+        <p className="text-sm text-red-500">{uploadError}</p>
+      )}
+
       <Button
         onClick={handleProcess}
-        disabled={!file || uploading}
+        disabled={!file || uploading || !whatsappNumber.trim()}
         className="w-full gap-2 sm:w-auto"
       >
         <Upload className="h-4 w-4" />

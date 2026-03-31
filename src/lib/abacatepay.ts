@@ -3,15 +3,11 @@ import type { BillingAccount, Plan } from "@/types/database";
 const ABACATEPAY_API_BASE_URL = (
   process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v1"
 ).trim();
-const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY?.trim();
+const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
 
 const ABACATEPAY_PLAN_PRODUCT_IDS: Record<Exclude<Plan, "free">, string> = {
-  pro:
-    process.env.ABACATEPAY_PRO_PRODUCT_ID ||
-    "prod_fHtaXN4CEdJkwHbjJtfEgSdh",
-  team:
-    process.env.ABACATEPAY_PLATINUM_PRODUCT_ID ||
-    "prod_p13USCHyJHZE4N0uFuALtQAW",
+  pro: process.env.ABACATEPAY_PRO_PRODUCT_ID || "",
+  team: process.env.ABACATEPAY_PLATINUM_PRODUCT_ID || ""
 };
 
 interface AbacatePayEnvelope<T> {

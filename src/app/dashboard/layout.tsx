@@ -70,10 +70,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-notura-green-light text-notura-green"
-                  : "text-notura-muted hover:bg-notura-surface hover:text-notura-ink"
+                  ? "bg-violet-50 text-violet-700 border-l-2 border-violet-600"
+                  : "text-notura-secondary hover:bg-gray-50 hover:text-notura-ink"
               )}
             >
               <Icon className="h-[18px] w-[18px]" />
@@ -116,9 +116,9 @@ export default function DashboardLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-notura-surface">
+    <div className="flex h-screen overflow-hidden bg-notura-bg">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r border-notura-border bg-white lg:block">
+      <aside className="hidden w-60 shrink-0 border-r border-[#F3F4F6] bg-white lg:block">
         <SidebarContent />
       </aside>
 
@@ -133,14 +133,14 @@ export default function DashboardLayout({
       {/* Mobile sidebar drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r border-notura-border bg-white transition-transform duration-200 ease-in-out lg:hidden",
+          "fixed inset-y-0 left-0 z-50 w-64 border-r border-[#F3F4F6] bg-white transition-transform duration-200 ease-in-out lg:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="absolute right-3 top-5">
           <button
             onClick={() => setMobileOpen(false)}
-            className="rounded-md p-1 text-notura-muted hover:bg-notura-surface hover:text-notura-ink"
+            className="rounded-md p-1 text-notura-secondary hover:bg-gray-50 hover:text-notura-ink"
           >
             <X className="h-5 w-5" />
           </button>
@@ -151,10 +151,10 @@ export default function DashboardLayout({
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <header className="flex h-14 items-center gap-3 border-b border-notura-border bg-white px-4 lg:hidden">
+        <header className="flex h-14 items-center gap-3 border-b border-[#F3F4F6] bg-white px-4 lg:hidden">
           <button
             onClick={() => setMobileOpen(true)}
-            className="rounded-md p-1.5 text-notura-muted hover:bg-notura-surface hover:text-notura-ink"
+            className="rounded-md p-1.5 text-notura-secondary hover:bg-gray-50 hover:text-notura-ink"
           >
             <Menu className="h-5 w-5" />
           </button>

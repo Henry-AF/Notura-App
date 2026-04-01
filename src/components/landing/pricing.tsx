@@ -61,10 +61,10 @@ const fadeUp = {
 
 export function Pricing() {
   return (
-    <section className="bg-notura-surface px-4 py-20 sm:px-6 lg:px-8" id="pricing">
+    <section className="bg-notura-bg px-4 py-24 sm:px-6 lg:px-8" id="pricing">
       <div className="mx-auto max-w-5xl">
         <motion.h2
-          className="text-center font-display text-3xl font-semibold text-notura-ink sm:text-4xl"
+          className="text-center font-display text-3xl font-bold text-notura-ink sm:text-4xl"
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
@@ -74,7 +74,7 @@ export function Pricing() {
           Planos simples, sem surpresas
         </motion.h2>
         <motion.p
-          className="mx-auto mt-3 max-w-lg text-center text-notura-muted"
+          className="mx-auto mt-3 max-w-lg text-center text-notura-secondary"
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
@@ -98,31 +98,31 @@ export function Pricing() {
                 className={cn(
                   "relative h-full flex flex-col",
                   plan.highlighted &&
-                    "border-notura-green shadow-elevated ring-1 ring-notura-green/20"
+                    "border-violet-400 shadow-glow ring-1 ring-violet-200"
                 )}
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-notura-green px-3 py-0.5 text-xs font-medium text-white">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-notura-primary px-3 py-0.5 text-xs font-semibold text-white whitespace-nowrap">
                     Mais popular
                   </div>
                 )}
                 <CardHeader>
                   <CardTitle className="text-base">{plan.name}</CardTitle>
                   <div className="mt-2 flex items-baseline gap-1">
-                    <span className="font-display text-3xl font-semibold text-notura-ink">
+                    <span className="font-display text-3xl font-bold text-notura-ink">
                       {plan.price}
                     </span>
                     {plan.period && (
-                      <span className="text-sm text-notura-muted">{plan.period}</span>
+                      <span className="text-sm text-notura-secondary">{plan.period}</span>
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-notura-muted">{plan.description}</p>
+                  <p className="mt-1 text-sm text-notura-secondary">{plan.description}</p>
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col">
                   <ul className="flex-1 space-y-2.5">
                     {plan.features.map((f) => (
                       <li key={f} className="flex items-start gap-2 text-sm text-notura-ink">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-notura-green" />
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
                         {f}
                       </li>
                     ))}

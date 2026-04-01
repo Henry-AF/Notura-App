@@ -218,7 +218,14 @@ export function getAbacatePayCustomerPhone(
   billingAccount: BillingAccount,
   phone?: string | null
 ): string | null {
-  return billingAccount.abacatepay_customer_id
-    ? null
-    : phone || null;
+  if (billingAccount.abacatepay_customer_id || !phone) {
+    return null;
+  }
+
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    return digits.slice(2);
+  }
+
+  return digits || null;
 }

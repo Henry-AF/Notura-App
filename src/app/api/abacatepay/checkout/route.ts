@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
       {
         id: user.id,
         email: user.email ?? null,
-        phone: user.phone ?? null,
       },
       customerContext,
       {

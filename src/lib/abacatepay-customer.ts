@@ -14,7 +14,6 @@ const DEFAULT_WAIT_FOR_CUSTOMER_SYNC_MS = 5_500;
 export interface AbacatePayAuthenticatedUser {
   id: string;
   email: string | null;
-  phone: string | null;
 }
 
 export interface AbacatePayCustomerContext {
@@ -285,7 +284,7 @@ export async function ensureAbacatePayCustomer(
   try {
     const customerPhone = getAbacatePayCustomerPhone(
       context.billingAccount,
-      user.phone || context.profile?.whatsapp_number || null
+      context.profile?.whatsapp_number || null
     );
     const customer = await createAbacatePayCustomer({
       email: user.email,

@@ -29,7 +29,6 @@ export async function POST() {
       {
         id: user.id,
         email: user.email ?? null,
-        phone: user.phone ?? null,
       },
       context
     );

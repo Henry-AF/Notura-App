@@ -34,7 +34,7 @@ const Toast = React.forwardRef<
       "group pointer-events-auto relative flex w-full items-center gap-3 overflow-hidden rounded-lg border p-4 shadow-elevated transition-all data-[state=open]:animate-slide-up data-[state=closed]:animate-fade-in",
       {
         "border-notura-border bg-white": variant === "default",
-        "border-green-200 bg-notura-green-light": variant === "success",
+        "border-violet-200 bg-violet-50": variant === "success",
         "border-red-200 bg-red-50": variant === "error",
       },
       className

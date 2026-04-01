@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Upload,
   FileAudio,
@@ -43,14 +44,15 @@ const ACCEPTED_EXTENSIONS = ".mp3,.mp4,.m4a,.webm,.wav,.ogg";
 // ─── Upload Tab ─────────────────────────────────────────────────────────────
 
 function UploadTab() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [meetingName, setMeetingName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [clientName, setClientName] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -83,22 +85,53 @@ function UploadTab() {
     if (!file) return;
     setUploading(true);
     setUploadProgress(0);
-    // Mock upload progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 400);
-  }, [file]);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append("audio", file);
+    if (clientName.trim()) formData.append("client_name", clientName.trim());
+    if (meetingDate) formData.append("meeting_date", meetingDate);
+    formData.append("whatsapp_number", whatsappNumber.trim());
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status === 201) {
+        const data = JSON.parse(xhr.responseText) as { meetingId: string };
+        router.push(`/dashboard/meetings/${data.meetingId}`);
+      } else {
+        let message = "Erro ao enviar arquivo. Tente novamente.";
+        try {
+          const data = JSON.parse(xhr.responseText) as { error?: string };
+          if (data.error) message = data.error;
+        } catch { /* ignore */ }
+        setUploadError(message);
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      setUploadError("Falha de conexão. Verifique sua internet e tente novamente.");
+      setUploading(false);
+      setUploadProgress(0);
+    });
+
+    xhr.open("POST", "/api/meetings/upload");
+    xhr.send(formData);
+  }, [file, clientName, meetingDate, whatsappNumber, router]);
 
   const removeFile = useCallback(() => {
     setFile(null);
     setUploading(false);
     setUploadProgress(0);
+    setUploadError(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -112,19 +145,19 @@ function UploadTab() {
           onDragLeave={handleDragLeave}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition-colors",
+            "flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition-all",
             dragActive
-              ? "border-notura-green bg-notura-green-light/50"
-              : "border-notura-border bg-notura-surface hover:border-notura-green/40 hover:bg-notura-green-light/20"
+              ? "border-violet-400 bg-violet-50"
+              : "border-notura-border bg-gray-50 hover:border-violet-300 hover:bg-violet-50/40"
           )}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-notura-green-light">
-            <Upload className="h-6 w-6 text-notura-green" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-violet-100">
+            <Upload className="h-6 w-6 text-violet-600" />
           </div>
           <p className="mt-4 text-sm font-medium text-notura-ink">
             Arraste o áudio aqui ou clique para escolher
           </p>
-          <p className="mt-1.5 text-xs text-notura-muted">
+          <p className="mt-1.5 text-xs text-notura-secondary">
             MP3, MP4, M4A, WEBM, WAV, OGG — máx. 500MB
           </p>
           <input
@@ -138,20 +171,20 @@ function UploadTab() {
       ) : (
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-notura-green-light">
-              <FileAudio className="h-5 w-5 text-notura-green" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100">
+              <FileAudio className="h-5 w-5 text-violet-600" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-notura-ink">
                 {file.name}
               </p>
-              <p className="text-xs text-notura-muted">
+              <p className="text-xs text-notura-secondary">
                 {formatFileSize(file.size)}
               </p>
               {uploading && (
                 <div className="mt-2">
                   <Progress value={Math.min(uploadProgress, 100)} />
-                  <p className="mt-1 text-xs text-notura-muted">
+                  <p className="mt-1 text-xs text-notura-secondary">
                     {uploadProgress >= 100
                       ? "Upload concluído — processando..."
                       : `Enviando... ${Math.round(Math.min(uploadProgress, 100))}%`}
@@ -162,7 +195,7 @@ function UploadTab() {
             {!uploading && (
               <button
                 onClick={removeFile}
-                className="shrink-0 rounded-md p-1.5 text-notura-muted hover:bg-notura-surface hover:text-notura-ink"
+                className="shrink-0 rounded-md p-1.5 text-notura-secondary hover:bg-gray-100 hover:text-notura-ink"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -173,16 +206,6 @@ function UploadTab() {
 
       {/* Form fields */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-            Nome da reunião
-          </label>
-          <Input
-            placeholder="Ex: Alinhamento semanal"
-            value={meetingName}
-            onChange={(e) => setMeetingName(e.target.value)}
-          />
-        </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-notura-ink">
             Data
@@ -215,9 +238,13 @@ function UploadTab() {
         </div>
       </div>
 
+      {uploadError && (
+        <p className="text-sm text-red-500">{uploadError}</p>
+      )}
+
       <Button
         onClick={handleProcess}
-        disabled={!file || uploading}
+        disabled={!file || uploading || !whatsappNumber.trim()}
         className="w-full gap-2 sm:w-auto"
       >
         <Upload className="h-4 w-4" />
@@ -256,9 +283,9 @@ function GoogleMeetTab() {
             </a>
           </Button>
 
-          <div className="flex items-center gap-2 rounded-md bg-notura-surface px-3 py-2.5">
+          <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5">
             <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
-            <span className="text-sm text-notura-muted">
+            <span className="text-sm text-notura-secondary">
               Extensão não detectada
             </span>
           </div>
@@ -267,8 +294,8 @@ function GoogleMeetTab() {
 
       <Card className="border-dashed">
         <CardContent className="py-8 text-center">
-          <Monitor className="mx-auto h-8 w-8 text-notura-muted" />
-          <p className="mt-3 text-sm text-notura-muted">
+          <Monitor className="mx-auto h-8 w-8 text-notura-secondary" />
+          <p className="mt-3 text-sm text-notura-secondary">
             Após instalar a extensão, suas reuniões do Google Meet aparecerão
             aqui automaticamente.
           </p>
@@ -312,7 +339,7 @@ function ZoomTab() {
           <ol className="space-y-3">
             {steps.map((step, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-notura-green-light text-xs font-semibold text-notura-green">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">
                   {i + 1}
                 </span>
                 <span className="text-sm text-notura-ink leading-relaxed">
@@ -345,10 +372,10 @@ export default function NewMeetingPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="font-display text-2xl font-semibold text-notura-ink">
+          <h1 className="font-display text-2xl font-bold text-notura-ink">
             Nova Reunião
           </h1>
-          <p className="mt-0.5 text-sm text-notura-muted">
+          <p className="mt-0.5 text-sm text-notura-secondary">
             Escolha como deseja capturar sua reunião
           </p>
         </div>

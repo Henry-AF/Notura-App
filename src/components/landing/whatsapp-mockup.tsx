@@ -4,9 +4,8 @@ export function WhatsAppMockup() {
   return (
     <div className="w-full max-w-sm">
       {/* Phone frame */}
-      <div className="rounded-2xl border border-notura-border bg-[#ECE5DD] p-3 shadow-elevated">
-        {/* Header bar */}
-        <div className="flex items-center gap-3 rounded-t-xl bg-[#075E54] px-4 py-3">
+      <div className="rounded-2xl border border-[#F3F4F6] bg-[#ECE5DD] p-3 shadow-xl animate-float">
+          <div className="flex items-center gap-3 rounded-t-xl bg-[#075E54] px-4 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
             <svg width="20" height="20" viewBox="0 0 40 40" fill="none">
               <rect width="40" height="40" rx="10" fill="white" fillOpacity="0.3" />

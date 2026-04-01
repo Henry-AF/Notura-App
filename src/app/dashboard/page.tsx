@@ -183,14 +183,14 @@ function MetricCard({
           className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
             accent
-              ? "bg-notura-green-light text-notura-green"
-              : "bg-notura-surface text-notura-muted"
+              ? "bg-violet-100 text-violet-600"
+              : "bg-gray-100 text-notura-secondary"
           )}
         >
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-xs text-notura-muted">{label}</p>
+          <p className="text-xs text-notura-secondary">{label}</p>
           <p className="mt-0.5 font-display text-xl font-semibold text-notura-ink">
             {value}
           </p>
@@ -208,17 +208,17 @@ function EmptyState() {
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
         {/* CSS illustration */}
         <div className="relative mb-6">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-notura-green-light">
-            <FileAudio className="h-10 w-10 text-notura-green" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-violet-100">
+            <FileAudio className="h-10 w-10 text-violet-600" />
           </div>
-          <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-notura-green text-white shadow-subtle">
+          <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-notura-primary text-white shadow-md">
             <Plus className="h-4 w-4" />
           </div>
         </div>
         <h3 className="font-display text-lg font-semibold text-notura-ink">
           Sua primeira reunião está a um clique
         </h3>
-        <p className="mt-2 max-w-sm text-sm text-notura-muted">
+        <p className="mt-2 max-w-sm text-sm text-notura-secondary">
           Faça upload de um áudio ou conecte seu Google Meet para começar a
           receber resumos automáticos no WhatsApp.
         </p>
@@ -244,10 +244,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-notura-ink">
+          <h1 className="font-display text-2xl font-bold text-notura-ink">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-notura-muted">
+          <p className="mt-1 text-sm text-notura-secondary">
             Visão geral das suas reuniões e tarefas
           </p>
         </div>
@@ -299,7 +299,7 @@ export default function DashboardPage() {
             </h2>
             <Link
               href="/dashboard"
-              className="flex items-center gap-1 text-sm font-medium text-notura-green hover:text-notura-green-dark"
+              className="flex items-center gap-1 text-sm font-medium text-notura-primary hover:text-notura-primary-dark"
             >
               Ver todas
               <ArrowRight className="h-3.5 w-3.5" />
@@ -316,7 +316,7 @@ export default function DashboardPage() {
                       <p className="truncate font-medium text-notura-ink">
                         {meeting.title}
                       </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-notura-muted">
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-notura-secondary">
                         <span>{formatRelativeTime(meeting.created_at)}</span>
                         {meeting.duration_seconds && (
                           <>

@@ -9,23 +9,12 @@ import {
   Download,
   RefreshCw,
   CheckCircle,
-  Circle,
   AlertCircle,
   Cpu,
-  ListTodo,
+  FileText,
+  Sparkles,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   cn,
   formatDate,
@@ -39,80 +28,80 @@ import type { MeetingWithRelations, MeetingJSON } from "@/types/database";
 
 function ProcessingState({ currentStep }: { currentStep: number }) {
   const steps = [
-    { label: "Transcrevendo", icon: Circle },
-    { label: "Resumindo", icon: Circle },
-    { label: "Enviando no WhatsApp", icon: Circle },
+    { label: "Transcrevendo" },
+    { label: "Resumindo" },
+    { label: "Enviando no WhatsApp" },
   ];
 
   return (
-    <Card className="border-notura-green/20 bg-notura-green-light/30">
-      <CardContent className="flex flex-col items-center py-12">
-        {/* Audio waveform animation */}
-        <div className="mb-6 flex items-center gap-1">
-          {[...Array(7)].map((_, i) => (
-            <div
-              key={i}
-              className="w-1 rounded-full bg-notura-green"
-              style={{
-                height: `${16 + Math.sin(i * 0.8) * 12}px`,
-                animation: `waveform 1.2s ease-in-out ${i * 0.1}s infinite alternate`,
-              }}
-            />
-          ))}
-        </div>
+    <div className="flex flex-col items-center rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-10">
+      {/* Audio waveform animation */}
+      <div className="mb-6 flex items-end gap-1">
+        {[...Array(7)].map((_, i) => (
+          <div
+            key={i}
+            className="w-1 rounded-full bg-[#4648d4]"
+            style={{
+              height: `${16 + Math.sin(i * 0.8) * 12}px`,
+              animation: `waveform 1.2s ease-in-out ${i * 0.1}s infinite alternate`,
+            }}
+          />
+        ))}
+      </div>
 
-        <h3 className="font-display text-lg font-semibold text-notura-ink">
-          Processando sua reunião...
-        </h3>
-        <p className="mt-1 text-sm text-notura-muted">
-          Isso geralmente leva de 2 a 5 minutos
-        </p>
+      <h3 className="font-manrope font-extrabold text-lg text-[#1c1b1b] tracking-[-0.3px]">
+        Processando sua reunião...
+      </h3>
+      <p className="mt-1 text-sm text-[#464554]">
+        Isso geralmente leva de 2 a 5 minutos
+      </p>
 
-        {/* Step indicators */}
-        <div className="mt-8 space-y-3">
-          {steps.map((step, i) => {
-            const isActive = i === currentStep;
-            const isDone = i < currentStep;
-            return (
-              <div key={i} className="flex items-center gap-3">
-                {isDone ? (
-                  <CheckCircle className="h-5 w-5 text-notura-green" />
-                ) : isActive ? (
-                  <div className="h-5 w-5 animate-pulse rounded-full border-2 border-notura-green bg-notura-green-light" />
-                ) : (
-                  <Circle className="h-5 w-5 text-notura-muted/40" />
+      {/* Step indicators */}
+      <div className="mt-8 w-full max-w-xs space-y-3">
+        {steps.map((step, i) => {
+          const isActive = i === currentStep;
+          const isDone = i < currentStep;
+          return (
+            <div key={i} className="flex items-center gap-3">
+              {isDone ? (
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4648d4]">
+                  <CheckCircle className="h-3 w-3 text-white" />
+                </div>
+              ) : isActive ? (
+                <div className="h-5 w-5 animate-pulse rounded-full border-2 border-[#4648d4] bg-[#e1e0ff]" />
+              ) : (
+                <div className="h-5 w-5 rounded-full border border-[rgba(199,196,215,0.6)]" />
+              )}
+              <span
+                className={cn(
+                  "text-sm",
+                  isDone
+                    ? "font-medium text-[#4648d4]"
+                    : isActive
+                    ? "font-medium text-[#1c1b1b]"
+                    : "text-[#464554]"
                 )}
-                <span
-                  className={cn(
-                    "text-sm",
-                    isDone
-                      ? "font-medium text-notura-green"
-                      : isActive
-                      ? "font-medium text-notura-ink"
-                      : "text-notura-muted"
-                  )}
-                >
-                  {step.label}
-                  {isActive && "..."}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+              >
+                {step.label}
+                {isActive && "..."}
+              </span>
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Inline CSS for waveform animation */}
-        <style jsx>{`
-          @keyframes waveform {
-            from {
-              transform: scaleY(0.5);
-            }
-            to {
-              transform: scaleY(1.3);
-            }
+      {/* Inline CSS for waveform animation */}
+      <style jsx>{`
+        @keyframes waveform {
+          from {
+            transform: scaleY(0.5);
           }
-        `}</style>
-      </CardContent>
-    </Card>
+          to {
+            transform: scaleY(1.3);
+          }
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -275,22 +264,14 @@ const mockMeeting: MeetingWithRelations = {
   ],
 };
 
-// ─── Priority variant helper ────────────────────────────────────────────────
+// ─── Priority config helper ─────────────────────────────────────────────────
 
-function priorityVariant(p: string) {
-  if (p === "alta") return "priority-alta" as const;
-  if (p === "média") return "priority-media" as const;
-  return "priority-baixa" as const;
-}
-
-function priorityLabel(p: string) {
-  if (p === "alta") return "Alta";
-  if (p === "média") return "Média";
-  return "Baixa";
-}
-
-function confidenceVariant(c: string) {
-  return c === "alta" ? "completed" : "processing";
+function priorityConfig(p: string) {
+  if (p === "alta")
+    return { label: "Alta", className: "bg-red-50 text-red-700" };
+  if (p === "média")
+    return { label: "Média", className: "bg-amber-50 text-amber-700" };
+  return { label: "Baixa", className: "bg-emerald-50 text-emerald-700" };
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -302,12 +283,9 @@ export default function MeetingDetailPage() {
     Object.fromEntries(meeting.tasks.map((t) => [t.id, t.completed]))
   );
 
-  // Toggle to see processing state: change to "processing"
   const showProcessing = meeting.status === "processing";
-
-  const toggleTask = (taskId: string) => {
+  const toggleTask = (taskId: string) =>
     setTaskStates((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
-  };
 
   const pendingCount = Object.values(taskStates).filter((v) => !v).length;
   const totalTasks = meeting.tasks.length;
@@ -316,16 +294,18 @@ export default function MeetingDetailPage() {
       ? Math.round(((totalTasks - pendingCount) / totalTasks) * 100)
       : 0;
 
+  const participants = summaryJson?.meeting?.participants ?? [];
+
   if (showProcessing) {
     return (
-      <div>
-        <div className="mb-6 flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard">
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard">
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]">
               <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <h1 className="font-display text-2xl font-semibold text-notura-ink">
+            </button>
+          </Link>
+          <h1 className="font-manrope font-extrabold text-2xl text-[#1c1b1b] tracking-[-0.3px]">
             {meeting.title || "Processando reunião..."}
           </h1>
         </div>
@@ -335,324 +315,443 @@ export default function MeetingDetailPage() {
   }
 
   return (
-    <div>
-      {/* Back button */}
-      <div className="mb-6 flex items-center gap-3">
-        <Button variant="ghost" size="sm" asChild>
+    <div className="space-y-8">
+      {/* ── Header Section ─────────────────────────────────────────────────── */}
+      <div className="space-y-5">
+        {/* Back + status row */}
+        <div className="flex items-center gap-3">
           <Link href="/dashboard">
-            <ArrowLeft className="h-4 w-4" />
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
           </Link>
-        </Button>
-        <span className="text-sm text-notura-muted">Voltar</span>
-      </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Left column — 60% */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Header */}
-          <div>
-            <h1 className="font-display text-2xl font-semibold text-notura-ink">
+          {/* Status badge */}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e1e0ff] px-3 py-1 text-xs font-medium text-[#07006c]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#4648d4]" />
+            {meeting.status === "completed"
+              ? "Concluído"
+              : meeting.status === "processing"
+              ? "Processando"
+              : "Erro"}
+          </span>
+
+          <span className="text-sm text-[#464554]">
+            {formatDate(meeting.meeting_date)}
+          </span>
+          <span className="text-[#464554] opacity-30">·</span>
+          <span className="text-sm text-[#464554]">
+            {formatDuration(meeting.duration_seconds)}
+          </span>
+        </div>
+
+        {/* Title + participants */}
+        <div className="flex items-start justify-between gap-8">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-manrope font-extrabold text-3xl leading-tight tracking-[-0.5px] text-[#1c1b1b]">
               {meeting.title}
             </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-notura-muted">
-              <span>{formatDate(meeting.meeting_date)}</span>
-              <span className="text-notura-border">·</span>
-              <span>{formatDuration(meeting.duration_seconds)}</span>
-              <span className="text-notura-border">·</span>
-              <div className="flex items-center gap-1">
-                {summaryJson?.meeting?.participants?.map((p) => (
-                  <Badge key={p} variant="default" className="text-xs">
-                    {p}
-                  </Badge>
-                ))}
+            {summaryJson?.summary_one_line && (
+              <p className="mt-2 max-w-2xl text-base leading-relaxed text-[#464554]">
+                {summaryJson.summary_one_line}
+              </p>
+            )}
+          </div>
+
+          {/* Participant avatar stack */}
+          {participants.length > 0 && (
+            <div className="flex shrink-0 items-center">
+              {participants.slice(0, 3).map((p, i) => (
+                <div
+                  key={p}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#fcf9f8] bg-[#e1e0ff] text-sm font-semibold text-[#07006c]"
+                  style={{ marginLeft: i > 0 ? "-8px" : "0" }}
+                  title={p}
+                >
+                  {getInitials(p)}
+                </div>
+              ))}
+              {participants.length > 3 && (
+                <div
+                  className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#fcf9f8] bg-[#f6f3f2] text-xs font-semibold text-[#464554]"
+                  style={{ marginLeft: "-8px" }}
+                >
+                  +{participants.length - 3}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="inline-flex items-center gap-2 rounded-full bg-[#e5e2e1] px-4 py-2 text-sm font-medium text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+            <Copy className="h-4 w-4" />
+            Copiar resumo
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-full bg-[#e5e2e1] px-4 py-2 text-sm font-medium text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+            <Download className="h-4 w-4" />
+            Baixar PDF
+          </button>
+          <button className="inline-flex items-center gap-2 rounded-full bg-[#e5e2e1] px-4 py-2 text-sm font-medium text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+            <FileText className="h-4 w-4" />
+            Exportar JSON
+          </button>
+          <button
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #4648d4, #6063ee)",
+              boxShadow:
+                "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+            }}
+          >
+            <MessageCircle className="h-4 w-4" />
+            Reenviar WhatsApp
+          </button>
+        </div>
+      </div>
+
+      {/* ── Two-column layout ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* Left column — 3/5 */}
+        <div className="space-y-5 lg:col-span-3">
+
+          {/* ── Summary Section ─────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
+                <Sparkles className="h-4 w-4 text-[#4648d4]" />
               </div>
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+                Resumo Inteligente
+              </h2>
             </div>
 
-            {/* Action buttons */}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" className="gap-2">
-                <MessageCircle className="h-3.5 w-3.5" />
-                Reenviar WhatsApp
-              </Button>
-              <Button variant="secondary" size="sm" className="gap-2">
-                <Copy className="h-3.5 w-3.5" />
-                Copiar resumo
-              </Button>
-              <Button variant="secondary" size="sm" className="gap-2">
-                <Download className="h-3.5 w-3.5" />
-                Exportar PDF
-              </Button>
+            <div className="rounded-xl border border-[rgba(199,196,215,0.3)] bg-white/60 p-4">
+              <pre className="whitespace-pre-wrap font-body text-sm leading-relaxed text-[#1c1b1b]">
+                {meeting.summary_whatsapp}
+              </pre>
             </div>
           </div>
 
-          {/* Accordion sections */}
-          <Accordion
-            type="multiple"
-            defaultValue={["resumo", "decisoes", "tarefas"]}
-          >
-            {/* Resumo */}
-            <AccordionItem value="resumo">
-              <AccordionTrigger>Resumo</AccordionTrigger>
-              <AccordionContent>
-                {/* One-line summary callout */}
-                <div className="mb-4 rounded-md border border-notura-green/20 bg-notura-green-light/30 p-3">
-                  <p className="text-sm font-medium text-notura-green">
-                    {summaryJson?.summary_one_line}
-                  </p>
-                </div>
-                {/* WhatsApp formatted text */}
-                <pre className="whitespace-pre-wrap rounded-md bg-notura-surface p-4 text-sm leading-relaxed text-notura-ink font-body">
-                  {meeting.summary_whatsapp}
-                </pre>
-              </AccordionContent>
-            </AccordionItem>
+          {/* ── Decisions Section ───────────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
+                <CheckCircle className="h-4 w-4 text-[#4648d4]" />
+              </div>
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+                Decisões-chave
+              </h2>
+            </div>
 
-            {/* Decisões */}
-            <AccordionItem value="decisoes">
-              <AccordionTrigger>
-                Decisões ({meeting.decisions.length})
-              </AccordionTrigger>
-              <AccordionContent>
-                <ul className="space-y-3">
-                  {meeting.decisions.map((d) => (
-                    <li
-                      key={d.id}
-                      className="flex items-start gap-3 rounded-md border border-notura-border p-3"
-                    >
-                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-notura-green" />
-                      <div className="flex-1">
-                        <p className="text-sm text-notura-ink">
-                          {d.description}
-                        </p>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          {d.decided_by && (
-                            <span className="text-xs text-notura-muted">
-                              Decidido por {d.decided_by}
-                            </span>
-                          )}
-                          <Badge variant={confidenceVariant(d.confidence)}>
-                            {d.confidence === "alta" ? "Alta confiança" : "Média confiança"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Tarefas */}
-            <AccordionItem value="tarefas">
-              <AccordionTrigger>
-                Tarefas ({meeting.tasks.length})
-              </AccordionTrigger>
-              <AccordionContent>
-                <ul className="space-y-2">
-                  {meeting.tasks.map((task) => {
-                    const isChecked = taskStates[task.id] ?? false;
-                    return (
-                      <li
-                        key={task.id}
+            <ul className="space-y-4">
+              {meeting.decisions.map((d) => (
+                <li key={d.id} className="flex items-start gap-4">
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[rgba(199,196,215,0.6)]">
+                    <div className="h-2 w-2 rounded-full bg-[#4648d4]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[#1c1b1b]">
+                      {d.description}
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      {d.decided_by && (
+                        <span className="text-xs text-[#464554]">
+                          por {d.decided_by}
+                        </span>
+                      )}
+                      <span
                         className={cn(
-                          "flex items-start gap-3 rounded-md border border-notura-border p-3 transition-colors",
-                          isChecked && "bg-notura-surface/50 opacity-70"
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                          d.confidence === "alta"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-amber-50 text-amber-700"
                         )}
                       >
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={() => toggleTask(task.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              "text-sm text-notura-ink",
-                              isChecked && "line-through"
-                            )}
-                          >
-                            {task.description}
-                          </p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                            {task.owner && (
-                              <div className="flex items-center gap-1.5">
-                                <Avatar className="h-5 w-5">
-                                  <AvatarFallback
-                                    name={task.owner}
-                                    className="text-[9px]"
-                                  >
-                                    {getInitials(task.owner)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-xs text-notura-muted">
-                                  {task.owner}
-                                </span>
-                              </div>
-                            )}
-                            {task.due_date && (
-                              <span className="text-xs text-notura-muted">
-                                até {formatDate(task.due_date)}
-                              </span>
-                            )}
-                            <Badge variant={priorityVariant(task.priority)}>
-                              {priorityLabel(task.priority)}
-                            </Badge>
-                          </div>
+                        {d.confidence === "alta"
+                          ? "Alta confiança"
+                          : "Média confiança"}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ── Open Items Section ──────────────────────────────────────── */}
+          {meeting.open_items.length > 0 && (
+            <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+              <div className="mb-5 flex items-center gap-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                </div>
+                <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+                  Itens em aberto
+                </h2>
+              </div>
+
+              <ul className="space-y-3">
+                {meeting.open_items.map((item) => (
+                  <li key={item.id} className="flex items-start gap-4">
+                    <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50">
+                      <div className="h-2 w-2 rounded-full bg-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#1c1b1b]">
+                        {item.description}
+                      </p>
+                      {item.context && (
+                        <p className="mt-1 text-xs text-[#464554]">
+                          {item.context}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* ── Transcript Section ──────────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
+                <FileText className="h-4 w-4 text-[#4648d4]" />
+              </div>
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+                Transcrição
+              </h2>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto pr-1">
+              <div className="space-y-5">
+                {meeting.transcript
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((line, i) => {
+                    const match = line.match(/^\[(.+?)\]\s*(.+?):\s*(.*)$/);
+                    if (!match) return null;
+                    const [, ts, speaker, text] = match;
+                    return (
+                      <div key={i} className="flex gap-3">
+                        <div className="w-12 shrink-0 pt-0.5 text-xs text-[#464554]">
+                          {ts}
                         </div>
-                      </li>
+                        <div className="flex-1 border-l-2 border-[rgba(199,196,215,0.4)] pl-4">
+                          <div className="mb-0.5 text-xs font-semibold text-[#4648d4]">
+                            {speaker}
+                          </div>
+                          <p className="text-sm leading-relaxed text-[#1c1b1b]">
+                            {text}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Em aberto */}
-            <AccordionItem value="aberto">
-              <AccordionTrigger>
-                Em aberto ({meeting.open_items.length})
-              </AccordionTrigger>
-              <AccordionContent>
-                <ul className="space-y-3">
-                  {meeting.open_items.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50/50 p-3"
-                    >
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                      <div>
-                        <p className="text-sm font-medium text-notura-ink">
-                          {item.description}
-                        </p>
-                        {item.context && (
-                          <p className="mt-1 text-xs text-notura-muted">
-                            {item.context}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Transcrição */}
-            <AccordionItem value="transcricao">
-              <AccordionTrigger>Transcrição</AccordionTrigger>
-              <AccordionContent>
-                <div className="max-h-96 overflow-y-auto rounded-md bg-notura-surface p-4">
-                  <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-notura-ink">
-                    {meeting.transcript}
-                  </pre>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right column — 40% */}
+        {/* Right column — 2/5 */}
         <div className="space-y-4 lg:col-span-2">
-          {/* WhatsApp delivery */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <MessageCircle className="h-4 w-4 text-notura-green" />
+
+          {/* ── Tasks Card ──────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+                Tarefas
+              </h2>
+              <span className="inline-flex items-center rounded-full bg-[#e1e0ff] px-2.5 py-0.5 text-xs font-medium text-[#07006c]">
+                {totalTasks} no total
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mb-5">
+              <div className="mb-1.5 flex items-center justify-between text-xs text-[#464554]">
+                <span>{pendingCount} pendentes</span>
+                <span>{completionPercent}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5e2e1]">
+                <div
+                  className="h-1.5 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${completionPercent}%`,
+                    background: "linear-gradient(90deg, #4648d4, #6063ee)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Task list */}
+            <ul className="space-y-3">
+              {meeting.tasks.map((task) => {
+                const isChecked = taskStates[task.id] ?? false;
+                const p = priorityConfig(task.priority);
+                return (
+                  <li
+                    key={task.id}
+                    className={cn(
+                      "rounded-xl border border-[rgba(199,196,215,0.3)] bg-white p-4 transition-opacity",
+                      isChecked && "opacity-60"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => toggleTask(task.id)}
+                        className="mt-0.5 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {/* Priority + due date row */}
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                              p.className
+                            )}
+                          >
+                            {p.label}
+                          </span>
+                          {task.due_date && (
+                            <span className="shrink-0 text-xs text-[#464554]">
+                              até {formatDate(task.due_date)}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Task description */}
+                        <p
+                          className={cn(
+                            "text-sm leading-snug text-[#1c1b1b]",
+                            isChecked && "line-through"
+                          )}
+                        >
+                          {task.description}
+                        </p>
+
+                        {/* Assignee */}
+                        {task.owner && (
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e1e0ff] text-[9px] font-semibold text-[#07006c]">
+                              {getInitials(task.owner)}
+                            </div>
+                            <span className="text-xs text-[#464554]">
+                              {task.owner}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* ── WhatsApp Delivery Card ──────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50">
+                <MessageCircle className="h-4 w-4 text-emerald-600" />
+              </div>
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
                 Entrega WhatsApp
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Número</span>
-                <span className="font-medium text-notura-ink">
+              </h2>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Número</span>
+                <span className="font-medium text-[#1c1b1b]">
                   {formatPhone(meeting.whatsapp_number)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Enviado em</span>
-                <span className="text-notura-ink">
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Enviado em</span>
+                <span className="text-[#1c1b1b]">
                   {meeting.completed_at
                     ? formatDate(meeting.completed_at)
                     : "—"}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Status</span>
-                <Badge
-                  variant={
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Status</span>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                     meeting.whatsapp_status === "sent"
-                      ? "completed"
+                      ? "bg-emerald-50 text-emerald-700"
                       : meeting.whatsapp_status === "failed"
-                      ? "failed"
-                      : "processing"
-                  }
+                      ? "bg-red-50 text-red-700"
+                      : "bg-[#e1e0ff] text-[#07006c]"
+                  )}
                 >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      meeting.whatsapp_status === "sent"
+                        ? "bg-emerald-500"
+                        : meeting.whatsapp_status === "failed"
+                        ? "bg-red-500"
+                        : "bg-[#4648d4]"
+                    )}
+                  />
                   {meeting.whatsapp_status === "sent"
                     ? "Enviado"
                     : meeting.whatsapp_status === "failed"
                     ? "Falhou"
                     : "Pendente"}
-                </Badge>
+                </span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Details */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Cpu className="h-4 w-4 text-notura-muted" />
+          {/* ── Details Card ────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-6">
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e5e2e1]">
+                <Cpu className="h-4 w-4 text-[#464554]" />
+              </div>
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
                 Detalhes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Duração do áudio</span>
-                <span className="text-notura-ink">
+              </h2>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Duração do áudio</span>
+                <span className="text-[#1c1b1b]">
                   {formatDuration(meeting.duration_seconds)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Modelo</span>
-                <span className="text-notura-ink">Claude 3.5 Sonnet</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Modelo</span>
+                <span className="text-[#1c1b1b]">Claude 3.5 Sonnet</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Custo</span>
-                <span className="text-notura-ink">
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Custo</span>
+                <span className="text-[#1c1b1b]">
                   US$ {meeting.cost_usd?.toFixed(2) ?? "—"}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">Versão do prompt</span>
-                <Badge variant="default">{meeting.prompt_version}</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pending tasks summary */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListTodo className="h-4 w-4 text-notura-muted" />
-                Tarefas pendentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-notura-muted">
-                  {pendingCount} de {totalTasks} pendentes
-                </span>
-                <span className="font-medium text-notura-ink">
-                  {completionPercent}%
+              <div className="flex items-center justify-between">
+                <span className="text-[#464554]">Versão do prompt</span>
+                <span className="inline-flex rounded-full bg-[#e5e2e1] px-2.5 py-0.5 text-xs font-medium text-[#464554]">
+                  {meeting.prompt_version}
                 </span>
               </div>
-              <Progress value={completionPercent} className="mt-2" />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Reprocess button */}
-          <Button variant="secondary" className="w-full gap-2">
+          {/* ── Reprocess Button ────────────────────────────────────────── */}
+          <button className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#e5e2e1] px-4 py-2.5 text-sm font-medium text-[#464554] transition-colors hover:bg-[#d9d5d3]">
             <RefreshCw className="h-4 w-4" />
             Processar novamente
-          </Button>
+          </button>
         </div>
       </div>
     </div>

@@ -62,6 +62,7 @@ export interface Database {
           source: string
           duration_seconds: number | null
           cost_usd: number | null
+          assemblyai_transcript_id: string | null
           prompt_version: string | null
           error_message: string | null
           created_at: string
@@ -83,6 +84,7 @@ export interface Database {
           source?: string
           duration_seconds?: number | null
           cost_usd?: number | null
+          assemblyai_transcript_id?: string | null
           prompt_version?: string | null
           error_message?: string | null
           created_at?: string
@@ -104,6 +106,7 @@ export interface Database {
           source?: string
           duration_seconds?: number | null
           cost_usd?: number | null
+          assemblyai_transcript_id?: string | null
           prompt_version?: string | null
           error_message?: string | null
           created_at?: string

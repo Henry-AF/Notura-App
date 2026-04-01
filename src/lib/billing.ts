@@ -1,5 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { BillingAccount, Plan } from "@/types/database";
+import type { BillingAccount, Database, Plan } from "@/types/database";
 
 const PLAN_LIMITS: Record<Plan, number | null> = {
   free: 3,
@@ -12,10 +13,9 @@ export function getMonthlyMeetingLimit(plan: Plan): number | null {
 }
 
 export async function getOrCreateBillingAccount(
-  userId: string
+  userId: string,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<BillingAccount> {
-  const supabase = createServiceRoleClient();
-
   const { data: existing, error } = await supabase
     .from("billing_accounts")
     .select("*")

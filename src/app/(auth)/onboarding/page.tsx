@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,10 @@ const plans = [
 ];
 
 export default function OnboardingPage() {
+  const prewarmStartedRef = useRef(false);
+  const prewarmRetriedRef = useRef(false);
+  const prewarmRetryTimeoutRef = useRef<number | null>(null);
+  const currentStepRef = useRef(1);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,6 +46,10 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentVerifying, setPaymentVerifying] = useState(false);
+
+  useEffect(() => {
+    currentStepRef.current = step;
+  }, [step]);
 
   useEffect(() => {
     const payment = searchParams.get("payment");
@@ -108,6 +116,55 @@ export default function OnboardingPage() {
       cancelled = true;
     };
   }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (step !== 2 || prewarmStartedRef.current) {
+      return;
+    }
+
+    prewarmStartedRef.current = true;
+    let cancelled = false;
+
+    async function runPrewarm(isRetry: boolean) {
+      try {
+        const response = await fetch("/api/abacatepay/customer/ensure", {
+          method: "POST",
+        });
+
+        if (response.ok || response.status === 202) {
+          return;
+        }
+
+        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
+          prewarmRetriedRef.current = true;
+          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
+            if (currentStepRef.current === 2) {
+              void runPrewarm(true);
+            }
+          }, 2000);
+        }
+      } catch {
+        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
+          prewarmRetriedRef.current = true;
+          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
+            if (currentStepRef.current === 2) {
+              void runPrewarm(true);
+            }
+          }, 2000);
+        }
+      }
+    }
+
+    void runPrewarm(false);
+
+    return () => {
+      cancelled = true;
+
+      if (prewarmRetryTimeoutRef.current !== null) {
+        window.clearTimeout(prewarmRetryTimeoutRef.current);
+      }
+    };
+  }, [step]);
 
   async function handleSavePhone() {
     setLoading(true);

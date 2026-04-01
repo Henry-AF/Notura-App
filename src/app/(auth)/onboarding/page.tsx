@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import type { Plan } from "@/types/database";
+import { saveOnboardingProfile } from "./actions";
 
 const plans = [
   {
@@ -32,47 +33,208 @@ const plans = [
 ];
 
 export default function OnboardingPage() {
+  const prewarmStartedRef = useRef(false);
+  const prewarmRetriedRef = useRef(false);
+  const prewarmRetryTimeoutRef = useRef<number | null>(null);
+  const currentStepRef = useRef(1);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<"free" | "pro" | "team">("free");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("free");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentVerifying, setPaymentVerifying] = useState(false);
+
+  useEffect(() => {
+    currentStepRef.current = step;
+  }, [step]);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const planParam = searchParams.get("plan");
+
+    if (planParam === "free" || planParam === "pro" || planParam === "team") {
+      setSelectedPlan(planParam);
+    }
+
+    if (payment === "canceled") {
+      setStep(2);
+      setError("Pagamento cancelado. Você pode tentar novamente quando quiser.");
+      window.history.replaceState({}, "", pathname);
+      return;
+    }
+
+    if (payment !== "success") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function verifyPayment() {
+      setStep(2);
+      setPaymentVerifying(true);
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/abacatepay/checkout/verify", {
+          method: "POST",
+        });
+
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || "Não foi possível confirmar o pagamento.");
+        }
+
+        if (!cancelled) {
+          setStep(3);
+          window.history.replaceState({}, "", pathname);
+        }
+      } catch (verifyError) {
+        if (!cancelled) {
+          const message =
+            verifyError instanceof Error
+              ? verifyError.message
+              : "Pagamento não confirmado.";
+          setError(message);
+          setStep(2);
+          window.history.replaceState({}, "", pathname);
+        }
+      } finally {
+        if (!cancelled) {
+          setPaymentVerifying(false);
+          setLoading(false);
+        }
+      }
+    }
+
+    void verifyPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (step !== 2 || prewarmStartedRef.current) {
+      return;
+    }
+
+    prewarmStartedRef.current = true;
+    let cancelled = false;
+
+    async function runPrewarm(isRetry: boolean) {
+      try {
+        const response = await fetch("/api/abacatepay/customer/ensure", {
+          method: "POST",
+        });
+
+        if (response.ok || response.status === 202) {
+          return;
+        }
+
+        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
+          prewarmRetriedRef.current = true;
+          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
+            if (currentStepRef.current === 2) {
+              void runPrewarm(true);
+            }
+          }, 2000);
+        }
+      } catch {
+        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
+          prewarmRetriedRef.current = true;
+          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
+            if (currentStepRef.current === 2) {
+              void runPrewarm(true);
+            }
+          }, 2000);
+        }
+      }
+    }
+
+    void runPrewarm(false);
+
+    return () => {
+      cancelled = true;
+
+      if (prewarmRetryTimeoutRef.current !== null) {
+        window.clearTimeout(prewarmRetryTimeoutRef.current);
+      }
+    };
+  }, [step]);
 
   async function handleSavePhone() {
     setLoading(true);
+    setError(null);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ whatsapp_number: phone })
-          .eq("id", user.id);
+      const result = await saveOnboardingProfile({
+        whatsappNumber: phone,
+      });
+
+      if (!result.success) {
+        setError(result.error ?? "Não foi possível salvar seu número.");
+        return;
       }
     } catch {
-      // Silently continue — profile will be completed later
+      setError("Ocorreu um erro inesperado ao salvar seu número.");
     } finally {
       setLoading(false);
-      setStep(2);
     }
+
+    setStep(2);
   }
 
   async function handleSelectPlan() {
     setLoading(true);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ plan: selectedPlan })
-          .eq("id", user.id);
-      }
-    } catch {
-      // Continue
-    } finally {
+    setError(null);
+
+    if (selectedPlan === "free") {
       setLoading(false);
       setStep(3);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/abacatepay/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ plan: selectedPlan }),
+      });
+
+      const data = (await response.json()) as {
+        checkoutUrl?: string;
+        alreadyActive?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Falha ao iniciar o checkout.");
+      }
+
+      if (data.alreadyActive) {
+        setStep(3);
+        return;
+      }
+
+      if (!data.checkoutUrl) {
+        throw new Error("Checkout não retornou URL de redirecionamento.");
+      }
+
+      window.location.assign(data.checkoutUrl);
+      return;
+    } catch (checkoutError) {
+      const message =
+        checkoutError instanceof Error
+          ? checkoutError.message
+          : "Falha ao iniciar o pagamento.";
+      setError(message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -122,6 +284,10 @@ export default function OnboardingPage() {
               />
             </div>
           </div>
+
+          {error && (
+            <p className="mt-3 text-sm text-red-600">{error}</p>
+          )}
 
           <Button
             className="mt-6 w-full"
@@ -200,12 +366,28 @@ export default function OnboardingPage() {
             ))}
           </div>
 
+          <p className="mt-4 text-center text-xs text-notura-muted">
+            Esta etapa não libera acesso pago sozinha. O plano válido só muda após confirmação do pagamento pelo gateway.
+          </p>
+
+          {error && (
+            <p className="mt-3 text-center text-sm text-red-600">{error}</p>
+          )}
+
           <Button
             className="mt-6 w-full"
             onClick={handleSelectPlan}
-            disabled={loading}
+            disabled={loading || paymentVerifying}
           >
-            {loading ? "Salvando..." : "Continuar"}
+            {paymentVerifying
+              ? "Confirmando pagamento..."
+              : loading
+              ? selectedPlan === "free"
+                ? "Continuando..."
+                : "Redirecionando para pagamento..."
+              : selectedPlan === "free"
+              ? "Continuar"
+              : "Ir para pagamento"}
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </div>

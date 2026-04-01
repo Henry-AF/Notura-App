@@ -15,6 +15,31 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
 
+function formatSignupError(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return "Ocorreu um erro inesperado. Tente novamente.";
+  }
+
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message
+      : null;
+  const status =
+    "status" in error &&
+    (typeof error.status === "number" || typeof error.status === "string")
+      ? String(error.status)
+      : null;
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : null;
+
+  if (!message) {
+    return "Ocorreu um erro inesperado. Tente novamente.";
+  }
+
+  const details = [code, status ? `status ${status}` : null].filter(Boolean);
+  return details.length > 0 ? `${message} (${details.join(" | ")})` : message;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -44,8 +69,9 @@ export default function SignupPage() {
       }
 
       router.push("/onboarding");
-    } catch {
-      setError("Ocorreu um erro inesperado. Tente novamente.");
+    } catch (signupError) {
+      console.error("[signup] Unexpected sign up error:", signupError);
+      setError(formatSignupError(signupError));
     } finally {
       setLoading(false);
     }

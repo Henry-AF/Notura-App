@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import { buildR2Key, uploadAudio } from "@/lib/r2";
 import { inngest } from "@/lib/inngest";
+import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
 // Remove the default 4 MB body-size limit so large audio files can be uploaded.
@@ -49,13 +50,31 @@ export async function POST(request: NextRequest) {
     return serverError("Falha ao verificar autenticação.", e, 500);
   }
 
-  // ── Parse multipart form data ────────────────────────────────────────
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch (e) {
-    return serverError("Falha ao ler o formulário (multipart/form-data).", e, 400);
-  }
+    const { billingAccount, meetingsThisMonth, monthlyLimit } =
+      await getBillingStatus(user.id);
+
+    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
+      return NextResponse.json(
+        {
+          error:
+            billingAccount.plan === "free"
+              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
+              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
+        },
+        { status: 403 }
+      );
+    }
+
+    // ── Parse multipart form data ────────────────────────────────────────
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "Requisição inválida. Envie um multipart/form-data com o campo 'audio'." },
+        { status: 400 }
+      );
+    }
 
   const audioFile = formData.get("audio") as File | null;
   const clientName = (formData.get("client_name") as string | null) || null;
@@ -158,10 +177,28 @@ export async function POST(request: NextRequest) {
         userId: user.id,
       },
     });
-    console.log("[upload] job enfileirado.");
-  } catch (e) {
-    // Job falhou mas não é crítico — reunião já criada, processamento pode ser reenfileirado.
-    console.error("[upload] Aviso: falha ao enfileirar job Inngest:", e);
+
+    try {
+      await syncMeetingsThisMonth(user.id, meetingsThisMonth + 1);
+    } catch (billingError) {
+      console.error("[upload] Failed to sync billing usage:", billingError);
+    }
+
+    // ── Response ─────────────────────────────────────────────────────────
+    return NextResponse.json(
+      {
+        meetingId: meeting.id,
+        status: "pending" as MeetingStatus,
+        estimatedMinutes: 3,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("[upload] Unexpected error:", error);
+    return NextResponse.json(
+      { error: "Erro interno do servidor. Tente novamente." },
+      { status: 500 }
+    );
   }
 
   // ── Response ─────────────────────────────────────────────────────────

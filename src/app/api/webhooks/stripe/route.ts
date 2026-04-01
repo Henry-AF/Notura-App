@@ -60,16 +60,30 @@ export async function POST(request: NextRequest) {
             ? session.customer
             : session.customer?.id ?? null;
 
+        const { data: existingBilling, error: existingBillingError } = await supabase
+          .from("billing_accounts")
+          .select("stripe_customer_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingBillingError) {
+          throw new Error(
+            `Failed to load billing account before webhook upsert: ${existingBillingError.message}`
+          );
+        }
+
         const { error } = await supabase
-          .from("profiles")
-          .update({
+          .from("billing_accounts")
+          .upsert({
+            user_id: userId,
             plan,
-            stripe_customer_id: stripeCustomerId,
-          })
-          .eq("id", userId);
+            stripe_customer_id:
+              existingBilling?.stripe_customer_id ?? stripeCustomerId,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "user_id" });
 
         if (error) {
-          console.error("[stripe-webhook] Failed to update profile plan:", error);
+          throw new Error(`Failed to update billing account: ${error.message}`);
         } else {
           console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
         }
@@ -92,12 +106,17 @@ export async function POST(request: NextRequest) {
         // Only reset on subscription renewal, not on first payment
         if (invoice.billing_reason === "subscription_cycle") {
           const { error } = await supabase
-            .from("profiles")
-            .update({ meetings_this_month: 0 })
+            .from("billing_accounts")
+            .update({
+              meetings_this_month: 0,
+              updated_at: new Date().toISOString(),
+            })
             .eq("stripe_customer_id", customerId);
 
           if (error) {
-            console.error("[stripe-webhook] Failed to reset meetings_this_month:", error);
+            throw new Error(
+              `Failed to reset meetings_this_month: ${error.message}`
+            );
           } else {
             console.log(`[stripe-webhook] Reset monthly meetings for customer ${customerId}`);
           }
@@ -119,12 +138,15 @@ export async function POST(request: NextRequest) {
         }
 
         const { error } = await supabase
-          .from("profiles")
-          .update({ plan: "free" as Plan })
+          .from("billing_accounts")
+          .update({
+            plan: "free" as Plan,
+            updated_at: new Date().toISOString(),
+          })
           .eq("stripe_customer_id", customerId);
 
         if (error) {
-          console.error("[stripe-webhook] Failed to downgrade profile:", error);
+          throw new Error(`Failed to downgrade billing account: ${error.message}`);
         } else {
           console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
         }
@@ -137,7 +159,10 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("[stripe-webhook] Error handling event:", error);
-    // Still return 200 to prevent Stripe from retrying
+    return NextResponse.json(
+      { error: "Failed to process Stripe webhook." },
+      { status: 500 }
+    );
   }
 
   // Always return 200 quickly to acknowledge receipt

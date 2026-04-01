@@ -4,11 +4,11 @@
 
 import { serve } from "inngest/next";
 import { inngest } from "@/lib/inngest";
-import { processMeeting } from "@/inngest/process-meeting";
+import { processMeeting, handleProcessMeetingFailure } from "@/inngest/process-meeting";
 
 const handler = serve({
   client: inngest,
-  functions: [processMeeting],
+  functions: [processMeeting, handleProcessMeetingFailure],
 });
 
 export const { GET, POST, PUT } = handler;

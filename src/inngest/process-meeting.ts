@@ -158,28 +158,6 @@ export const processMeeting = inngest.createFunction(
     id: "process-meeting",
     retries: 2,
     triggers: [{ event: "meeting/process" }],
-    onFailure: async ({ error, event }) => {
-      // On any unrecoverable failure, update meeting status and alert operator
-      const supabase = createServiceRoleClient();
-      const eventData = event.data?.event?.data as MeetingProcessEventData | undefined;
-      const meetingId = eventData?.meetingId;
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      if (meetingId) {
-        await supabase
-          .from("meetings")
-          .update({
-            status: "failed",
-            error_message: errorMessage,
-          })
-          .eq("id", meetingId);
-      }
-
-      await alertOperator(
-        `Processamento falhou para reunião ${meetingId ?? "desconhecida"}: ${errorMessage}`
-      );
-    },
   },
   async ({ event, step }) => {
     const { meetingId, r2Key, whatsappNumber, userId } =
@@ -187,8 +165,10 @@ export const processMeeting = inngest.createFunction(
     const supabase = createServiceRoleClient();
 
     // ── Step 1: Mark as processing ─────────────────────────────────────
-    await step.run("update-status-processing", async () => {
-      // Idempotency: if already completed, skip the entire function
+    const alreadyCompleted = await step.run("update-status-processing", async () => {
+      // Idempotency: if already completed, return true to short-circuit below.
+      // IMPORTANT: never throw here — throwing causes Inngest to retry and
+      // eventually mark the meeting as failed via the failure handler.
       const { data: existing } = await supabase
         .from("meetings")
         .select("status")
@@ -196,7 +176,7 @@ export const processMeeting = inngest.createFunction(
         .single();
 
       if (existing?.status === "completed") {
-        throw new Error("SKIP: Meeting already completed");
+        return true;
       }
 
       const { error } = await supabase
@@ -205,19 +185,33 @@ export const processMeeting = inngest.createFunction(
         .eq("id", meetingId);
 
       if (error) throw new Error(`Failed to update status: ${error.message}`);
+      return false;
     });
+
+    if (alreadyCompleted) {
+      return { meetingId, status: "skipped-already-completed" };
+    }
 
     // ── Step 2: Transcribe audio ───────────────────────────────────────
     const transcript = await step.run("transcribe", async () => {
-      // Get a presigned download URL for AssemblyAI to fetch the audio
-      const audioUrl = await getPresignedDownloadUrl(r2Key);
+      // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
+      // NOTE: Webhook alternative — swap transcribe() for submit() and pass
+      //   webhook_url + webhook_auth_header_name/value, then save the returned
+      //   transcript.id as assemblyai_transcript_id. The webhook endpoint at
+      //   /api/webhooks/assemblyai will fire meeting/transcription.completed to
+      //   resume processing without blocking this worker.
+      const audioUrl = await getPresignedDownloadUrl(r2Key, 3600);
 
       const aai = getAAI();
       const transcriptResult = await aai.transcripts.transcribe({
         audio_url: audioUrl,
+        speech_models: ["universal-3-pro"],  // highest accuracy; replaces deprecated speech_model
         language_code: "pt",
         speaker_labels: true,
-        punctuate: true,
+        // ── Quality flags ──────────────────────────────────────────
+        punctuate: true,          // sentence-level punctuation
+        format_text: true,        // proper casing, numbers as words
+        disfluencies: false,      // strip fillers: "é...", "né...", "tipo..."
       });
 
       if (transcriptResult.status === "error") {
@@ -230,25 +224,58 @@ export const processMeeting = inngest.createFunction(
         throw new Error("AssemblyAI returned empty transcript");
       }
 
-      // Build transcript with speaker labels if available
+      // Build transcript: prefer utterances (speaker + timestamp), fall back to full text
       let formattedTranscript = transcriptResult.text;
 
       if (transcriptResult.utterances && transcriptResult.utterances.length > 0) {
         formattedTranscript = transcriptResult.utterances
-          .map((u) => `Speaker ${u.speaker}: ${u.text}`)
+          .map((u) => {
+            // Convert ms start offset to MM:SS timestamp
+            const startSec = Math.floor((u.start ?? 0) / 1000);
+            const mm = Math.floor(startSec / 60).toString().padStart(2, "0");
+            const ss = (startSec % 60).toString().padStart(2, "0");
+            return `[${mm}:${ss}] Speaker ${u.speaker}: ${u.text}`;
+          })
           .join("\n\n");
       }
 
-      // Save transcript to meeting immediately
-      await supabase
+      // AssemblyAI Standard pricing: ~$0.37 / audio hour
+      const durationSecs = transcriptResult.audio_duration
+        ? Math.round(transcriptResult.audio_duration)
+        : null;
+      const costUsd = durationSecs
+        ? parseFloat(((durationSecs / 3600) * 0.37).toFixed(4))
+        : null;
+
+      // Persist transcript + duration + cost immediately (partial save).
+      // assemblyai_transcript_id is saved separately so that a missing column
+      // (migration 002 not yet applied) doesn't silently discard the transcript.
+      const { error: saveError } = await supabase
         .from("meetings")
         .update({
           transcript: formattedTranscript,
-          duration_seconds: transcriptResult.audio_duration
-            ? Math.round(transcriptResult.audio_duration)
-            : null,
+          duration_seconds: durationSecs,
+          cost_usd: costUsd,
         })
         .eq("id", meetingId);
+
+      if (saveError) {
+        throw new Error(`Failed to save transcript: ${saveError.message}`);
+      }
+
+      // Best-effort: save AssemblyAI transcript ID for webhook correlation.
+      // Requires migration 002. Failure here is non-critical.
+      const { error: aaiIdError } = await supabase
+        .from("meetings")
+        .update({ assemblyai_transcript_id: transcriptResult.id })
+        .eq("id", meetingId);
+
+      if (aaiIdError) {
+        console.warn(
+          "[process-meeting] Could not save assemblyai_transcript_id (run migration 002?):",
+          aaiIdError.message
+        );
+      }
 
       return formattedTranscript;
     });
@@ -455,5 +482,50 @@ export const processMeeting = inngest.createFunction(
     });
 
     return { meetingId, status: "completed" };
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Failure handler — separate function to avoid EventValidationError.
+// The inline onFailure in createFunction config causes validateEventSchemas()
+// to check inngest/function.failed against the main trigger (meeting/process),
+// which throws. A standalone function has its own trigger list.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const handleProcessMeetingFailure = inngest.createFunction(
+  {
+    id: "process-meeting-failure",
+    retries: 1,
+    triggers: [
+      {
+        event: "inngest/function.failed",
+        // Scope to this function only (SDK prefixes app ID: "notura-process-meeting")
+        if: "event.data.function_id == 'notura-process-meeting'",
+      },
+    ],
+  },
+  async ({ event }) => {
+    const supabase = createServiceRoleClient();
+    const eventData = (
+      event.data as { event?: { data?: MeetingProcessEventData } }
+    )?.event?.data;
+    const meetingId = eventData?.meetingId;
+    const errorMessage =
+      (event.data as { error?: { message?: string } })?.error?.message ??
+      "Unknown error";
+
+    if (meetingId) {
+      await supabase
+        .from("meetings")
+        .update({
+          status: "failed",
+          error_message: errorMessage,
+        })
+        .eq("id", meetingId);
+    }
+
+    await alertOperator(
+      `Processamento falhou para reunião ${meetingId ?? "desconhecida"}: ${errorMessage}`
+    );
   }
 );

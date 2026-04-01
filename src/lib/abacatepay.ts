@@ -4,6 +4,7 @@ const ABACATEPAY_API_BASE_URL = (
   process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v1"
 ).trim();
 const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
+export const ABACATEPAY_REQUEST_TIMEOUT_MS = 5000;
 
 const ABACATEPAY_PLAN_PRODUCT_IDS: Record<Exclude<Plan, "free">, string> = {
   pro: process.env.ABACATEPAY_PRO_PRODUCT_ID || "",
@@ -31,6 +32,13 @@ interface AbacatePaySubscription {
   customerId?: string;
   externalId?: string;
   metadata?: Record<string, unknown>;
+}
+
+export class AbacatePayTimeoutError extends Error {
+  constructor(operation: string, timeoutMs = ABACATEPAY_REQUEST_TIMEOUT_MS) {
+    super(`AbacatePay timed out during ${operation} after ${timeoutMs}ms`);
+    this.name = "AbacatePayTimeoutError";
+  }
 }
 
 function getHeaders(): HeadersInit {
@@ -74,12 +82,57 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data.data;
 }
 
+async function fetchAbacatePay<T>(
+  path: string,
+  init: RequestInit,
+  operation: string,
+  timeoutMs = ABACATEPAY_REQUEST_TIMEOUT_MS
+): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(
+      `${ABACATEPAY_API_BASE_URL.replace(/\/+$/, "")}${path}`,
+      {
+        ...init,
+        headers: {
+          ...getHeaders(),
+          ...(init.headers ?? {}),
+        },
+        signal: controller.signal,
+      }
+    );
+
+    return await parseResponse<T>(response);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new AbacatePayTimeoutError(operation, timeoutMs);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export function isAbacatePayTimeoutError(
+  error: unknown
+): error is AbacatePayTimeoutError {
+  return error instanceof AbacatePayTimeoutError;
+}
+
 export function getAbacatePayProductId(plan: Plan): string {
   if (plan === "free") {
     throw new Error("Free plan does not use AbacatePay checkout");
   }
 
-  return ABACATEPAY_PLAN_PRODUCT_IDS[plan];
+  const productId = ABACATEPAY_PLAN_PRODUCT_IDS[plan];
+  if (!productId) {
+    throw new Error(`Missing AbacatePay product ID for plan '${plan}'`);
+  }
+
+  return productId;
 }
 
 export async function createAbacatePayCustomer(input: {
@@ -88,21 +141,19 @@ export async function createAbacatePayCustomer(input: {
   cellphone?: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<AbacatePayCustomer> {
-  const response = await fetch(
-    `${ABACATEPAY_API_BASE_URL.replace(/\/+$/, "")}/customers/create`,
+  return fetchAbacatePay<AbacatePayCustomer>(
+    "/customers/create",
     {
       method: "POST",
-      headers: getHeaders(),
       body: JSON.stringify({
         email: input.email,
         ...(input.name ? { name: input.name } : {}),
         ...(input.cellphone ? { cellphone: input.cellphone } : {}),
         ...(input.metadata ? { metadata: input.metadata } : {}),
       }),
-    }
+    },
+    "customers/create"
   );
-
-  return parseResponse<AbacatePayCustomer>(response);
 }
 
 export async function createAbacatePaySubscriptionCheckout(input: {
@@ -113,11 +164,10 @@ export async function createAbacatePaySubscriptionCheckout(input: {
   completionUrl: string;
   metadata?: Record<string, unknown>;
 }): Promise<AbacatePaySubscription> {
-  const response = await fetch(
-    `${ABACATEPAY_API_BASE_URL.replace(/\/+$/, "")}/subscriptions/create`,
+  return fetchAbacatePay<AbacatePaySubscription>(
+    "/subscriptions/create",
     {
       method: "POST",
-      headers: getHeaders(),
       body: JSON.stringify({
         items: [{ id: input.productId, quantity: 1 }],
         customerId: input.customerId,
@@ -127,26 +177,27 @@ export async function createAbacatePaySubscriptionCheckout(input: {
         methods: ["CARD"],
         ...(input.metadata ? { metadata: input.metadata } : {}),
       }),
-    }
+    },
+    "subscriptions/create"
   );
-
-  return parseResponse<AbacatePaySubscription>(response);
 }
 
 export async function getAbacatePaySubscriptionById(
   subscriptionId: string
 ): Promise<AbacatePaySubscription | null> {
   const url = new URL(
-    `${ABACATEPAY_API_BASE_URL.replace(/\/+$/, "")}/subscriptions/list`
+    "/subscriptions/list",
+    `${ABACATEPAY_API_BASE_URL.replace(/\/+$/, "")}/`
   );
   url.searchParams.set("id", subscriptionId);
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  const data = await parseResponse<AbacatePaySubscription[]>(response);
+  const data = await fetchAbacatePay<AbacatePaySubscription[]>(
+    `${url.pathname}${url.search}`,
+    {
+      method: "GET",
+    },
+    "subscriptions/list"
+  );
   return data[0] ?? null;
 }
 

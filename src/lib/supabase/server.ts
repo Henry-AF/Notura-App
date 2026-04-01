@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { getSupabaseBrowserConfig, getSupabaseServiceRoleKey } from "@/lib/env";
 import type { Database } from "@/types/database";
@@ -31,15 +32,13 @@ export function createServerSupabase() {
 export function createServiceRoleClient() {
   const { url } = getSupabaseBrowserConfig();
   const serviceRoleKey = getSupabaseServiceRoleKey();
-  return createServerClient<Database>(
+  return createClient<Database>(
     url,
     serviceRoleKey,
     {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        setAll() {},
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );

@@ -43,6 +43,7 @@ export interface Database {
           meetings_this_month: number
           stripe_customer_id: string | null
           abacatepay_customer_id: string | null
+          abacatepay_customer_sync_started_at: string | null
           abacatepay_pending_checkout_id: string | null
           abacatepay_pending_plan: string | null
           created_at: string
@@ -54,6 +55,7 @@ export interface Database {
           meetings_this_month?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
+          abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null
           created_at?: string
@@ -65,6 +67,7 @@ export interface Database {
           meetings_this_month?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
+          abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null
           created_at?: string

@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
-import { getOrCreateBillingAccount } from "@/lib/billing";
+import { createServerSupabase } from "@/lib/supabase/server";
 import {
-  createAbacatePayCustomer,
   createAbacatePaySubscriptionCheckout,
-  getAbacatePayCustomerPhone,
   getAbacatePayPendingExternalId,
   getAbacatePayProductId,
+  isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
+import {
+  AbacatePayCustomerNotReadyError,
+  ensureAbacatePayCustomer,
+  loadAbacatePayCustomerContext,
+} from "@/lib/abacatepay-customer";
 import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
@@ -19,74 +22,58 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
 }
 
 export async function POST(request: NextRequest) {
+  let userIdForLog = "anonymous";
+  let planForLog: Plan | null = null;
+
   try {
     const supabase = createServerSupabase();
-    const serviceRoleSupabase = createServiceRoleClient();
+    const [authResult, body] = await Promise.all([
+      supabase.auth.getUser(),
+      request.json() as Promise<CreateCheckoutBody>,
+    ]);
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = authResult;
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+      return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
     }
 
-    const body = (await request.json()) as CreateCheckoutBody;
+    userIdForLog = user.id;
     const plan = body.plan;
+    planForLog = plan ?? null;
 
     if (!plan || !isPaidPlan(plan)) {
       return NextResponse.json(
-        { error: "Plano inválido para checkout." },
+        { error: "Plano invalido para checkout." },
         { status: 400 }
       );
     }
 
-    const billingAccount = await getOrCreateBillingAccount(user.id);
-    if (billingAccount.plan === plan) {
+    const customerContext = await loadAbacatePayCustomerContext(supabase, user.id);
+    if (customerContext.billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
         plan,
       });
     }
 
-    if (!user.email) {
-      return NextResponse.json(
-        { error: "Seu usuário precisa ter email válido para iniciar o pagamento." },
-        { status: 400 }
-      );
-    }
+    const ensuredCustomer = await ensureAbacatePayCustomer(
+      supabase,
+      {
+        id: user.id,
+        email: user.email ?? null,
+        phone: user.phone ?? null,
+      },
+      customerContext,
+      {
+        waitForFreshLock: true,
+      }
+    );
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("name, whatsapp_number")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      return NextResponse.json(
-        { error: "Não foi possível carregar seu perfil para o checkout." },
-        { status: 500 }
-      );
-    }
-
-    let customerId = billingAccount.abacatepay_customer_id;
-
-    if (!customerId) {
-      const customerPhone = getAbacatePayCustomerPhone(
-        billingAccount,
-        user.phone || profile?.whatsapp_number || null
-      );
-      const customer = await createAbacatePayCustomer({
-        email: user.email,
-        name: profile?.name || undefined,
-        cellphone: customerPhone,
-        metadata: {
-          userId: user.id,
-          origin: "onboarding",
-        },
-      });
-
-      customerId = customer.id;
+    if (!ensuredCustomer.customerId) {
+      throw new AbacatePayCustomerNotReadyError();
     }
 
     const origin = new URL(request.url).origin;
@@ -101,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     const subscription = await createAbacatePaySubscriptionCheckout({
       productId: getAbacatePayProductId(plan),
-      customerId,
+      customerId: ensuredCustomer.customerId,
       externalId: getAbacatePayPendingExternalId(user.id, plan),
       returnUrl: returnUrl.toString(),
       completionUrl: completionUrl.toString(),
@@ -114,15 +101,15 @@ export async function POST(request: NextRequest) {
 
     if (!subscription.id || !subscription.url) {
       return NextResponse.json(
-        { error: "AbacatePay não retornou um checkout válido." },
+        { error: "AbacatePay nao retornou um checkout valido." },
         { status: 502 }
       );
     }
 
-    const { error: billingUpdateError } = await serviceRoleSupabase
+    const { error: billingUpdateError } = await supabase
       .from("billing_accounts")
       .update({
-        abacatepay_customer_id: customerId,
+        abacatepay_customer_id: ensuredCustomer.customerId,
         abacatepay_pending_checkout_id: subscription.id,
         abacatepay_pending_plan: plan,
         updated_at: new Date().toISOString(),
@@ -131,7 +118,9 @@ export async function POST(request: NextRequest) {
 
     if (billingUpdateError) {
       return NextResponse.json(
-        { error: `Não foi possível salvar o checkout pendente: ${billingUpdateError.message}` },
+        {
+          error: `Nao foi possivel salvar o checkout pendente: ${billingUpdateError.message}`,
+        },
         { status: 500 }
       );
     }
@@ -140,8 +129,19 @@ export async function POST(request: NextRequest) {
       checkoutUrl: subscription.url,
     });
   } catch (error) {
+    if (isAbacatePayTimeoutError(error)) {
+      console.error(
+        `[abacatepay-checkout] checkout timeout user=${userIdForLog} plan=${planForLog ?? "unknown"}`
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[abacatepay-checkout] Failed to create checkout session:", message);
+
+    if (error instanceof AbacatePayCustomerNotReadyError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
     return NextResponse.json(
       {
         error:

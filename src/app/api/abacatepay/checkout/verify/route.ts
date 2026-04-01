@@ -1,27 +1,31 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import {
   getAbacatePayPendingExternalId,
   getAbacatePaySubscriptionById,
   isAbacatePaySubscriptionPaid,
+  isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
 import { getOrCreateBillingAccount } from "@/lib/billing";
+import { createServerSupabase } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
 export async function POST() {
+  let userIdForLog = "anonymous";
+
   try {
     const supabase = createServerSupabase();
-    const serviceRoleSupabase = createServiceRoleClient();
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+      return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
     }
 
-    const billingAccount = await getOrCreateBillingAccount(user.id);
+    userIdForLog = user.id;
+
+    const billingAccount = await getOrCreateBillingAccount(user.id, supabase);
 
     if (!billingAccount.abacatepay_pending_checkout_id) {
       if (billingAccount.plan !== "free") {
@@ -32,7 +36,7 @@ export async function POST() {
       }
 
       return NextResponse.json(
-        { error: "Nenhum checkout pendente encontrado para este usuário." },
+        { error: "Nenhum checkout pendente encontrado para este usuario." },
         { status: 409 }
       );
     }
@@ -43,7 +47,7 @@ export async function POST() {
         billingAccount.abacatepay_pending_plan !== "team")
     ) {
       return NextResponse.json(
-        { error: "Plano pendente inválido para verificação." },
+        { error: "Plano pendente invalido para verificacao." },
         { status: 400 }
       );
     }
@@ -55,7 +59,7 @@ export async function POST() {
 
     if (!subscription) {
       return NextResponse.json(
-        { error: "Checkout pendente não encontrado no AbacatePay." },
+        { error: "Checkout pendente nao encontrado no AbacatePay." },
         { status: 404 }
       );
     }
@@ -63,7 +67,7 @@ export async function POST() {
     const expectedExternalId = getAbacatePayPendingExternalId(user.id, pendingPlan);
     if (subscription.externalId !== expectedExternalId) {
       return NextResponse.json(
-        { error: "Checkout não pertence ao usuário autenticado." },
+        { error: "Checkout nao pertence ao usuario autenticado." },
         { status: 403 }
       );
     }
@@ -75,19 +79,19 @@ export async function POST() {
 
     if (subscriptionUserId !== user.id) {
       return NextResponse.json(
-        { error: "Metadados do pagamento não pertencem ao usuário autenticado." },
+        { error: "Metadados do pagamento nao pertencem ao usuario autenticado." },
         { status: 403 }
       );
     }
 
     if (!isAbacatePaySubscriptionPaid(subscription)) {
       return NextResponse.json(
-        { error: "Pagamento ainda não foi confirmado pelo AbacatePay." },
+        { error: "Pagamento ainda nao foi confirmado pelo AbacatePay." },
         { status: 409 }
       );
     }
 
-    const { error: updateError } = await serviceRoleSupabase
+    const { error: updateError } = await supabase
       .from("billing_accounts")
       .update({
         plan: pendingPlan,
@@ -101,7 +105,7 @@ export async function POST() {
 
     if (updateError) {
       return NextResponse.json(
-        { error: `Não foi possível atualizar seu plano: ${updateError.message}` },
+        { error: `Nao foi possivel atualizar seu plano: ${updateError.message}` },
         { status: 500 }
       );
     }
@@ -111,8 +115,13 @@ export async function POST() {
       plan: pendingPlan,
     });
   } catch (error) {
+    if (isAbacatePayTimeoutError(error)) {
+      console.error(`[abacatepay-checkout-verify] verify timeout user=${userIdForLog}`);
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[abacatepay-checkout-verify] Failed to verify checkout:", message);
+
     return NextResponse.json(
       { error: "Falha ao verificar pagamento com AbacatePay." },
       { status: 500 }

@@ -9,7 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
 import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
 import { AssemblyAI } from "assemblyai";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateWhatsAppSummary, generateJsonSummary } from "@/lib/gemini";
 import type { Json, MeetingJSON, Priority, Confidence } from "@/types/database";
 
 // ── External clients ─────────────────────────────────────────────────────────
@@ -17,11 +17,9 @@ import type { Json, MeetingJSON, Priority, Confidence } from "@/types/database";
 function getAAI() {
   return new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY! });
 }
-function getAnthropic() {
-  return new Anthropic();
-}
+// Gemini client/functions are imported from @/lib/gemini
 
-// ── Prompt constants (from @notura/summarization) ────────────────────────────
+// ── Prompt version (prompts definidos em @/lib/gemini) ───────────────────────
 
 const PROMPT_VERSION = "1.0.0";
 
@@ -282,73 +280,14 @@ export const processMeeting = inngest.createFunction(
 
     // ── Step 3: Generate WhatsApp summary ──────────────────────────────
     const summaryWhatsapp = await step.run("summarize-whatsapp", async () => {
-      const anthropic = getAnthropic();
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        system: SYSTEM_WHATSAPP,
-        messages: [
-          {
-            role: "user",
-            content: `Transcrição da reunião:\n\n${transcript}`,
-          },
-        ],
-      });
-
-      const textBlock = response.content.find(
-        (block): block is Anthropic.TextBlock => block.type === "text"
-      );
-      if (!textBlock) {
-        throw new Error("Claude did not return a text response for WhatsApp summary");
-      }
-
-      return textBlock.text;
+      // Chama Gemini para gerar o resumo formatado para WhatsApp (com emojis e seções).
+      return generateWhatsAppSummary(transcript);
     });
 
     // ── Step 4: Generate JSON summary ──────────────────────────────────
     const summaryJson = await step.run("summarize-json", async () => {
-      const anthropic = getAnthropic();
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2048,
-        system: SYSTEM_JSON,
-        messages: [
-          {
-            role: "user",
-            content: `Transcrição da reunião:\n\n${transcript}`,
-          },
-        ],
-      });
-
-      const textBlock = response.content.find(
-        (block): block is Anthropic.TextBlock => block.type === "text"
-      );
-      if (!textBlock) {
-        throw new Error("Claude did not return a text response for JSON summary");
-      }
-
-      // Parse JSON — Claude should return pure JSON per the prompt
-      let parsed: MeetingJSON;
-      try {
-        parsed = JSON.parse(textBlock.text) as MeetingJSON;
-      } catch {
-        // Try to extract JSON from potential markdown code blocks
-        const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new Error("Failed to parse Claude JSON response");
-        }
-        parsed = JSON.parse(jsonMatch[0]) as MeetingJSON;
-      }
-
-      // Check for error response from Claude
-      if (
-        (parsed as unknown as { error?: string }).error ===
-        "UNPROCESSABLE_TRANSCRIPT"
-      ) {
-        throw new Error("Transcript was unprocessable: empty or unintelligible");
-      }
-
-      return parsed;
+      // Chama Gemini para gerar o resumo estruturado (tasks, decisions, open_items, etc.).
+      return generateJsonSummary(transcript);
     });
 
     // ── Step 5: Save results to Supabase ───────────────────────────────

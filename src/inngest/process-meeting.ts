@@ -34,6 +34,55 @@ interface MeetingProcessEventData {
 
 type SummaryItemKind = "task" | "decision" | "open_item";
 
+function readRequiredEventString(
+  payload: Record<string, unknown>,
+  field: keyof MeetingProcessEventData,
+  issues: string[]
+): string {
+  const value = payload[field];
+
+  if (typeof value !== "string") {
+    issues.push(`${field} must be a string`);
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    issues.push(`${field} must be a non-empty string`);
+  }
+
+  return trimmed;
+}
+
+function parseMeetingProcessEventData(payload: unknown): MeetingProcessEventData {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error(
+      "Invalid meeting/process event payload: expected an object with meetingId, r2Key, whatsappNumber and userId."
+    );
+  }
+
+  const record = payload as Record<string, unknown>;
+  const issues: string[] = [];
+
+  const parsed = {
+    meetingId: readRequiredEventString(record, "meetingId", issues),
+    r2Key: readRequiredEventString(record, "r2Key", issues),
+    whatsappNumber: readRequiredEventString(record, "whatsappNumber", issues),
+    userId: readRequiredEventString(record, "userId", issues),
+  };
+
+  if (issues.length > 0) {
+    const payloadKeys = Object.keys(record);
+    throw new Error(
+      `Invalid meeting/process event payload: ${issues.join("; ")}. Received keys: ${
+        payloadKeys.length > 0 ? payloadKeys.join(", ") : "(none)"
+      }.`
+    );
+  }
+
+  return parsed;
+}
+
 function normalizeSummaryField(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFKC")
@@ -77,8 +126,10 @@ export const processMeeting = inngest.createFunction(
     triggers: [{ event: "meeting/process" }],
   },
   async ({ event, step }) => {
-    const { meetingId, r2Key, whatsappNumber, userId } =
-      event.data as MeetingProcessEventData;
+    const { meetingId, r2Key, whatsappNumber, userId } = await step.run(
+      "validate-event-data",
+      async () => parseMeetingProcessEventData(event.data)
+    );
     const supabase = createServiceRoleClient();
 
     // ── Step 1: Mark as processing ─────────────────────────────────────

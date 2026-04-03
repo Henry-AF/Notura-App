@@ -730,7 +730,7 @@ export default function MeetingDetailPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[#464554]">Modelo</span>
-                <span className="text-[#1c1b1b]">Claude 3.5 Sonnet</span>
+                <span className="text-[#1c1b1b]">Gemini 2.5 Flash</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[#464554]">Custo</span>

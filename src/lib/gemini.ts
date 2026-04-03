@@ -3,8 +3,7 @@
 //
 // Módulo de sumarização via Google Gemini.
 // Exporta helpers compartilhados pela pipeline de processamento de reuniões:
-//   - generateWhatsAppSummary(transcript) → string
-//   - generateJsonSummary(transcript)     → MeetingJSON
+//   - generateMeetingSummary(transcript) → { summaryWhatsapp, summaryJson }
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -16,38 +15,61 @@ const MODEL_NAME = "gemini-2.5-flash";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 const SUMMARY_SCHEMA_VERSION = "1.0";
-export const PROMPT_VERSION = "1.0.0";
+export const PROMPT_VERSION = "1.1.0";
 
-// ── Prompts do sistema ────────────────────────────────────────────────────────
+type UnprocessableTranscriptPayload = {
+  error: "UNPROCESSABLE_TRANSCRIPT";
+  reason: string;
+};
 
-/**
- * Prompt para geração de resumo formatado para WhatsApp.
- * Usa emojis e linguagem simples conforme spec do produto.
- */
-const SYSTEM_WHATSAPP = `Você é o Notura, um assistente especializado em processar transcrições de reuniões de negócios em português brasileiro.
+export interface MeetingSummaryResult {
+  summaryWhatsapp: string;
+  summaryJson: MeetingJSON;
+}
 
-Sua tarefa: analisar a transcrição e gerar um resumo estruturado, preciso e acionável para entrega via WhatsApp.
+interface GeminiSummaryEnvelope {
+  summary_whatsapp: string;
+  summary_json: MeetingJSON | UnprocessableTranscriptPayload;
+}
 
-═══ REGRAS OBRIGATÓRIAS ═══
+// ── Prompt do sistema ────────────────────────────────────────────────────────
 
-1. Escreva SEMPRE em português brasileiro informal-profissional (como um colega competente).
-2. Extraia APENAS o que foi explicitamente dito ou claramente implícito no contexto — nunca invente decisões, tarefas ou participantes.
-3. Se algo foi discutido mas NÃO decidido, coloque na seção "Em aberto" — NUNCA como decisão.
-4. Atribua tarefas SOMENTE a quem foi explicitamente mencionado como responsável. Se uma tarefa foi mencionada mas ninguém assumiu, use "A definir" como responsável.
-5. Se a próxima reunião NÃO foi mencionada, omita a linha completamente.
-6. Se a transcrição tiver ruído, fala sobreposta, erros de transcrição ou gírias regionais, interprete o contexto — não copie trechos ininteligíveis.
-7. Mantenha o resumo conciso — máximo 300 palavras.
-8. NÃO use formatação markdown. Sem asteriscos duplos (**), sem hashtags (#), sem backticks (\`). Use apenas texto plano e o bullet "•".
-9. Use *texto* (um asterisco) apenas para nomes de pessoas em tarefas, pois WhatsApp renderiza como itálico.
-10. Se a transcrição estiver vazia, corrompida ou ininteligível, responda EXATAMENTE: "⚠️ Não foi possível processar esta transcrição. O áudio pode estar corrompido ou inaudível."
+const SYSTEM_SUMMARIZE = `Você é o Notura, um assistente especializado em processar transcrições de reuniões de negócios em português brasileiro.
 
-═══ TRATAMENTO DE NOMES ═══
+Sua ÚNICA saída deve ser um objeto JSON válido. Sem texto antes. Sem texto depois. Sem markdown fora do JSON. Sem blocos de código. Apenas JSON puro.
 
-- Use o primeiro nome como falado na reunião.
-- Se o mesmo participante é referido por apelido E nome completo, padronize pelo nome mais usado.
-- Corrija capitalização (ex: "ana" → "Ana", "BRUNO" → "Bruno").
+Sua tarefa é analisar a transcrição UMA única vez e retornar, no mesmo objeto:
+1. "summary_whatsapp": resumo pronto para envio no WhatsApp.
+2. "summary_json": resumo estruturado em JSON para persistência e extração de tarefas/decisões.
 
-═══ FORMATO DE SAÍDA ═══
+═══ REGRAS GERAIS ═══
+
+1. Escreva SEMPRE em português brasileiro informal-profissional.
+2. Extraia APENAS o que foi explicitamente dito ou claramente implícito no contexto.
+3. Nunca invente decisões, tarefas, participantes, responsáveis, datas ou links.
+4. Se algo foi discutido mas NÃO decidido, trate como item em aberto.
+5. Se a transcrição tiver ruído, fala sobreposta, erros de transcrição ou gírias regionais, interprete o contexto e não copie trechos ininteligíveis.
+6. Corrija capitalização de nomes e padronize pelo nome mais usado na reunião.
+7. Datas com formato claro devem usar ISO 8601 no "summary_json". Datas imprecisas podem ser descritivas.
+8. Se a transcrição estiver vazia, corrompida ou ininteligível, retorne EXATAMENTE este objeto:
+{
+  "summary_whatsapp": "⚠️ Não foi possível processar esta transcrição. O áudio pode estar corrompido ou inaudível.",
+  "summary_json": {
+    "error": "UNPROCESSABLE_TRANSCRIPT",
+    "reason": "Transcrição vazia ou ininteligível"
+  }
+}
+
+═══ REGRAS PARA "summary_whatsapp" ═══
+
+1. Mantenha o texto conciso, com no máximo 300 palavras.
+2. NÃO use markdown. Sem asteriscos duplos (**), sem hashtags (#), sem backticks (\`).
+3. Use apenas texto plano e o bullet "•".
+4. Use *texto* (um asterisco) apenas para nomes de pessoas em tarefas, pois o WhatsApp renderiza como itálico.
+5. Se uma tarefa foi mencionada mas ninguém assumiu, use "A definir" como responsável.
+6. Se a próxima reunião não foi mencionada, omita a linha inteira.
+
+Formato obrigatório de "summary_whatsapp":
 
 Reunião: [assunto principal] — [data se mencionada]
 Participantes: [nomes separados por vírgula]
@@ -65,39 +87,23 @@ Em aberto:
 
 Próxima reunião: [data, hora e local/link se mencionados]
 
-═══ REGRAS DE SEÇÕES ═══
+Regras de seção para "summary_whatsapp":
+- "Decisões tomadas": se não há nenhuma, escreva "Nenhuma decisão formal registrada nesta reunião."
+- "Tarefas": se não há nenhuma, escreva "Nenhuma tarefa atribuída formalmente."
+- "Em aberto": se não há nenhuma, OMITA a seção inteira.
+- "Próxima reunião": se não mencionada, OMITA a linha inteira.
+- "Participantes": se apenas 1 pessoa fala e nenhum nome é mencionado, escreva "Participante não identificado".
 
-- "Decisões tomadas": se não há nenhuma → escreva "Nenhuma decisão formal registrada nesta reunião."
-- "Tarefas": se não há nenhuma → escreva "Nenhuma tarefa atribuída formalmente."
-- "Em aberto": se não há nenhuma → OMITA a seção inteira (não escreva o título).
-- "Próxima reunião": se não mencionada → OMITA a linha inteira.
-- "Participantes": se apenas 1 pessoa fala e nenhum nome é mencionado → escreva "Participante não identificado".`;
+═══ REGRAS PARA "summary_json" ═══
 
+1. Campos sem informação: retorne null para strings/objetos e [] para listas.
+2. Tarefas sem prazo explícito: "due_date" = null.
+3. Tarefas sem responsável explícito: "owner" = "indefinido".
+4. Prioridade: infira pelo contexto e urgência. Default = "média".
+5. "confidence": use "alta" quando a decisão estiver explicitamente confirmada; caso contrário, "média".
+6. Todos os campos do schema abaixo são obrigatórios. Arrays podem estar vazios.
 
-/**
- * Prompt para geração de resumo estruturado em JSON.
- * O schema deve ser compatível com MeetingJSON (src/types/database.ts).
- */
-const SYSTEM_JSON = `Você é o Notura, um processador de transcrições de reuniões de negócios em português brasileiro.
-
-Sua ÚNICA saída deve ser um objeto JSON válido. Sem texto antes. Sem texto depois. Sem markdown. Sem blocos de código. Apenas JSON puro.
-
-═══ REGRAS ═══
-
-1. Extraia APENAS o que foi explicitamente dito ou claramente implícito.
-2. Nunca invente responsáveis, datas ou decisões.
-3. Campos sem informação: retorne null (strings/objetos) ou array vazio [] (listas).
-4. Nomes: capitalize corretamente, use o nome mais falado na reunião.
-5. Tarefas sem prazo explícito: "due_date" = null.
-6. Tarefas sem responsável explícito: "owner" = "indefinido".
-7. Datas com formato claro: use ISO 8601 (YYYY-MM-DD ou YYYY-MM-DDTHH:mm).
-8. Datas sem formato preciso: use string descritiva ("próxima segunda", "fim do mês").
-9. Prioridade: infira pelo contexto e urgência. Default = "média".
-10. Se a transcrição estiver vazia, corrompida ou ininteligível, retorne:
-    {"error": "UNPROCESSABLE_TRANSCRIPT", "reason": "Transcrição vazia ou ininteligível"}
-
-═══ SCHEMA ═══
-
+Schema obrigatório de "summary_json":
 {
   "version": "${SUMMARY_SCHEMA_VERSION}",
   "meeting": {
@@ -111,7 +117,7 @@ Sua ÚNICA saída deve ser um objeto JSON válido. Sem texto antes. Sem texto de
     {
       "description": "string — decisão objetiva em uma frase",
       "decided_by": "string | null — quem tomou a decisão, se explícito",
-      "confidence": "alta | média — 'alta' se explicitamente confirmado, 'média' se inferido do contexto"
+      "confidence": "alta | média"
     }
   ],
   "tasks": [
@@ -142,30 +148,26 @@ Sua ÚNICA saída deve ser um objeto JSON válido. Sem texto antes. Sem texto de
   }
 }
 
-Retorne EXATAMENTE este schema. Todos os campos são obrigatórios. Arrays podem estar vazios [].`;
+═══ FORMATO FINAL DE RESPOSTA ═══
+
+Retorne EXATAMENTE um objeto JSON neste formato:
+{
+  "summary_whatsapp": "string",
+  "summary_json": { ...schema acima... }
+}`;
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
-/**
- * Retorna um cliente Gemini autenticado com a chave de ambiente GEMINI_API_KEY.
- */
 function getGeminiClient(): GoogleGenerativeAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set in environment");
   return new GoogleGenerativeAI(apiKey);
 }
 
-/**
- * Aguarda `ms` milissegundos — usado para backoff entre tentativas.
- */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Executa `fn` com retry automático (até MAX_RETRIES tentativas, backoff de RETRY_DELAY_MS).
- * Lança o último erro se todas as tentativas falharem.
- */
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -182,42 +184,37 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   throw lastError;
 }
 
-// ── Funções públicas ──────────────────────────────────────────────────────────
-
-/**
- * Gera um resumo da transcrição formatado para WhatsApp.
- * Retorna string com emojis e seções em negrito.
- * Equivalente ao Step 3 (summarize-whatsapp) — mesmo contrato de retorno.
- */
-export async function generateWhatsAppSummary(transcript: string): Promise<string> {
-  return withRetry(async () => {
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_WHATSAPP,
-    });
-
-    const result = await model.generateContent(
-      `Transcrição da reunião:\n\n${transcript}`
-    );
-    const text = result.response.text();
-
-    if (!text) throw new Error("Gemini returned empty response for WhatsApp summary");
-    return text;
-  });
+function parseJsonResponse<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Failed to parse Gemini JSON response");
+    return JSON.parse(jsonMatch[0]) as T;
+  }
 }
 
-/**
- * Gera um resumo estruturado da transcrição como objeto MeetingJSON.
- * Retorna JSON com tasks, decisions, open_items etc.
- * Equivalente ao Step 4 (summarize-json) — mesmo contrato de retorno.
- */
-export async function generateJsonSummary(transcript: string): Promise<MeetingJSON> {
+function isUnprocessableTranscriptPayload(
+  value: MeetingJSON | UnprocessableTranscriptPayload
+): value is UnprocessableTranscriptPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    value.error === "UNPROCESSABLE_TRANSCRIPT"
+  );
+}
+
+// ── Função pública ────────────────────────────────────────────────────────────
+
+export async function generateMeetingSummary(
+  transcript: string
+): Promise<MeetingSummaryResult> {
   return withRetry(async () => {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
-      systemInstruction: SYSTEM_JSON,
+      systemInstruction: SYSTEM_SUMMARIZE,
     });
 
     const result = await model.generateContent(
@@ -225,23 +222,29 @@ export async function generateJsonSummary(transcript: string): Promise<MeetingJS
     );
     const text = result.response.text();
 
-    if (!text) throw new Error("Gemini returned empty response for JSON summary");
+    if (!text) throw new Error("Gemini returned empty response for meeting summary");
 
-    // Tenta parsear diretamente; se falhar, extrai o bloco JSON do texto
-    let parsed: MeetingJSON;
-    try {
-      parsed = JSON.parse(text) as MeetingJSON;
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Failed to parse Gemini JSON response");
-      parsed = JSON.parse(jsonMatch[0]) as MeetingJSON;
+    const parsed = parseJsonResponse<GeminiSummaryEnvelope>(text);
+
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("Gemini returned an invalid meeting summary envelope");
     }
 
-    // Verifica se o modelo sinalizou transcrição inválida
-    if ((parsed as unknown as { error?: string }).error === "UNPROCESSABLE_TRANSCRIPT") {
-      throw new Error("Transcript was unprocessable: empty or unintelligible");
+    if (typeof parsed.summary_whatsapp !== "string" || !parsed.summary_whatsapp.trim()) {
+      throw new Error("Gemini returned an invalid WhatsApp summary");
     }
 
-    return parsed;
+    if (!parsed.summary_json || typeof parsed.summary_json !== "object") {
+      throw new Error("Gemini returned an invalid JSON summary");
+    }
+
+    if (isUnprocessableTranscriptPayload(parsed.summary_json)) {
+      throw new Error(`Transcript was unprocessable: ${parsed.summary_json.reason}`);
+    }
+
+    return {
+      summaryWhatsapp: parsed.summary_whatsapp,
+      summaryJson: parsed.summary_json,
+    };
   });
 }

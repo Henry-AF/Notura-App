@@ -11,8 +11,7 @@ import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
 import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
 import { AssemblyAI } from "assemblyai";
 import {
-  generateWhatsAppSummary,
-  generateJsonSummary,
+  generateMeetingSummary,
   PROMPT_VERSION,
 } from "@/lib/gemini";
 import type { Json, MeetingJSON, Priority, Confidence } from "@/types/database";
@@ -248,19 +247,13 @@ export const processMeeting = inngest.createFunction(
       return formattedTranscript;
     });
 
-    // ── Step 3: Generate WhatsApp summary ──────────────────────────────
-    const summaryWhatsapp = await step.run("summarize-whatsapp", async () => {
-      // Chama Gemini para gerar o resumo formatado para WhatsApp (com emojis e seções).
-      return generateWhatsAppSummary(transcript);
-    });
+    // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
+    const { summaryWhatsapp, summaryJson } = await step.run(
+      "summarize-meeting",
+      async () => generateMeetingSummary(transcript)
+    );
 
-    // ── Step 4: Generate JSON summary ──────────────────────────────────
-    const summaryJson = await step.run("summarize-json", async () => {
-      // Chama Gemini para gerar o resumo estruturado (tasks, decisions, open_items, etc.).
-      return generateJsonSummary(transcript);
-    });
-
-    // ── Step 5: Save results to Supabase ───────────────────────────────
+    // ── Step 4: Save results to Supabase ───────────────────────────────
     await step.run("save-results", async () => {
       const taskDedupeKeys = buildSummaryItemDedupeKeys(
         summaryJson.tasks,
@@ -381,7 +374,7 @@ export const processMeeting = inngest.createFunction(
       }
     });
 
-    // ── Step 6: Send WhatsApp ──────────────────────────────────────────
+    // ── Step 5: Send WhatsApp ──────────────────────────────────────────
     await step.run("send-whatsapp", async () => {
       const result = await sendWhatsAppMessage(whatsappNumber, summaryWhatsapp);
 
@@ -400,7 +393,7 @@ export const processMeeting = inngest.createFunction(
       }
     });
 
-    // ── Step 7: Cleanup — delete audio from R2 (LGPD) ─────────────────
+    // ── Step 6: Cleanup — delete audio from R2 (LGPD) ─────────────────
     await step.run("cleanup", async () => {
       let audioDeleted = false;
 

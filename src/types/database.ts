@@ -354,7 +354,7 @@ export type MeetingWithRelations =
     open_items: Database["public"]["Tables"]["open_items"]["Row"][]
   }
 
-// ── MeetingJSON — shape of summary_json as returned by Claude ────────────────
+// ── MeetingJSON — shape of summary_json as returned by Gemini ─────────────────
 
 export interface MeetingJSON {
   version?: string

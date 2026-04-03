@@ -4,6 +4,7 @@
 // Transcribes audio, summarizes via Gemini, saves results, sends WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { createHash } from "node:crypto";
 import { inngest } from "@/lib/inngest";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
@@ -29,6 +30,40 @@ interface MeetingProcessEventData {
   r2Key: string;
   whatsappNumber: string;
   userId: string;
+}
+
+type SummaryItemKind = "task" | "decision" | "open_item";
+
+function normalizeSummaryField(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function buildSummaryItemSignature(
+  kind: SummaryItemKind,
+  fields: Array<string | null | undefined>
+): string {
+  return [kind, ...fields.map(normalizeSummaryField)].join("::");
+}
+
+function buildSummaryItemDedupeKeys<T>(
+  items: T[],
+  getSignature: (item: T) => string
+): string[] {
+  const occurrenceBySignature = new Map<string, number>();
+
+  return items.map((item) => {
+    const signature = getSignature(item);
+    const occurrence = (occurrenceBySignature.get(signature) ?? 0) + 1;
+    occurrenceBySignature.set(signature, occurrence);
+
+    return createHash("sha256")
+      .update(`v1::${signature}::${occurrence}`)
+      .digest("hex");
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -176,35 +211,69 @@ export const processMeeting = inngest.createFunction(
 
     // ── Step 5: Save results to Supabase ───────────────────────────────
     await step.run("save-results", async () => {
-      // Insert tasks
+      const taskDedupeKeys = buildSummaryItemDedupeKeys(
+        summaryJson.tasks,
+        (task) =>
+          buildSummaryItemSignature("task", [
+            task.description,
+            task.owner === "indefinido" ? null : task.owner,
+            task.due_date ?? null,
+            task.priority ?? "média",
+          ])
+      );
+
+      const decisionDedupeKeys = buildSummaryItemDedupeKeys(
+        summaryJson.decisions,
+        (decision) =>
+          buildSummaryItemSignature("decision", [
+            decision.description,
+            decision.decided_by ?? null,
+            decision.confidence ?? "média",
+          ])
+      );
+
+      const openItemDedupeKeys = buildSummaryItemDedupeKeys(
+        summaryJson.open_items,
+        (item) =>
+          buildSummaryItemSignature("open_item", [
+            item.description,
+            item.context ?? null,
+          ])
+      );
+
+      // Upsert tasks using a deterministic key so Inngest retries do not
+      // duplicate rows if this step partially succeeds before failing.
       if (summaryJson.tasks && summaryJson.tasks.length > 0) {
-        const tasksToInsert = summaryJson.tasks.map(
-          (task: MeetingJSON["tasks"][number]) => ({
+        const tasksToUpsert = summaryJson.tasks.map(
+          (task: MeetingJSON["tasks"][number], index) => ({
             meeting_id: meetingId,
             user_id: userId,
+            dedupe_key: taskDedupeKeys[index],
             description: task.description,
             owner: task.owner === "indefinido" ? null : task.owner,
             due_date: task.due_date ?? null,
             priority: (task.priority ?? "média") as Priority,
-            completed: false,
           })
         );
 
         const { error: tasksError } = await supabase
           .from("tasks")
-          .insert(tasksToInsert);
+          .upsert(tasksToUpsert, {
+            onConflict: "meeting_id,dedupe_key",
+          });
 
         if (tasksError) {
-          console.error("[process-meeting] Failed to insert tasks:", tasksError);
+          throw new Error(`Failed to upsert tasks: ${tasksError.message}`);
         }
       }
 
-      // Insert decisions
+      // Upsert decisions using the same deterministic retry-safe strategy.
       if (summaryJson.decisions && summaryJson.decisions.length > 0) {
-        const decisionsToInsert = summaryJson.decisions.map(
-          (decision: MeetingJSON["decisions"][number]) => ({
+        const decisionsToUpsert = summaryJson.decisions.map(
+          (decision: MeetingJSON["decisions"][number], index) => ({
             meeting_id: meetingId,
             user_id: userId,
+            dedupe_key: decisionDedupeKeys[index],
             description: decision.description,
             decided_by: decision.decided_by ?? null,
             confidence: (decision.confidence ?? "média") as Confidence,
@@ -213,22 +282,22 @@ export const processMeeting = inngest.createFunction(
 
         const { error: decisionsError } = await supabase
           .from("decisions")
-          .insert(decisionsToInsert);
+          .upsert(decisionsToUpsert, {
+            onConflict: "meeting_id,dedupe_key",
+          });
 
         if (decisionsError) {
-          console.error(
-            "[process-meeting] Failed to insert decisions:",
-            decisionsError
-          );
+          throw new Error(`Failed to upsert decisions: ${decisionsError.message}`);
         }
       }
 
-      // Insert open items
+      // Upsert open items so retried executions remain idempotent as well.
       if (summaryJson.open_items && summaryJson.open_items.length > 0) {
-        const openItemsToInsert = summaryJson.open_items.map(
-          (item: MeetingJSON["open_items"][number]) => ({
+        const openItemsToUpsert = summaryJson.open_items.map(
+          (item: MeetingJSON["open_items"][number], index) => ({
             meeting_id: meetingId,
             user_id: userId,
+            dedupe_key: openItemDedupeKeys[index],
             description: item.description,
             context: item.context ?? null,
           })
@@ -236,13 +305,12 @@ export const processMeeting = inngest.createFunction(
 
         const { error: openItemsError } = await supabase
           .from("open_items")
-          .insert(openItemsToInsert);
+          .upsert(openItemsToUpsert, {
+            onConflict: "meeting_id,dedupe_key",
+          });
 
         if (openItemsError) {
-          console.error(
-            "[process-meeting] Failed to insert open_items:",
-            openItemsError
-          );
+          throw new Error(`Failed to upsert open items: ${openItemsError.message}`);
         }
       }
 

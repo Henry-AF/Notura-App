@@ -149,6 +149,7 @@ export interface Database {
           id: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           owner: string | null
           due_date: string | null
@@ -161,6 +162,7 @@ export interface Database {
           id?: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           owner?: string | null
           due_date?: string | null
@@ -173,6 +175,7 @@ export interface Database {
           id?: string
           meeting_id?: string
           user_id?: string
+          dedupe_key?: string
           description?: string
           owner?: string | null
           due_date?: string | null
@@ -196,6 +199,7 @@ export interface Database {
           id: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           decided_by: string | null
           confidence: string
@@ -205,6 +209,7 @@ export interface Database {
           id?: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           decided_by?: string | null
           confidence?: string
@@ -214,6 +219,7 @@ export interface Database {
           id?: string
           meeting_id?: string
           user_id?: string
+          dedupe_key?: string
           description?: string
           decided_by?: string | null
           confidence?: string
@@ -234,6 +240,7 @@ export interface Database {
           id: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           context: string | null
           created_at: string
@@ -242,6 +249,7 @@ export interface Database {
           id?: string
           meeting_id: string
           user_id: string
+          dedupe_key: string
           description: string
           context?: string | null
           created_at?: string
@@ -250,6 +258,7 @@ export interface Database {
           id?: string
           meeting_id?: string
           user_id?: string
+          dedupe_key?: string
           description?: string
           context?: string | null
           created_at?: string
@@ -354,7 +363,7 @@ export type MeetingWithRelations =
     open_items: Database["public"]["Tables"]["open_items"]["Row"][]
   }
 
-// ── MeetingJSON — shape of summary_json as returned by Claude ────────────────
+// ── MeetingJSON — shape of summary_json as returned by Gemini ─────────────────
 
 export interface MeetingJSON {
   version?: string

@@ -351,8 +351,11 @@ export const processMeeting = inngest.createFunction(
 
     // ── Step 7: Cleanup — delete audio from R2 (LGPD) ─────────────────
     await step.run("cleanup", async () => {
+      let audioDeleted = false;
+
       try {
         await deleteAudio(r2Key);
+        audioDeleted = true;
       } catch (error) {
         console.error("[process-meeting] Failed to delete audio from R2:", error);
         // Non-critical — log but don't fail the pipeline
@@ -363,7 +366,7 @@ export const processMeeting = inngest.createFunction(
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
-          audio_r2_key: null, // Clear R2 key since file is deleted
+          ...(audioDeleted ? { audio_r2_key: null } : {}),
         })
         .eq("id", meetingId);
 

@@ -6,16 +6,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
           "rounded-full bg-notura-primary text-white shadow-md hover:bg-notura-primary-dark active:bg-notura-primary-dark hover:-translate-y-0.5 active:translate-y-0",
         secondary:
-          "rounded-full border-[1.5px] border-notura-border bg-white text-notura-ink hover:border-violet-300 hover:text-notura-primary active:bg-violet-50",
+          "rounded-full border-[1.5px] border-notura-border bg-white text-notura-ink hover:border-emerald-300 hover:text-notura-primary active:bg-emerald-50",
         ghost:
-          "rounded-md text-notura-secondary hover:text-notura-primary hover:bg-violet-50 active:bg-violet-100",
+          "rounded-md text-notura-secondary hover:text-notura-primary hover:bg-emerald-50 active:bg-emerald-100",
         danger:
           "rounded-full bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800 hover:-translate-y-0.5 active:translate-y-0",
       },

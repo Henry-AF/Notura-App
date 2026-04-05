@@ -50,8 +50,8 @@ function Waveform({ active }: { active: boolean }) {
           style={{
             height: `${Math.round(h * 56 + 8)}px`,
             background: active
-              ? "linear-gradient(to top, #4648d4, #6063ee)"
-              : "#c7c4d7",
+              ? "linear-gradient(to top, #6851FF, #8B7AFF)"
+              : "#3A3D4A",
             animation: active
               ? `waveBar 0.9s ease-in-out infinite alternate`
               : "none",
@@ -88,37 +88,37 @@ const TRANSCRIPT_SEED: Omit<TranscriptLine, "id">[] = [
     speaker: "Henry Mano",
     text: "Bom, vamos começar falando sobre o roadmap do segundo trimestre.",
     initials: "HM",
-    color: "#e1e0ff",
+    color: "rgba(104,81,255,0.3)",
   },
   {
     speaker: "Carla Mendes",
     text: "Concordo. Acho que precisamos priorizar a migração de API antes de qualquer nova feature.",
     initials: "CM",
-    color: "#fef3c7",
+    color: "rgba(251,191,36,0.3)",
   },
   {
     speaker: "Marcos Andrade",
     text: "Faz sentido. Qual é o prazo que vocês têm em mente para a migração?",
     initials: "MA",
-    color: "#d1fae5",
+    color: "rgba(34,197,94,0.3)",
   },
   {
     speaker: "Henry Mano",
     text: "Estamos pensando nas próximas 6 semanas, com deploy incremental para minimizar risco.",
     initials: "HM",
-    color: "#e1e0ff",
+    color: "rgba(104,81,255,0.3)",
   },
   {
     speaker: "Carla Mendes",
     text: "Perfeito. E quem vai liderar a parte de testes de integração?",
     initials: "CM",
-    color: "#fef3c7",
+    color: "rgba(251,191,36,0.3)",
   },
   {
     speaker: "Marcos Andrade",
     text: "Eu posso assumir isso junto com a Julia. Já conversamos sobre a abordagem.",
     initials: "MA",
-    color: "#d1fae5",
+    color: "rgba(34,197,94,0.3)",
   },
 ];
 
@@ -150,7 +150,7 @@ function LiveTranscript({ active }: { active: boolean }) {
   return (
     <div className="relative h-full overflow-hidden">
       {/* Top fade gradient */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-[#f6f3f2] to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-[#1D1B26] to-transparent" />
 
       <div className="h-full overflow-y-auto px-1 pb-2 pt-4">
         <div className="space-y-4">
@@ -166,7 +166,7 @@ function LiveTranscript({ active }: { active: boolean }) {
             >
               {/* Avatar */}
               <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#07006c]"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-notura-ink"
                 style={{ backgroundColor: line.color }}
               >
                 {line.initials}
@@ -174,10 +174,10 @@ function LiveTranscript({ active }: { active: boolean }) {
 
               {/* Bubble */}
               <div className="min-w-0 flex-1">
-                <p className="mb-0.5 text-[11px] font-semibold text-[#4648d4]">
+                <p className="mb-0.5 text-[11px] font-semibold text-notura-primary">
                   {line.speaker}
                 </p>
-                <p className="text-sm leading-relaxed text-[#1c1b1b]">
+                <p className="text-sm leading-relaxed text-notura-ink">
                   {line.text}
                 </p>
               </div>
@@ -191,7 +191,7 @@ function LiveTranscript({ active }: { active: boolean }) {
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-[#4648d4]"
+                    className="h-1.5 w-1.5 rounded-full bg-notura-primary"
                     style={{
                       animation: "typingDot 1.2s ease-in-out infinite",
                       animationDelay: `${i * 0.2}s`,
@@ -199,7 +199,7 @@ function LiveTranscript({ active }: { active: boolean }) {
                   />
                 ))}
               </div>
-              <span className="text-[11px] text-[#464554]">transcrevendo...</span>
+              <span className="text-[11px] text-notura-ink-secondary">transcrevendo...</span>
             </div>
           )}
 
@@ -220,9 +220,9 @@ function LiveTranscript({ active }: { active: boolean }) {
 // ─── Participants ─────────────────────────────────────────────────────────────
 
 const participants = [
-  { name: "Henry Mano", initials: "HM", color: "#e1e0ff", speaking: true },
-  { name: "Carla Mendes", initials: "CM", color: "#fef3c7", speaking: false },
-  { name: "Marcos Andrade", initials: "MA", color: "#d1fae5", speaking: false },
+  { name: "Henry Mano", initials: "HM", color: "rgba(104,81,255,0.3)", speaking: true },
+  { name: "Carla Mendes", initials: "CM", color: "rgba(251,191,36,0.3)", speaking: false },
+  { name: "Marcos Andrade", initials: "MA", color: "rgba(34,197,94,0.3)", speaking: false },
 ];
 
 // ─── Stop Confirmation Dialog ─────────────────────────────────────────────────
@@ -240,16 +240,16 @@ function StopDialog({
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onCancel}
       />
-      <div className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="relative z-10 w-full max-w-sm rounded-t-2xl bg-notura-bg-secondary p-6 shadow-xl sm:rounded-2xl">
         {/* Icon */}
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-          <Square className="h-6 w-6 text-red-500" />
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-notura-processing/15">
+          <Square className="h-6 w-6 text-notura-processing" />
         </div>
 
-        <h2 className="text-center font-manrope font-extrabold text-lg tracking-[-0.3px] text-[#1c1b1b]">
+        <h2 className="text-center font-manrope font-extrabold text-lg tracking-[-0.3px] text-notura-ink">
           Encerrar gravação?
         </h2>
-        <p className="mt-2 text-center text-sm leading-relaxed text-[#464554]">
+        <p className="mt-2 text-center text-sm leading-relaxed text-notura-ink-secondary">
           A reunião será processada e o resumo enviado via WhatsApp para os
           contatos selecionados.
         </p>
@@ -257,13 +257,13 @@ function StopDialog({
         <div className="mt-6 flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 rounded-full border border-[rgba(199,196,215,0.4)] py-2.5 text-sm font-medium text-[#464554] transition-colors hover:bg-[#f6f3f2]"
+            className="flex-1 rounded-full border border-notura-border/40 py-2.5 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-surface"
           >
             Continuar
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 rounded-full bg-red-500 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-600"
+            className="flex-1 rounded-full bg-notura-processing py-2.5 text-sm font-medium text-white transition-colors hover:opacity-90"
           >
             Encerrar
           </button>
@@ -307,12 +307,12 @@ export default function RecordingPage() {
         {/* ── Page header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
               <ArrowLeft className="h-4 w-4" />
             </button>
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-[#1c1b1b] sm:text-2xl">
+            <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink sm:text-2xl">
               Sprint planning — Projeto Nova Plataforma
             </h1>
           </div>
@@ -323,17 +323,17 @@ export default function RecordingPage() {
           className={cn(
             "relative overflow-hidden rounded-2xl border transition-all duration-500",
             isActive
-              ? "border-[rgba(70,72,212,0.25)] bg-[#f6f3f2]"
+              ? "border-notura-primary/25 bg-notura-surface"
               : stopped
-              ? "border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] opacity-70"
-              : "border-[rgba(199,196,215,0.3)] bg-[#f6f3f2]"
+              ? "border-notura-border/20 bg-notura-surface opacity-70"
+              : "border-notura-border/30 bg-notura-surface"
           )}
         >
           {/* Subtle glow backdrop when active */}
           {isActive && (
             <div
               className="pointer-events-none absolute -top-20 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl"
-              style={{ background: "rgba(70,72,212,0.07)" }}
+              style={{ background: "rgba(104,81,255,0.07)" }}
             />
           )}
 
@@ -341,18 +341,18 @@ export default function RecordingPage() {
             {/* ── Status badge ───────────────────────────────────────────── */}
             <div className="mb-8">
               {stopped ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#e5e2e1] px-4 py-1.5 text-sm font-medium text-[#464554]">
-                  <span className="h-2 w-2 rounded-full bg-[#464554]" />
-                  Gravação encerrada
+                <span className="inline-flex items-center gap-2 rounded-full bg-notura-surface px-4 py-1.5 text-sm font-medium text-notura-ink-secondary">
+                  <span className="h-2 w-2 rounded-full bg-notura-muted" />
+                  Grava\u00e7\u00e3o encerrada
                 </span>
               ) : paused ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-700">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-4 py-1.5 text-sm font-medium text-amber-400">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
                   Pausado
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium text-white"
-                  style={{ background: "linear-gradient(135deg, #4648d4, #6063ee)" }}>
+                  style={{ background: "linear-gradient(135deg, #6851FF, #8B7AFF)" }}>
                   {/* Pulsing dot */}
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />
@@ -365,12 +365,12 @@ export default function RecordingPage() {
 
             {/* ── Timer ──────────────────────────────────────────────────── */}
             <div
-              className="mb-2 tabular-nums font-manrope font-extrabold tracking-tight text-[#1c1b1b]"
+              className="mb-2 tabular-nums font-manrope font-extrabold tracking-tight text-notura-ink"
               style={{ fontSize: "clamp(3rem, 10vw, 5.5rem)", lineHeight: 1 }}
             >
               {formatTime(elapsed)}
             </div>
-            <p className="mb-10 text-sm text-[#464554]">
+            <p className="mb-10 text-sm text-notura-ink-secondary">
               {stopped
                 ? "Processando em breve..."
                 : paused
@@ -389,7 +389,7 @@ export default function RecordingPage() {
                 {/* Pause / Resume */}
                 <button
                   onClick={() => setPaused((v) => !v)}
-                  className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(199,196,215,0.4)] bg-white text-[#464554] shadow-sm transition-all hover:bg-[#f6f3f2] hover:text-[#1c1b1b] active:scale-95"
+                  className="flex h-12 w-12 items-center justify-center rounded-full border border-notura-border/40 bg-notura-surface text-notura-ink-secondary shadow-sm transition-all hover:bg-notura-surface-2 hover:text-notura-ink active:scale-95"
                   title={paused ? "Retomar" : "Pausar"}
                 >
                   {paused ? (
@@ -402,9 +402,9 @@ export default function RecordingPage() {
                 {/* Stop */}
                 <button
                   onClick={() => setShowStop(true)}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-lg transition-all hover:bg-red-600 active:scale-95"
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-notura-processing text-white shadow-lg transition-all hover:opacity-90 active:scale-95"
                   style={{
-                    boxShadow: "0 8px 20px -4px rgba(239,68,68,0.4)",
+                    boxShadow: "0 8px 20px -4px rgba(228,55,144,0.4)",
                   }}
                   title="Encerrar gravação"
                 >
@@ -412,8 +412,8 @@ export default function RecordingPage() {
                 </button>
 
                 {/* Mic indicator */}
-                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(199,196,215,0.4)] bg-white text-[#464554] shadow-sm">
-                  <Mic className={cn("h-5 w-5", isActive && "text-[#4648d4]")} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-notura-border/40 bg-notura-surface text-notura-ink-secondary shadow-sm">
+                  <Mic className={cn("h-5 w-5", isActive && "text-notura-primary")} />
                 </div>
               </div>
             ) : (
@@ -422,9 +422,9 @@ export default function RecordingPage() {
                 <button
                   className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white transition-all hover:opacity-90"
                   style={{
-                    background: "linear-gradient(135deg, #4648d4, #6063ee)",
+                    background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
                     boxShadow:
-                      "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+                      "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
                   }}
                 >
                   Ver reuniões
@@ -437,15 +437,15 @@ export default function RecordingPage() {
         {/* ── Two-column grid (participants + transcript) ───────────────────── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           {/* Participants card */}
-          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] p-5 lg:col-span-2">
+          <div className="rounded-2xl border border-notura-border/30 bg-notura-surface p-5 lg:col-span-2">
             <div className="mb-4 flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
-                <Users className="h-4 w-4 text-[#4648d4]" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
+                <Users className="h-4 w-4 text-notura-primary" />
               </div>
-              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
                 Participantes
               </h2>
-              <span className="ml-auto inline-flex items-center rounded-full bg-[#e1e0ff] px-2.5 py-0.5 text-xs font-medium text-[#07006c]">
+              <span className="ml-auto inline-flex items-center rounded-full bg-notura-primary/15 px-2.5 py-0.5 text-xs font-medium text-notura-primary">
                 {participants.length}
               </span>
             </div>
@@ -454,26 +454,26 @@ export default function RecordingPage() {
               {participants.map((p) => (
                 <li
                   key={p.name}
-                  className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5"
+                  className="flex items-center gap-3 rounded-xl bg-notura-surface-2 px-3 py-2.5"
                 >
                   <div className="relative">
                     <div
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-[#07006c]"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-notura-ink"
                       style={{ backgroundColor: p.color }}
                     >
                       {p.initials}
                     </div>
                     {isActive && p.speaking && (
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white">
-                        <span className="h-2 w-2 animate-ping rounded-full bg-[#4648d4] opacity-75" />
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-notura-surface">
+                        <span className="h-2 w-2 animate-ping rounded-full bg-notura-primary opacity-75" />
                       </span>
                     )}
                   </div>
-                  <span className="flex-1 text-sm text-[#1c1b1b]">
+                  <span className="flex-1 text-sm text-notura-ink">
                     {p.name}
                   </span>
                   {isActive && p.speaking && (
-                    <span className="text-[10px] font-medium text-[#4648d4]">
+                    <span className="text-[10px] font-medium text-notura-primary">
                       Falando
                     </span>
                   )}
@@ -482,24 +482,24 @@ export default function RecordingPage() {
             </ul>
 
             {/* WhatsApp delivery target */}
-            <div className="mt-5 border-t border-[rgba(199,196,215,0.3)] pt-4">
-              <p className="mb-2 text-xs font-medium text-[#464554]">
+            <div className="mt-5 border-t border-notura-border/30 pt-4">
+              <p className="mb-2 text-xs font-medium text-notura-ink-secondary">
                 Resumo será enviado para
               </p>
-              <div className="flex items-center gap-2.5 rounded-xl bg-white px-3 py-2.5">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50">
-                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
+              <div className="flex items-center gap-2.5 rounded-xl bg-notura-surface-2 px-3 py-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-notura-success/15">
+                  <Phone className="h-3.5 w-3.5 text-notura-success" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-[#1c1b1b]">
+                  <p className="text-xs font-medium text-notura-ink">
                     Henry Mano
                   </p>
-                  <p className="text-[11px] text-[#464554]">
+                  <p className="text-[11px] text-notura-ink-secondary">
                     +55 (11) 9 9988-7766
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="inline-flex items-center gap-1 rounded-full bg-notura-success/15 px-2 py-0.5 text-[10px] font-medium text-notura-success">
+                  <span className="h-1.5 w-1.5 rounded-full bg-notura-success" />
                   WhatsApp
                 </span>
               </div>
@@ -507,24 +507,24 @@ export default function RecordingPage() {
           </div>
 
           {/* Live transcript card */}
-          <div className="rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] lg:col-span-3">
+          <div className="rounded-2xl border border-notura-border/30 bg-notura-surface lg:col-span-3">
             {/* Header */}
             <button
               onClick={() => setTranscriptOpen((v) => !v)}
               className="flex w-full items-center gap-2.5 p-5"
             >
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
-                <Mic className="h-4 w-4 text-[#4648d4]" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
+                <Mic className="h-4 w-4 text-notura-primary" />
               </div>
-              <h2 className="flex-1 text-left font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
-                Transcrição ao vivo
+              <h2 className="flex-1 text-left font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
+                Transcri\u00e7\u00e3o ao vivo
               </h2>
 
               {isActive && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e1e0ff] px-2.5 py-1 text-xs font-medium text-[#07006c]">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-2.5 py-1 text-xs font-medium text-notura-primary">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute h-full w-full animate-ping rounded-full bg-[#4648d4] opacity-60" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#4648d4]" />
+                    <span className="absolute h-full w-full animate-ping rounded-full bg-notura-primary opacity-60" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-notura-primary" />
                   </span>
                   Ao vivo
                 </span>
@@ -532,7 +532,7 @@ export default function RecordingPage() {
 
               <ChevronDown
                 className={cn(
-                  "ml-1 h-4 w-4 shrink-0 text-[#464554] transition-transform duration-200",
+                  "ml-1 h-4 w-4 shrink-0 text-notura-ink-secondary transition-transform duration-200",
                   transcriptOpen && "rotate-180"
                 )}
               />
@@ -540,7 +540,7 @@ export default function RecordingPage() {
 
             {/* Transcript body */}
             {transcriptOpen && (
-              <div className="h-72 border-t border-[rgba(199,196,215,0.2)] px-5 py-4">
+              <div className="h-72 border-t border-notura-border/30 px-5 py-4">
                 <LiveTranscript active={isActive} />
               </div>
             )}
@@ -549,7 +549,7 @@ export default function RecordingPage() {
 
         {/* ── Recording tips ────────────────────────────────────────────────── */}
         {!stopped && (
-          <p className="text-center text-xs text-[#464554]">
+          <p className="text-center text-xs text-notura-ink-secondary">
             Mantenha a guia aberta para garantir a gravação contínua. O resumo será
             gerado automaticamente ao encerrar.
           </p>

@@ -9,29 +9,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── New violet design system ─────────────────────────
+        // ── Dark design system ─────────────────────────────
         notura: {
-          // Primary violet
-          primary: "#7C3AED",
-          "primary-light": "#EDE9FE",
-          "primary-dark": "#5B21B6",
-          accent: "#A78BFA",
-          // Neutral
-          ink: "#1E1B4B",
-          secondary: "#6B7280",
-          muted: "#9CA3AF",
-          surface: "#FFFFFF",
-          bg: "#FAFAFA",
-          border: "#E5E7EB",
+          // Brand purple
+          primary: "#6851FF",
+          "primary-light": "#8B7AFF",
+          "primary-dark": "#5740EE",
+          "primary-glow": "rgba(104,81,255,0.3)",
+          secondary: "#BA2BF2",
+          processing: "#E43790",
+          // Dark backgrounds
+          bg: "#0C0B0E",
+          "bg-secondary": "#141319",
+          surface: "#1D1B26",
+          "surface-2": "#252230",
+          // Text
+          ink: "#F4F4F6",
+          "ink-secondary": "#9598A8",
+          muted: "#3A3D4A",
+          // Borders
+          border: "#2C285B",
           // Status
-          success: "#10B981",
+          success: "#22C55E",
           warning: "#F59E0B",
           error: "#EF4444",
-          // Legacy aliases kept for compatibility
-          green: "#10B981",
-          "green-light": "#D1FAE5",
-          "green-dark": "#065F46",
-          white: "#FFFFFF",
         },
         violet: {
           50: "#F5F3FF",
@@ -74,7 +75,7 @@ const config: Config = {
         md: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04)",
         lg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)",
         xl: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
-        glow: "0 0 40px rgba(124, 58, 237, 0.15)",
+        glow: "0 0 40px rgba(104, 81, 255, 0.25)",
         // Legacy
         subtle: "0 1px 3px rgba(0,0,0,0.08)",
         card: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",

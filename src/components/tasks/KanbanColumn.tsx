@@ -95,7 +95,7 @@ export function KanbanColumn({
               fontFamily: "Inter, sans-serif",
               fontWeight: 600,
               fontSize: 13,
-              color: "#D0D0D0",
+              color: "rgb(var(--cn-ink2))",
               letterSpacing: "0.03em",
             }}
           >
@@ -129,7 +129,7 @@ export function KanbanColumn({
               borderRadius: 6,
               border: "none",
               background: "transparent",
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               fontSize: 20,
               lineHeight: 1,
               cursor: "pointer",
@@ -139,12 +139,12 @@ export function KanbanColumn({
               transition: "background 0.15s, color 0.15s",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "#2E2E2E";
-              (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
+              (e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))";
+              (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink))";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-              (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+              (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))";
             }}
           >
             +
@@ -162,7 +162,7 @@ export function KanbanColumn({
                   borderRadius: 6,
                   border: "none",
                   background: "transparent",
-                  color: "#606060",
+                  color: "rgb(var(--cn-muted))",
                   fontSize: 16,
                   cursor: "pointer",
                   display: "flex",
@@ -171,12 +171,12 @@ export function KanbanColumn({
                   transition: "background 0.15s, color 0.15s",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "#2E2E2E";
-                  (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink))";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                  (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))";
                 }}
               >
                 &middot;&middot;&middot;
@@ -189,12 +189,12 @@ export function KanbanColumn({
                     top: 30,
                     right: 0,
                     zIndex: 100,
-                    background: "#1C1C1C",
-                    border: "1px solid #2E2E2E",
+                    background: "rgb(var(--cn-card))",
+                    border: "1px solid rgb(var(--cn-border))",
                     borderRadius: 10,
                     padding: 8,
                     minWidth: 180,
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                   }}
                 >
                   {!confirmDelete ? (
@@ -228,7 +228,7 @@ export function KanbanColumn({
                         style={{
                           fontFamily: "Inter, sans-serif",
                           fontSize: 12,
-                          color: "#A0A0A0",
+                        color: "rgb(var(--cn-ink2))",
                           margin: "0 0 8px 8px",
                           lineHeight: 1.4,
                         }}
@@ -242,9 +242,9 @@ export function KanbanColumn({
                             flex: 1,
                             padding: "6px",
                             borderRadius: 6,
-                            border: "1px solid #2E2E2E",
-                            background: "transparent",
-                            color: "#A0A0A0",
+                          border: "1px solid rgb(var(--cn-border))",
+                          background: "transparent",
+                          color: "rgb(var(--cn-ink2))",
                             fontFamily: "Inter, sans-serif",
                             fontSize: 12,
                             cursor: "pointer",
@@ -260,7 +260,7 @@ export function KanbanColumn({
                             borderRadius: 6,
                             border: "none",
                             background: "#FF6B6B",
-                            color: "#FFFFFF",
+                          color: "#fff",
                             fontFamily: "Inter, sans-serif",
                             fontSize: 12,
                             fontWeight: 600,

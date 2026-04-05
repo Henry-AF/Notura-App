@@ -21,7 +21,7 @@ export function ProgressBar({ value }: ProgressBarProps) {
         style={{
           flex: 1,
           height: 5,
-          background: "#2E2E2E",
+          background: "rgb(var(--cn-border))",
           borderRadius: 999,
           overflow: "hidden",
         }}

@@ -52,7 +52,7 @@ export function TaskItem({ task, onToggle }: TaskItemProps) {
       onClick={handleToggle}
       onKeyDown={(e) => e.key === "Enter" && handleToggle()}
       style={{
-        background: "#161616",
+        background: "rgb(var(--cn-bg))",
         borderRadius: 8,
         padding: "12px 14px",
         display: "flex",
@@ -63,10 +63,10 @@ export function TaskItem({ task, onToggle }: TaskItemProps) {
         transition: "background 0.15s",
       }}
       onMouseEnter={(e) =>
-        ((e.currentTarget as HTMLDivElement).style.background = "#1A1A1A")
+        ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card2))")
       }
       onMouseLeave={(e) =>
-        ((e.currentTarget as HTMLDivElement).style.background = "#161616")
+        ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-bg))")
       }
     >
       {/* Checkbox */}
@@ -77,7 +77,7 @@ export function TaskItem({ task, onToggle }: TaskItemProps) {
           borderRadius: 4,
           border: task.completed
             ? "1.5px solid #6C5CE7"
-            : "1.5px solid #3A3A3A",
+            : "1.5px solid rgb(var(--cn-input-border))",
           background: task.completed ? "#6C5CE7" : "transparent",
           flexShrink: 0,
           display: "flex",
@@ -100,7 +100,7 @@ export function TaskItem({ task, onToggle }: TaskItemProps) {
             fontFamily: "Inter, sans-serif",
             fontWeight: 500,
             fontSize: 13,
-            color: task.completed ? "#606060" : "#FFFFFF",
+            color: task.completed ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
             textDecoration: task.completed ? "line-through" : "none",
             margin: 0,
             transition: "color 0.15s",
@@ -114,7 +114,7 @@ export function TaskItem({ task, onToggle }: TaskItemProps) {
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: 11,
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               marginTop: 3,
               marginBottom: 0,
             }}
@@ -145,8 +145,8 @@ export function MeetingTasksSidebar({
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: 20,
       }}
@@ -165,7 +165,7 @@ export function MeetingTasksSidebar({
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 700,
             fontSize: 16,
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             margin: 0,
           }}
         >
@@ -199,9 +199,9 @@ export function MeetingTasksSidebar({
           width: "100%",
           marginTop: 8,
           padding: 10,
-          border: "1px dashed #2E2E2E",
+          border: "1px dashed rgb(var(--cn-border))",
           borderRadius: 8,
-          color: "#606060",
+          color: "rgb(var(--cn-muted))",
           fontFamily: "Inter, sans-serif",
           fontWeight: 500,
           fontSize: 13,
@@ -218,8 +218,8 @@ export function MeetingTasksSidebar({
         }}
         onMouseLeave={(e) => {
           const el = e.currentTarget as HTMLButtonElement;
-          el.style.borderColor = "#2E2E2E";
-          el.style.color = "#606060";
+          el.style.borderColor = "rgb(var(--cn-border))";
+          el.style.color = "rgb(var(--cn-muted))";
           el.style.background = "transparent";
         }}
       >

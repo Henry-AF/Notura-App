@@ -78,10 +78,10 @@ function ToastCard({
   return (
     <div
       style={{
-        background: "#1E1E1E",
-        borderTop: "1px solid #3A3A3A",
-        borderRight: "1px solid #3A3A3A",
-        borderBottom: "1px solid #3A3A3A",
+        background: "rgb(var(--cn-card))",
+        borderTop: "1px solid rgb(var(--cn-border))",
+        borderRight: "1px solid rgb(var(--cn-border))",
+        borderBottom: "1px solid rgb(var(--cn-border))",
         borderLeft: `3px solid ${BORDER_COLORS[toast.type]}`,
         borderRadius: "12px",
         padding: "14px 18px",
@@ -97,10 +97,13 @@ function ToastCard({
         className="mt-0.5 h-4 w-4 shrink-0"
         style={{ color: BORDER_COLORS[toast.type] }}
       />
-      <p className="flex-1 text-sm text-white">{toast.message}</p>
+      <p className="flex-1 text-sm" style={{ color: "rgb(var(--cn-ink))" }}>{toast.message}</p>
       <button
         onClick={handleDismiss}
-        className="shrink-0 text-[#606060] transition-colors hover:text-[#A0A0A0]"
+        className="shrink-0 transition-colors"
+        style={{ color: "rgb(var(--cn-muted))" }}
+        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink2))")}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")}
       >
         <X className="h-3.5 w-3.5" />
       </button>

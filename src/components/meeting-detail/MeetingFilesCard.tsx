@@ -80,7 +80,7 @@ export function MeetingFilesCard({
   return (
     <div
       style={{
-        borderTop: "1px solid #2E2E2E",
+        borderTop: "1px solid rgb(var(--cn-border))",
         paddingTop: 16,
         marginTop: 8,
       }}
@@ -99,8 +99,7 @@ export function MeetingFilesCard({
             fontFamily: "Inter, sans-serif",
             fontWeight: 700,
             fontSize: 10,
-            color: "#606060",
-            textTransform: "uppercase",
+            color: "rgb(var(--cn-muted))",
             letterSpacing: "0.1em",
           }}
         >
@@ -142,7 +141,7 @@ export function MeetingFilesCard({
             alignItems: "center",
             gap: 10,
             padding: "10px 12px",
-            background: "#161616",
+            background: "rgb(var(--cn-bg))",
             borderRadius: 8,
             marginBottom: 6,
             cursor: "pointer",
@@ -152,10 +151,10 @@ export function MeetingFilesCard({
             textAlign: "left",
           }}
           onMouseEnter={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.background = "#1A1A1A")
+            ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")
           }
           onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.background = "#161616")
+            ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-bg))")
           }
         >
           <FileIcon type={file.type} />
@@ -164,7 +163,7 @@ export function MeetingFilesCard({
               fontFamily: "Inter, sans-serif",
               fontWeight: 500,
               fontSize: 12,
-              color: "#FFFFFF",
+              color: "rgb(var(--cn-ink))",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -179,7 +178,7 @@ export function MeetingFilesCard({
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: 11,
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               marginLeft: "auto",
               whiteSpace: "nowrap",
               flexShrink: 0,

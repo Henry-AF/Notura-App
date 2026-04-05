@@ -88,8 +88,8 @@ export function MetricCard({
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: "14px",
         padding: "20px",
       }}
@@ -120,7 +120,7 @@ export function MetricCard({
           fontFamily: "Inter, sans-serif",
           fontWeight: 400,
           fontSize: "13px",
-          color: "#A0A0A0",
+          color: "rgb(var(--cn-ink2))",
           marginTop: "16px",
           marginBottom: "4px",
         }}
@@ -134,7 +134,7 @@ export function MetricCard({
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           fontWeight: 800,
           fontSize: "36px",
-          color: "#FFFFFF",
+          color: "rgb(var(--cn-ink))",
           lineHeight: 1,
         }}
       >

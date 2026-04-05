@@ -39,8 +39,8 @@ function TaskItem({
       onClick={handleToggle}
       onKeyDown={(e) => e.key === "Enter" && handleToggle()}
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: "8px",
         padding: "12px 14px",
         display: "flex",
@@ -51,10 +51,10 @@ function TaskItem({
         transition: "background 0.15s",
       }}
       onMouseEnter={(e) =>
-        ((e.currentTarget as HTMLDivElement).style.background = "#242424")
+        ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card2))")
       }
       onMouseLeave={(e) =>
-        ((e.currentTarget as HTMLDivElement).style.background = "#1C1C1C")
+        ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card))")
       }
     >
       {/* Checkbox circle */}
@@ -63,7 +63,7 @@ function TaskItem({
           width: 18,
           height: 18,
           borderRadius: "50%",
-          border: task.completed ? "1.5px solid #6C5CE7" : "1.5px solid #3A3A3A",
+          border: task.completed ? "1.5px solid #6C5CE7" : `1.5px solid rgb(var(--cn-input-border))`,
           background: task.completed ? "#6C5CE7" : "transparent",
           flexShrink: 0,
           display: "flex",
@@ -86,7 +86,7 @@ function TaskItem({
           fontFamily: "Inter, sans-serif",
           fontWeight: 500,
           fontSize: "14px",
-          color: task.completed ? "#606060" : "#FFFFFF",
+          color: task.completed ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
           textDecoration: task.completed ? "line-through" : "none",
           transition: "color 0.15s",
           flex: 1,
@@ -121,7 +121,7 @@ export function TodayTasks({ tasks, newCount, onToggle }: TodayTasksProps) {
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 700,
             fontSize: "16px",
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             margin: 0,
           }}
         >

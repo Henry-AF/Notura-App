@@ -16,11 +16,11 @@ const STATUS_CONFIG = {
 
 function hashColor(name: string): { bg: string; color: string } {
   const PALETTE = [
-    { bg: "#1A2E4A", color: "#74C0FC" },
-    { bg: "#1A1A3A", color: "#A29BFE" },
-    { bg: "#2E1A1A", color: "#FF8A8A" },
-    { bg: "#1A2E1A", color: "#4ECB71" },
-    { bg: "#2E2A1A", color: "#FFA94D" },
+    { bg: "rgba(116,192,252,0.15)", color: "#4A8FD9" },
+    { bg: "rgba(162,155,254,0.15)", color: "#7B6EE0" },
+    { bg: "rgba(255,138,138,0.15)", color: "#D94F4F" },
+    { bg: "rgba(78,203,113,0.15)", color: "#3AAD66" },
+    { bg: "rgba(255,169,77,0.15)", color: "#D98B2A" },
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -58,9 +58,7 @@ function ParticipantAvatars({
               fontSize: 11,
               fontWeight: 700,
               marginLeft: i === 0 ? 0 : -8,
-              border: "2px solid #121212",
-              flexShrink: 0,
-              zIndex: maxVisible - i,
+              border: "2px solid rgb(var(--cn-bg))",
               position: "relative",
             }}
           >
@@ -74,15 +72,15 @@ function ParticipantAvatars({
             width: 28,
             height: 28,
             borderRadius: "50%",
-            background: "#2E2E2E",
-            color: "#A0A0A0",
+            background: "rgb(var(--cn-card2))",
+            color: "rgb(var(--cn-ink2))",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: 11,
             fontWeight: 700,
             marginLeft: -8,
-            border: "2px solid #121212",
+            border: "2px solid rgb(var(--cn-bg))",
             flexShrink: 0,
           }}
         >
@@ -106,10 +104,10 @@ export interface MeetingHeaderProps {
 
 const actionBtnBase: React.CSSProperties = {
   background: "transparent",
-  border: "1px solid #2E2E2E",
+  border: "1px solid rgb(var(--cn-border))",
   borderRadius: 8,
   padding: "8px 16px",
-  color: "#FFFFFF",
+  color: "rgb(var(--cn-ink))",
   fontFamily: "Inter, sans-serif",
   fontWeight: 600,
   fontSize: 13,
@@ -139,7 +137,7 @@ export function MeetingHeader({
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
             fontSize: 48,
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             lineHeight: 1.1,
             margin: 0,
           }}
@@ -154,13 +152,13 @@ export function MeetingHeader({
             style={actionBtnBase}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "#1C1C1C";
-              el.style.borderColor = "#3A3A3A";
+              el.style.background = "rgb(var(--cn-card))";
+              el.style.borderColor = "rgb(var(--cn-border))";
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLButtonElement;
               el.style.background = "transparent";
-              el.style.borderColor = "#2E2E2E";
+              el.style.borderColor = "rgb(var(--cn-border))";
             }}
           >
             <Share2 style={{ width: 14, height: 14 }} />
@@ -172,13 +170,13 @@ export function MeetingHeader({
             style={actionBtnBase}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "#1C1C1C";
-              el.style.borderColor = "#3A3A3A";
+              el.style.background = "rgb(var(--cn-card))";
+              el.style.borderColor = "rgb(var(--cn-border))";
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLButtonElement;
               el.style.background = "transparent";
-              el.style.borderColor = "#2E2E2E";
+              el.style.borderColor = "rgb(var(--cn-border))";
             }}
           >
             <Pencil style={{ width: 14, height: 14 }} />
@@ -199,8 +197,8 @@ export function MeetingHeader({
       >
         {/* Date */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Calendar style={{ width: 14, height: 14, color: "#606060", flexShrink: 0 }} />
-          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, color: "#606060" }}>
+          <Calendar style={{ width: 14, height: 14, color: "rgb(var(--cn-muted))", flexShrink: 0 }} />
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, color: "rgb(var(--cn-muted))" }}>
             {date}
           </span>
         </div>

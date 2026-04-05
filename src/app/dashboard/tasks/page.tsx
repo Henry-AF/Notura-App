@@ -70,15 +70,15 @@ function TasksTable({ columns }: { columns: Column[] }) {
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         overflow: "hidden",
       }}
     >
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ borderBottom: "1px solid #2E2E2E" }}>
+          <tr style={{ borderBottom: "1px solid rgb(var(--cn-border))" }}>
             {["Tarefa", "Prioridade", "Status", "Responsavel", "Data"].map((h) => (
               <th
                 key={h}
@@ -88,7 +88,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   fontFamily: "Inter, sans-serif",
                   fontWeight: 600,
                   fontSize: 12,
-                  color: "#606060",
+                  color: "rgb(var(--cn-muted))",
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
                 }}
@@ -103,11 +103,11 @@ function TasksTable({ columns }: { columns: Column[] }) {
             <tr
               key={task.id}
               style={{
-                borderBottom: i < allTasks.length - 1 ? "1px solid #222" : undefined,
+                borderBottom: i < allTasks.length - 1 ? `1px solid rgb(var(--cn-border))` : undefined,
                 transition: "background 0.15s",
               }}
               onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLTableRowElement).style.background = "#1F1F1F")
+                ((e.currentTarget as HTMLTableRowElement).style.background = "rgb(var(--cn-card2))")
               }
               onMouseLeave={(e) =>
                 ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")
@@ -118,7 +118,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   padding: "12px 16px",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 14,
-                  color: task.columnId === "done" ? "#606060" : "#FFFFFF",
+                  color: task.columnId === "done" ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
                   textDecoration: task.columnId === "done" ? "line-through" : "none",
                 }}
               >
@@ -147,7 +147,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   padding: "12px 16px",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 13,
-                  color: "#A0A0A0",
+                  color: "rgb(var(--cn-ink2))",
                 }}
               >
                 {columns.find((c) => c.id === task.columnId)?.title ?? "—"}
@@ -157,7 +157,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   padding: "12px 16px",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 13,
-                  color: "#A0A0A0",
+                  color: "rgb(var(--cn-ink2))",
                 }}
               >
                 {task.assignees?.[0]?.name ?? task.assignee?.name ?? "—"}
@@ -167,7 +167,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   padding: "12px 16px",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 13,
-                  color: task.completedDate ? "#4ECB71" : "#606060",
+                  color: task.completedDate ? "#4ECB71" : "rgb(var(--cn-muted))",
                 }}
               >
                 {task.completedDate ?? task.dueDate ?? "—"}

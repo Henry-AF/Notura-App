@@ -11,8 +11,8 @@ export function AlertPointCard({ alert }: AlertPointCardProps) {
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: 20,
       }}
@@ -33,7 +33,7 @@ export function AlertPointCard({ alert }: AlertPointCardProps) {
             fontFamily: "Inter, sans-serif",
             fontWeight: 700,
             fontSize: 10,
-            color: "#606060",
+            color: "rgb(var(--cn-muted))",
             textTransform: "uppercase",
             letterSpacing: "0.1em",
           }}
@@ -46,7 +46,7 @@ export function AlertPointCard({ alert }: AlertPointCardProps) {
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           fontWeight: 600,
           fontSize: 16,
-          color: "#FFFFFF",
+          color: "rgb(var(--cn-ink))",
           lineHeight: 1.4,
           margin: 0,
         }}

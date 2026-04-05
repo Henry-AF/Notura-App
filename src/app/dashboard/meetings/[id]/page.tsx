@@ -54,14 +54,14 @@ function NotFoundState({ onBack }: { onBack: () => void }) {
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: "48px 24px",
         textAlign: "center",
       }}
     >
-      <p style={{ color: "#A0A0A0", fontFamily: "Inter, sans-serif", fontSize: 14 }}>
+      <p style={{ color: "rgb(var(--cn-ink2))", fontFamily: "Inter, sans-serif", fontSize: 14 }}>
         Reunião não encontrada.
       </p>
       <button
@@ -90,8 +90,8 @@ function ProcessingState({ clientName }: { clientName: string }) {
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: "48px 24px",
         textAlign: "center",
@@ -111,7 +111,7 @@ function ProcessingState({ clientName }: { clientName: string }) {
       <p style={{ color: "#74C0FC", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600 }}>
         Processando reunião com {clientName}
       </p>
-      <p style={{ color: "#606060", fontFamily: "Inter, sans-serif", fontSize: 13, marginTop: 6 }}>
+      <p style={{ color: "rgb(var(--cn-muted))", fontFamily: "Inter, sans-serif", fontSize: 13, marginTop: 6 }}>
         O resumo e as tarefas serão gerados em instantes.
       </p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -125,12 +125,12 @@ function ComingSoon({ label }: { label: string }) {
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: "48px 24px",
         textAlign: "center",
-        color: "#606060",
+        color: "rgb(var(--cn-muted))",
         fontFamily: "Inter, sans-serif",
         fontSize: 14,
       }}
@@ -396,8 +396,8 @@ function MeetingDetailInner({ id }: { id: string }) {
         return transcript ? (
           <div
             style={{
-              background: "#1C1C1C",
-              border: "1px solid #2E2E2E",
+              background: "rgb(var(--cn-card))",
+              border: "1px solid rgb(var(--cn-border))",
               borderRadius: 14,
               padding: "24px",
             }}
@@ -408,7 +408,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.12em",
-                color: "#606060",
+                color: "rgb(var(--cn-muted))",
                 marginBottom: 16,
               }}
             >
@@ -418,7 +418,7 @@ function MeetingDetailInner({ id }: { id: string }) {
               style={{
                 fontFamily: "Inter, monospace",
                 fontSize: 13,
-                color: "#A0A0A0",
+                color: "rgb(var(--cn-ink2))",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 margin: 0,
@@ -436,8 +436,8 @@ function MeetingDetailInner({ id }: { id: string }) {
         return tasks.length > 0 ? (
           <div
             style={{
-              background: "#1C1C1C",
-              border: "1px solid #2E2E2E",
+              background: "rgb(var(--cn-card))",
+              border: "1px solid rgb(var(--cn-border))",
               borderRadius: 14,
               padding: "24px",
             }}
@@ -448,7 +448,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.12em",
-                color: "#606060",
+                color: "rgb(var(--cn-muted))",
                 marginBottom: 16,
               }}
             >
@@ -463,9 +463,9 @@ function MeetingDetailInner({ id }: { id: string }) {
                     alignItems: "flex-start",
                     gap: 10,
                     padding: "10px 14px",
-                    background: "#161616",
+                    background: "rgb(var(--cn-bg))",
                     borderRadius: 8,
-                    border: "1px solid #2E2E2E",
+                    border: "1px solid rgb(var(--cn-border))",
                     cursor: "pointer",
                   }}
                   onClick={() => handleToggleTask(t.id)}
@@ -475,7 +475,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                       width: 16,
                       height: 16,
                       borderRadius: 4,
-                      border: `2px solid ${t.completed ? "#6C5CE7" : "#3A3A3A"}`,
+                      border: `2px solid ${t.completed ? "#6C5CE7" : "rgb(var(--cn-input-border))"}`,
                       background: t.completed ? "#6C5CE7" : "transparent",
                       flexShrink: 0,
                       marginTop: 1,
@@ -485,7 +485,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                     <p
                       style={{
                         fontSize: 13,
-                        color: t.completed ? "#606060" : "#FFFFFF",
+                        color: t.completed ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
                         margin: 0,
                         textDecoration: t.completed ? "line-through" : "none",
                       }}
@@ -496,7 +496,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                       <p
                         style={{
                           fontSize: 11,
-                          color: "#606060",
+                          color: "rgb(var(--cn-muted))",
                           margin: "4px 0 0",
                         }}
                       >
@@ -516,8 +516,8 @@ function MeetingDetailInner({ id }: { id: string }) {
         return decisions.length > 0 ? (
           <div
             style={{
-              background: "#1C1C1C",
-              border: "1px solid #2E2E2E",
+              background: "rgb(var(--cn-card))",
+              border: "1px solid rgb(var(--cn-border))",
               borderRadius: 14,
               padding: "24px",
             }}
@@ -528,7 +528,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.12em",
-                color: "#606060",
+                color: "rgb(var(--cn-muted))",
                 marginBottom: 16,
               }}
             >
@@ -546,7 +546,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                   }}
                 >
                   <p
-                    style={{ fontSize: 13, color: "#FFFFFF", margin: 0 }}
+                    style={{ fontSize: 13, color: "rgb(var(--cn-ink))", margin: 0 }}
                   >
                     {d.description}
                   </p>
@@ -573,8 +573,8 @@ function MeetingDetailInner({ id }: { id: string }) {
         return openItems.length > 0 ? (
           <div
             style={{
-              background: "#1C1C1C",
-              border: "1px solid #2E2E2E",
+              background: "rgb(var(--cn-card))",
+              border: "1px solid rgb(var(--cn-border))",
               borderRadius: 14,
               padding: "24px",
             }}
@@ -585,7 +585,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.12em",
-                color: "#606060",
+                color: "rgb(var(--cn-muted))",
                 marginBottom: 16,
               }}
             >
@@ -603,7 +603,7 @@ function MeetingDetailInner({ id }: { id: string }) {
                   }}
                 >
                   <p
-                    style={{ fontSize: 13, color: "#FFFFFF", margin: 0 }}
+                    style={{ fontSize: 13, color: "rgb(var(--cn-ink))", margin: 0 }}
                   >
                     {o.description}
                   </p>

@@ -15,8 +15,8 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
   return (
     <div
       style={{
-        background: "#1A1A1A",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: "10px",
         padding: "14px",
       }}
@@ -27,7 +27,7 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
           fontFamily: "Inter, sans-serif",
           fontWeight: 500,
           fontSize: "12px",
-          color: "#A0A0A0",
+          color: "rgb(var(--cn-ink2))",
           marginBottom: "8px",
         }}
       >
@@ -38,7 +38,7 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
       <div
         style={{
           height: 4,
-          background: "#2E2E2E",
+          background: "rgb(var(--cn-border))",
           borderRadius: "999px",
           overflow: "hidden",
           marginBottom: "8px",
@@ -67,7 +67,7 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
           transition: "color 0.15s",
         }}
         onMouseEnter={(e) =>
-          ((e.currentTarget as HTMLAnchorElement).style.color = "#FFFFFF")
+          ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-ink))")
         }
         onMouseLeave={(e) =>
           ((e.currentTarget as HTMLAnchorElement).style.color = "#A29BFE")

@@ -21,16 +21,16 @@ export function MeetingBreadcrumb({ clientName, onBack }: MeetingBreadcrumbProps
           fontFamily: "Inter, sans-serif",
           fontWeight: 500,
           fontSize: 11,
-          color: "#606060",
+          color: "rgb(var(--cn-muted))",
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           transition: "color 0.15s",
         }}
         onMouseEnter={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.color = "#A0A0A0")
+          ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink2))")
         }
         onMouseLeave={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.color = "#606060")
+          ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")
         }
       >
         Reuniões
@@ -40,7 +40,7 @@ export function MeetingBreadcrumb({ clientName, onBack }: MeetingBreadcrumbProps
           fontFamily: "Inter, sans-serif",
           fontWeight: 400,
           fontSize: 11,
-          color: "#3A3A3A",
+          color: "rgb(var(--cn-border))",
           margin: "0 8px",
         }}
       >
@@ -51,7 +51,7 @@ export function MeetingBreadcrumb({ clientName, onBack }: MeetingBreadcrumbProps
           fontFamily: "Inter, sans-serif",
           fontWeight: 600,
           fontSize: 11,
-          color: "#FFFFFF",
+          color: "rgb(var(--cn-ink))",
           textTransform: "uppercase",
           letterSpacing: "0.08em",
         }}

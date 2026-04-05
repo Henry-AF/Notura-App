@@ -88,8 +88,8 @@ export function KanbanBoard({
               style={{
                 width: 300,
                 flexShrink: 0,
-                background: "#111111",
-                border: "1px solid #2A2A2A",
+                background: "rgb(var(--cn-card))",
+                border: "1px solid rgb(var(--cn-border))",
                 borderRadius: 14,
                 padding: 16,
               }}
@@ -99,7 +99,7 @@ export function KanbanBoard({
                   fontFamily: "Inter, sans-serif",
                   fontWeight: 700,
                   fontSize: 12,
-                  color: "#A0A0A0",
+                  color: "rgb(var(--cn-ink2))",
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   marginBottom: 10,
@@ -117,11 +117,11 @@ export function KanbanBoard({
                 placeholder="Ex: Em Revisão"
                 style={{
                   width: "100%",
-                  background: "#1E1E1E",
-                  border: "1px solid #2A2A2A",
+                  background: "rgb(var(--cn-input-bg))",
+                  border: "1px solid rgb(var(--cn-input-border))",
                   borderRadius: 8,
                   padding: "9px 12px",
-                  color: "#FFFFFF",
+                  color: "rgb(var(--cn-ink))",
                   fontSize: 14,
                   fontFamily: "Inter, sans-serif",
                   outline: "none",
@@ -130,7 +130,7 @@ export function KanbanBoard({
                   transition: "border-color 0.15s",
                 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#2A2A2A")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
               />
               <div style={{ display: "flex", gap: 8 }}>
                 <button
@@ -174,19 +174,19 @@ export function KanbanBoard({
                     justifyContent: "center",
                     padding: 0,
                     background: "transparent",
-                    border: "1px solid #2A2A2A",
+                    border: "1px solid rgb(var(--cn-border))",
                     borderRadius: 8,
-                    color: "#606060",
+                    color: "rgb(var(--cn-muted))",
                     cursor: "pointer",
                     transition: "border-color 0.15s, color 0.15s",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A3A3A";
-                    (e.currentTarget as HTMLButtonElement).style.color = "#A0A0A0";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-input-border))";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink2))";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#2A2A2A";
-                    (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-border))";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))";
                   }}
                 >
                   <X style={{ width: 14, height: 14 }} />
@@ -206,9 +206,9 @@ export function KanbanBoard({
                 gap: 8,
                 padding: "12px 16px",
                 background: "transparent",
-                border: "1.5px dashed #2A2A2A",
+                border: "1.5px dashed rgb(var(--cn-border))",
                 borderRadius: 14,
-                color: "#3A3A3A",
+                color: "rgb(var(--cn-muted))",
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 600,
                 fontSize: 13,
@@ -224,8 +224,8 @@ export function KanbanBoard({
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget as HTMLButtonElement;
-                el.style.borderColor = "#2A2A2A";
-                el.style.color = "#3A3A3A";
+                el.style.borderColor = "rgb(var(--cn-border))";
+                el.style.color = "rgb(var(--cn-muted))";
                 el.style.background = "transparent";
               }}
             >

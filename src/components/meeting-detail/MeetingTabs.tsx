@@ -44,18 +44,18 @@ export function MeetingTabs({ activeTab, onChange }: MeetingTabsProps) {
               fontFamily: "Inter, sans-serif",
               fontWeight: active ? 600 : 500,
               fontSize: 14,
-              color: active ? "#FFFFFF" : "#606060",
+              color: active ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))",
               transition: "color 0.15s",
               whiteSpace: "nowrap",
               flexShrink: 0,
             }}
             onMouseEnter={(e) => {
               if (!active)
-                (e.currentTarget as HTMLButtonElement).style.color = "#A0A0A0";
+                (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink2))";
             }}
             onMouseLeave={(e) => {
               if (!active)
-                (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+                (e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))";
             }}
           >
             {tab.label}

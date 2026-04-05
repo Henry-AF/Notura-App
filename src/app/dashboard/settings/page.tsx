@@ -10,8 +10,10 @@ import {
   DangerZone,
 } from "@/components/settings";
 import type { Integration, Preference } from "@/components/settings";
+import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
 import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "@/lib/theme-context";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,44 +32,47 @@ function getDaysUntilEndOfMonth(): number {
   );
 }
 
-const BASE_PREFERENCES: Preference[] = [
-  {
-    id: "resume_notifications",
-    icon: "🔔",
-    name: "Notificações de Resumo",
-    description: "Receba relatórios após cada reunião",
-    enabled: true,
-  },
-  {
-    id: "dark_mode",
-    icon: "🌙",
-    name: "Modo Escuro",
-    description: "Interface em tons profundos",
-    enabled: true,
-  },
-];
-
 // ─── Inner page ───────────────────────────────────────────────────────────────
 
 function SettingsPageInner() {
   const router = useRouter();
   const { show } = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   // Profile fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
+  const [rawPlan, setRawPlan] = useState<"free" | "pro" | "team">("free");
 
   // Subscription fields
   const [planName, setPlanName] = useState("Plano Gratuito");
   const [meetingsUsed, setMeetingsUsed] = useState(0);
   const [meetingsTotal, setMeetingsTotal] = useState(3);
 
+  // Modal
+  const [showPlanModal, setShowPlanModal] = useState(false);
+
   // Integrations & preferences
   const [integrations, setIntegrations] = useState<Integration[]>([
     { id: "whatsapp", name: "WhatsApp", icon: "💬", phone: "", status: "disconnected" },
   ]);
-  const [preferences, setPreferences] = useState<Preference[]>(BASE_PREFERENCES);
+  const [preferences, setPreferences] = useState<Preference[]>([
+    {
+      id: "resume_notifications",
+      icon: "🔔",
+      name: "Notificações de Resumo",
+      description: "Receba relatórios após cada reunião",
+      enabled: true,
+    },
+    {
+      id: "dark_mode",
+      icon: "🌙",
+      name: "Modo Escuro",
+      description: "Interface em tons profundos",
+      enabled: theme === "dark",
+    },
+  ]);
 
   useEffect(() => {
     async function load() {
@@ -97,6 +102,7 @@ function SettingsPageInner() {
       setName(profile?.name ?? user.email?.split("@")[0] ?? "");
       setEmail(user.email ?? "");
       setCompany(profile?.company ?? "");
+      setRawPlan(resolvedPlan);
       setPlanName(
         resolvedPlan === "pro"
           ? "Plano Pro"
@@ -122,8 +128,15 @@ function SettingsPageInner() {
     load();
   }, []);
 
+  // Sync dark_mode pref with actual theme
+  useEffect(() => {
+    setPreferences((prev) =>
+      prev.map((p) => (p.id === "dark_mode" ? { ...p, enabled: theme === "dark" } : p))
+    );
+  }, [theme]);
+
   const handleProfileSave = useCallback(
-    async (data: { company: string; email: string }) => {
+    async (data: { name: string; company: string; email: string }) => {
       const supabase = createClient();
       const {
         data: { user },
@@ -131,11 +144,12 @@ function SettingsPageInner() {
       if (!user) return;
       const { error } = await supabase
         .from("profiles")
-        .update({ company: data.company })
+        .update({ name: data.name, company: data.company })
         .eq("id", user.id);
       if (error) {
         show("Erro ao salvar perfil.", "error");
       } else {
+        setName(data.name);
         setCompany(data.company);
         show("Perfil atualizado.", "success");
       }
@@ -168,23 +182,41 @@ function SettingsPageInner() {
   );
 
   const handleConnect = useCallback(
-    (id: string) => {
+    async (id: string, phone: string) => {
+      if (id === "whatsapp") {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("profiles")
+            .update({ whatsapp_number: phone })
+            .eq("id", user.id);
+        }
+      }
       setIntegrations((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, status: "connected" as const } : i))
+        prev.map((i) =>
+          i.id === id ? { ...i, status: "connected" as const, phone } : i
+        )
       );
-      show("Integração conectada.", "success");
+      show("WhatsApp conectado.", "success");
     },
     [show]
   );
 
   const handleToggle = useCallback(
     (id: string, value: boolean) => {
+      if (id === "dark_mode") {
+        toggleTheme();
+        return;
+      }
       setPreferences((prev) =>
         prev.map((p) => (p.id === id ? { ...p, enabled: value } : p))
       );
       show("Preferência atualizada.", "success");
     },
-    [show]
+    [show, toggleTheme]
   );
 
   const handleDeleteAccount = useCallback(async () => {
@@ -199,7 +231,7 @@ function SettingsPageInner() {
   return (
     <div>
       {/* Page title */}
-      <h1 className="font-display text-[22px] font-bold text-white">
+      <h1 className="font-display text-[22px] font-bold text-notura-ink">
         Configurações
       </h1>
 
@@ -230,7 +262,7 @@ function SettingsPageInner() {
               meetingsUsed={meetingsUsed}
               meetingsTotal={meetingsTotal}
               renewsInDays={getDaysUntilEndOfMonth()}
-              onChangePlan={() => router.push("/pricing")}
+              onChangePlan={() => setShowPlanModal(true)}
             />
           </div>
         </div>
@@ -267,6 +299,17 @@ function SettingsPageInner() {
           <DangerZone onDeleteAccount={handleDeleteAccount} />
         </div>
       </div>
+
+      {/* Plan modal */}
+      {showPlanModal && (
+        <PlanModal
+          currentPlan={rawPlan}
+          onClose={() => setShowPlanModal(false)}
+          onSuccess={() => {
+            show("Plano atualizado com sucesso!", "success");
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes cardFadeIn {

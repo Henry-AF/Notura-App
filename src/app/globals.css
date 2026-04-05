@@ -9,6 +9,34 @@
     --font-manrope: 'Manrope', system-ui, sans-serif;
     --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-inter: 'Inter', system-ui, sans-serif;
+    /* Dark theme (default) */
+    --cn-bg: 12 11 14;
+    --cn-bg2: 20 19 25;
+    --cn-surface: 29 27 38;
+    --cn-surface2: 37 34 48;
+    --cn-ink: 244 244 246;
+    --cn-ink2: 149 152 168;
+    --cn-border: 44 40 91;
+    --cn-muted: 58 61 74;
+    --cn-card: 28 28 28;
+    --cn-card2: 36 36 36;
+    --cn-input-bg: 30 30 30;
+    --cn-input-border: 58 58 58;
+  }
+
+  html[data-theme="light"] {
+    --cn-bg: 245 244 252;
+    --cn-bg2: 255 255 255;
+    --cn-surface: 255 255 255;
+    --cn-surface2: 238 236 252;
+    --cn-ink: 14 13 20;
+    --cn-ink2: 90 88 110;
+    --cn-border: 210 207 238;
+    --cn-muted: 185 182 210;
+    --cn-card: 255 255 255;
+    --cn-card2: 248 247 254;
+    --cn-input-bg: 248 247 254;
+    --cn-input-border: 210 207 238;
   }
 
   html {
@@ -18,6 +46,14 @@
   body {
     @apply bg-notura-bg text-notura-ink antialiased;
     font-family: var(--font-inter), system-ui, sans-serif;
+    /* Smooth theme transition */
+    transition: background-color 0.35s ease, color 0.25s ease;
+  }
+
+  /* Smooth theme transitions on key elements */
+  div, section, aside, nav, header, footer, main, span, p,
+  button, input, textarea, select, a, label {
+    transition: background-color 0.35s ease, border-color 0.3s ease, color 0.25s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useThemeColors } from "@/lib/theme-context";
 
 // ─── ConfirmDeleteModal ───────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ interface ConfirmDeleteModalProps {
 }
 
 function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalProps) {
+  const c = useThemeColors();
   const [typed, setTyped] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const canDelete = typed === "DELETAR";
@@ -42,11 +44,10 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
       <div
         className="rounded-2xl border p-7"
         style={{
-          background: "#1C1C1C",
-          borderColor: "#3A3A3A",
+          background: c.card,
+          borderColor: c.border,
           width: "420px",
           maxWidth: "90vw",
-          transform: "scale(1)",
           animation: "modalIn 0.15s ease-out",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -65,18 +66,19 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
         {/* Title */}
         <h2
           id="delete-modal-title"
-          className="mt-4 font-display text-lg font-bold text-white"
+          className="mt-4 font-display text-lg font-bold"
+          style={{ color: c.ink }}
         >
           Tem certeza absoluta?
         </h2>
-        <p className="mt-1.5 text-[13px] text-[#A0A0A0]">
+        <p className="mt-1.5 text-[13px]" style={{ color: c.ink2 }}>
           Esta ação é irreversível. Todos os dados serão permanentemente
           removidos.
         </p>
 
         {/* Confirmation input */}
         <div className="mt-5">
-          <label className="mb-2 block text-[11px] font-semibold text-[#606060]">
+          <label className="mb-2 block text-[11px] font-semibold" style={{ color: c.ink3 }}>
             Digite{" "}
             <span className="font-mono text-[#FF6B6B]">DELETAR</span> para
             confirmar:
@@ -87,7 +89,8 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             placeholder="DELETAR"
-            className="w-full rounded-lg border border-[#3A3A3A] bg-[#242424] px-3.5 py-2.5 text-sm text-white outline-none placeholder-[#606060] focus:border-[#FF6B6B]"
+            className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none focus:border-[#FF6B6B]"
+            style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.ink }}
           />
         </div>
 
@@ -96,7 +99,8 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-[#3A3A3A] py-2.5 text-sm font-medium text-[#A0A0A0] transition-colors hover:border-[#555] hover:text-white"
+            className="flex-1 rounded-lg border py-2.5 text-sm font-medium transition-colors"
+            style={{ borderColor: c.border, color: c.ink2, background: "transparent" }}
           >
             Cancelar
           </button>
@@ -105,7 +109,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
             disabled={!canDelete}
             onClick={onConfirm}
             className="flex-1 rounded-lg py-2.5 text-sm font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ background: canDelete ? "#FF6B6B" : "#3A3A3A" }}
+            style={{ background: canDelete ? "#FF6B6B" : c.border }}
           >
             Excluir permanentemente
           </button>
@@ -129,6 +133,7 @@ interface DangerZoneProps {
 }
 
 export function DangerZone({ onDeleteAccount }: DangerZoneProps) {
+  const c = useThemeColors();
   const [modalOpen, setModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -146,7 +151,7 @@ export function DangerZone({ onDeleteAccount }: DangerZoneProps) {
     <>
       <div
         className="flex flex-col items-start justify-between gap-4 rounded-xl border p-[18px_24px] sm:flex-row sm:items-center"
-        style={{ background: "#1A0A0A", borderColor: "#3A1010" }}
+        style={{ background: "rgba(255,107,107,0.04)", borderColor: "rgba(255,107,107,0.2)" }}
       >
         {/* Left: icon + text */}
         <div className="flex items-start gap-3 sm:items-center">
@@ -160,7 +165,7 @@ export function DangerZone({ onDeleteAccount }: DangerZoneProps) {
             <p className="text-sm font-semibold" style={{ color: "#FF6B6B" }}>
               Zona de Perigo
             </p>
-            <p className="text-[13px] text-[#A0A0A0]">
+            <p className="text-[13px]" style={{ color: c.ink2 }}>
               Excluir sua conta removerá todos os dados de reuniões
               permanentemente.
             </p>

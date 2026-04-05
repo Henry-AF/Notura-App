@@ -1,5 +1,8 @@
+"use client";
+
 import React from "react";
 import { Check } from "lucide-react";
+import { useThemeColors } from "@/lib/theme-context";
 
 export interface SubscriptionCardProps {
   planName: string;
@@ -16,12 +19,13 @@ export function SubscriptionCard({
   renewsInDays,
   onChangePlan,
 }: SubscriptionCardProps) {
+  const c = useThemeColors();
   const pct = Math.min(100, Math.round((meetingsUsed / meetingsTotal) * 100));
 
   return (
     <div
       className="flex flex-col rounded-2xl border p-6"
-      style={{ background: "#1C1C1C", borderColor: "#2E2E2E" }}
+      style={{ background: c.card, borderColor: c.border }}
     >
       {/* Label */}
       <p
@@ -30,7 +34,7 @@ export function SubscriptionCard({
           fontWeight: 700,
           textTransform: "uppercase",
           letterSpacing: "0.12em",
-          color: "#606060",
+          color: c.ink3,
         }}
       >
         Assinatura Atual
@@ -38,7 +42,7 @@ export function SubscriptionCard({
 
       {/* Plan name + badge */}
       <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="font-display text-xl font-bold text-white">{planName}</p>
+        <p className="font-display text-xl font-bold" style={{ color: c.ink }}>{planName}</p>
         <div
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
           style={{ background: "#6851FF" }}
@@ -50,8 +54,8 @@ export function SubscriptionCard({
       {/* Usage */}
       <div className="mt-5">
         <div className="flex items-center justify-between text-[13px]">
-          <span className="text-[#A0A0A0]">Reuniões usadas</span>
-          <span className="font-semibold text-white">
+          <span style={{ color: c.ink2 }}>Reuniões usadas</span>
+          <span className="font-semibold" style={{ color: c.ink }}>
             {meetingsUsed}/{meetingsTotal}
           </span>
         </div>
@@ -59,7 +63,7 @@ export function SubscriptionCard({
         {/* Progress bar */}
         <div
           className="mt-2 overflow-hidden rounded-full"
-          style={{ height: "6px", background: "#2E2E2E" }}
+          style={{ height: "6px", background: c.border }}
         >
           <div
             style={{
@@ -72,7 +76,7 @@ export function SubscriptionCard({
           />
         </div>
 
-        <p className="mt-1.5 text-right text-[11px] text-[#606060]">
+        <p className="mt-1.5 text-right text-[11px]" style={{ color: c.ink3 }}>
           Renova em {renewsInDays} dias
         </p>
       </div>

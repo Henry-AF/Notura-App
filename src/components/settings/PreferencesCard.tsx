@@ -1,5 +1,8 @@
+"use client";
+
 import React from "react";
 import { SettingsToggle } from "./SettingsToggle";
+import { useThemeColors } from "@/lib/theme-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,12 +22,17 @@ export interface PreferencesCardProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PreferencesCard({ preferences, onToggle }: PreferencesCardProps) {
+  const c = useThemeColors();
+
   return (
     <div
       className="rounded-2xl border p-6"
-      style={{ background: "#1C1C1C", borderColor: "#2E2E2E" }}
+      style={{ background: c.card, borderColor: c.border }}
     >
-      <h3 className="font-display text-[17px] font-bold text-white">
+      <h3
+        className="font-display text-[17px] font-bold"
+        style={{ color: c.ink }}
+      >
         Preferências
       </h3>
 
@@ -33,7 +41,7 @@ export function PreferencesCard({ preferences, onToggle }: PreferencesCardProps)
           <div
             key={pref.id}
             className="flex items-center gap-3.5 rounded-[10px] p-[14px_16px]"
-            style={{ background: "#242424" }}
+            style={{ background: c.card2 }}
           >
             {/* Icon */}
             <div
@@ -45,8 +53,8 @@ export function PreferencesCard({ preferences, onToggle }: PreferencesCardProps)
 
             {/* Text */}
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-white">{pref.name}</p>
-              <p className="text-[12px] text-[#A0A0A0]">{pref.description}</p>
+              <p className="text-sm font-medium" style={{ color: c.ink }}>{pref.name}</p>
+              <p className="text-[12px]" style={{ color: c.ink2 }}>{pref.description}</p>
             </div>
 
             {/* Toggle */}

@@ -12,7 +12,7 @@ export function PlanBadge({ used, total }: PlanBadgeProps) {
   return (
     <div
       className="flex items-start gap-3 rounded-xl border p-[14px_16px]"
-      style={{ background: "#1C1C1C", borderColor: "#2E2E2E" }}
+      style={{ background: "rgb(var(--cn-card))", borderColor: "rgb(var(--cn-border))" }}
     >
       {/* Icon */}
       <div
@@ -30,12 +30,12 @@ export function PlanBadge({ used, total }: PlanBadgeProps) {
             fontWeight: 700,
             textTransform: "uppercase",
             letterSpacing: "0.1em",
-            color: "#606060",
+            color: "rgb(var(--cn-muted))",
           }}
         >
           Uso do Plano
         </p>
-        <p className="mt-0.5 text-[13px] font-medium leading-snug text-[#A0A0A0]">
+        <p className="mt-0.5 text-[13px] font-medium leading-snug" style={{ color: "rgb(var(--cn-ink2))" }}>
           Você ainda tem{" "}
           <span className="font-semibold text-[#8B7AFF]">
             {remaining} reuniões

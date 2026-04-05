@@ -114,7 +114,7 @@ function Waveform({ active }: { active: boolean }) {
             height: `${Math.round(h * 56 + 8)}px`,
             background: active
               ? "linear-gradient(to top, #6851FF, #8B7AFF)"
-              : "#3A3D4A",
+              : "rgb(var(--cn-border))",
             animation: active
               ? "waveBar 0.9s ease-in-out infinite alternate"
               : "none",

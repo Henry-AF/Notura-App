@@ -33,7 +33,7 @@ export function TasksPageHeader({
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontWeight: 800,
               fontSize: 40,
-              color: "#FFFFFF",
+              color: "rgb(var(--cn-ink))",
               margin: 0,
               lineHeight: 1.1,
             }}
@@ -45,7 +45,7 @@ export function TasksPageHeader({
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: 14,
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               marginTop: 4,
               marginBottom: 0,
             }}
@@ -60,8 +60,8 @@ export function TasksPageHeader({
           <div
             style={{
               display: "flex",
-              background: "#1C1C1C",
-              border: "1px solid #2E2E2E",
+              background: "rgb(var(--cn-card))",
+              border: "1px solid rgb(var(--cn-border))",
               borderRadius: 8,
               padding: 4,
               gap: 2,
@@ -80,8 +80,8 @@ export function TasksPageHeader({
                     fontFamily: "Inter, sans-serif",
                     fontWeight: 500,
                     fontSize: 13,
-                    color: active ? "#FFFFFF" : "#606060",
-                    background: active ? "#2E2E2E" : "transparent",
+                    color: active ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))",
+                    background: active ? "rgb(var(--cn-card2))" : "transparent",
                     border: "none",
                     cursor: "pointer",
                     display: "flex",
@@ -92,12 +92,12 @@ export function TasksPageHeader({
                   onMouseEnter={(e) => {
                     if (!active)
                       (e.currentTarget as HTMLButtonElement).style.color =
-                        "#A0A0A0";
+                        "rgb(var(--cn-ink2))";
                   }}
                   onMouseLeave={(e) => {
                     if (!active)
                       (e.currentTarget as HTMLButtonElement).style.color =
-                        "#606060";
+                        "rgb(var(--cn-muted))";
                   }}
                 >
                   {v === "kanban" ? (

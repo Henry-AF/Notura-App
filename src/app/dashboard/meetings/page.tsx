@@ -22,9 +22,9 @@ interface Meeting {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
-  A: { bg: "#1A2E4A", color: "#74C0FC" },
-  N: { bg: "#1A1A3A", color: "#A29BFE" },
-  H: { bg: "#2E1A1A", color: "#FF8A8A" },
+  A: { bg: "rgba(116,192,252,0.15)", color: "#4A8FD9" },
+  N: { bg: "rgba(162,155,254,0.15)", color: "#6C5CE7" },
+  H: { bg: "rgba(255,138,138,0.15)", color: "#D94444" },
 };
 
 function getAvatarStyle(name: string) {
@@ -33,7 +33,7 @@ function getAvatarStyle(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
-  return { bg: `hsl(${hue},30%,18%)`, color: `hsl(${hue},80%,70%)` };
+  return { bg: `hsla(${hue},60%,55%,0.15)`, color: `hsl(${hue},55%,42%)` };
 }
 
 const STATUS_MAP = {
@@ -96,7 +96,7 @@ function MeetingRow({
         cursor: "pointer",
         transition: "background 0.15s",
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "#242424")}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card2))")}
       onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
     >
       {/* Client + title */}
@@ -119,7 +119,7 @@ function MeetingRow({
           {initial}
         </div>
         <div style={{ minWidth: 0 }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: "14px", color: "#FFFFFF", margin: 0 }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))", margin: 0 }}>
             {meeting.clientName}
           </p>
           <p
@@ -127,7 +127,7 @@ function MeetingRow({
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: "12px",
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               margin: 0,
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -141,7 +141,7 @@ function MeetingRow({
       </div>
 
       {/* Date */}
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "#A0A0A0", margin: 0 }}>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgb(var(--cn-ink2))", margin: 0 }}>
         {meeting.date}
       </p>
 
@@ -164,7 +164,7 @@ function MeetingRow({
               width: 30,
               height: 30,
               borderRadius: "8px",
-              background: "#242424",
+              background: "rgb(var(--cn-card2))",
               border: "none",
               cursor: "pointer",
               display: "flex",
@@ -185,7 +185,7 @@ function MeetingRow({
               width: 30,
               height: 30,
               borderRadius: "8px",
-              background: "#2E1A1A",
+              background: "rgba(255,107,107,0.1)",
               border: "none",
               cursor: "pointer",
               display: "flex",
@@ -283,13 +283,13 @@ export default function MeetingsPage() {
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 700,
             fontSize: "26px",
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             margin: 0,
           }}
         >
           Reuniões
         </h1>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "#606060", marginTop: 4 }}>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "rgb(var(--cn-muted))", marginTop: 4 }}>
           {loading ? "Carregando..." : `${meetings.length} reunião${meetings.length !== 1 ? "ões" : ""} no total`}
         </p>
       </div>
@@ -356,9 +356,9 @@ export default function MeetingsPage() {
                 padding: "8px 16px",
                 borderRadius: "999px",
                 border: "1px solid",
-                borderColor: statusFilter === opt.value ? "#6C5CE7" : "#2E2E2E",
+                borderColor: statusFilter === opt.value ? "#6C5CE7" : "rgb(var(--cn-border))",
                 background: statusFilter === opt.value ? "rgba(108,92,231,0.15)" : "transparent",
-                color: statusFilter === opt.value ? "#A29BFE" : "#A0A0A0",
+                color: statusFilter === opt.value ? "#A29BFE" : "rgb(var(--cn-ink2))",
                 fontFamily: "Inter, sans-serif",
                 fontSize: "13px",
                 fontWeight: statusFilter === opt.value ? 600 : 400,
@@ -376,8 +376,8 @@ export default function MeetingsPage() {
       {/* Table */}
       <div
         style={{
-          background: "#1C1C1C",
-          border: "1px solid #2E2E2E",
+          background: "rgb(var(--cn-card))",
+          border: "1px solid rgb(var(--cn-border))",
           borderRadius: "14px",
           padding: "20px",
         }}
@@ -388,7 +388,7 @@ export default function MeetingsPage() {
             display: "grid",
             gridTemplateColumns: "1fr 140px 150px 60px",
             padding: "0 12px 10px",
-            borderBottom: "1px solid #2E2E2E",
+            borderBottom: "1px solid rgb(var(--cn-border))",
           }}
         >
           {["CLIENTE / TÍTULO", "DATA", "STATUS", "AÇÕES"].map((col) => (
@@ -399,7 +399,7 @@ export default function MeetingsPage() {
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
-                color: "#606060",
+                color: "rgb(var(--cn-muted))",
                 margin: 0,
               }}
             >
@@ -428,7 +428,7 @@ export default function MeetingsPage() {
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "#606060" }}>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "rgb(var(--cn-muted))" }}>
               {search || statusFilter !== "all"
                 ? "Nenhuma reunião encontrada com os filtros aplicados."
                 : "Nenhuma reunião ainda."}

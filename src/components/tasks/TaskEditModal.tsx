@@ -85,7 +85,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
     marginBottom: 6,
     fontSize: 11,
     fontWeight: 600,
-    color: "#606060",
+    color: "rgb(var(--cn-muted))",
     textTransform: "uppercase",
     letterSpacing: "0.07em",
     fontFamily: "Inter, sans-serif",
@@ -93,11 +93,11 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
 
   const INPUT: React.CSSProperties = {
     width: "100%",
-    background: "#1E1E1E",
-    border: "1px solid #2A2A2A",
+    background: "rgb(var(--cn-input-bg))",
+    border: "1px solid rgb(var(--cn-input-border))",
     borderRadius: 8,
     padding: "9px 12px",
-    color: "#FFFFFF",
+    color: "rgb(var(--cn-ink))",
     fontSize: 13,
     fontFamily: "Inter, sans-serif",
     outline: "none",
@@ -132,8 +132,8 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
           zIndex: 10,
           width: "100%",
           maxWidth: 520,
-          background: "#161616",
-          border: "1px solid #2A2A2A",
+          background: "rgb(var(--cn-card))",
+          border: "1px solid rgb(var(--cn-border))",
           borderRadius: 16,
           boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
           display: "flex",
@@ -148,8 +148,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
             display: "flex",
             alignItems: "center",
             padding: "16px 20px",
-            borderBottom: "1px solid #222",
-            flexShrink: 0,
+            borderBottom: "1px solid rgb(var(--cn-border))",
           }}
         >
           <h2
@@ -159,7 +158,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               fontFamily: "Inter, sans-serif",
               fontWeight: 700,
               fontSize: 15,
-              color: "#FFFFFF",
+              color: "rgb(var(--cn-ink))",
             }}
           >
             Editar tarefa
@@ -171,14 +170,14 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               background: "none",
               border: "none",
               cursor: "pointer",
-              color: "#505050",
+              color: "rgb(var(--cn-muted))",
               display: "flex",
               padding: 4,
               borderRadius: 6,
               transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#505050")}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink))")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")}
           >
             <X style={{ width: 18, height: 18 }} />
           </button>
@@ -196,7 +195,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               rows={2}
               style={{ ...INPUT, fontWeight: 600, fontSize: 15, resize: "vertical" }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "#2A2A2A")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
             />
           </div>
 
@@ -213,7 +212,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               rows={3}
               style={{ ...INPUT, resize: "vertical" }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "#2A2A2A")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
             />
           </div>
 
@@ -245,9 +244,9 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                         padding: "7px 0",
                         borderRadius: 7,
                         border: "1px solid",
-                        borderColor: isActive ? activeColor : "#2A2A2A",
+                        borderColor: isActive ? activeColor : "rgb(var(--cn-input-border))",
                         background: isActive ? activeBg : "transparent",
-                        color: isActive ? activeColor : "#505050",
+                        color: isActive ? activeColor : "rgb(var(--cn-muted))",
                         fontFamily: "Inter, sans-serif",
                         fontWeight: 700,
                         fontSize: 10,
@@ -257,10 +256,10 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                         transition: "all 0.15s",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A3A3A";
+                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-border))";
                       }}
                       onMouseLeave={(e) => {
-                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.borderColor = "#2A2A2A";
+                        if (!isActive) (e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-input-border))";
                       }}
                     >
                       {p === "alta" ? "Alta" : p === "media" ? "Média" : "Baixa"}
@@ -280,9 +279,9 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                style={{ ...INPUT, colorScheme: "dark", color: dueDate ? "#FFFFFF" : "#505050" }}
+                style={{ ...INPUT, colorScheme: "dark", color: dueDate ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#2A2A2A")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
               />
             </div>
           </div>
@@ -303,8 +302,8 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
-                      background: "#1E1E1E",
-                      border: "1px solid #2A2A2A",
+                      background: "rgb(var(--cn-input-bg))",
+                      border: "1px solid rgb(var(--cn-input-border))",
                       borderRadius: 20,
                       padding: "4px 8px 4px 4px",
                     }}
@@ -328,7 +327,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                       {initials(a.name)}
                     </div>
                     <span
-                      style={{ fontSize: 12, color: "#FFFFFF", fontFamily: "Inter, sans-serif" }}
+                      style={{ fontSize: 12, color: "rgb(var(--cn-ink))", fontFamily: "Inter, sans-serif" }}
                     >
                       {a.name}
                     </span>
@@ -339,7 +338,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                         background: "none",
                         border: "none",
                         cursor: "pointer",
-                        color: "#505050",
+                        color: "rgb(var(--cn-muted))",
                         display: "flex",
                         padding: 2,
                         marginLeft: 2,
@@ -350,7 +349,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                         ((e.currentTarget as HTMLButtonElement).style.color = "#FF6B6B")
                       }
                       onMouseLeave={(e) =>
-                        ((e.currentTarget as HTMLButtonElement).style.color = "#505050")
+                        ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")
                       }
                     >
                       <X style={{ width: 12, height: 12 }} />
@@ -369,7 +368,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 onKeyDown={(e) => e.key === "Enter" && addAssignee()}
                 style={{ ...INPUT, flex: 1 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#2A2A2A")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
               />
               <button
                 onClick={addAssignee}
@@ -409,7 +408,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
             justifyContent: "space-between",
             alignItems: "center",
             padding: "14px 20px",
-            borderTop: "1px solid #222",
+            borderTop: "1px solid rgb(var(--cn-border))",
             flexShrink: 0,
             gap: 8,
           }}
@@ -451,9 +450,9 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 style={{
                   padding: "5px 12px",
                   background: "transparent",
-                  border: "1px solid #2A2A2A",
+                  border: "1px solid rgb(var(--cn-input-border))",
                   borderRadius: 6,
-                  color: "#A0A0A0",
+                  color: "rgb(var(--cn-ink2))",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 12,
                   cursor: "pointer",
@@ -471,7 +470,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 gap: 6,
                 background: "none",
                 border: "none",
-                color: "#505050",
+                color: "rgb(var(--cn-muted))",
                 fontFamily: "Inter, sans-serif",
                 fontSize: 13,
                 cursor: "pointer",
@@ -482,7 +481,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 ((e.currentTarget as HTMLButtonElement).style.color = "#FF6B6B")
               }
               onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.color = "#505050")
+                ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")
               }
             >
               <Trash2 style={{ width: 14, height: 14 }} />
@@ -497,19 +496,19 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               style={{
                 padding: "8px 16px",
                 background: "transparent",
-                border: "1px solid #2A2A2A",
+                border: "1px solid rgb(var(--cn-input-border))",
                 borderRadius: 8,
-                color: "#A0A0A0",
+                color: "rgb(var(--cn-ink2))",
                 fontFamily: "Inter, sans-serif",
                 fontSize: 13,
                 cursor: "pointer",
                 transition: "border-color 0.15s",
               }}
               onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.borderColor = "#3A3A3A")
+                ((e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-border))")
               }
               onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLButtonElement).style.borderColor = "#2A2A2A")
+                ((e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--cn-input-border))")
               }
             >
               Cancelar

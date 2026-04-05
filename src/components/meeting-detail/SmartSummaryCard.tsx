@@ -36,7 +36,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
             fontFamily: "Inter, sans-serif",
             fontWeight: 600,
             fontSize: 14,
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             marginTop: 16,
             marginBottom: 6,
           }}
@@ -62,7 +62,7 @@ function renderInline(text: string): React.ReactNode[] {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={i} style={{ color: "#FFFFFF", fontWeight: 600 }}>
+        <strong key={i} style={{ color: "rgb(var(--cn-ink))", fontWeight: 600 }}>
           {part.slice(2, -2)}
         </strong>
       );
@@ -89,8 +89,8 @@ export function SmartSummaryCard({
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: 14,
         padding: 24,
       }}
@@ -113,7 +113,7 @@ export function SmartSummaryCard({
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontWeight: 700,
               fontSize: 18,
-              color: "#FFFFFF",
+              color: "rgb(var(--cn-ink))",
             }}
           >
             Resumo Inteligente
@@ -125,13 +125,13 @@ export function SmartSummaryCard({
       {/* Summary body */}
       <div
         style={{
-          background: "#161616",
+          background: "rgb(var(--cn-bg))",
           borderRadius: 10,
           padding: 20,
           fontFamily: "Inter, sans-serif",
           fontWeight: 400,
           fontSize: 14,
-          color: "#D0D0D0",
+          color: "rgb(var(--cn-ink2))",
           lineHeight: 1.7,
         }}
       >
@@ -145,7 +145,7 @@ export function SmartSummaryCard({
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 600,
                 fontSize: 14,
-                color: "#FFFFFF",
+                color: "rgb(var(--cn-ink))",
                 marginTop: 16,
                 marginBottom: 8,
               }}
@@ -154,7 +154,7 @@ export function SmartSummaryCard({
             </p>
             <blockquote
               style={{
-                background: "#1A1A2E",
+                background: "rgba(104,81,255,0.08)",
                 borderLeft: "3px solid #6C5CE7",
                 borderRadius: "0 8px 8px 0",
                 padding: "14px 16px",
@@ -164,7 +164,7 @@ export function SmartSummaryCard({
                 fontFamily: "Inter, sans-serif",
                 fontStyle: "italic",
                 fontSize: 13,
-                color: "#A0A0A0",
+                color: "rgb(var(--cn-ink2))",
                 lineHeight: 1.6,
               }}
             >
@@ -182,7 +182,7 @@ export function SmartSummaryCard({
           gap: 10,
           marginTop: 16,
           paddingTop: 16,
-          borderTop: "1px solid #2E2E2E",
+          borderTop: "1px solid rgb(var(--cn-border))",
         }}
       >
         <div
@@ -207,7 +207,7 @@ export function SmartSummaryCard({
           style={{
             fontFamily: "Inter, sans-serif",
             fontSize: 12,
-            color: "#606060",
+            color: "rgb(var(--cn-muted))",
             fontStyle: "italic",
           }}
         >

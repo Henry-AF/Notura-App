@@ -72,7 +72,7 @@ export function UploadProgressCard({
       <div className="mt-4">
         <div
           className="overflow-hidden rounded-full"
-          style={{ height: "4px", background: "#2E2E2E" }}
+          style={{ height: "4px", background: "rgb(var(--cn-border))" }}
         >
           <div
             style={{

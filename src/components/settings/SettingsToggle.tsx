@@ -20,7 +20,7 @@ export function SettingsToggle({ checked, onChange, disabled }: SettingsTogglePr
       style={{
         width: "44px",
         height: "24px",
-        background: checked ? "#6851FF" : "#3A3A3A",
+        background: checked ? "#6851FF" : "rgb(var(--cn-input-border))",
         border: "none",
         transition: "background 0.2s ease",
         padding: 0,

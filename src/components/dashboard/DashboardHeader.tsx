@@ -33,7 +33,7 @@ export function DashboardHeader({
             fontWeight: 800,
             fontSize: "36px",
             lineHeight: 1.1,
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
             margin: 0,
           }}
         >
@@ -41,10 +41,10 @@ export function DashboardHeader({
         </h1>
         <p
           className="mt-1.5"
-          style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "#A0A0A0" }}
+          style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "rgb(var(--cn-ink2))" }}
         >
           Sua inteligência fluida processou{" "}
-          <span style={{ color: "#FFFFFF", fontWeight: 700 }}>
+          <span style={{ color: "rgb(var(--cn-ink))", fontWeight: 700 }}>
             {meetingsProcessedToday} reuniões
           </span>{" "}
           hoje.

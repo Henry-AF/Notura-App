@@ -85,7 +85,7 @@ function UploadingOverlay({
   ];
 
   return (
-    <div className="flex min-h-[420px] flex-col items-center justify-center gap-8 rounded-2xl border border-[#2E2E2E] bg-[#1C1C1C] p-10">
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-8 rounded-2xl p-10" style={{ border: "1px solid rgb(var(--cn-border))", background: "rgb(var(--cn-card))" }}>
       {/* Spinning ring */}
       <div className="relative flex h-20 w-20 items-center justify-center">
         <svg
@@ -131,7 +131,7 @@ function UploadingOverlay({
         <p className="font-semibold text-white">
           {isDone ? "Upload concluído" : `Enviando... ${progress}%`}
         </p>
-        <p className="mt-1 text-sm text-[#606060]">
+        <p className="mt-1 text-sm" style={{ color: "rgb(var(--cn-muted))" }}>
           {file.name} · {formatFileSize(file.size)}
         </p>
       </div>
@@ -157,7 +157,7 @@ function UploadingOverlay({
               ) : (
                 <span
                   className="text-[10px] font-bold"
-                  style={{ color: "#404040" }}
+                  style={{ color: "rgb(var(--cn-muted))" }}
                 >
                   {i + 1}
                 </span>
@@ -166,7 +166,7 @@ function UploadingOverlay({
             <span
               className="text-sm"
               style={{
-                color: step.done ? "#4ECB71" : step.active ? "#D0D0D0" : "#404040",
+                color: step.done ? "#4ECB71" : step.active ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))",
                 fontWeight: step.active ? 500 : 400,
               }}
             >
@@ -270,19 +270,19 @@ function UploadPageInner() {
   return (
     <div className="animate-fade-in min-h-full">
       {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
-      <nav className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#606060]">
-        <Link href="/dashboard" className="transition-colors hover:text-[#A0A0A0]">
+      <nav className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: "rgb(var(--cn-muted))" }}>
+        <Link href="/dashboard" className="transition-colors" style={{ color: "rgb(var(--cn-muted))" }} onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-ink2))")} onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-muted))")}>
           Dashboard
         </Link>
-        <ChevronRight className="h-3 w-3 text-[#3A3A3A]" />
-        <span className="text-[#A0A0A0]">Nova Reunião</span>
+        <ChevronRight className="h-3 w-3" style={{ color: "rgb(var(--cn-border))" }} />
+        <span style={{ color: "rgb(var(--cn-ink2))" }}>Nova Reunião</span>
       </nav>
 
       {/* ── Page title ───────────────────────────────────────────────────── */}
-      <h1 className="font-display text-3xl font-extrabold text-white">
+      <h1 className="font-display text-3xl font-extrabold" style={{ color: "rgb(var(--cn-ink))" }}>
         Iniciar Processamento
       </h1>
-      <p className="mt-1.5 max-w-lg text-sm text-[#A0A0A0]">
+      <p className="mt-1.5 max-w-lg text-sm" style={{ color: "rgb(var(--cn-ink2))" }}>
         Transforme sua conversa em inteligência acionável. Envie o áudio e
         receba o resumo em instantes.
       </p>
@@ -324,7 +324,7 @@ function UploadPageInner() {
             {/* Meeting form */}
             <div
               className="rounded-2xl border p-5"
-              style={{ background: "#1C1C1C", borderColor: "#2E2E2E" }}
+              style={{ background: "rgb(var(--cn-card))", borderColor: "rgb(var(--cn-border))" }}
             >
               <MeetingForm
                 onSubmit={handleSubmit}

@@ -52,7 +52,7 @@ export function AIInsightToast({ userInitials, message }: AIInsightToastProps) {
           fontFamily: "Inter, sans-serif",
           fontWeight: 400,
           fontSize: 12,
-          color: "#A0A0A0",
+          color: "rgb(var(--cn-muted))",
           lineHeight: 1.5,
           margin: 0,
         }}

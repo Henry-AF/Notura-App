@@ -16,19 +16,19 @@ export interface Meeting {
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS: Record<string, { bg: string; color: string }> = {
-  A: { bg: "#1A2E4A", color: "#74C0FC" },
-  N: { bg: "#1A1A3A", color: "#A29BFE" },
-  H: { bg: "#2E1A1A", color: "#FF8A8A" },
+  A: { bg: "rgba(116,192,252,0.15)", color: "#4A8FD9" },
+  N: { bg: "rgba(162,155,254,0.15)", color: "#6C5CE7" },
+  H: { bg: "rgba(255,138,138,0.15)", color: "#D94444" },
 };
 
 function getAvatarStyle(name: string): { bg: string; color: string } {
   const initial = name.trim()[0]?.toUpperCase() ?? "?";
   if (AVATAR_COLORS[initial]) return AVATAR_COLORS[initial];
-  // Hash fallback
+  // Hash fallback — semi-transparent so it works in both light and dark
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
-  return { bg: `hsl(${hue},30%,18%)`, color: `hsl(${hue},80%,70%)` };
+  return { bg: `hsla(${hue},60%,55%,0.15)`, color: `hsl(${hue},55%,42%)` };
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
         cursor: "pointer",
         transition: "background 0.15s",
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "#242424")}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card2))")}
       onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
       className="responsive-meeting-row"
     >
@@ -116,7 +116,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
           {initial}
         </div>
         <div className="min-w-0">
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: "14px", color: "#FFFFFF" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))" }}>
             {meeting.clientName}
           </p>
           <p
@@ -124,7 +124,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: "12px",
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -139,7 +139,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
       {/* Date */}
       <p
         className="meeting-date-col"
-        style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "#A0A0A0" }}
+        style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgb(var(--cn-ink2))" }}
       >
         {meeting.date}
       </p>
@@ -163,7 +163,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
               width: 30,
               height: 30,
               borderRadius: "8px",
-              background: "#242424",
+              background: "rgb(var(--cn-card2))",
               border: "none",
               cursor: "pointer",
               display: "flex",
@@ -184,7 +184,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
               width: 30,
               height: 30,
               borderRadius: "8px",
-              background: "#2E1A1A",
+              background: "rgba(255,107,107,0.1)",
               border: "none",
               cursor: "pointer",
               display: "flex",
@@ -221,8 +221,8 @@ export function RecentMeetingsTable({
   return (
     <div
       style={{
-        background: "#1C1C1C",
-        border: "1px solid #2E2E2E",
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
         borderRadius: "14px",
         padding: "20px",
       }}
@@ -241,7 +241,7 @@ export function RecentMeetingsTable({
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 700,
             fontSize: "18px",
-            color: "#FFFFFF",
+            color: "rgb(var(--cn-ink))",
           }}
         >
           Reuniões Recentes
@@ -273,7 +273,7 @@ export function RecentMeetingsTable({
         style={{
           gridTemplateColumns: "1fr 120px 140px 60px",
           padding: "0 12px 10px",
-          borderBottom: "1px solid #2E2E2E",
+          borderBottom: "1px solid rgb(var(--cn-border))",
         }}
       >
         {["CLIENTE / TÍTULO", "DATA", "STATUS", "AÇÕES"].map((col) => (
@@ -284,7 +284,7 @@ export function RecentMeetingsTable({
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.1em",
-              color: "#606060",
+              color: "rgb(var(--cn-muted))",
             }}
           >
             {col}

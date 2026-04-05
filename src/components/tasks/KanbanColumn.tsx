@@ -1,13 +1,12 @@
-"use client";
+﻿"use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Droppable } from "@hello-pangea/dnd";
-import { MoreHorizontal } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import type { Task } from "./TaskCard";
 
 export interface Column {
-  id: "todo" | "in_progress" | "done";
+  id: string;
   title: string;
   dotColor: string;
   badgeColor: string;
@@ -17,19 +16,59 @@ export interface Column {
 
 export interface KanbanColumnProps {
   column: Column;
-  index: number;
   onAddTask: (columnId: string) => void;
+  onEditTask: (task: Task) => void;
+  onDeleteColumn: (columnId: string) => void;
+  canDelete?: boolean;
 }
 
-export function KanbanColumn({ column, onAddTask }: KanbanColumnProps) {
+export function KanbanColumn({
+  column,
+  onAddTask,
+  onEditTask,
+  onDeleteColumn,
+  canDelete = true,
+}: KanbanColumnProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return;
+    function handle(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+        setConfirmDelete(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showMenu]);
+
+  function handleDeleteClick() {
+    if (column.tasks.length === 0) {
+      onDeleteColumn(column.id);
+      setShowMenu(false);
+    } else {
+      setConfirmDelete(true);
+    }
+  }
+
+  function handleConfirmDelete() {
+    onDeleteColumn(column.id);
+    setShowMenu(false);
+    setConfirmDelete(false);
+  }
+
   return (
     <div
       style={{
-        background: "#111111",
-        border: "1px solid #1E1E1E",
-        borderRadius: 14,
-        padding: 16,
-        minHeight: 200,
+        width: 300,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
       }}
     >
       {/* Column header */}
@@ -37,133 +76,243 @@ export function KanbanColumn({ column, onAddTask }: KanbanColumnProps) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          marginBottom: 16,
+          justifyContent: "space-between",
+          marginBottom: 12,
+          padding: "0 2px",
         }}
       >
-        {/* Dot */}
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: column.dotColor,
-            flexShrink: 0,
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: column.dotColor,
+            }}
+          />
+          <span
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 600,
+              fontSize: 13,
+              color: "#D0D0D0",
+              letterSpacing: "0.03em",
+            }}
+          >
+            {column.title}
+          </span>
+          <span
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              color: column.badgeColor,
+              background: column.badgeBg,
+              padding: "1px 7px",
+              borderRadius: 20,
+              minWidth: 20,
+              textAlign: "center",
+            }}
+          >
+            {column.tasks.length}
+          </span>
+        </div>
 
-        {/* Title */}
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 12,
-            color: "#FFFFFF",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-          }}
-        >
-          {column.title}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {/* Add task button */}
+          <button
+            onClick={() => onAddTask(column.id)}
+            title="Adicionar tarefa"
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              border: "none",
+              background: "transparent",
+              color: "#606060",
+              fontSize: 20,
+              lineHeight: 1,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.15s, color 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "#2E2E2E";
+              (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+            }}
+          >
+            +
+          </button>
 
-        {/* Count badge */}
-        <span
-          style={{
-            padding: "2px 8px",
-            borderRadius: 999,
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 11,
-            color: column.badgeColor,
-            background: column.badgeBg,
-          }}
-        >
-          {column.tasks.length}
-        </span>
+          {/* Three-dot menu */}
+          {canDelete && (
+            <div style={{ position: "relative" }} ref={menuRef}>
+              <button
+                onClick={() => { setShowMenu((v) => !v); setConfirmDelete(false); }}
+                title="Opcoes da coluna"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  border: "none",
+                  background: "transparent",
+                  color: "#606060",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "background 0.15s, color 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#2E2E2E";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#606060";
+                }}
+              >
+                &middot;&middot;&middot;
+              </button>
 
-        {/* More button */}
-        <button
-          type="button"
-          aria-label="Opções da coluna"
-          style={{
-            marginLeft: "auto",
-            background: "none",
-            border: "none",
-            padding: 4,
-            cursor: "pointer",
-            color: "#3A3A3A",
-            display: "flex",
-            alignItems: "center",
-            transition: "color 0.15s",
-          }}
-          onMouseEnter={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.color = "#606060")
-          }
-          onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.color = "#3A3A3A")
-          }
-        >
-          <MoreHorizontal style={{ width: 16, height: 16 }} />
-        </button>
+              {showMenu && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 30,
+                    right: 0,
+                    zIndex: 100,
+                    background: "#1C1C1C",
+                    border: "1px solid #2E2E2E",
+                    borderRadius: 10,
+                    padding: 8,
+                    minWidth: 180,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {!confirmDelete ? (
+                    <button
+                      onClick={handleDeleteClick}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: "transparent",
+                        color: "#FF6B6B",
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 13,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) =>
+                        ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,107,107,0.1)")
+                      }
+                      onMouseLeave={(e) =>
+                        ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+                      }
+                    >
+                      Excluir coluna
+                    </button>
+                  ) : (
+                    <div style={{ padding: "4px 2px" }}>
+                      <p
+                        style={{
+                          fontFamily: "Inter, sans-serif",
+                          fontSize: 12,
+                          color: "#A0A0A0",
+                          margin: "0 0 8px 8px",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {column.tasks.length} tarefa{column.tasks.length !== 1 ? "s" : ""} sera{column.tasks.length !== 1 ? "o" : ""} excluida{column.tasks.length !== 1 ? "s" : ""}. Confirmar?
+                      </p>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          style={{
+                            flex: 1,
+                            padding: "6px",
+                            borderRadius: 6,
+                            border: "1px solid #2E2E2E",
+                            background: "transparent",
+                            color: "#A0A0A0",
+                            fontFamily: "Inter, sans-serif",
+                            fontSize: 12,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={handleConfirmDelete}
+                          style={{
+                            flex: 1,
+                            padding: "6px",
+                            borderRadius: 6,
+                            border: "none",
+                            background: "#FF6B6B",
+                            color: "#FFFFFF",
+                            fontFamily: "Inter, sans-serif",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Droppable list */}
+      {/* Droppable zone */}
       <Droppable droppableId={column.id}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             style={{
-              borderRadius: 8,
-              minHeight: 80,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              minHeight: 100,
+              padding: 8,
+              borderRadius: 12,
               background: snapshot.isDraggingOver
                 ? "rgba(108,92,231,0.04)"
                 : "transparent",
-              transition: "background 0.2s",
+              outline: snapshot.isDraggingOver
+                ? "1.5px dashed rgba(108,92,231,0.3)"
+                : "1.5px dashed transparent",
+              transition: "background 180ms ease, outline 180ms ease",
             }}
           >
-            {column.tasks.map((task, idx) => (
-              <TaskCard key={task.id} task={task} index={idx} />
+            {column.tasks.map((task, index) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                index={index}
+                onEdit={onEditTask}
+              />
             ))}
             {provided.placeholder}
           </div>
         )}
       </Droppable>
-
-      {/* Add task button */}
-      <button
-        type="button"
-        onClick={() => onAddTask(column.id)}
-        style={{
-          width: "100%",
-          marginTop: 8,
-          padding: 10,
-          border: "1px dashed #2E2E2E",
-          borderRadius: 8,
-          color: "#3A3A3A",
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 500,
-          fontSize: 13,
-          textAlign: "center",
-          cursor: "pointer",
-          background: "transparent",
-          transition: "all 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLButtonElement;
-          el.style.borderColor = "#6C5CE7";
-          el.style.color = "#A29BFE";
-          el.style.background = "rgba(108,92,231,0.05)";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLButtonElement;
-          el.style.borderColor = "#2E2E2E";
-          el.style.color = "#3A3A3A";
-          el.style.background = "transparent";
-        }}
-      >
-        + Adicionar tarefa
-      </button>
     </div>
   );
 }

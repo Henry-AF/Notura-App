@@ -9,7 +9,6 @@ import {
   InsightCard,
   UpgradeCard,
   TodayTasks,
-  FloatingActionButton,
 } from "@/components/dashboard";
 import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
@@ -199,6 +198,14 @@ function DashboardPageInner() {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, completed: newCompleted, isNew: false } : t))
     );
+    // Update open-task count metric in real time
+    setMetrics((prev) =>
+      prev.map((m) =>
+        m.label === "Tarefas abertas"
+          ? { ...m, value: Math.max(0, (m.value as number) + (newCompleted ? -1 : 1)) }
+          : m
+      )
+    );
     const supabase = createClient();
     await supabase
       .from("tasks")
@@ -326,12 +333,6 @@ function DashboardPageInner() {
           </div>
         </div>
       </div>
-
-      {/* FAB */}
-      <FloatingActionButton
-        onClick={() => router.push("/dashboard/new")}
-        tooltip="Nova reunião"
-      />
 
       {/* Responsive grid style */}
       <style>{`

@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { Pencil } from "lucide-react";
+import { useThemeColors } from "@/lib/theme-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,30 +12,36 @@ export interface ProfileCardProps {
   company: string;
   email: string;
   avatarUrl?: string;
-  onSave: (data: { company: string; email: string }) => void;
+  onSave: (data: { name: string; company: string; email: string }) => void;
 }
-
-// ─── Shared input style ───────────────────────────────────────────────────────
-
-const inputCls =
-  "w-full appearance-none rounded-lg border border-[#3A3A3A] bg-[#242424] px-[14px] py-2.5 text-sm text-white outline-none placeholder-[#606060] transition-colors focus:border-[#6851FF]";
-
-const labelCls =
-  "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.1em] text-[#606060]";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ProfileCard({
-  name,
+  name: initialName,
   subtitle,
   company: initialCompany,
   email: initialEmail,
   avatarUrl,
   onSave,
 }: ProfileCardProps) {
+  const c = useThemeColors();
+  const [name, setName] = useState(initialName);
   const [company, setCompany] = useState(initialCompany);
   const [email, setEmail] = useState(initialEmail);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const inputCls = `w-full appearance-none rounded-lg border px-[14px] py-2.5 text-sm outline-none transition-colors focus:border-[#6851FF]`;
+  const inputStyle = { background: c.inputBg, borderColor: c.inputBorder, color: c.ink };
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "10px",
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    color: c.ink3,
+  };
 
   const initials = name
     .split(" ")
@@ -44,13 +51,13 @@ export function ProfileCard({
     .toUpperCase();
 
   const handleBlur = () => {
-    onSave({ company, email });
+    onSave({ name, company, email });
   };
 
   return (
     <div
       className="rounded-2xl border p-6"
-      style={{ background: "#1C1C1C", borderColor: "#2E2E2E" }}
+      style={{ background: c.card, borderColor: c.border }}
     >
       {/* Top row: avatar + name */}
       <div className="flex items-start gap-5">
@@ -91,19 +98,27 @@ export function ProfileCard({
           <input ref={fileRef} type="file" accept="image/*" className="hidden" />
         </div>
 
-        {/* Name + subtitle */}
-        <div>
-          <h2 className="font-display text-[22px] font-bold text-white leading-tight">
-            {name}
-          </h2>
-          <p className="mt-1 text-[13px] text-[#A0A0A0]">{subtitle}</p>
+        {/* Name (editable) + subtitle */}
+        <div className="flex-1">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === "Enter" && handleBlur()}
+            className="w-full bg-transparent font-display text-[22px] font-bold leading-tight outline-none focus:underline decoration-notura-primary/60 underline-offset-2"
+            style={{ color: c.ink }}
+            placeholder="Seu nome"
+            aria-label="Nome de usuário"
+          />
+          <p className="mt-1 text-[13px]" style={{ color: c.ink2 }}>{subtitle}</p>
         </div>
       </div>
 
       {/* Inputs */}
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>Empresa</label>
+          <label style={labelStyle}>Empresa</label>
           <input
             type="text"
             value={company}
@@ -111,11 +126,12 @@ export function ProfileCard({
             onBlur={handleBlur}
             onKeyDown={(e) => e.key === "Enter" && handleBlur()}
             className={inputCls}
+            style={inputStyle}
             placeholder="Nome da empresa"
           />
         </div>
         <div>
-          <label className={labelCls}>E-mail</label>
+          <label style={labelStyle}>E-mail</label>
           <input
             type="email"
             value={email}
@@ -123,6 +139,7 @@ export function ProfileCard({
             onBlur={handleBlur}
             onKeyDown={(e) => e.key === "Enter" && handleBlur()}
             className={inputCls}
+            style={inputStyle}
             placeholder="seu@email.com"
           />
         </div>

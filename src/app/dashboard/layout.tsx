@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid,
   Video,
@@ -13,34 +13,145 @@ import {
   Menu,
   X,
   Zap,
+  LogOut,
+  RefreshCw,
 } from "lucide-react";
 import { LogoFull, Logo } from "@/components/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
+import { PlanModal } from "@/components/settings/PlanModal";
+import { ThemeProvider } from "@/lib/theme-context";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/recording", label: "Nova Reunião", icon: PlusCircle },
-  { href: "/dashboard", label: "Reuniões", icon: Video, matchPrefix: "/dashboard/meetings" },
+  { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
   { href: "/dashboard/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/dashboard/new", label: "Upload", icon: UploadCloud },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];
 
+// ─── User profile dropdown ────────────────────────────────────────────────────
+
+function UserDropdown({
+  user,
+  onClose,
+}: {
+  user: { name: string; plan: string };
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  async function handleSwitch() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  const initials =
+    user.name
+      .split(" ")
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "U";
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-notura-border/50 bg-notura-bg-secondary p-1.5 shadow-xl z-50"
+      style={{ animation: "dropUp 0.15s cubic-bezier(0.25,0.46,0.45,0.94)" }}
+      role="menu"
+    >
+      {/* Profile header */}
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback name={user.name} className="text-xs bg-notura-primary/20 text-notura-primary">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-notura-ink">
+            {user.name || "Usuário"}
+          </p>
+          <p className="text-[11px] text-notura-ink-secondary capitalize">
+            {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+          </p>
+        </div>
+      </div>
+
+      <div className="my-1 border-t border-notura-border/40" />
+
+      <button
+        onClick={handleSwitch}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-notura-ink-secondary transition-colors hover:bg-notura-surface hover:text-notura-ink"
+        role="menuitem"
+      >
+        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+        Trocar conta
+      </button>
+
+      <button
+        onClick={handleLogout}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[rgba(255,107,107,0.1)] text-[#FF6B6B]"
+        role="menuitem"
+      >
+        <LogOut className="h-3.5 w-3.5 shrink-0" />
+        Sair
+      </button>
+
+      <style>{`
+        @keyframes dropUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Sidebar content ──────────────────────────────────────────────────────────
+
 function SidebarContent({
   onNavigate,
   user,
+  onUpgradeClick,
 }: {
   onNavigate?: () => void;
   user: { name: string; plan: string };
+  onUpgradeClick: () => void;
 }) {
   const pathname = usePathname();
+  const [showDropdown, setShowDropdown] = useState(false);
 
   function isActive(item: (typeof navItems)[0]) {
     if (item.exact) return pathname === item.href;
-    if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
+    if ((item as { matchPrefix?: string }).matchPrefix)
+      return pathname.startsWith((item as { matchPrefix?: string }).matchPrefix!);
     return pathname.startsWith(item.href);
   }
 
@@ -74,7 +185,7 @@ function SidebarContent({
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
                 active
-                  ? "bg-notura-surface text-white border-l-2 border-notura-primary"
+                  ? "bg-notura-surface text-notura-ink border-l-2 border-notura-primary"
                   : "text-notura-ink-secondary hover:bg-notura-surface/50 hover:text-notura-ink"
               )}
             >
@@ -101,36 +212,53 @@ function SidebarContent({
 
         {/* Upgrade nudge */}
         {user.plan === "free" && (
-          <Link
-            href="/dashboard/settings"
-            onClick={onNavigate}
-            className="flex items-center gap-2 rounded-lg bg-notura-primary/10 border border-notura-primary/30 px-3 py-2.5 text-xs font-medium text-notura-primary hover:bg-notura-primary/20 transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate?.();
+              onUpgradeClick();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg bg-notura-primary/10 border border-notura-primary/30 px-3 py-2.5 text-xs font-medium text-notura-primary hover:bg-notura-primary/20 transition-colors"
           >
             <Zap className="h-3.5 w-3.5 shrink-0" />
             <span>Upgrade para ilimitado</span>
-          </Link>
+          </button>
         )}
 
-        {/* User profile */}
-        <div className="flex items-center gap-3 px-1">
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarFallback name={user.name} className="text-xs bg-notura-primary/20 text-notura-primary">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-notura-ink">
-              {user.name || "Usuário"}
-            </p>
-            <p className="text-[11px] text-notura-ink-secondary capitalize">
-              {user.plan === "pro" ? "Plano Pro" : "Plano Gratuito"}
-            </p>
-          </div>
+        {/* User profile area — click to open dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-notura-surface/50"
+            onClick={() => setShowDropdown((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={showDropdown}
+          >
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarFallback name={user.name} className="text-xs bg-notura-primary/20 text-notura-primary">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-sm font-medium text-notura-ink">
+                {user.name || "Usuário"}
+              </p>
+              <p className="text-[11px] text-notura-ink-secondary capitalize">
+                {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+              </p>
+            </div>
+          </button>
+
+          {showDropdown && (
+            <UserDropdown user={user} onClose={() => setShowDropdown(false)} />
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function DashboardLayout({
   children,
@@ -139,80 +267,107 @@ export default function DashboardLayout({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState({ name: "", plan: "free" });
+  const [showPlanModal, setShowPlanModal] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user: authUser } }) => {
       if (!authUser) return;
-      supabase
-        .from("profiles")
-        .select("name, plan")
-        .eq("id", authUser.id)
-        .single()
-        .then(({ data: profile }) => {
-          setUser({
-            name: profile?.name ?? authUser.email ?? "",
-            plan: (profile as any)?.plan ?? "free",
-          });
+      Promise.all([
+        supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", authUser.id)
+          .single(),
+        supabase
+          .from("billing_accounts")
+          .select("plan")
+          .eq("user_id", authUser.id)
+          .maybeSingle(),
+      ]).then(([profileRes, billingRes]) => {
+        setUser({
+          name: profileRes.data?.name ?? authUser.email ?? "",
+          plan: (billingRes.data?.plan ?? "free") as string,
         });
+      });
     });
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-notura-bg">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r border-notura-border/50 bg-notura-bg-secondary lg:block">
-        <SidebarContent user={user} />
-      </aside>
+    <ThemeProvider>
+      <div className="flex h-screen overflow-hidden bg-notura-bg">
+        {/* Desktop sidebar */}
+        <aside className="hidden w-60 shrink-0 border-r border-notura-border/50 bg-notura-bg-secondary lg:block">
+          <SidebarContent
+            user={user}
+            onUpgradeClick={() => setShowPlanModal(true)}
+          />
+        </aside>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile sidebar drawer */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r border-notura-border/50 bg-notura-bg-secondary transition-transform duration-200 ease-in-out lg:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <div className="absolute right-3 top-5">
-          <button
+        {/* Mobile overlay */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
             onClick={() => setMobileOpen(false)}
-            className="rounded-md p-1 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <SidebarContent user={user} onNavigate={() => setMobileOpen(false)} />
-      </aside>
+          />
+        )}
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile top bar */}
-        <header className="flex h-14 items-center gap-3 border-b border-notura-border/50 bg-notura-bg-secondary px-4 lg:hidden">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="rounded-md p-1.5 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <Link href="/dashboard">
-            <Logo size={24} />
-          </Link>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            {children}
+        {/* Mobile sidebar drawer */}
+        <aside
+          className={cn(
+            "fixed inset-y-0 left-0 z-50 w-64 border-r border-notura-border/50 bg-notura-bg-secondary transition-transform duration-200 ease-in-out lg:hidden",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          <div className="absolute right-3 top-5">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md p-1 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        </main>
+          <SidebarContent
+            user={user}
+            onNavigate={() => setMobileOpen(false)}
+            onUpgradeClick={() => {
+              setMobileOpen(false);
+              setShowPlanModal(true);
+            }}
+          />
+        </aside>
+
+        {/* Main content area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Mobile top bar */}
+          <header className="flex h-14 items-center gap-3 border-b border-notura-border/50 bg-notura-bg-secondary px-4 lg:hidden">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="rounded-md p-1.5 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <Link href="/dashboard">
+              <Logo size={24} />
+            </Link>
+          </header>
+
+          {/* Page content */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+              {children}
+            </div>
+          </main>
+        </div>
+
+        {/* Global plan modal */}
+        {showPlanModal && (
+          <PlanModal
+            currentPlan={user.plan}
+            onClose={() => setShowPlanModal(false)}
+          />
+        )}
       </div>
-    </div>
+    </ThemeProvider>
   );
 }

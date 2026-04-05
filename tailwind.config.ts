@@ -9,27 +9,27 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Dark design system ─────────────────────────────
+        // ── Adaptive design system (CSS-variable based) ────
         notura: {
-          // Brand purple
+          // Brand purple (static)
           primary: "#6851FF",
           "primary-light": "#8B7AFF",
           "primary-dark": "#5740EE",
           "primary-glow": "rgba(104,81,255,0.3)",
           secondary: "#BA2BF2",
           processing: "#E43790",
-          // Dark backgrounds
-          bg: "#0C0B0E",
-          "bg-secondary": "#141319",
-          surface: "#1D1B26",
-          "surface-2": "#252230",
-          // Text
-          ink: "#F4F4F6",
-          "ink-secondary": "#9598A8",
-          muted: "#3A3D4A",
-          // Borders
-          border: "#2C285B",
-          // Status
+          // Adaptive backgrounds
+          bg: "rgb(var(--cn-bg) / <alpha-value>)",
+          "bg-secondary": "rgb(var(--cn-bg2) / <alpha-value>)",
+          surface: "rgb(var(--cn-surface) / <alpha-value>)",
+          "surface-2": "rgb(var(--cn-surface2) / <alpha-value>)",
+          // Adaptive text
+          ink: "rgb(var(--cn-ink) / <alpha-value>)",
+          "ink-secondary": "rgb(var(--cn-ink2) / <alpha-value>)",
+          muted: "rgb(var(--cn-muted) / <alpha-value>)",
+          // Adaptive borders
+          border: "rgb(var(--cn-border) / <alpha-value>)",
+          // Status (static)
           success: "#22C55E",
           warning: "#F59E0B",
           error: "#EF4444",

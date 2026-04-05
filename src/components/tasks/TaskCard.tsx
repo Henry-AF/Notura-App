@@ -1,315 +1,267 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Video, Paperclip, Calendar } from "lucide-react";
-import { PriorityBadge } from "./PriorityBadge";
-import { ProgressBar } from "./ProgressBar";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Task {
   id: string;
   title: string;
   priority: "alta" | "media" | "baixa";
-  columnId: "todo" | "in_progress" | "done";
-  generatedByAI?: boolean;
+  columnId: string;
   meetingSource?: string;
-  filesCount?: number;
   dueDate?: string;
   completedDate?: string;
-  progress?: number;
-  assignee?: {
-    name: string;
-    avatarUrl?: string;
-  };
+  assignee?: { name: string; avatarUrl?: string };
+  assignees?: { name: string; avatarUrl?: string }[];
+  description?: string;
+  generatedByAI?: boolean;
 }
 
 export interface TaskCardProps {
   task: Task;
   index: number;
+  onEdit?: (task: Task) => void;
 }
-
-// ─── Avatar helper ────────────────────────────────────────────────────────────
 
 function getInitials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
 }
+
+const AVATAR_PALETTE = [
+  ["#6C5CE7", "#A29BFE20"],
+  ["#E91E8C", "#E91E8C20"],
+  ["#FFA94D", "#FFA94D20"],
+  ["#4ECB71", "#4ECB7120"],
+  ["#74C0FC", "#74C0FC20"],
+];
 
 function hashColor(name: string) {
-  const colors = [
-    "#6C5CE7", "#00CEC9", "#FFA94D", "#FF6B6B",
-    "#74C0FC", "#4ECB71", "#E91E8C", "#A29BFE",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffff;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-function AssigneeAvatar({ assignee }: { assignee: NonNullable<Task["assignee"]> }) {
-  if (assignee.avatarUrl) {
-    return (
-      <img
-        src={assignee.avatarUrl}
-        alt={assignee.name}
-        style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }}
-      />
-    );
-  }
-  const bg = hashColor(assignee.name);
+function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+  const [text, bg] = hashColor(name);
   return (
     <div
       style={{
-        width: 28,
-        height: 28,
+        width: size,
+        height: size,
         borderRadius: "50%",
         background: bg,
-        color: "#FFFFFF",
-        fontFamily: "Inter, sans-serif",
-        fontWeight: 700,
-        fontSize: 10,
+        border: `1.5px solid ${text}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        fontSize: size * 0.38,
+        fontWeight: 700,
+        color: text,
+        fontFamily: "Inter, sans-serif",
         flexShrink: 0,
+        userSelect: "none",
       }}
     >
-      {getInitials(assignee.name)}
+      {getInitials(name)}
     </div>
   );
 }
 
-// ─── TaskCard ─────────────────────────────────────────────────────────────────
+function AssigneeAvatars({ assignees }: { assignees: { name: string; avatarUrl?: string }[] }) {
+  if (!assignees.length) return null;
+  const visible = assignees.slice(0, 3);
+  const overflow = assignees.length - visible.length;
+  return (
+    <div style={{ display: "flex", alignItems: "center" }}>
+      {visible.map((a, i) => (
+        <div key={i} style={{ marginLeft: i === 0 ? 0 : -6 }}>
+          <Avatar name={a.name} size={22} />
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div
+          style={{
+            marginLeft: -6,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "#2E2E2E",
+            border: "1.5px solid #3E3E3E",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 9,
+            fontWeight: 700,
+            color: "#A0A0A0",
+            fontFamily: "Inter, sans-serif",
+          }}
+        >
+          +{overflow}
+        </div>
+      )}
+    </div>
+  );
+}
 
-export function TaskCard({ task, index }: TaskCardProps) {
+const PRIORITY_COLORS: Record<Task["priority"], { border: string; dot: string; label: string }> = {
+  alta:  { border: "rgba(255,107,107,0.3)",  dot: "#FF6B6B", label: "ALTA" },
+  media: { border: "rgba(255,169,77,0.3)",   dot: "#FFA94D", label: "MEDIA" },
+  baixa: { border: "rgba(78,203,113,0.3)",   dot: "#4ECB71", label: "BAIXA" },
+};
+
+export function TaskCard({ task, index, onEdit }: TaskCardProps) {
   const isDone = task.columnId === "done";
+  const p = PRIORITY_COLORS[task.priority];
+  const allAssignees: { name: string; avatarUrl?: string }[] = task.assignees?.length
+    ? task.assignees
+    : task.assignee
+    ? [task.assignee]
+    : [];
 
   return (
     <Draggable draggableId={task.id} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          className="task-card"
-          style={{
-            background: "#1A1A1A",
-            border: snapshot.isDragging
-              ? "1px solid rgba(108,92,231,0.4)"
-              : "1px solid #2A2A2A",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 10,
-            cursor: snapshot.isDragging ? "grabbing" : "grab",
-            userSelect: "none",
-            boxShadow: snapshot.isDragging
-              ? "0 12px 40px rgba(108,92,231,0.35)"
-              : undefined,
-            transform: snapshot.isDragging
-              ? `${provided.draggableProps.style?.transform ?? ""} rotate(1.5deg) scale(1.02)`
-              : provided.draggableProps.style?.transform,
-            opacity: snapshot.isDragging ? 0.95 : 1,
-            transition: snapshot.isDragging
-              ? undefined
-              : "box-shadow 0.15s, border-color 0.15s",
-            animationDelay: `${index * 60}ms`,
-            ...provided.draggableProps.style,
-          }}
-          onMouseEnter={(e) => {
-            if (!snapshot.isDragging) {
-              const el = e.currentTarget as HTMLDivElement;
-              el.style.borderColor = "#3A3A3A";
-              el.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!snapshot.isDragging) {
-              const el = e.currentTarget as HTMLDivElement;
-              el.style.borderColor = "#2A2A2A";
-              el.style.boxShadow = "none";
-            }
-          }}
-        >
-          {/* Header: priority badge + AI badge */}
+      {(provided, snapshot) => {
+        const libStyle = provided.draggableProps.style as React.CSSProperties | undefined;
+        const libTransform = libStyle?.transform ?? "";
+        const extraTransform = snapshot.isDragging ? "rotate(1.8deg) scale(1.03)" : "";
+        const composedTransform = [libTransform, extraTransform].filter(Boolean).join(" ");
+
+        return (
           <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            onClick={() => !snapshot.isDragging && onEdit?.(task)}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 12,
+              ...libStyle,
+              transform: composedTransform || undefined,
+              transition: snapshot.isDragging
+                ? libStyle?.transition
+                : "box-shadow 180ms ease, border-color 180ms ease, transform 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+              willChange: snapshot.isDragging ? "transform" : undefined,
+              background: snapshot.isDragging ? "#232323" : "#1C1C1C",
+              border: `1px solid ${snapshot.isDragging ? p.border : "#2E2E2E"}`,
+              borderLeft: `2.5px solid ${p.dot}`,
+              borderRadius: 10,
+              padding: "12px 14px",
+              cursor: "pointer",
+              userSelect: "none",
+              boxShadow: snapshot.isDragging
+                ? `0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px ${p.border}`
+                : "0 1px 3px rgba(0,0,0,0.25)",
+              opacity: isDone ? 0.6 : 1,
             }}
           >
-            <PriorityBadge priority={task.priority} />
-            {task.generatedByAI && (
-              <div
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: "50%",
-                  background: "#E91E8C",
-                  color: "#FFFFFF",
-                  fontFamily: "Inter, sans-serif",
-                  fontWeight: 700,
-                  fontSize: 9,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                AI
-              </div>
-            )}
-          </div>
-
-          {/* Title */}
-          <p
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontWeight: 600,
-              fontSize: 15,
-              color: isDone ? "#606060" : "#FFFFFF",
-              lineHeight: 1.4,
-              margin: 0,
-              textDecoration: isDone ? "line-through" : "none",
-            }}
-          >
-            {task.title}
-          </p>
-
-          {/* Meeting source */}
-          {task.meetingSource && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 10,
-                cursor: "pointer",
-                color: "#606060",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLDivElement;
-                el.style.color = "#A0A0A0";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLDivElement;
-                el.style.color = "#606060";
-              }}
-            >
-              <Video style={{ width: 12, height: 12, flexShrink: 0 }} />
+            {/* Priority badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: p.dot, flexShrink: 0 }} />
               <span
                 style={{
                   fontFamily: "Inter, sans-serif",
-                  fontSize: 12,
-                  color: "inherit",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: p.dot,
+                  letterSpacing: "0.07em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {p.label}
+              </span>
+            </div>
+
+            {/* Title */}
+            <p
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: 13.5,
+                fontWeight: 500,
+                color: isDone ? "#606060" : "#F0F0F0",
+                margin: 0,
+                lineHeight: 1.4,
+                textDecoration: isDone ? "line-through" : "none",
+                marginBottom: task.description ? 6 : 0,
+                overflowWrap: "break-word",
+              }}
+            >
+              {task.title}
+            </p>
+
+            {/* Description preview */}
+            {task.description && !isDone && (
+              <p
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 11.5,
+                  color: "#707070",
+                  margin: 0,
+                  lineHeight: 1.4,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}
+              >
+                {task.description}
+              </p>
+            )}
+
+            {/* Footer */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {(task.dueDate || task.completedDate) && (
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: 11,
+                      color: task.completedDate ? "#4ECB71" : "#707070",
+                      background: task.completedDate ? "rgba(78,203,113,0.1)" : "rgba(255,255,255,0.05)",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    {task.completedDate ?? task.dueDate}
+                  </span>
+                )}
+                {task.generatedByAI && (
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: 10,
+                      color: "#6C5CE7",
+                      background: "rgba(108,92,231,0.1)",
+                      padding: "2px 5px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    IA
+                  </span>
+                )}
+              </div>
+              <AssigneeAvatars assignees={allAssignees} />
+            </div>
+
+            {task.meetingSource && !isDone && (
+              <div
+                style={{
+                  marginTop: 7,
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 10.5,
+                  color: "#505050",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {task.meetingSource}
-              </span>
-            </div>
-          )}
-
-          {/* AI generated label */}
-          {task.generatedByAI && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 10,
-              }}
-            >
-              <span style={{ fontSize: 12, color: "#A29BFE", lineHeight: 1 }}>
-                ✦
-              </span>
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: 12,
-                  color: "#A29BFE",
-                }}
-              >
-                Gerado pela Notura AI
-              </span>
-            </div>
-          )}
-
-          {/* Files count */}
-          {task.filesCount !== undefined && task.filesCount > 0 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 10,
-              }}
-            >
-              <Paperclip
-                style={{ width: 12, height: 12, color: "#606060", flexShrink: 0 }}
-              />
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: 12,
-                  color: "#606060",
-                }}
-              >
-                {task.filesCount} {task.filesCount === 1 ? "arquivo" : "arquivos"}
-              </span>
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {task.progress !== undefined && <ProgressBar value={task.progress} />}
-
-          {/* Footer: date + avatar */}
-          {(task.dueDate || task.completedDate || task.assignee) && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginTop: 12,
-              }}
-            >
-              {/* Date */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {(task.dueDate || task.completedDate) && (
-                  <>
-                    <Calendar
-                      style={{
-                        width: 12,
-                        height: 12,
-                        color: task.completedDate ? "#4ECB71" : "#606060",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 12,
-                        color: task.completedDate ? "#4ECB71" : "#606060",
-                      }}
-                    >
-                      {task.completedDate ?? task.dueDate}
-                    </span>
-                  </>
-                )}
               </div>
-
-              {/* Avatar */}
-              {task.assignee && <AssigneeAvatar assignee={task.assignee} />}
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      }}
     </Draggable>
   );
 }

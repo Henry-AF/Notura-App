@@ -47,6 +47,10 @@ export function MeetingForm({
       onValidationError("Selecione a data da reunião.");
       return;
     }
+    if (!whatsappNumber.trim()) {
+      onValidationError("Preencha o número de WhatsApp para receber o resumo.");
+      return;
+    }
     onSubmit({ clientName: clientName.trim(), meetingDate, whatsappNumber: whatsappNumber.trim() });
   };
 

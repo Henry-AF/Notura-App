@@ -1,15 +1,14 @@
 ﻿"use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { KanbanBoard, TasksPageHeader, TasksFloatingButton } from "@/components/tasks";
+import { KanbanBoard, TasksPageHeader, TaskEditModal } from "@/components/tasks";
 import { useKanban } from "@/hooks/useKanban";
 import type { Column, Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
 import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 
-// ─── Column definitions (no tasks) ───────────────────────────────────────────
-
+// Column definitions (no tasks)
 const COLUMN_DEFS: Omit<Column, "tasks">[] = [
   {
     id: "todo",
@@ -27,23 +26,19 @@ const COLUMN_DEFS: Omit<Column, "tasks">[] = [
   },
   {
     id: "done",
-    title: "Concluído",
+    title: "Concluido",
     dotColor: "#4ECB71",
     badgeColor: "#4ECB71",
     badgeBg: "rgba(78,203,113,0.15)",
   },
 ];
 
-// ─── Priority normalizer ──────────────────────────────────────────────────────
-
 function normalizePriority(p: string | null): Task["priority"] {
   const lower = (p ?? "").toLowerCase();
   if (lower === "alta") return "alta";
-  if (lower === "media" || lower === "média") return "media";
+  if (lower === "media" || lower === "media") return "media";
   return "baixa";
 }
-
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function LoadingState() {
   return (
@@ -70,8 +65,6 @@ function LoadingState() {
   );
 }
 
-// ─── Placeholder table view ───────────────────────────────────────────────────
-
 function TasksTable({ columns }: { columns: Column[] }) {
   const allTasks = columns.flatMap((c) => c.tasks);
   return (
@@ -86,25 +79,23 @@ function TasksTable({ columns }: { columns: Column[] }) {
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid #2E2E2E" }}>
-            {["Tarefa", "Prioridade", "Status", "Responsável", "Data"].map(
-              (h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontFamily: "Inter, sans-serif",
-                    fontWeight: 600,
-                    fontSize: 12,
-                    color: "#606060",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  {h}
-                </th>
-              )
-            )}
+            {["Tarefa", "Prioridade", "Status", "Responsavel", "Data"].map((h) => (
+              <th
+                key={h}
+                style={{
+                  padding: "12px 16px",
+                  textAlign: "left",
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: "#606060",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -112,17 +103,14 @@ function TasksTable({ columns }: { columns: Column[] }) {
             <tr
               key={task.id}
               style={{
-                borderBottom:
-                  i < allTasks.length - 1 ? "1px solid #222" : undefined,
+                borderBottom: i < allTasks.length - 1 ? "1px solid #222" : undefined,
                 transition: "background 0.15s",
               }}
               onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLTableRowElement).style.background =
-                  "#1F1F1F")
+                ((e.currentTarget as HTMLTableRowElement).style.background = "#1F1F1F")
               }
               onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLTableRowElement).style.background =
-                  "transparent")
+                ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")
               }
             >
               <td
@@ -130,10 +118,8 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   padding: "12px 16px",
                   fontFamily: "Inter, sans-serif",
                   fontSize: 14,
-                  color:
-                    task.columnId === "done" ? "#606060" : "#FFFFFF",
-                  textDecoration:
-                    task.columnId === "done" ? "line-through" : "none",
+                  color: task.columnId === "done" ? "#606060" : "#FFFFFF",
+                  textDecoration: task.columnId === "done" ? "line-through" : "none",
                 }}
               >
                 {task.title}
@@ -153,11 +139,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                         : "#4ECB71",
                   }}
                 >
-                  {task.priority === "alta"
-                    ? "ALTA"
-                    : task.priority === "media"
-                    ? "MÉDIA"
-                    : "BAIXA"}
+                  {task.priority === "alta" ? "ALTA" : task.priority === "media" ? "MEDIA" : "BAIXA"}
                 </span>
               </td>
               <td
@@ -178,7 +160,7 @@ function TasksTable({ columns }: { columns: Column[] }) {
                   color: "#A0A0A0",
                 }}
               >
-                {task.assignee?.name ?? "—"}
+                {task.assignees?.[0]?.name ?? task.assignee?.name ?? "—"}
               </td>
               <td
                 style={{
@@ -198,16 +180,16 @@ function TasksTable({ columns }: { columns: Column[] }) {
   );
 }
 
-// ─── Board component (uses useKanban with initial data) ───────────────────────
-
 function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
-  const { columns, handleDragEnd, addTask } = useKanban(initialColumns);
+  const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn } =
+    useKanban(initialColumns);
 
-  // Wrap drag end to persist completed state to Supabase
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Drag end: also persist completed to Supabase
   const handleDragEndWithPersist = useCallback(
     async (result: DropResult) => {
       const { destination, source } = result;
-      // Capture task BEFORE state updates
       const srcColumn = columns.find((c) => c.id === source.droppableId);
       const movedTask = srcColumn?.tasks[source.index];
 
@@ -230,12 +212,40 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
 
   function handleAddTask(columnId: string) {
     const id = `task-${Date.now()}`;
-    addTask(columnId, {
+    const newTask: Task = {
       id,
       title: "Nova tarefa",
       priority: "media",
-      columnId: columnId as "todo" | "in_progress" | "done",
-    });
+      columnId,
+    };
+    addTask(columnId, newTask);
+    // Open modal immediately for the new task
+    setEditingTask(newTask);
+  }
+
+  async function handleSaveTask(id: string, updates: Partial<Task>) {
+    updateTask(id, updates);
+    // Persist to Supabase if it is a DB task (UUID format)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUUID) return;
+    const supabase = createClient();
+    await supabase
+      .from("tasks")
+      .update({
+        description: updates.title,
+        priority: updates.priority,
+        due_date: updates.dueDate ?? null,
+        owner: updates.assignees?.[0]?.name ?? updates.assignee?.name ?? null,
+      })
+      .eq("id", id);
+  }
+
+  async function handleDeleteTask(id: string) {
+    deleteTask(id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUUID) return;
+    const supabase = createClient();
+    await supabase.from("tasks").delete().eq("id", id);
   }
 
   return (
@@ -246,7 +256,7 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
           to   { opacity: 1; transform: translateY(0); }
         }
         .task-card {
-          animation: fade-slide-up 0.2s ease-out forwards;
+          animation: fade-slide-up 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
           opacity: 0;
         }
       `}</style>
@@ -255,14 +265,22 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
         columns={columns}
         onDragEnd={handleDragEndWithPersist}
         onAddTask={handleAddTask}
+        onEditTask={(task) => setEditingTask(task)}
+        onDeleteColumn={removeColumn}
+        onAddColumn={addColumn}
       />
 
-      <TasksFloatingButton onClick={() => handleAddTask("todo")} />
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onSave={handleSaveTask}
+          onDelete={handleDeleteTask}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
     </>
   );
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "table">("kanban");
@@ -291,7 +309,11 @@ export default function TasksPage() {
       const doneTasks: Task[] = [];
 
       for (const task of tasks ?? []) {
-        const meeting = (task as unknown as { meetings: { title: string | null; client_name: string | null } | null }).meetings;
+        const meeting = (
+          task as unknown as {
+            meetings: { title: string | null; client_name: string | null } | null;
+          }
+        ).meetings;
         const kanbanTask: Task = {
           id: task.id,
           title: task.description,
@@ -300,9 +322,13 @@ export default function TasksPage() {
           meetingSource: meeting?.client_name ?? meeting?.title ?? undefined,
           dueDate: task.due_date ? formatDate(task.due_date) : undefined,
           completedDate: task.completed_at
-            ? `Concluído em ${new Date(task.completed_at).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`
+            ? `Concluido em ${new Date(task.completed_at).toLocaleDateString("pt-BR", {
+                day: "numeric",
+                month: "short",
+              })}`
             : undefined,
           assignee: task.owner ? { name: task.owner } : undefined,
+          assignees: task.owner ? [{ name: task.owner }] : undefined,
           generatedByAI: !!meeting,
         };
         if (task.completed) {

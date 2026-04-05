@@ -69,8 +69,8 @@ function AnimatedWaveform({ active }: { active: boolean }) {
           style={{
             height: `${Math.round(h * 40 + 6)}px`,
             background: active
-              ? "linear-gradient(to top, #4648d4, #6063ee)"
-              : "rgba(199,196,215,0.5)",
+              ? "linear-gradient(to top, #6851FF, #8B7AFF)"
+              : "rgba(58,61,74,0.5)",
             animation: active ? `waveBar 0.85s ease-in-out infinite alternate` : "none",
             animationDelay: `${(i * 71) % 850}ms`,
             transition: "background 0.4s ease",
@@ -103,7 +103,7 @@ function SpinningRing({ done }: { done: boolean }) {
       >
         <circle
           cx="50" cy="50" r="44"
-          stroke="rgba(199,196,215,0.3)"
+          stroke="rgba(58,61,74,0.4)"
           strokeWidth="5"
         />
         {/* Animated arc */}
@@ -127,8 +127,8 @@ function SpinningRing({ done }: { done: boolean }) {
         />
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#4648d4" />
-            <stop offset="100%" stopColor="#6063ee" />
+            <stop offset="0%" stopColor="#6851FF" />
+            <stop offset="100%" stopColor="#8B7AFF" />
           </linearGradient>
         </defs>
       </svg>
@@ -137,13 +137,13 @@ function SpinningRing({ done }: { done: boolean }) {
       <div
         className={cn(
           "flex h-14 w-14 items-center justify-center rounded-full transition-all duration-500 sm:h-16 sm:w-16",
-          done ? "bg-emerald-50" : "bg-[#e1e0ff]"
+          done ? "bg-notura-success/15" : "bg-notura-primary/15"
         )}
       >
         {done ? (
-          <CheckCircle className="h-7 w-7 text-emerald-500 sm:h-8 sm:w-8" />
+          <CheckCircle className="h-7 w-7 text-notura-success sm:h-8 sm:w-8" />
         ) : (
-          <Sparkles className="h-7 w-7 text-[#4648d4] sm:h-8 sm:w-8" />
+          <Sparkles className="h-7 w-7 text-notura-primary sm:h-8 sm:w-8" />
         )}
       </div>
     </div>
@@ -168,29 +168,29 @@ function StepRow({
       className={cn(
         "flex items-start gap-4 rounded-2xl border p-4 transition-all duration-400 sm:p-5",
         status === "active" &&
-          "border-[rgba(70,72,212,0.25)] bg-[#f6f3f2] shadow-sm",
+          "border-notura-primary/25 bg-notura-surface shadow-sm",
         status === "done" &&
-          "border-[rgba(199,196,215,0.15)] bg-white/40",
+          "border-notura-border/15 bg-notura-surface/40",
         status === "pending" &&
-          "border-[rgba(199,196,215,0.15)] bg-white/20 opacity-50"
+          "border-notura-border/15 bg-notura-surface/20 opacity-50"
       )}
     >
       {/* Icon bubble */}
       <div
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-10 sm:w-10",
-          status === "done" && "bg-emerald-50",
-          status === "active" && "bg-[#e1e0ff]",
-          status === "pending" && "bg-[#e5e2e1]"
+          status === "done" && "bg-notura-success/15",
+          status === "active" && "bg-notura-primary/15",
+          status === "pending" && "bg-notura-surface"
         )}
       >
         {status === "done" ? (
-          <CheckCircle className="h-4 w-4 text-emerald-500 sm:h-5 sm:w-5" />
+          <CheckCircle className="h-4 w-4 text-notura-success sm:h-5 sm:w-5" />
         ) : (
           <Icon
             className={cn(
               "h-4 w-4 sm:h-5 sm:w-5",
-              status === "active" ? "text-[#4648d4]" : "text-[#464554]"
+              status === "active" ? "text-notura-primary" : "text-notura-ink-secondary"
             )}
           />
         )}
@@ -201,9 +201,9 @@ function StepRow({
         <p
           className={cn(
             "text-sm font-semibold transition-colors duration-200",
-            status === "done" && "text-emerald-700",
-            status === "active" && "text-[#1c1b1b]",
-            status === "pending" && "text-[#464554]"
+            status === "done" && "text-notura-success",
+            status === "active" && "text-notura-ink",
+            status === "pending" && "text-notura-ink-secondary"
           )}
         >
           {step.label}
@@ -212,7 +212,7 @@ function StepRow({
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="inline-block h-1 w-1 rounded-full bg-[#4648d4]"
+                  className="inline-block h-1 w-1 rounded-full bg-notura-primary"
                   style={{
                     animation: "dotBounce 1.2s ease-in-out infinite",
                     animationDelay: `${i * 0.2}s`,
@@ -225,7 +225,7 @@ function StepRow({
         <p
           className={cn(
             "mt-0.5 text-xs leading-relaxed transition-colors duration-200",
-            status === "active" ? "text-[#464554]" : "text-[#464554]/60"
+            status === "active" ? "text-notura-ink-secondary" : "text-notura-ink-secondary/60"
           )}
         >
           {step.sublabel}
@@ -235,15 +235,15 @@ function StepRow({
       {/* Right — status chip */}
       <div className="shrink-0">
         {status === "done" && (
-          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+          <span className="inline-flex items-center rounded-full bg-notura-success/15 px-2.5 py-1 text-[11px] font-medium text-notura-success">
             Concluído
           </span>
         )}
         {status === "active" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e1e0ff] px-2.5 py-1 text-[11px] font-medium text-[#07006c]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-2.5 py-1 text-[11px] font-medium text-notura-primary">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute h-full w-full animate-ping rounded-full bg-[#4648d4] opacity-60" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[#4648d4]" />
+              <span className="absolute h-full w-full animate-ping rounded-full bg-notura-primary opacity-60" />
+              <span className="h-1.5 w-1.5 rounded-full bg-notura-primary" />
             </span>
             Em curso
           </span>
@@ -304,15 +304,15 @@ export default function ProcessingPage() {
       {/* ── Back nav ───────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <Link href="/dashboard">
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
             <ArrowLeft className="h-4 w-4" />
           </button>
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-[#1c1b1b] sm:text-2xl">
+          <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink sm:text-2xl">
             Sprint planning — Projeto Nova Plataforma
           </h1>
-          <p className="mt-0.5 text-xs text-[#464554]">
+          <p className="mt-0.5 text-xs text-notura-ink-secondary">
             Reunião gravada · 47 min
           </p>
         </div>
@@ -323,8 +323,8 @@ export default function ProcessingPage() {
         className={cn(
           "relative overflow-hidden rounded-2xl border px-6 py-10 text-center transition-all duration-700 sm:px-10 sm:py-12",
           done
-            ? "border-emerald-200 bg-emerald-50/50"
-            : "border-[rgba(70,72,212,0.2)] bg-[#f6f3f2]"
+            ? "border-notura-success/30 bg-notura-success/5"
+            : "border-notura-primary/20 bg-notura-surface"
         )}
       >
         {/* Background glow */}
@@ -332,8 +332,8 @@ export default function ProcessingPage() {
           className="pointer-events-none absolute -top-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-700"
           style={{
             background: done
-              ? "rgba(16,185,129,0.07)"
-              : "rgba(70,72,212,0.08)",
+              ? "rgba(34,197,94,0.07)"
+              : "rgba(104,81,255,0.08)",
           }}
         />
 
@@ -345,10 +345,10 @@ export default function ProcessingPage() {
           {done ? (
             <>
               <div>
-                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-[#1c1b1b] sm:text-3xl">
+                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
                   Pronto! 🎉
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[#464554]">
+                <p className="mt-2 text-sm leading-relaxed text-notura-ink-secondary">
                   Resumo gerado e enviado via WhatsApp com sucesso.
                 </p>
               </div>
@@ -362,12 +362,12 @@ export default function ProcessingPage() {
                 ].map((m) => (
                   <div
                     key={m.label}
-                    className="flex flex-col items-center rounded-xl border border-[rgba(199,196,215,0.3)] bg-white px-5 py-3"
+                    className="flex flex-col items-center rounded-xl border border-notura-border/30 bg-notura-surface px-5 py-3"
                   >
-                    <span className="font-manrope font-extrabold text-xl text-[#1c1b1b]">
+                    <span className="font-manrope font-extrabold text-xl text-notura-ink">
                       {m.value}
                     </span>
-                    <span className="mt-0.5 text-xs text-[#464554]">
+                    <span className="mt-0.5 text-xs text-notura-ink-secondary">
                       {m.label}
                     </span>
                   </div>
@@ -380,9 +380,9 @@ export default function ProcessingPage() {
                   <button
                     className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90"
                     style={{
-                      background: "linear-gradient(135deg, #4648d4, #6063ee)",
+                      background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
                       boxShadow:
-                        "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+                        "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
                     }}
                   >
                     <Sparkles className="h-4 w-4" />
@@ -390,7 +390,7 @@ export default function ProcessingPage() {
                   </button>
                 </Link>
                 <Link href="/dashboard">
-                  <button className="inline-flex items-center gap-2 rounded-full border border-[rgba(199,196,215,0.4)] bg-white px-5 py-2.5 text-sm font-medium text-[#464554] transition-colors hover:bg-[#f6f3f2]">
+                  <button className="inline-flex items-center gap-2 rounded-full border border-notura-border/40 bg-notura-surface px-5 py-2.5 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
                     Ir para reuniões
                   </button>
                 </Link>
@@ -399,10 +399,10 @@ export default function ProcessingPage() {
           ) : (
             <>
               <div>
-                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-[#1c1b1b] sm:text-3xl">
+                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
                   Processando insights com IA
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[#464554]">
+                <p className="mt-2 text-sm leading-relaxed text-notura-ink-secondary">
                   Isso geralmente leva de 2 a 5 minutos. Pode fechar esta
                   aba — você será notificado quando estiver pronto.
                 </p>
@@ -410,7 +410,7 @@ export default function ProcessingPage() {
 
               {/* Progress bar */}
               <div className="w-full max-w-xs">
-                <div className="mb-2 flex items-center justify-between text-xs text-[#464554]">
+                  <div className="mb-2 flex items-center justify-between text-xs text-notura-ink-secondary">
                   <span>
                     {currentStep < STEPS.length
                       ? STEPS[currentStep].label
@@ -421,12 +421,12 @@ export default function ProcessingPage() {
                     {elapsedStr}
                   </span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5e2e1]">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-notura-surface-2">
                   <div
                     className="h-1.5 rounded-full transition-all duration-700 ease-out"
                     style={{
                       width: `${progress}%`,
-                      background: "linear-gradient(90deg, #4648d4, #6063ee)",
+                      background: "linear-gradient(90deg, #6851FF, #8B7AFF)",
                     }}
                   />
                 </div>
@@ -441,7 +441,7 @@ export default function ProcessingPage() {
 
       {/* ── Step list ──────────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <h3 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+        <h3 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
           Etapas do processamento
         </h3>
 
@@ -460,7 +460,7 @@ export default function ProcessingPage() {
 
       {/* ── Info note ──────────────────────────────────────────────────────── */}
       {!done && (
-        <p className="text-center text-xs leading-relaxed text-[#464554]">
+        <p className="text-center text-xs leading-relaxed text-notura-ink-secondary">
           O processamento ocorre em segundo plano. Você receberá o resumo no
           WhatsApp assim que estiver pronto, mesmo que feche esta página.
         </p>

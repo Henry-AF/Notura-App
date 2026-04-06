@@ -87,6 +87,11 @@ export interface PlanModalProps {
   onSuccess?: (plan: "pro" | "team") => void;
 }
 
+export interface CheckoutResponseBody {
+  checkoutUrl?: string;
+  alreadyActive?: boolean;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
@@ -139,7 +144,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         throw new Error(body.error ?? "Erro ao iniciar checkout.");
       }
 
-      const body = (await res.json()) as { url?: string; alreadyActive?: boolean };
+      const body = (await res.json()) as CheckoutResponseBody;
 
       if (body.alreadyActive) {
         onSuccess?.(plan);
@@ -147,8 +152,10 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         return;
       }
 
-      if (body.url) {
-        window.location.href = body.url;
+      const redirectUrl = body.checkoutUrl;
+
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
       } else {
         throw new Error("URL de checkout não recebida.");
       }

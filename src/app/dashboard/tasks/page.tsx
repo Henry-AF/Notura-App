@@ -5,8 +5,13 @@ import { KanbanBoard, TasksPageHeader, TaskEditModal } from "@/components/tasks"
 import { useKanban } from "@/hooks/useKanban";
 import type { Column, Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
-import { createClient } from "@/lib/supabase/client";
-import { formatDate } from "@/lib/utils";
+import {
+  createTask,
+  deleteTaskById,
+  fetchTaskBoardData,
+  type TaskMeetingOption,
+  updateTaskById,
+} from "./tasks-api";
 
 // Column definitions (no tasks)
 const COLUMN_DEFS: Omit<Column, "tasks">[] = [
@@ -32,13 +37,6 @@ const COLUMN_DEFS: Omit<Column, "tasks">[] = [
     badgeBg: "rgba(78,203,113,0.15)",
   },
 ];
-
-function normalizePriority(p: string | null): Task["priority"] {
-  const lower = (p ?? "").toLowerCase();
-  if (lower === "alta") return "alta";
-  if (lower === "media" || lower === "media") return "media";
-  return "baixa";
-}
 
 function LoadingState() {
   return (
@@ -180,13 +178,23 @@ function TasksTable({ columns }: { columns: Column[] }) {
   );
 }
 
-function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
+function TasksBoardContent({
+  initialColumns,
+  meetings,
+}: {
+  initialColumns: Column[];
+  meetings: TaskMeetingOption[];
+}) {
   const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn } =
     useKanban(initialColumns);
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
 
-  // Drag end: also persist completed to Supabase
+  function isDraftTask(taskId: string) {
+    return taskId.startsWith("task-");
+  }
+
   const handleDragEndWithPersist = useCallback(
     async (result: DropResult) => {
       const { destination, source } = result;
@@ -198,54 +206,61 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
       if (!destination || destination.droppableId === source.droppableId || !movedTask) return;
 
       const newCompleted = destination.droppableId === "done";
-      const supabase = createClient();
-      await supabase
-        .from("tasks")
-        .update({
-          completed: newCompleted,
-          completed_at: newCompleted ? new Date().toISOString() : null,
-        })
-        .eq("id", movedTask.id);
+      if (isDraftTask(movedTask.id)) return;
+
+      await updateTaskById(movedTask.id, { completed: newCompleted });
     },
     [handleDragEnd, columns]
   );
 
   function handleAddTask(columnId: string) {
-    const id = `task-${Date.now()}`;
-    const newTask: Task = {
-      id,
+    setDraftColumnId(columnId);
+    setEditingTask({
+      id: `task-${Date.now()}`,
       title: "Nova tarefa",
       priority: "media",
       columnId,
-    };
-    addTask(columnId, newTask);
-    // Open modal immediately for the new task
-    setEditingTask(newTask);
+    });
   }
 
   async function handleSaveTask(id: string, updates: Partial<Task>) {
+    const assigneeName =
+      updates.assignees?.[0]?.name ?? updates.assignee?.name ?? null;
+
+    if (isDraftTask(id)) {
+      const columnId = draftColumnId ?? editingTask?.columnId ?? "todo";
+      const createdTask = await createTask({
+        title: updates.title ?? editingTask?.title ?? "Nova tarefa",
+        priority: updates.priority ?? editingTask?.priority ?? "media",
+        dueDate: updates.dueDate ?? editingTask?.dueDate,
+        assigneeName: assigneeName ?? undefined,
+        columnId,
+        meetingId: updates.meetingId ?? editingTask?.meetingId ?? meetings[0]?.id ?? "",
+      });
+
+      addTask(createdTask.columnId, createdTask);
+      setDraftColumnId(null);
+      return;
+    }
+
     updateTask(id, updates);
-    // Persist to Supabase if it is a DB task (UUID format)
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUUID) return;
-    const supabase = createClient();
-    await supabase
-      .from("tasks")
-      .update({
-        description: updates.title,
-        priority: updates.priority,
-        due_date: updates.dueDate ?? null,
-        owner: updates.assignees?.[0]?.name ?? updates.assignee?.name ?? null,
-      })
-      .eq("id", id);
+    const persistedTask = await updateTaskById(id, {
+      title: updates.title,
+      priority: updates.priority,
+      dueDate: updates.dueDate,
+      assigneeName,
+    });
+    updateTask(id, persistedTask);
   }
 
   async function handleDeleteTask(id: string) {
+    if (isDraftTask(id)) {
+      setDraftColumnId(null);
+      return;
+    }
+
     deleteTask(id);
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isUUID) return;
-    const supabase = createClient();
-    await supabase.from("tasks").delete().eq("id", id);
+    await deleteTaskById(id);
   }
 
   return (
@@ -273,9 +288,13 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
       {editingTask && (
         <TaskEditModal
           task={editingTask}
+          meetings={meetings}
           onSave={handleSaveTask}
           onDelete={handleDeleteTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setEditingTask(null);
+            setDraftColumnId(null);
+          }}
         />
       )}
     </>
@@ -285,64 +304,18 @@ function TasksBoardContent({ initialColumns }: { initialColumns: Column[] }) {
 export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [initialColumns, setInitialColumns] = useState<Column[] | null>(null);
+  const [meetings, setMeetings] = useState<TaskMeetingOption[]>([]);
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      try {
+        const data = await fetchTaskBoardData();
+        setInitialColumns(data.columns);
+        setMeetings(data.meetings);
+      } catch {
         setInitialColumns(COLUMN_DEFS.map((def) => ({ ...def, tasks: [] })));
-        return;
+        setMeetings([]);
       }
-
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select(
-          "id, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)"
-        )
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      const todoTasks: Task[] = [];
-      const doneTasks: Task[] = [];
-
-      for (const task of tasks ?? []) {
-        const meeting = (
-          task as unknown as {
-            meetings: { title: string | null; client_name: string | null } | null;
-          }
-        ).meetings;
-        const kanbanTask: Task = {
-          id: task.id,
-          title: task.description,
-          priority: normalizePriority(task.priority),
-          columnId: task.completed ? "done" : "todo",
-          meetingSource: meeting?.client_name ?? meeting?.title ?? undefined,
-          dueDate: task.due_date ? formatDate(task.due_date) : undefined,
-          completedDate: task.completed_at
-            ? `Concluido em ${new Date(task.completed_at).toLocaleDateString("pt-BR", {
-                day: "numeric",
-                month: "short",
-              })}`
-            : undefined,
-          assignee: task.owner ? { name: task.owner } : undefined,
-          assignees: task.owner ? [{ name: task.owner }] : undefined,
-          generatedByAI: !!meeting,
-        };
-        if (task.completed) {
-          doneTasks.push(kanbanTask);
-        } else {
-          todoTasks.push(kanbanTask);
-        }
-      }
-
-      setInitialColumns([
-        { ...COLUMN_DEFS[0], tasks: todoTasks },
-        { ...COLUMN_DEFS[1], tasks: [] },
-        { ...COLUMN_DEFS[2], tasks: doneTasks },
-      ]);
     }
     load();
   }, []);
@@ -357,7 +330,7 @@ export default function TasksPage() {
         onNewTask={() => {}}
       />
       {view === "kanban" ? (
-        <TasksBoardContent initialColumns={initialColumns} />
+        <TasksBoardContent initialColumns={initialColumns} meetings={meetings} />
       ) : (
         <TasksTable columns={initialColumns} />
       )}

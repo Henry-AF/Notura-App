@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
+import {
+  buildTaskColumns,
+  buildTaskMeetingOptions,
+  mapTaskRowToBoardTask,
+  toDatabasePriority,
+} from "./task-mapper";
 
-// GET /api/tasks — Return authenticated user's tasks as kanban columns
 export async function GET() {
   const supabaseAuth = createServerSupabase();
   const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
@@ -13,7 +18,7 @@ export async function GET() {
   const supabase = createServiceRoleClient();
   const { data: tasks, error } = await supabase
     .from("tasks")
-    .select("id, description, owner, due_date, priority, completed, completed_at, created_at")
+    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -21,55 +26,22 @@ export async function GET() {
     return NextResponse.json({ error: "Erro ao buscar tarefas." }, { status: 500 });
   }
 
-  const todo = (tasks ?? []).filter((t) => !t.completed);
-  const done = (tasks ?? []).filter((t) => t.completed);
+  const { data: meetings, error: meetingsError } = await supabase
+    .from("meetings")
+    .select("id, title, client_name")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-  const columns = [
-    {
-      id: "todo",
-      title: "A Fazer",
-      dotColor: "#6C5CE7",
-      badgeColor: "#A29BFE",
-      badgeBg: "rgba(108,92,231,0.15)",
-      tasks: todo.map((t) => ({
-        id: t.id,
-        title: t.description,
-        priority: normalizePriority(t.priority),
-        columnId: "todo",
-        dueDate: t.due_date ?? undefined,
-        assignee: t.owner ? { name: t.owner } : undefined,
-      })),
-    },
-    {
-      id: "done",
-      title: "Concluído",
-      dotColor: "#4ECB71",
-      badgeColor: "#4ECB71",
-      badgeBg: "rgba(78,203,113,0.15)",
-      tasks: done.map((t) => ({
-        id: t.id,
-        title: t.description,
-        priority: normalizePriority(t.priority),
-        columnId: "done",
-        completedDate: t.completed_at
-          ? new Date(t.completed_at).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })
-          : undefined,
-        assignee: t.owner ? { name: t.owner } : undefined,
-      })),
-    },
-  ];
+  if (meetingsError) {
+    return NextResponse.json({ error: "Erro ao buscar reuniões." }, { status: 500 });
+  }
 
-  return NextResponse.json({ columns });
+  return NextResponse.json({
+    columns: buildTaskColumns(tasks ?? []),
+    meetings: buildTaskMeetingOptions(meetings ?? []),
+  });
 }
 
-function normalizePriority(p: string | null): "alta" | "media" | "baixa" {
-  const lower = (p ?? "").toLowerCase();
-  if (lower === "alta") return "alta";
-  if (lower === "media" || lower === "média") return "media";
-  return "baixa";
-}
-
-// POST /api/tasks — Create a task linked to a meeting
 export async function POST(request: Request) {
   const supabaseAuth = createServerSupabase();
   const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
@@ -95,11 +67,12 @@ export async function POST(request: Request) {
 
   const supabase = createServiceRoleClient();
 
-  // Verify the meeting belongs to the authenticated user
+  const meetingId = data.meeting_id.trim();
+
   const { data: meeting, error: meetingError } = await supabase
     .from("meetings")
     .select("id, user_id")
-    .eq("id", data.meeting_id)
+    .eq("id", meetingId)
     .single();
 
   if (meetingError || !meeting) {
@@ -112,20 +85,30 @@ export async function POST(request: Request) {
   const { data: task, error: insertError } = await supabase
     .from("tasks")
     .insert({
-      meeting_id: data.meeting_id,
+      meeting_id: meetingId,
       user_id: user.id,
       dedupe_key: randomUUID(),
       description: data.description.trim(),
-      priority: typeof data.priority === "string" ? data.priority : "média",
+      priority: toDatabasePriority(
+        typeof data.priority === "string" ? data.priority : "média"
+      ),
       owner: typeof data.owner === "string" ? data.owner : null,
       due_date: typeof data.due_date === "string" ? data.due_date : null,
+      completed: typeof data.completed === "boolean" ? data.completed : false,
+      completed_at:
+        typeof data.completed === "boolean" && data.completed
+          ? new Date().toISOString()
+          : null,
     })
-    .select()
+    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)")
     .single();
 
   if (insertError || !task) {
     return NextResponse.json({ error: "Erro ao criar tarefa." }, { status: 500 });
   }
 
-  return NextResponse.json({ task }, { status: 201 });
+  return NextResponse.json(
+    { task: mapTaskRowToBoardTask(task) },
+    { status: 201 }
+  );
 }

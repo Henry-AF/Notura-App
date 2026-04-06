@@ -8,6 +8,7 @@ export interface Task {
   title: string;
   priority: "alta" | "media" | "baixa";
   columnId: string;
+  meetingId?: string;
   meetingSource?: string;
   dueDate?: string;
   completedDate?: string;

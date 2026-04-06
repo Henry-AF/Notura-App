@@ -117,6 +117,8 @@ export async function deleteTaskById(id: string): Promise<void> {
 
   if (response.ok) return;
 
-  const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+  const body = await parseJson<{ error?: string }>(response).catch(
+    (): { error?: string } => ({})
+  );
   throw new Error(normalizeError(body.error, "Erro ao excluir tarefa."));
 }

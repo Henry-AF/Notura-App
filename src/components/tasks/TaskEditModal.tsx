@@ -1,13 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, Calendar, AlignLeft, Flag, User } from "lucide-react";
+import { X, Plus, Trash2, Calendar, AlignLeft, Flag, User, Link2 } from "lucide-react";
 import type { Task } from "./TaskCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface TaskMeetingOption {
+  id: string;
+  label: string;
+}
+
 export interface TaskEditModalProps {
   task: Task;
+  meetings?: TaskMeetingOption[];
   onSave: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -32,11 +38,18 @@ function initials(name: string) {
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
-export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModalProps) {
+export function TaskEditModal({
+  task,
+  meetings = [],
+  onSave,
+  onDelete,
+  onClose,
+}: TaskEditModalProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [priority, setPriority] = useState(task.priority);
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
+  const [meetingId, setMeetingId] = useState(task.meetingId ?? meetings[0]?.id ?? "");
   const [assignees, setAssignees] = useState<{ name: string; avatarUrl?: string }[]>(
     task.assignees ?? (task.assignee ? [task.assignee] : [])
   );
@@ -55,12 +68,13 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
 
   function handleSave() {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed || !meetingId) return;
     onSave(task.id, {
       title: trimmed,
       description: description.trim() || undefined,
       priority,
       dueDate: dueDate || undefined,
+      meetingId,
       assignees: assignees.length > 0 ? assignees : undefined,
       assignee: assignees[0] ?? undefined,
     });
@@ -214,6 +228,32 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
               onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
             />
+          </div>
+
+          {/* Meeting */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={LABEL}>
+              <Link2 style={{ width: 12, height: 12 }} />
+              Reunião
+            </label>
+            <select
+              value={meetingId}
+              onChange={(e) => setMeetingId(e.target.value)}
+              disabled={meetings.length === 0}
+              style={INPUT}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
+            >
+              {meetings.length === 0 ? (
+                <option value="">Nenhuma reunião disponível</option>
+              ) : (
+                meetings.map((meeting) => (
+                  <option key={meeting.id} value={meeting.id}>
+                    {meeting.label}
+                  </option>
+                ))
+              )}
+            </select>
           </div>
 
           {/* Priority + Due date */}
@@ -515,7 +555,7 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
             </button>
             <button
               onClick={handleSave}
-              disabled={!title.trim()}
+              disabled={!title.trim() || !meetingId}
               style={{
                 padding: "8px 20px",
                 background: "#6C5CE7",
@@ -525,12 +565,12 @@ export function TaskEditModal({ task, onSave, onDelete, onClose }: TaskEditModal
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 700,
                 fontSize: 13,
-                cursor: title.trim() ? "pointer" : "not-allowed",
-                opacity: title.trim() ? 1 : 0.5,
+                cursor: title.trim() && meetingId ? "pointer" : "not-allowed",
+                opacity: title.trim() && meetingId ? 1 : 0.5,
                 transition: "background 0.15s, opacity 0.15s",
               }}
               onMouseEnter={(e) => {
-                if (title.trim())
+                if (title.trim() && meetingId)
                   (e.currentTarget as HTMLButtonElement).style.background = "#5A4BD1";
               }}
               onMouseLeave={(e) => {

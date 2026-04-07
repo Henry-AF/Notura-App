@@ -1,43 +1,49 @@
 import Link from "next/link";
-import { LogoFull } from "@/components/logo";
 
 export function Footer() {
   return (
-    <footer className="border-t border-[#F3F4F6] bg-white px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="flex flex-col items-center gap-8 md:flex-row md:justify-between">
-          <div className="flex flex-col items-center gap-3 md:items-start">
-            <LogoFull iconSize={28} />
-            <p className="text-sm text-notura-secondary">
-              IA para reuniões, feita no Brasil 🇧🇷
-            </p>
-          </div>
-
-          <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-notura-secondary">
-            <Link href="/signup" className="hover:text-notura-primary transition-colors">
-              Criar conta
-            </Link>
-            <Link href="/login" className="hover:text-notura-primary transition-colors">
-              Entrar
-            </Link>
-            <Link href="#pricing" className="hover:text-notura-primary transition-colors">
-              Preços
-            </Link>
-          </nav>
-        </div>
-
-        <div className="mt-8 flex flex-col items-center gap-2 border-t border-[#F3F4F6] pt-6 text-xs text-notura-secondary">
-          <p>Notura &copy; {new Date().getFullYear()}. Todos os direitos reservados.</p>
-          <a
-            href="https://www.perplexity.ai/computer"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-notura-primary transition-colors"
+    <footer className="bg-[#f2f3f6] w-full py-12 px-8">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-6 max-w-7xl mx-auto">
+        <div className="text-xl font-black text-[#191c1e]">Notura</div>
+        <div className="flex flex-wrap justify-center gap-6">
+          <Link
+            href="#"
+            className="text-sm text-[#191c1e]/60 hover:text-[#7C3AED] transition-colors"
           >
-            Created with Perplexity Computer
-          </a>
+            Privacy Policy
+          </Link>
+          <Link
+            href="#"
+            className="text-sm text-[#191c1e]/60 hover:text-[#7C3AED] transition-colors"
+          >
+            Terms of Service
+          </Link>
+          <Link
+            href="#"
+            className="text-sm text-[#191c1e]/60 hover:text-[#7C3AED] transition-colors"
+          >
+            Security
+          </Link>
+          <Link
+            href="#"
+            className="text-sm text-[#191c1e]/60 hover:text-[#7C3AED] transition-colors"
+          >
+            Status
+          </Link>
+          <Link
+            href="#"
+            className="text-sm text-[#191c1e]/60 hover:text-[#7C3AED] transition-colors"
+          >
+            Contact
+          </Link>
+        </div>
+        <div className="text-sm text-[#191c1e]/60">
+          © 2024 Notura AI. The Intelligent Canvas for Meetings.
         </div>
       </div>
     </footer>
   );
 }
+
+
+

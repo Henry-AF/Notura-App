@@ -9,6 +9,34 @@
     --font-manrope: 'Manrope', system-ui, sans-serif;
     --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-inter: 'Inter', system-ui, sans-serif;
+    /* Light theme (default) */
+    --cn-bg: 245 244 252;
+    --cn-bg2: 255 255 255;
+    --cn-surface: 255 255 255;
+    --cn-surface2: 238 236 252;
+    --cn-ink: 14 13 20;
+    --cn-ink2: 90 88 110;
+    --cn-border: 210 207 238;
+    --cn-muted: 185 182 210;
+    --cn-card: 255 255 255;
+    --cn-card2: 248 247 254;
+    --cn-input-bg: 248 247 254;
+    --cn-input-border: 210 207 238;
+  }
+
+  html[data-theme="dark"] {
+    --cn-bg: 12 11 14;
+    --cn-bg2: 20 19 25;
+    --cn-surface: 29 27 38;
+    --cn-surface2: 37 34 48;
+    --cn-ink: 244 244 246;
+    --cn-ink2: 149 152 168;
+    --cn-border: 44 40 91;
+    --cn-muted: 58 61 74;
+    --cn-card: 28 28 28;
+    --cn-card2: 36 36 36;
+    --cn-input-bg: 30 30 30;
+    --cn-input-border: 58 58 58;
   }
 
   html {
@@ -18,15 +46,23 @@
   body {
     @apply bg-notura-bg text-notura-ink antialiased;
     font-family: var(--font-inter), system-ui, sans-serif;
+    /* Smooth theme transition */
+    transition: background-color 0.35s ease, color 0.25s ease;
+  }
+
+  /* Smooth theme transitions on key elements */
+  div, section, aside, nav, header, footer, main, span, p,
+  button, input, textarea, select, a, label {
+    transition: background-color 0.35s ease, border-color 0.3s ease, color 0.25s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-plus-jakarta), system-ui, sans-serif;
   }
 
-  /* Focus ring — violet */
+  /* Focus ring — purple */
   *:focus-visible {
-    @apply outline-none ring-2 ring-violet-400/50 ring-offset-2;
+    @apply outline-none ring-2 ring-notura-primary/50 ring-offset-2 ring-offset-notura-bg;
   }
 
   /* Scrollbar */
@@ -38,10 +74,11 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-notura-border rounded-full;
+    background-color: rgb(58 61 74 / 0.6);
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-notura-muted/50;
+    background-color: rgb(149 152 168 / 0.5);
   }
 
   /* Reduced motion */
@@ -57,27 +94,27 @@
 @layer components {
   /* Status badges */
   .badge-recording {
-    @apply bg-notura-primary text-white text-xs font-medium px-3 py-1 rounded-full animate-pulse-slow;
+    @apply bg-notura-processing text-white text-xs font-medium px-3 py-1 rounded-full animate-pulse-slow;
   }
   .badge-processing {
-    @apply bg-amber-100 text-amber-800 text-xs font-medium px-3 py-1 rounded-full;
+    @apply bg-amber-500/20 text-amber-400 text-xs font-medium px-3 py-1 rounded-full;
   }
   .badge-completed {
-    @apply bg-emerald-50 text-emerald-700 text-xs font-medium px-3 py-1 rounded-full;
+    @apply bg-notura-success/15 text-notura-success text-xs font-medium px-3 py-1 rounded-full;
   }
   .badge-failed {
-    @apply bg-red-50 text-red-700 text-xs font-medium px-3 py-1 rounded-full;
+    @apply bg-notura-error/15 text-notura-error text-xs font-medium px-3 py-1 rounded-full;
   }
 
   /* Priority badges */
   .priority-alta {
-    @apply bg-red-50 text-red-700;
+    @apply bg-notura-error/15 text-notura-error;
   }
   .priority-media {
-    @apply bg-amber-50 text-amber-700;
+    @apply bg-amber-500/20 text-amber-400;
   }
   .priority-baixa {
-    @apply bg-gray-100 text-gray-600;
+    @apply bg-notura-muted/30 text-notura-ink-secondary;
   }
 
   /* Gradient mesh blob helpers */
@@ -85,14 +122,14 @@
     @apply absolute rounded-full blur-3xl opacity-60 pointer-events-none;
   }
 
-  /* Violet gradient text */
+  /* Purple gradient text */
   .text-gradient {
-    @apply bg-gradient-to-r from-violet-600 to-violet-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-notura-primary to-notura-primary-light bg-clip-text text-transparent;
   }
 
   /* Section label */
   .label-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-xs font-medium uppercase tracking-wider text-violet-700;
+    @apply inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-3 py-1 text-xs font-medium uppercase tracking-wider text-notura-primary;
   }
 }
 

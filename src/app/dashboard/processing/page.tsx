@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   FileAudio,
@@ -10,50 +11,70 @@ import {
   CheckCircle,
   Sparkles,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchMeetingStatus } from "./processing-api";
 
-// ─── Processing steps definition ─────────────────────────────────────────────
+// ─── Processing steps ─────────────────────────────────────────────────────────
 
 interface Step {
   id: string;
   icon: React.ElementType;
   label: string;
   sublabel: string;
-  /** approx ms until this step completes after it becomes active */
-  duration: number;
+  /** min ms before advancing to next step (fallback timer) */
+  minMs: number;
 }
 
 const STEPS: Step[] = [
   {
     id: "upload",
     icon: FileAudio,
-    label: "Carregando áudio",
-    sublabel: "Verificando formato e qualidade do arquivo",
-    duration: 2200,
+    label: "Áudio recebido",
+    sublabel: "Arquivo enviado e armazenado com segurança",
+    minMs: 1500,
   },
   {
     id: "transcribe",
     icon: Wand2,
     label: "Transcrevendo",
-    sublabel: "Convertendo fala em texto com Whisper",
-    duration: 5000,
+    sublabel: "Convertendo fala em texto com AssemblyAI",
+    minMs: 20000,
   },
   {
     id: "analyze",
     icon: Sparkles,
     label: "Analisando com IA",
     sublabel: "Identificando decisões, tarefas e resumo",
-    duration: 5500,
+    minMs: 15000,
   },
   {
     id: "whatsapp",
     icon: MessageCircle,
     label: "Enviando no WhatsApp",
-    sublabel: "Entregando resumo para os participantes",
-    duration: 2000,
+    sublabel: "Entregando resumo para você",
+    minMs: 3000,
   },
 ];
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid #6851FF",
+          borderTopColor: "transparent",
+          animation: "spin 0.7s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 // ─── Waveform animation ───────────────────────────────────────────────────────
 
@@ -69,8 +90,8 @@ function AnimatedWaveform({ active }: { active: boolean }) {
           style={{
             height: `${Math.round(h * 40 + 6)}px`,
             background: active
-              ? "linear-gradient(to top, #4648d4, #6063ee)"
-              : "rgba(199,196,215,0.5)",
+              ? "linear-gradient(to top, #6851FF, #8B7AFF)"
+              : "rgba(58,61,74,0.5)",
             animation: active ? `waveBar 0.85s ease-in-out infinite alternate` : "none",
             animationDelay: `${(i * 71) % 850}ms`,
             transition: "background 0.4s ease",
@@ -82,9 +103,6 @@ function AnimatedWaveform({ active }: { active: boolean }) {
           0%   { transform: scaleY(0.35); }
           100% { transform: scaleY(1); }
         }
-        @media (prefers-reduced-motion: reduce) {
-          [style*="waveBar"] { animation: none !important; }
-        }
       `}</style>
     </div>
   );
@@ -95,18 +113,12 @@ function AnimatedWaveform({ active }: { active: boolean }) {
 function SpinningRing({ done }: { done: boolean }) {
   return (
     <div className="relative flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
-      {/* Track */}
       <svg
         className="absolute inset-0 h-full w-full -rotate-90"
         viewBox="0 0 100 100"
         fill="none"
       >
-        <circle
-          cx="50" cy="50" r="44"
-          stroke="rgba(199,196,215,0.3)"
-          strokeWidth="5"
-        />
-        {/* Animated arc */}
+        <circle cx="50" cy="50" r="44" stroke="rgba(58,61,74,0.4)" strokeWidth="5" />
         <circle
           cx="50" cy="50" r="44"
           stroke="url(#ringGrad)"
@@ -127,23 +139,21 @@ function SpinningRing({ done }: { done: boolean }) {
         />
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#4648d4" />
-            <stop offset="100%" stopColor="#6063ee" />
+            <stop offset="0%" stopColor="#6851FF" />
+            <stop offset="100%" stopColor="#8B7AFF" />
           </linearGradient>
         </defs>
       </svg>
-
-      {/* Center icon */}
       <div
         className={cn(
           "flex h-14 w-14 items-center justify-center rounded-full transition-all duration-500 sm:h-16 sm:w-16",
-          done ? "bg-emerald-50" : "bg-[#e1e0ff]"
+          done ? "bg-notura-success/15" : "bg-notura-primary/15"
         )}
       >
         {done ? (
-          <CheckCircle className="h-7 w-7 text-emerald-500 sm:h-8 sm:w-8" />
+          <CheckCircle className="h-7 w-7 text-notura-success sm:h-8 sm:w-8" />
         ) : (
-          <Sparkles className="h-7 w-7 text-[#4648d4] sm:h-8 sm:w-8" />
+          <Sparkles className="h-7 w-7 text-notura-primary sm:h-8 sm:w-8" />
         )}
       </div>
     </div>
@@ -154,56 +164,44 @@ function SpinningRing({ done }: { done: boolean }) {
 
 type StepStatus = "pending" | "active" | "done";
 
-function StepRow({
-  step,
-  status,
-}: {
-  step: Step;
-  status: StepStatus;
-}) {
+function StepRow({ step, status }: { step: Step; status: StepStatus }) {
   const Icon = step.icon;
-
   return (
     <div
       className={cn(
         "flex items-start gap-4 rounded-2xl border p-4 transition-all duration-400 sm:p-5",
-        status === "active" &&
-          "border-[rgba(70,72,212,0.25)] bg-[#f6f3f2] shadow-sm",
-        status === "done" &&
-          "border-[rgba(199,196,215,0.15)] bg-white/40",
-        status === "pending" &&
-          "border-[rgba(199,196,215,0.15)] bg-white/20 opacity-50"
+        status === "active" && "border-notura-primary/25 bg-notura-surface shadow-sm",
+        status === "done"   && "border-notura-border/15 bg-notura-surface/40",
+        status === "pending"&& "border-notura-border/15 bg-notura-surface/20 opacity-50"
       )}
     >
-      {/* Icon bubble */}
       <div
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-10 sm:w-10",
-          status === "done" && "bg-emerald-50",
-          status === "active" && "bg-[#e1e0ff]",
-          status === "pending" && "bg-[#e5e2e1]"
+          status === "done"    && "bg-notura-success/15",
+          status === "active"  && "bg-notura-primary/15",
+          status === "pending" && "bg-notura-surface"
         )}
       >
         {status === "done" ? (
-          <CheckCircle className="h-4 w-4 text-emerald-500 sm:h-5 sm:w-5" />
+          <CheckCircle className="h-4 w-4 text-notura-success sm:h-5 sm:w-5" />
         ) : (
           <Icon
             className={cn(
               "h-4 w-4 sm:h-5 sm:w-5",
-              status === "active" ? "text-[#4648d4]" : "text-[#464554]"
+              status === "active" ? "text-notura-primary" : "text-notura-ink-secondary"
             )}
           />
         )}
       </div>
 
-      {/* Text */}
       <div className="min-w-0 flex-1 pt-0.5">
         <p
           className={cn(
             "text-sm font-semibold transition-colors duration-200",
-            status === "done" && "text-emerald-700",
-            status === "active" && "text-[#1c1b1b]",
-            status === "pending" && "text-[#464554]"
+            status === "done"    && "text-notura-success",
+            status === "active"  && "text-notura-ink",
+            status === "pending" && "text-notura-ink-secondary"
           )}
         >
           {step.label}
@@ -212,7 +210,7 @@ function StepRow({
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="inline-block h-1 w-1 rounded-full bg-[#4648d4]"
+                  className="inline-block h-1 w-1 rounded-full bg-notura-primary"
                   style={{
                     animation: "dotBounce 1.2s ease-in-out infinite",
                     animationDelay: `${i * 0.2}s`,
@@ -225,25 +223,24 @@ function StepRow({
         <p
           className={cn(
             "mt-0.5 text-xs leading-relaxed transition-colors duration-200",
-            status === "active" ? "text-[#464554]" : "text-[#464554]/60"
+            status === "active" ? "text-notura-ink-secondary" : "text-notura-ink-secondary/60"
           )}
         >
           {step.sublabel}
         </p>
       </div>
 
-      {/* Right — status chip */}
       <div className="shrink-0">
         {status === "done" && (
-          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+          <span className="inline-flex items-center rounded-full bg-notura-success/15 px-2.5 py-1 text-[11px] font-medium text-notura-success">
             Concluído
           </span>
         )}
         {status === "active" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e1e0ff] px-2.5 py-1 text-[11px] font-medium text-[#07006c]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-2.5 py-1 text-[11px] font-medium text-notura-primary">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute h-full w-full animate-ping rounded-full bg-[#4648d4] opacity-60" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[#4648d4]" />
+              <span className="absolute h-full w-full animate-ping rounded-full bg-notura-primary opacity-60" />
+              <span className="h-1.5 w-1.5 rounded-full bg-notura-primary" />
             </span>
             Em curso
           </span>
@@ -255,29 +252,87 @@ function StepRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ProcessingPage() {
+interface MeetingMeta {
+  title: string | null;
+  taskCount: number;
+  decisionCount: number;
+}
+
+function ProcessingPageContent() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const meetingId = params.get("id");
+
   const [currentStep, setCurrentStep] = useState(0);
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [meta, setMeta] = useState<MeetingMeta>({ title: null, taskCount: 0, decisionCount: 0 });
 
-  // Advance through steps
+  // Step timer — advances through steps at minimum intervals as a fallback UX
+  const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    if (currentStep >= STEPS.length) {
-      setDone(true);
-      return;
-    }
-    const t = setTimeout(() => {
+    if (done || failed || currentStep >= STEPS.length) return;
+    stepTimerRef.current = setTimeout(() => {
       setCurrentStep((s) => s + 1);
-    }, STEPS[currentStep].duration);
-    return () => clearTimeout(t);
-  }, [currentStep]);
+    }, STEPS[currentStep].minMs);
+    return () => {
+      if (stepTimerRef.current) clearTimeout(stepTimerRef.current);
+    };
+  }, [currentStep, done, failed]);
 
   // Wall-clock elapsed counter
   useEffect(() => {
-    if (done) return;
+    if (done || failed) return;
     const t = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [done]);
+  }, [done, failed]);
+
+  // Poll meeting status from Supabase every 4 seconds
+  useEffect(() => {
+    if (!meetingId || done || failed) return;
+
+    const currentMeetingId = meetingId;
+    let cancelled = false;
+
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const data = await fetchMeetingStatus(currentMeetingId);
+        if (cancelled) return;
+
+        if (data.status === "completed") {
+          // Mark all steps done
+          setCurrentStep(STEPS.length);
+          setDone(true);
+          setMeta({
+            title: data.title ?? null,
+            taskCount: data.taskCount,
+            decisionCount: data.decisionCount,
+          });
+          // Navigate after a short celebration delay
+          setTimeout(() => {
+            router.push(`/dashboard/meetings/${currentMeetingId}`);
+          }, 3000);
+        } else if (data.status === "failed") {
+          setFailed(true);
+        } else if (data.status === "processing") {
+          // Ensure we're at least on step 1 (transcribing)
+          setCurrentStep((prev) => Math.max(prev, 1));
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }
+
+    void poll();
+    const interval = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [meetingId, done, failed, router]);
 
   const elapsedStr = (() => {
     const m = Math.floor(elapsed / 60);
@@ -285,35 +340,61 @@ export default function ProcessingPage() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   })();
 
-  // Progress fraction across the whole pipeline
   const progress = done
     ? 100
-    : Math.min(
-        Math.round(
-          ((currentStep +
-            // partial credit: not possible to know exact sub-progress, use 0.5 fudge
-            0) /
-            STEPS.length) *
-            100
-        ),
-        99
-      );
+    : Math.min(Math.round((currentStep / STEPS.length) * 100), 99);
+
+  // ── Error state ───────────────────────────────────────────────────────────
+
+  if (failed) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-20 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+          <AlertTriangle className="h-8 w-8 text-red-400" />
+        </div>
+        <div>
+          <h2 className="font-manrope font-extrabold text-xl text-notura-ink">
+            Erro no processamento
+          </h2>
+          <p className="mt-2 text-sm text-notura-ink-secondary">
+            Ocorreu um erro ao processar sua reunião. Tente novamente ou entre
+            em contato com o suporte.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Link href="/dashboard/new">
+            <button
+              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white"
+              style={{ background: "linear-gradient(135deg, #6851FF, #8B7AFF)" }}
+            >
+              Tentar novamente
+            </button>
+          </Link>
+          <Link href="/dashboard">
+            <button className="inline-flex items-center rounded-full border border-notura-border/40 bg-notura-surface px-5 py-2.5 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
+              Ir para dashboard
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       {/* ── Back nav ───────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <Link href="/dashboard">
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]">
+          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
             <ArrowLeft className="h-4 w-4" />
           </button>
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-[#1c1b1b] sm:text-2xl">
-            Sprint planning — Projeto Nova Plataforma
+          <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink sm:text-2xl">
+            {meta.title ?? "Processando reunião..."}
           </h1>
-          <p className="mt-0.5 text-xs text-[#464554]">
-            Reunião gravada · 47 min
+          <p className="mt-0.5 text-xs text-notura-ink-secondary">
+            Análise em andamento
           </p>
         </div>
       </div>
@@ -323,66 +404,60 @@ export default function ProcessingPage() {
         className={cn(
           "relative overflow-hidden rounded-2xl border px-6 py-10 text-center transition-all duration-700 sm:px-10 sm:py-12",
           done
-            ? "border-emerald-200 bg-emerald-50/50"
-            : "border-[rgba(70,72,212,0.2)] bg-[#f6f3f2]"
+            ? "border-notura-success/30 bg-notura-success/5"
+            : "border-notura-primary/20 bg-notura-surface"
         )}
       >
-        {/* Background glow */}
         <div
           className="pointer-events-none absolute -top-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-700"
           style={{
             background: done
-              ? "rgba(16,185,129,0.07)"
-              : "rgba(70,72,212,0.08)",
+              ? "rgba(34,197,94,0.07)"
+              : "rgba(104,81,255,0.08)",
           }}
         />
 
         <div className="relative z-10 flex flex-col items-center gap-6">
-          {/* Spinning ring / done state */}
           <SpinningRing done={done} />
 
-          {/* Headline */}
           {done ? (
             <>
               <div>
-                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-[#1c1b1b] sm:text-3xl">
+                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
                   Pronto! 🎉
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[#464554]">
-                  Resumo gerado e enviado via WhatsApp com sucesso.
+                <p className="mt-2 text-sm leading-relaxed text-notura-ink-secondary">
+                  Resumo gerado e enviado via WhatsApp. Redirecionando...
                 </p>
               </div>
 
-              {/* Metrics row */}
               <div className="flex flex-wrap items-center justify-center gap-4">
                 {[
-                  { label: "Tarefas extraídas", value: "7" },
-                  { label: "Decisões", value: "4" },
+                  { label: "Tarefas extraídas", value: String(meta.taskCount) },
+                  { label: "Decisões", value: String(meta.decisionCount) },
                   { label: "Tempo de processamento", value: elapsedStr },
                 ].map((m) => (
                   <div
                     key={m.label}
-                    className="flex flex-col items-center rounded-xl border border-[rgba(199,196,215,0.3)] bg-white px-5 py-3"
+                    className="flex flex-col items-center rounded-xl border border-notura-border/30 bg-notura-surface px-5 py-3"
                   >
-                    <span className="font-manrope font-extrabold text-xl text-[#1c1b1b]">
+                    <span className="font-manrope font-extrabold text-xl text-notura-ink">
                       {m.value}
                     </span>
-                    <span className="mt-0.5 text-xs text-[#464554]">
+                    <span className="mt-0.5 text-xs text-notura-ink-secondary">
                       {m.label}
                     </span>
                   </div>
                 ))}
               </div>
 
-              {/* CTA */}
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link href="/dashboard/meetings/m1">
+                <Link href={`/dashboard/meetings/${meetingId}`}>
                   <button
                     className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90"
                     style={{
-                      background: "linear-gradient(135deg, #4648d4, #6063ee)",
-                      boxShadow:
-                        "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+                      background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
+                      boxShadow: "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
                     }}
                   >
                     <Sparkles className="h-4 w-4" />
@@ -390,7 +465,7 @@ export default function ProcessingPage() {
                   </button>
                 </Link>
                 <Link href="/dashboard">
-                  <button className="inline-flex items-center gap-2 rounded-full border border-[rgba(199,196,215,0.4)] bg-white px-5 py-2.5 text-sm font-medium text-[#464554] transition-colors hover:bg-[#f6f3f2]">
+                  <button className="inline-flex items-center gap-2 rounded-full border border-notura-border/40 bg-notura-surface px-5 py-2.5 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
                     Ir para reuniões
                   </button>
                 </Link>
@@ -399,18 +474,17 @@ export default function ProcessingPage() {
           ) : (
             <>
               <div>
-                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-[#1c1b1b] sm:text-3xl">
+                <h2 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
                   Processando insights com IA
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[#464554]">
+                <p className="mt-2 text-sm leading-relaxed text-notura-ink-secondary">
                   Isso geralmente leva de 2 a 5 minutos. Pode fechar esta
                   aba — você será notificado quando estiver pronto.
                 </p>
               </div>
 
-              {/* Progress bar */}
               <div className="w-full max-w-xs">
-                <div className="mb-2 flex items-center justify-between text-xs text-[#464554]">
+                <div className="mb-2 flex items-center justify-between text-xs text-notura-ink-secondary">
                   <span>
                     {currentStep < STEPS.length
                       ? STEPS[currentStep].label
@@ -421,18 +495,17 @@ export default function ProcessingPage() {
                     {elapsedStr}
                   </span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5e2e1]">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-notura-surface-2">
                   <div
                     className="h-1.5 rounded-full transition-all duration-700 ease-out"
                     style={{
                       width: `${progress}%`,
-                      background: "linear-gradient(90deg, #4648d4, #6063ee)",
+                      background: "linear-gradient(90deg, #6851FF, #8B7AFF)",
                     }}
                   />
                 </div>
               </div>
 
-              {/* Waveform */}
               <AnimatedWaveform active={true} />
             </>
           )}
@@ -441,32 +514,26 @@ export default function ProcessingPage() {
 
       {/* ── Step list ──────────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <h3 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+        <h3 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
           Etapas do processamento
         </h3>
-
         <div className="space-y-2.5">
           {STEPS.map((step, i) => {
-            const status: StepStatus =
+            const raw: StepStatus =
               i < currentStep ? "done" : i === currentStep ? "active" : "pending";
-            // After all steps complete, mark all as done
-            const finalStatus: StepStatus = done ? "done" : status;
-            return (
-              <StepRow key={step.id} step={step} status={finalStatus} />
-            );
+            const finalStatus: StepStatus = done ? "done" : raw;
+            return <StepRow key={step.id} step={step} status={finalStatus} />;
           })}
         </div>
       </div>
 
-      {/* ── Info note ──────────────────────────────────────────────────────── */}
       {!done && (
-        <p className="text-center text-xs leading-relaxed text-[#464554]">
+        <p className="text-center text-xs leading-relaxed text-notura-ink-secondary">
           O processamento ocorre em segundo plano. Você receberá o resumo no
           WhatsApp assim que estiver pronto, mesmo que feche esta página.
         </p>
       )}
 
-      {/* Shared keyframes */}
       <style>{`
         @keyframes dotBounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
@@ -474,5 +541,13 @@ export default function ProcessingPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function ProcessingPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <ProcessingPageContent />
+    </Suspense>
   );
 }

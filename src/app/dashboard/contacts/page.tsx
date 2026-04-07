@@ -18,10 +18,8 @@ import {
   Zap,
   Users,
   X,
-  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +54,7 @@ const mockContacts: Contact[] = [
     email: "fernanda@vieira.adv.br",
     active: true,
     initials: "FV",
-    color: "#e1e0ff",
+    color: "rgba(104,81,255,0.3)",
   },
   {
     id: "c2",
@@ -65,7 +63,7 @@ const mockContacts: Contact[] = [
     email: "marcos@empresa.com.br",
     active: true,
     initials: "MA",
-    color: "#d1fae5",
+    color: "rgba(34,197,94,0.3)",
   },
   {
     id: "c3",
@@ -73,7 +71,7 @@ const mockContacts: Contact[] = [
     phone: "+55 (21) 9 9988-7711",
     active: true,
     initials: "CM",
-    color: "#fef3c7",
+    color: "rgba(251,191,36,0.3)",
   },
   {
     id: "c4",
@@ -82,7 +80,7 @@ const mockContacts: Contact[] = [
     email: "rafael@startup.io",
     active: false,
     initials: "RC",
-    color: "#fee2e2",
+    color: "rgba(239,68,68,0.3)",
   },
   {
     id: "c5",
@@ -90,7 +88,7 @@ const mockContacts: Contact[] = [
     phone: "+55 (31) 9 7744-3322",
     active: true,
     initials: "AS",
-    color: "#ede9fe",
+    color: "rgba(139,122,255,0.3)",
   },
 ];
 
@@ -163,8 +161,8 @@ function IntegrationCard({ integration }: { integration: Integration }) {
       className={cn(
         "rounded-2xl border p-5 transition-all duration-200",
         connected
-          ? "border-[rgba(70,72,212,0.2)] bg-[#f6f3f2]"
-          : "border-[rgba(199,196,215,0.2)] bg-[#f6f3f2]",
+          ? "border-notura-primary/20 bg-notura-surface"
+          : "border-notura-border/20 bg-notura-surface",
         !integration.available && "opacity-60"
       )}
     >
@@ -175,23 +173,23 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-              connected ? "bg-[#e1e0ff]" : "bg-[#e5e2e1]"
+              connected ? "bg-notura-primary/15" : "bg-notura-surface-2"
             )}
           >
             <Icon
               className={cn(
                 "h-5 w-5",
-                connected ? "text-[#4648d4]" : "text-[#464554]"
+                connected ? "text-notura-primary" : "text-notura-ink-secondary"
               )}
             />
           </div>
 
           <div className="min-w-0">
-            <p className="font-manrope font-extrabold text-sm tracking-[-0.2px] text-[#1c1b1b]">
+            <p className="font-manrope font-extrabold text-sm tracking-[-0.2px] text-notura-ink">
               {integration.name}
             </p>
             {connected && integration.connectedAs && (
-              <p className="mt-0.5 truncate text-xs text-[#464554]">
+              <p className="mt-0.5 truncate text-xs text-notura-ink-secondary">
                 {integration.connectedAs}
               </p>
             )}
@@ -200,24 +198,24 @@ function IntegrationCard({ integration }: { integration: Integration }) {
 
         {/* Status badge */}
         {connected ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-notura-success/15 px-2.5 py-1 text-xs font-medium text-notura-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-notura-success" />
             Conectado
           </span>
         ) : !integration.available ? (
-          <span className="inline-flex shrink-0 items-center rounded-full bg-[#e5e2e1] px-2.5 py-1 text-xs font-medium text-[#464554]">
+          <span className="inline-flex shrink-0 items-center rounded-full bg-notura-surface-2 px-2.5 py-1 text-xs font-medium text-notura-ink-secondary">
             Em breve
           </span>
         ) : (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#e5e2e1] px-2.5 py-1 text-xs font-medium text-[#464554]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[rgba(199,196,215,0.8)]" />
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-notura-surface-2 px-2.5 py-1 text-xs font-medium text-notura-ink-secondary">
+            <span className="h-1.5 w-1.5 rounded-full bg-notura-muted" />
             Desconectado
           </span>
         )}
       </div>
 
       {/* Description */}
-      <p className="mb-5 text-sm leading-relaxed text-[#464554]">
+      <p className="mb-5 text-sm leading-relaxed text-notura-ink-secondary">
         {integration.description.replace("\n", " ")}
       </p>
 
@@ -225,7 +223,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
       {connected ? (
         <button
           onClick={() => setConnected(false)}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[rgba(199,196,215,0.4)] bg-white px-4 py-2 text-sm font-medium text-[#464554] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-notura-border/40 bg-notura-surface-2 px-4 py-2 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-processing/10 hover:text-notura-processing hover:border-notura-processing/30"
         >
           <XCircle className="h-4 w-4" />
           Desconectar
@@ -235,9 +233,9 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           onClick={() => setConnected(true)}
           className="inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90"
           style={{
-            background: "linear-gradient(135deg, #4648d4, #6063ee)",
+            background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
             boxShadow:
-              "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+              "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
           }}
         >
           <ExternalLink className="h-4 w-4" />
@@ -246,7 +244,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
       ) : (
         <button
           disabled
-          className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-[rgba(199,196,215,0.4)] bg-[#e5e2e1] px-4 py-2 text-sm font-medium text-[#464554] opacity-60"
+          className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-notura-border/40 bg-notura-surface-2 px-4 py-2 text-sm font-medium text-notura-ink-secondary opacity-60"
         >
           Em breve
         </button>
@@ -271,15 +269,15 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
+      <div className="relative z-10 w-full max-w-md rounded-t-2xl bg-notura-bg-secondary p-6 shadow-xl sm:rounded-2xl">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="font-manrope font-extrabold tracking-[-0.3px] text-[#1c1b1b]">
+          <h2 className="font-manrope font-extrabold tracking-[-0.3px] text-notura-ink">
             Novo contato
           </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e5e2e1] text-[#464554] transition-colors hover:bg-[#d9d5d3]"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -288,7 +286,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
         {/* Fields */}
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-[#464554]">
+            <label className="mb-1.5 block text-xs font-medium text-notura-ink-secondary">
               Nome *
             </label>
             <input
@@ -296,37 +294,37 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Fernanda Vieira"
-              className="w-full rounded-xl border border-[rgba(199,196,215,0.5)] bg-[#f6f3f2] px-4 py-2.5 text-sm text-[#1c1b1b] placeholder-[#464554]/50 outline-none transition-all focus:border-[#4648d4] focus:ring-2 focus:ring-[#4648d4]/20"
+              className="w-full rounded-xl border border-notura-border/50 bg-notura-surface px-4 py-2.5 text-sm text-notura-ink placeholder-notura-ink-secondary/50 outline-none transition-all focus:border-notura-primary focus:ring-2 focus:ring-notura-primary/20"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-[#464554]">
+            <label className="mb-1.5 block text-xs font-medium text-notura-ink-secondary">
               WhatsApp *
             </label>
             <div className="relative">
-              <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#464554]" />
+              <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-notura-ink-secondary" />
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+55 (11) 9 9999-9999"
-                className="w-full rounded-xl border border-[rgba(199,196,215,0.5)] bg-[#f6f3f2] py-2.5 pl-10 pr-4 text-sm text-[#1c1b1b] placeholder-[#464554]/50 outline-none transition-all focus:border-[#4648d4] focus:ring-2 focus:ring-[#4648d4]/20"
+                className="w-full rounded-xl border border-notura-border/50 bg-notura-surface py-2.5 pl-10 pr-4 text-sm text-notura-ink placeholder-notura-ink-secondary/50 outline-none transition-all focus:border-notura-primary focus:ring-2 focus:ring-notura-primary/20"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-[#464554]">
+            <label className="mb-1.5 block text-xs font-medium text-notura-ink-secondary">
               E-mail{" "}
-              <span className="font-normal text-[#464554]/60">(opcional)</span>
+              <span className="font-normal text-notura-ink-secondary/60">(opcional)</span>
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="contato@empresa.com"
-              className="w-full rounded-xl border border-[rgba(199,196,215,0.5)] bg-[#f6f3f2] px-4 py-2.5 text-sm text-[#1c1b1b] placeholder-[#464554]/50 outline-none transition-all focus:border-[#4648d4] focus:ring-2 focus:ring-[#4648d4]/20"
+              className="w-full rounded-xl border border-notura-border/50 bg-notura-surface px-4 py-2.5 text-sm text-notura-ink placeholder-notura-ink-secondary/50 outline-none transition-all focus:border-notura-primary focus:ring-2 focus:ring-notura-primary/20"
             />
           </div>
         </div>
@@ -335,7 +333,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={onClose}
-            className="flex-1 rounded-full border border-[rgba(199,196,215,0.4)] py-2.5 text-sm font-medium text-[#464554] transition-colors hover:bg-[#f6f3f2]"
+            className="flex-1 rounded-full border border-notura-border/40 py-2.5 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-surface"
           >
             Cancelar
           </button>
@@ -343,9 +341,9 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="flex-1 rounded-full py-2.5 text-sm font-medium text-white transition-all hover:opacity-90"
             style={{
-              background: "linear-gradient(135deg, #4648d4, #6063ee)",
+              background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
               boxShadow:
-                "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+                "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
             }}
           >
             Adicionar
@@ -370,10 +368,10 @@ function ContactRow({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="group relative flex items-center gap-4 rounded-xl border border-[rgba(199,196,215,0.2)] bg-white px-4 py-3 transition-all duration-150 hover:border-[rgba(199,196,215,0.5)] hover:shadow-sm">
+    <div className="group relative flex items-center gap-4 rounded-xl border border-notura-border/20 bg-notura-surface px-4 py-3 transition-all duration-150 hover:border-notura-border/40 hover:bg-notura-surface-2">
       {/* Avatar */}
       <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-[#07006c]"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-notura-ink"
         style={{ backgroundColor: contact.color }}
       >
         {contact.initials}
@@ -381,16 +379,16 @@ function ContactRow({
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-[#1c1b1b]">
+        <p className="truncate text-sm font-semibold text-notura-ink">
           {contact.name}
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="flex items-center gap-1 text-xs text-[#464554]">
+            <span className="flex items-center gap-1 text-xs text-notura-ink-secondary">
             <Phone className="h-3 w-3" />
             {contact.phone}
           </span>
           {contact.email && (
-            <span className="hidden truncate text-xs text-[#464554] sm:block">
+            <span className="hidden truncate text-xs text-notura-ink-secondary sm:block">
               {contact.email}
             </span>
           )}
@@ -403,8 +401,8 @@ function ContactRow({
         className={cn(
           "hidden shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:inline-flex",
           contact.active
-            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            : "bg-[#e5e2e1] text-[#464554] hover:bg-[#d9d5d3]"
+            ? "bg-notura-success/15 text-notura-success hover:bg-notura-success/25"
+            : "bg-notura-surface-2 text-notura-ink-secondary hover:bg-notura-muted/20"
         )}
       >
         {contact.active ? (
@@ -422,7 +420,7 @@ function ContactRow({
       <span
         className={cn(
           "h-2.5 w-2.5 shrink-0 rounded-full sm:hidden",
-          contact.active ? "bg-emerald-500" : "bg-[rgba(199,196,215,0.8)]"
+          contact.active ? "bg-notura-success" : "bg-notura-muted"
         )}
       />
 
@@ -430,7 +428,7 @@ function ContactRow({
       <div className="relative shrink-0">
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-[#464554] transition-colors hover:bg-[#f6f3f2] hover:text-[#1c1b1b]"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-notura-ink-secondary transition-colors hover:bg-notura-surface-2 hover:text-notura-ink"
         >
           <MoreVertical className="h-4 w-4" />
         </button>
@@ -441,10 +439,10 @@ function ContactRow({
               className="fixed inset-0 z-10"
               onClick={() => setMenuOpen(false)}
             />
-            <div className="absolute right-0 top-9 z-20 min-w-[140px] overflow-hidden rounded-xl border border-[rgba(199,196,215,0.3)] bg-white py-1 shadow-lg">
+            <div className="absolute right-0 top-9 z-20 min-w-[140px] overflow-hidden rounded-xl border border-notura-border/30 bg-notura-bg-secondary py-1 shadow-lg">
               <button
                 onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-[#1c1b1b] transition-colors hover:bg-[#f6f3f2]"
+                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-notura-ink transition-colors hover:bg-notura-surface"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Editar
@@ -454,7 +452,7 @@ function ContactRow({
                   setMenuOpen(false);
                   onDelete(contact.id);
                 }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-notura-processing transition-colors hover:bg-notura-processing/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Remover
@@ -507,10 +505,10 @@ export default function ContactsPage() {
         {/* ── Page Header ──────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-[#1c1b1b] sm:text-3xl">
+            <h1 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
               Contatos & Integrações
             </h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-[#464554]">
+            <p className="mt-1.5 text-sm leading-relaxed text-notura-ink-secondary">
               Gerencie os contatos que recebem resumos e conecte ferramentas externas.
             </p>
           </div>
@@ -520,9 +518,9 @@ export default function ContactsPage() {
             onClick={() => setShowModal(true)}
             className="inline-flex shrink-0 items-center gap-2 self-start rounded-full px-4 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 sm:self-auto"
             style={{
-              background: "linear-gradient(135deg, #4648d4, #6063ee)",
+              background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
               boxShadow:
-                "0 10px 15px -3px rgba(70,72,212,0.2), 0 4px 6px -4px rgba(70,72,212,0.2)",
+                "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
             }}
           >
             <UserPlus className="h-4 w-4" />
@@ -535,13 +533,13 @@ export default function ContactsPage() {
           {/* Section heading */}
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
-                <Phone className="h-4 w-4 text-[#4648d4]" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
+                <Phone className="h-4 w-4 text-notura-primary" />
               </div>
-              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+              <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
                 Contatos WhatsApp
               </h2>
-              <span className="inline-flex items-center rounded-full bg-[#e1e0ff] px-2.5 py-0.5 text-xs font-medium text-[#07006c]">
+              <span className="inline-flex items-center rounded-full bg-notura-primary/15 px-2.5 py-0.5 text-xs font-medium text-notura-primary">
                 {contacts.length}
               </span>
             </div>
@@ -551,18 +549,18 @@ export default function ContactsPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#464554]" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-notura-ink-secondary" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nome ou número..."
-                className="w-full rounded-xl border border-[rgba(199,196,215,0.4)] bg-[#f6f3f2] py-2.5 pl-10 pr-4 text-sm text-[#1c1b1b] placeholder-[#464554]/60 outline-none transition-all focus:border-[#4648d4] focus:ring-2 focus:ring-[#4648d4]/20"
+                placeholder="Buscar por nome ou n\u00famero..."
+                className="w-full rounded-xl border border-notura-border/40 bg-notura-surface py-2.5 pl-10 pr-4 text-sm text-notura-ink placeholder-notura-ink-secondary/60 outline-none transition-all focus:border-notura-primary focus:ring-2 focus:ring-notura-primary/20"
               />
             </div>
 
             {/* Filter tabs */}
-            <div className="flex items-center rounded-xl border border-[rgba(199,196,215,0.3)] bg-[#f6f3f2] p-1">
+            <div className="flex items-center rounded-xl border border-notura-border/30 bg-notura-surface p-1">
               {(
                 [
                   { value: "all", label: `Todos (${contacts.length})` },
@@ -576,8 +574,8 @@ export default function ContactsPage() {
                   className={cn(
                     "rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150",
                     selectedTab === tab.value
-                      ? "bg-white text-[#1c1b1b] shadow-sm"
-                      : "text-[#464554] hover:text-[#1c1b1b]"
+                      ? "bg-notura-surface-2 text-notura-ink shadow-sm"
+                      : "text-notura-ink-secondary hover:text-notura-ink"
                   )}
                 >
                   {tab.label}
@@ -599,18 +597,18 @@ export default function ContactsPage() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-[rgba(199,196,215,0.2)] bg-[#f6f3f2] py-14">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#e5e2e1]">
-                <Search className="h-5 w-5 text-[#464554]" />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-notura-border/20 bg-notura-surface py-14">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-notura-surface-2">
+                <Search className="h-5 w-5 text-notura-ink-secondary" />
               </div>
-              <p className="text-sm font-medium text-[#1c1b1b]">
+              <p className="text-sm font-medium text-notura-ink">
                 Nenhum contato encontrado
               </p>
-              <p className="mt-1 text-xs text-[#464554]">
+              <p className="mt-1 text-xs text-notura-ink-secondary">
                 Tente outro termo ou{" "}
                 <button
                   onClick={() => setShowModal(true)}
-                  className="text-[#4648d4] underline-offset-2 hover:underline"
+                  className="text-notura-primary underline-offset-2 hover:underline"
                 >
                   adicione um contato
                 </button>
@@ -620,14 +618,14 @@ export default function ContactsPage() {
 
           {/* Summary bar */}
           {contacts.length > 0 && (
-            <div className="mt-3 flex items-center gap-4 px-1 text-xs text-[#464554]">
+            <div className="mt-3 flex items-center gap-4 px-1 text-xs text-notura-ink-secondary">
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="h-2 w-2 rounded-full bg-notura-success" />
                 {activeCount} ativo{activeCount !== 1 ? "s" : ""}
               </span>
               {inactiveCount > 0 && (
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[rgba(199,196,215,0.8)]" />
+                  <span className="h-2 w-2 rounded-full bg-notura-muted" />
                   {inactiveCount} inativo{inactiveCount !== 1 ? "s" : ""}
                 </span>
               )}
@@ -639,10 +637,10 @@ export default function ContactsPage() {
         <section>
           {/* Section heading */}
           <div className="mb-5 flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e1e0ff]">
-              <Zap className="h-4 w-4 text-[#4648d4]" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
+              <Zap className="h-4 w-4 text-notura-primary" />
             </div>
-            <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-[#1c1b1b]">
+            <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
               Integrações
             </h2>
           </div>
@@ -655,9 +653,9 @@ export default function ContactsPage() {
           </div>
 
           {/* Footer note */}
-          <p className="mt-4 text-xs text-[#464554]">
+          <p className="mt-4 text-xs text-notura-ink-secondary">
             Integrações marcadas com{" "}
-            <span className="inline-flex items-center rounded-full bg-[#e5e2e1] px-2 py-0.5 text-[11px] font-medium text-[#464554]">
+            <span className="inline-flex items-center rounded-full bg-notura-surface-2 px-2 py-0.5 text-[11px] font-medium text-notura-ink-secondary">
               Em breve
             </span>{" "}
             estarão disponíveis em breve. Ative as notificações para ser avisado.

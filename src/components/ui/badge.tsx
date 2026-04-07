@@ -7,7 +7,7 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-violet-50 text-violet-700 border border-violet-100",
+        default: "bg-gray-100 text-gray-600",
         recording: "bg-notura-primary text-white animate-pulse-slow",
         processing: "bg-amber-50 text-amber-700",
         completed: "bg-emerald-50 text-emerald-700",

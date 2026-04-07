@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,15 @@ const plans = [
   },
 ];
 
-export default function OnboardingPage() {
+function OnboardingFallback() {
+  return (
+    <div className="py-12 text-center text-sm text-notura-secondary">
+      Carregando onboarding...
+    </div>
+  );
+}
+
+function OnboardingPageContent() {
   const prewarmStartedRef = useRef(false);
   const prewarmRetriedRef = useRef(false);
   const prewarmRetryTimeoutRef = useRef<number | null>(null);
@@ -432,5 +440,13 @@ export default function OnboardingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<OnboardingFallback />}>
+      <OnboardingPageContent />
+    </Suspense>
   );
 }

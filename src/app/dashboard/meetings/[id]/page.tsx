@@ -17,9 +17,8 @@ import {
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask, MeetingFile } from "@/components/meeting-detail";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
-import { createClient } from "@/lib/supabase/client";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
-import type { MeetingJSON } from "@/types/database";
+import { updateTaskById } from "@/app/dashboard/tasks/tasks-api";
+import { fetchMeetingDetail } from "./meeting-api";
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
@@ -177,131 +176,42 @@ function MeetingDetailInner({ id }: { id: string }) {
   const [openItems, setOpenItems] = useState<Array<{ id: string; description: string; context: string | null }>>([]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setNotFound(true);
-        setLoading(false);
-        return;
+      try {
+        const meeting = await fetchMeetingDetail(id);
+        if (cancelled) return;
+
+        setClientName(meeting.clientName);
+        setMeetingDate(meeting.meetingDate);
+        setMeetingStatus(meeting.meetingStatus);
+        setParticipants(meeting.participants);
+        setSummary(meeting.summary);
+        setNextStep(meeting.nextStep);
+        setKeyDecision(meeting.keyDecision);
+        setAlertPoint(meeting.alertPoint);
+        setTranscript(meeting.transcript);
+        setLocation(meeting.location);
+        setTasks(meeting.tasks);
+        setFiles(meeting.files);
+        setInsightMessage(meeting.insightMessage);
+        setDecisions(meeting.decisions);
+        setOpenItems(meeting.openItems);
+      } catch {
+        if (!cancelled) {
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      const { data: meeting, error } = await supabase
-        .from("meetings")
-        .select("*, tasks(*), decisions(*), open_items(*)")
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (error || !meeting) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-
-      // Parse summary_json
-      const json = (meeting.summary_json as MeetingJSON | null) ?? null;
-
-      // Map participants
-      const pts: Array<{ name: string }> =
-        json?.meeting?.participants?.map((p) => ({ name: p })) ?? [];
-
-      // Map status to UI status
-      const uiStatus: "completed" | "processing" | "failed" | "scheduled" =
-        meeting.status === "completed"
-          ? "completed"
-          : meeting.status === "failed"
-          ? "failed"
-          : "processing";
-
-      // Map tasks
-      const mappedTasks: MeetingTask[] = (
-        (meeting as unknown as { tasks: Array<{ id: string; description: string; completed: boolean; owner: string | null; priority: string; due_date: string | null; completed_at: string | null }> }).tasks ?? []
-      ).map((t) => {
-        const pri = t.priority?.toLowerCase().replace("é", "e");
-        const capPriority =
-          pri === "alta"
-            ? "Alta"
-            : pri === "media" || pri === "média"
-            ? "Média"
-            : "Baixa";
-        return {
-          id: t.id,
-          text: t.description,
-          completed: t.completed,
-          assignee: t.owner ?? undefined,
-          priority: capPriority as MeetingTask["priority"],
-          dueDate: t.due_date ? formatDate(t.due_date) : undefined,
-          completedLabel: t.completed_at
-            ? `Concluído em ${formatDate(t.completed_at)}`
-            : undefined,
-        };
-      });
-
-      // Decisions
-      const mappedDecisions = (
-        (meeting as unknown as { decisions: Array<{ id: string; description: string; decided_by: string | null; confidence: string }> }).decisions ?? []
-      );
-
-      // Open items
-      const mappedOpenItems = (
-        (meeting as unknown as { open_items: Array<{ id: string; description: string; context: string | null }> }).open_items ?? []
-      );
-
-      // Key decision and alert point
-      const kd = mappedDecisions[0]?.description ?? "";
-      const ap = mappedOpenItems[0]?.description ?? "";
-
-      // Location from summary_json
-      const loc =
-        json?.next_meeting?.location_or_link ?? "Reunião Online";
-
-      // Files (audio only if available)
-      const mappedFiles: MeetingFile[] = meeting.audio_r2_key
-        ? [
-            {
-              id: "audio",
-              name: meeting.audio_r2_key.split("/").pop() ?? "audio.m4a",
-              size: "—",
-              type: "other" as const,
-              url: "#",
-            },
-          ]
-        : [];
-
-      // Insight message
-      const pendingCount = mappedTasks.filter((t) => !t.completed).length;
-      const insight =
-        pendingCount > 0
-          ? `Você tem ${pendingCount} tarefa${pendingCount > 1 ? "s" : ""} pendente${pendingCount > 1 ? "s" : ""} desta reunião.`
-          : "Todas as tarefas desta reunião foram concluídas. 🎉";
-
-      setClientName(meeting.client_name ?? meeting.title ?? "—");
-      setMeetingDate(
-        formatRelativeTime(meeting.meeting_date ?? meeting.created_at)
-      );
-      setMeetingStatus(uiStatus);
-      setParticipants(pts);
-      setSummary(meeting.summary_whatsapp ?? "");
-      setNextStep(
-        mappedOpenItems[0]?.description ??
-          mappedTasks.find((t) => !t.completed)?.text ??
-          ""
-      );
-      setKeyDecision(kd);
-      setAlertPoint(ap);
-      setTranscript(meeting.transcript);
-      setLocation(loc);
-      setTasks(mappedTasks);
-      setFiles(mappedFiles);
-      setInsightMessage(insight);
-      setDecisions(mappedDecisions);
-      setOpenItems(mappedOpenItems);
-      setLoading(false);
     }
-    load();
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const handleToggleTask = useCallback(
@@ -322,16 +232,14 @@ function MeetingDetailInner({ id }: { id: string }) {
             : t
         )
       );
-      const supabase = createClient();
-      await supabase
-        .from("tasks")
-        .update({
-          completed: newCompleted,
-          completed_at: newCompleted ? new Date().toISOString() : null,
-        })
-        .eq("id", taskId);
+      try {
+        await updateTaskById(taskId, { completed: newCompleted });
+      } catch {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+        show("Erro ao atualizar tarefa.", "error");
+      }
     },
-    [tasks]
+    [tasks, show]
   );
 
   const handleShare = useCallback(() => {

@@ -7,7 +7,7 @@ import { useThemeColors } from "@/lib/theme-context";
 export interface SubscriptionCardProps {
   planName: string;
   meetingsUsed: number;
-  meetingsTotal: number;
+  meetingsTotal: number | null;
   renewsInDays: number;
   onChangePlan: () => void;
 }
@@ -20,7 +20,10 @@ export function SubscriptionCard({
   onChangePlan,
 }: SubscriptionCardProps) {
   const c = useThemeColors();
-  const pct = Math.min(100, Math.round((meetingsUsed / meetingsTotal) * 100));
+  const pct =
+    typeof meetingsTotal === "number" && meetingsTotal > 0
+      ? Math.min(100, Math.round((meetingsUsed / meetingsTotal) * 100))
+      : null;
 
   return (
     <div
@@ -56,28 +59,34 @@ export function SubscriptionCard({
         <div className="flex items-center justify-between text-[13px]">
           <span style={{ color: c.ink2 }}>Reuniões usadas</span>
           <span className="font-semibold" style={{ color: c.ink }}>
-            {meetingsUsed}/{meetingsTotal}
+            {meetingsTotal === null
+              ? `${meetingsUsed}/Ilimitado`
+              : `${meetingsUsed}/${meetingsTotal}`}
           </span>
         </div>
 
         {/* Progress bar */}
-        <div
-          className="mt-2 overflow-hidden rounded-full"
-          style={{ height: "6px", background: c.border }}
-        >
+        {pct !== null && (
           <div
-            style={{
-              width: `${pct}%`,
-              height: "100%",
-              background: "#6851FF",
-              borderRadius: "999px",
-              transition: "width 0.6s ease",
-            }}
-          />
-        </div>
+            className="mt-2 overflow-hidden rounded-full"
+            style={{ height: "6px", background: c.border }}
+          >
+            <div
+              style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: "#6851FF",
+                borderRadius: "999px",
+                transition: "width 0.6s ease",
+              }}
+            />
+          </div>
+        )}
 
         <p className="mt-1.5 text-right text-[11px]" style={{ color: c.ink3 }}>
-          Renova em {renewsInDays} dias
+          {meetingsTotal === null
+            ? "Sem limite mensal"
+            : `Renova em ${renewsInDays} dias`}
         </p>
       </div>
 

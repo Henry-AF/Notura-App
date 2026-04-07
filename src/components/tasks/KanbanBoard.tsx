@@ -1,5 +1,4 @@
 "use client";
-"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { DragDropContext } from "@hello-pangea/dnd";
@@ -69,11 +68,10 @@ export function KanbanBoard({
           }}
         >
           {/* Columns */}
-          {columns.map((col, idx) => (
+          {columns.map((col) => (
             <div key={col.id} style={{ width: 300, flexShrink: 0 }}>
               <KanbanColumn
                 column={col}
-                index={idx}
                 onAddTask={onAddTask}
                 onEditTask={onEditTask}
                 onDeleteColumn={onDeleteColumn}
@@ -238,4 +236,3 @@ export function KanbanBoard({
     </DragDropContext>
   );
 }
-

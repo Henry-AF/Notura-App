@@ -18,10 +18,8 @@ import {
   Zap,
   Users,
   X,
-  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -610,7 +608,7 @@ export default function ContactsPage() {
                 Tente outro termo ou{" "}
                 <button
                   onClick={() => setShowModal(true)}
-                  className="text-notura-primary underline-offset-2 hover:underline">
+                  className="text-notura-primary underline-offset-2 hover:underline"
                 >
                   adicione um contato
                 </button>

@@ -12,16 +12,14 @@ import {
 import type { Integration, Preference } from "@/components/settings";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
-import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/lib/theme-context";
+import {
+  fetchCurrentUser,
+  updateCurrentUser,
+  type CurrentUser,
+} from "./settings-api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const PLAN_LIMITS: Record<"free" | "pro" | "team", number> = {
-  free: 3,
-  pro: 30,
-  team: 999,
-};
 
 function getDaysUntilEndOfMonth(): number {
   const now = new Date();
@@ -32,12 +30,48 @@ function getDaysUntilEndOfMonth(): number {
   );
 }
 
+function getPlanName(plan: CurrentUser["plan"]): string {
+  if (plan === "pro") return "Plano Pro";
+  if (plan === "team") return "Plano Team";
+  return "Plano Gratuito";
+}
+
+function notifyUserUpdated() {
+  window.dispatchEvent(new Event("notura:user-updated"));
+}
+
+function LoadingState() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: 240,
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid #6C5CE7",
+          borderTopColor: "transparent",
+          animation: "spin 0.7s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
 // ─── Inner page ───────────────────────────────────────────────────────────────
 
 function SettingsPageInner() {
   const router = useRouter();
   const { show } = useToast();
   const { theme, toggleTheme } = useTheme();
+  const [loading, setLoading] = useState(true);
 
   // Profile fields
   const [name, setName] = useState("");
@@ -48,7 +82,7 @@ function SettingsPageInner() {
   // Subscription fields
   const [planName, setPlanName] = useState("Plano Gratuito");
   const [meetingsUsed, setMeetingsUsed] = useState(0);
-  const [meetingsTotal, setMeetingsTotal] = useState(3);
+  const [meetingsTotal, setMeetingsTotal] = useState<number | null>(3);
 
   // Modal
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -74,59 +108,39 @@ function SettingsPageInner() {
     },
   ]);
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [profileRes, billingRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("name, company, role, whatsapp_number")
-          .eq("id", user.id)
-          .single(),
-        supabase
-          .from("billing_accounts")
-          .select("plan, meetings_this_month")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-      ]);
-
-      const profile = profileRes.data;
-      const billing = billingRes.data;
-      const resolvedPlan = (billing?.plan ?? "free") as "free" | "pro" | "team";
-
-      setName(profile?.name ?? user.email?.split("@")[0] ?? "");
-      setEmail(user.email ?? "");
-      setCompany(profile?.company ?? "");
-      setRawPlan(resolvedPlan);
-      setPlanName(
-        resolvedPlan === "pro"
-          ? "Plano Pro"
-          : resolvedPlan === "team"
-          ? "Plano Team"
-          : "Plano Gratuito"
-      );
-      setMeetingsUsed(billing?.meetings_this_month ?? 0);
-      setMeetingsTotal(PLAN_LIMITS[resolvedPlan]);
-
-      if (profile?.whatsapp_number) {
-        setIntegrations([
-          {
-            id: "whatsapp",
-            name: "WhatsApp",
-            icon: "💬",
-            phone: profile.whatsapp_number,
-            status: "connected",
-          },
-        ]);
-      }
-    }
-    load();
+  const applyUser = useCallback((user: CurrentUser) => {
+    setName(user.name);
+    setEmail(user.email);
+    setCompany(user.company);
+    setRawPlan(user.plan);
+    setPlanName(getPlanName(user.plan));
+    setMeetingsUsed(user.meetingsThisMonth);
+    setMeetingsTotal(user.monthlyLimit);
+    setIntegrations([
+      {
+        id: "whatsapp",
+        name: "WhatsApp",
+        icon: "💬",
+        phone: user.whatsappNumber,
+        status: user.whatsappNumber ? "connected" : "disconnected",
+      },
+    ]);
   }, []);
+
+  const loadUser = useCallback(async () => {
+    try {
+      const user = await fetchCurrentUser();
+      applyUser(user);
+    } catch {
+      show("Erro ao carregar configurações.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [applyUser, show]);
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
 
   // Sync dark_mode pref with actual theme
   useEffect(() => {
@@ -137,72 +151,53 @@ function SettingsPageInner() {
 
   const handleProfileSave = useCallback(
     async (data: { name: string; company: string; email: string }) => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { error } = await supabase
-        .from("profiles")
-        .update({ name: data.name, company: data.company })
-        .eq("id", user.id);
-      if (error) {
-        show("Erro ao salvar perfil.", "error");
-      } else {
-        setName(data.name);
-        setCompany(data.company);
+      try {
+        const user = await updateCurrentUser({
+          name: data.name,
+          company: data.company,
+        });
+        applyUser(user);
+        notifyUserUpdated();
         show("Perfil atualizado.", "success");
+      } catch {
+        show("Erro ao salvar perfil.", "error");
       }
     },
-    [show]
+    [applyUser, show]
   );
 
   const handleDisconnect = useCallback(
     async (id: string) => {
       if (id === "whatsapp") {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from("profiles")
-            .update({ whatsapp_number: null })
-            .eq("id", user.id);
+        try {
+          const user = await updateCurrentUser({ whatsappNumber: null });
+          applyUser(user);
+          notifyUserUpdated();
+        } catch {
+          show("Erro ao desconectar integração.", "error");
+          return;
         }
       }
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.id === id ? { ...i, status: "disconnected" as const, phone: "" } : i
-        )
-      );
       show("Integração desconectada.", "warning");
     },
-    [show]
+    [applyUser, show]
   );
 
   const handleConnect = useCallback(
     async (id: string, phone: string) => {
       if (id === "whatsapp") {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from("profiles")
-            .update({ whatsapp_number: phone })
-            .eq("id", user.id);
+        try {
+          const user = await updateCurrentUser({ whatsappNumber: phone });
+          applyUser(user);
+          notifyUserUpdated();
+        } catch {
+          show("Erro ao conectar WhatsApp.", "error");
+          return;
         }
       }
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.id === id ? { ...i, status: "connected" as const, phone } : i
-        )
-      );
       show("WhatsApp conectado.", "success");
     },
-    [show]
+    [applyUser, show]
   );
 
   const handleToggle = useCallback(
@@ -227,6 +222,10 @@ function SettingsPageInner() {
     }
     router.push("/");
   }, [router, show]);
+
+  if (loading) {
+    return <LoadingState />;
+  }
 
   return (
     <div>
@@ -306,6 +305,12 @@ function SettingsPageInner() {
           currentPlan={rawPlan}
           onClose={() => setShowPlanModal(false)}
           onSuccess={() => {
+            void fetchCurrentUser()
+              .then((user) => {
+                applyUser(user);
+                notifyUserUpdated();
+              })
+              .catch(() => {});
             show("Plano atualizado com sucesso!", "success");
           }}
         />
@@ -330,4 +335,3 @@ export default function SettingsPage() {
     </ToastProvider>
   );
 }
-

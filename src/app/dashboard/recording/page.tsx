@@ -20,7 +20,7 @@ import {
   Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { fetchCurrentUser } from "../settings/settings-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -206,18 +206,15 @@ export default function RecordingPage() {
   // ── Load profile ──────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("name, whatsapp_number")
-        .eq("id", user.id)
-        .single();
-      if (data?.whatsapp_number) setWhatsappNumber(data.whatsapp_number);
-      if (data?.name) setParticipants([makeParticipant(data.name, "", 0)]);
+      try {
+        const user = await fetchCurrentUser();
+        if (user.whatsappNumber) setWhatsappNumber(user.whatsappNumber);
+        if (user.name) setParticipants([makeParticipant(user.name, "", 0)]);
+      } catch {
+        // ignore load failures and let the user fill the form manually
+      }
     }
-    load();
+    void load();
   }, []);
 
   // ── Pre-fill title from URL ───────────────────────────────────────────────

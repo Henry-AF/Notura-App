@@ -1,433 +1,339 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useMemo } from "react";
-import Link from "next/link";
-import { CheckCircle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import React, { useCallback, useEffect, useState } from "react";
+import { KanbanBoard, TasksPageHeader, TaskEditModal } from "@/components/tasks";
+import { useKanban } from "@/hooks/useKanban";
+import type { Column, Task } from "@/components/tasks";
+import type { DropResult } from "@hello-pangea/dnd";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn, formatDate, getInitials } from "@/lib/utils";
-import type { Task, Priority } from "@/types/database";
+  createTask,
+  deleteTaskById,
+  fetchTaskBoardData,
+  type TaskMeetingOption,
+  updateTaskById,
+} from "./tasks-api";
 
-// ─── Mock Data ──────────────────────────────────────────────────────────────
-
-interface TaskWithMeeting extends Task {
-  meeting_title: string;
-}
-
-const mockTasks: TaskWithMeeting[] = [
+// Column definitions (no tasks)
+const COLUMN_DEFS: Omit<Column, "tasks">[] = [
   {
-    id: "t1",
-    meeting_id: "m1",
-    user_id: "u1",
-    dedupe_key: "task-1",
-    description: "Enviar lista de colaboradores atualizada",
-    owner: "Carla",
-    due_date: "2026-03-21",
-    priority: "alta",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-19T14:05:00.000Z",
-    meeting_title: "Alinhamento trimestral — Equipe RH",
+    id: "todo",
+    title: "A Fazer",
+    dotColor: "#6C5CE7",
+    badgeColor: "#A29BFE",
+    badgeBg: "rgba(108,92,231,0.15)",
   },
   {
-    id: "t2",
-    meeting_id: "m1",
-    user_id: "u1",
-    dedupe_key: "task-2",
-    description: "Preparar cronograma de rollout do onboarding",
-    owner: "Julia",
-    due_date: "2026-03-26",
-    priority: "média",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-19T14:05:00.000Z",
-    meeting_title: "Alinhamento trimestral — Equipe RH",
+    id: "in_progress",
+    title: "Em Andamento",
+    dotColor: "#FFA94D",
+    badgeColor: "#FFA94D",
+    badgeBg: "rgba(255,169,77,0.15)",
   },
   {
-    id: "t3",
-    meeting_id: "m1",
-    user_id: "u1",
-    dedupe_key: "task-3",
-    description: "Agendar revisão de budget em maio",
-    owner: "Marcos",
-    due_date: null,
-    priority: "baixa",
-    completed: true,
-    completed_at: "2026-03-19T16:00:00.000Z",
-    created_at: "2026-03-19T14:05:00.000Z",
-    meeting_title: "Alinhamento trimestral — Equipe RH",
-  },
-  {
-    id: "t4",
-    meeting_id: "m2",
-    user_id: "u1",
-    dedupe_key: "task-4",
-    description: "Revisar cláusula de confidencialidade do contrato",
-    owner: "Fernanda",
-    due_date: "2026-03-18",
-    priority: "alta",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-18T10:00:00.000Z",
-    meeting_title: "Revisão contrato — Fernanda Vieira Advocacia",
-  },
-  {
-    id: "t5",
-    meeting_id: "m2",
-    user_id: "u1",
-    dedupe_key: "task-5",
-    description: "Enviar versão final do contrato para assinatura",
-    owner: "Henry",
-    due_date: "2026-03-22",
-    priority: "alta",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-18T10:00:00.000Z",
-    meeting_title: "Revisão contrato — Fernanda Vieira Advocacia",
-  },
-  {
-    id: "t6",
-    meeting_id: "m2",
-    user_id: "u1",
-    dedupe_key: "task-6",
-    description: "Verificar CNPJ do fornecedor no portal da Receita",
-    owner: "Fernanda",
-    due_date: "2026-03-19",
-    priority: "média",
-    completed: true,
-    completed_at: "2026-03-19T09:00:00.000Z",
-    created_at: "2026-03-18T10:00:00.000Z",
-    meeting_title: "Revisão contrato — Fernanda Vieira Advocacia",
-  },
-  {
-    id: "t7",
-    meeting_id: "m3",
-    user_id: "u1",
-    dedupe_key: "task-7",
-    description: "Configurar ambiente de staging para o deploy",
-    owner: "Ricardo",
-    due_date: "2026-03-20",
-    priority: "alta",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-17T15:00:00.000Z",
-    meeting_title: "Sprint planning — Projeto Nova Plataforma",
-  },
-  {
-    id: "t8",
-    meeting_id: "m3",
-    user_id: "u1",
-    dedupe_key: "task-8",
-    description: "Criar documentação da API de integração",
-    owner: "Ana Paula",
-    due_date: "2026-03-28",
-    priority: "média",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-17T15:00:00.000Z",
-    meeting_title: "Sprint planning — Projeto Nova Plataforma",
-  },
-  {
-    id: "t9",
-    meeting_id: "m3",
-    user_id: "u1",
-    dedupe_key: "task-9",
-    description: "Alinhar design do dashboard com equipe de produto",
-    owner: "Marcos",
-    due_date: "2026-03-24",
-    priority: "média",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-17T15:00:00.000Z",
-    meeting_title: "Sprint planning — Projeto Nova Plataforma",
-  },
-  {
-    id: "t10",
-    meeting_id: "m4",
-    user_id: "u1",
-    dedupe_key: "task-10",
-    description: "Enviar proposta salarial para candidata aprovada",
-    owner: "Henry",
-    due_date: "2026-03-20",
-    priority: "alta",
-    completed: false,
-    completed_at: null,
-    created_at: "2026-03-16T11:00:00.000Z",
-    meeting_title: "Entrevista candidata — Ana Paula Costa",
+    id: "done",
+    title: "Concluido",
+    dotColor: "#4ECB71",
+    badgeColor: "#4ECB71",
+    badgeBg: "rgba(78,203,113,0.15)",
   },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-type StatusFilter = "todas" | "pendentes" | "concluidas";
-
-function priorityVariant(p: Priority) {
-  if (p === "alta") return "priority-alta" as const;
-  if (p === "média") return "priority-media" as const;
-  return "priority-baixa" as const;
-}
-
-function priorityLabel(p: Priority) {
-  if (p === "alta") return "Alta";
-  if (p === "média") return "Média";
-  return "Baixa";
-}
-
-function dueDateColor(dueDate: string | null): string {
-  if (!dueDate) return "text-notura-secondary";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  const diff = due.getTime() - today.getTime();
-  const daysDiff = diff / (1000 * 60 * 60 * 24);
-
-  if (daysDiff < 0) return "text-red-600 font-medium";
-  if (daysDiff === 0) return "text-amber-600 font-medium";
-  return "text-notura-secondary";
-}
-
-function dueDateLabel(dueDate: string | null): string {
-  if (!dueDate) return "Sem prazo";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  const diff = due.getTime() - today.getTime();
-  const daysDiff = Math.round(diff / (1000 * 60 * 60 * 24));
-
-  if (daysDiff < 0) return `Vencida (${formatDate(dueDate)})`;
-  if (daysDiff === 0) return "Hoje";
-  if (daysDiff === 1) return "Amanhã";
-  return formatDate(dueDate);
-}
-
-// ─── Empty State ────────────────────────────────────────────────────────────
-
-function EmptyState() {
+function LoadingState() {
   return (
-    <Card className="mt-6">
-      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100">
-          <CheckCircle className="h-8 w-8 text-violet-600" />
-        </div>
-        <h3 className="mt-4 font-display text-lg font-semibold text-notura-ink">
-          Nenhuma tarefa pendente — você está em dia
-        </h3>
-        <p className="mt-2 max-w-sm text-sm text-notura-secondary">
-          As tarefas extraídas das suas reuniões aparecerão aqui
-          automaticamente.
-        </p>
-      </CardContent>
-    </Card>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: 240,
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid #6C5CE7",
+          borderTopColor: "transparent",
+          animation: "spin 0.7s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+function TasksTable({ columns }: { columns: Column[] }) {
+  const allTasks = columns.flatMap((c) => c.tasks);
+  return (
+    <div
+      style={{
+        background: "rgb(var(--cn-card))",
+        border: "1px solid rgb(var(--cn-border))",
+        borderRadius: 14,
+        overflow: "hidden",
+      }}
+    >
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid rgb(var(--cn-border))" }}>
+            {["Tarefa", "Prioridade", "Status", "Responsavel", "Data"].map((h) => (
+              <th
+                key={h}
+                style={{
+                  padding: "12px 16px",
+                  textAlign: "left",
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: "rgb(var(--cn-muted))",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {allTasks.map((task, i) => (
+            <tr
+              key={task.id}
+              style={{
+                borderBottom: i < allTasks.length - 1 ? `1px solid rgb(var(--cn-border))` : undefined,
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLTableRowElement).style.background = "rgb(var(--cn-card2))")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLTableRowElement).style.background = "transparent")
+              }
+            >
+              <td
+                style={{
+                  padding: "12px 16px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 14,
+                  color: task.columnId === "done" ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
+                  textDecoration: task.columnId === "done" ? "line-through" : "none",
+                }}
+              >
+                {task.title}
+              </td>
+              <td style={{ padding: "12px 16px" }}>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    color:
+                      task.priority === "alta"
+                        ? "#FF6B6B"
+                        : task.priority === "media"
+                        ? "#FFA94D"
+                        : "#4ECB71",
+                  }}
+                >
+                  {task.priority === "alta" ? "ALTA" : task.priority === "media" ? "MEDIA" : "BAIXA"}
+                </span>
+              </td>
+              <td
+                style={{
+                  padding: "12px 16px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 13,
+                  color: "rgb(var(--cn-ink2))",
+                }}
+              >
+                {columns.find((c) => c.id === task.columnId)?.title ?? "—"}
+              </td>
+              <td
+                style={{
+                  padding: "12px 16px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 13,
+                  color: "rgb(var(--cn-ink2))",
+                }}
+              >
+                {task.assignees?.[0]?.name ?? task.assignee?.name ?? "—"}
+              </td>
+              <td
+                style={{
+                  padding: "12px 16px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 13,
+                  color: task.completedDate ? "#4ECB71" : "rgb(var(--cn-muted))",
+                }}
+              >
+                {task.completedDate ?? task.dueDate ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TasksBoardContent({
+  initialColumns,
+  meetings,
+}: {
+  initialColumns: Column[];
+  meetings: TaskMeetingOption[];
+}) {
+  const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn } =
+    useKanban(initialColumns);
+
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
+
+  function isDraftTask(taskId: string) {
+    return taskId.startsWith("task-");
+  }
+
+  const handleDragEndWithPersist = useCallback(
+    async (result: DropResult) => {
+      const { destination, source } = result;
+      const srcColumn = columns.find((c) => c.id === source.droppableId);
+      const movedTask = srcColumn?.tasks[source.index];
+
+      handleDragEnd(result);
+
+      if (!destination || destination.droppableId === source.droppableId || !movedTask) return;
+
+      const newCompleted = destination.droppableId === "done";
+      if (isDraftTask(movedTask.id)) return;
+
+      await updateTaskById(movedTask.id, { completed: newCompleted });
+    },
+    [handleDragEnd, columns]
+  );
+
+  function handleAddTask(columnId: string) {
+    setDraftColumnId(columnId);
+    setEditingTask({
+      id: `task-${Date.now()}`,
+      title: "Nova tarefa",
+      priority: "media",
+      columnId,
+    });
+  }
+
+  async function handleSaveTask(id: string, updates: Partial<Task>) {
+    const assigneeName =
+      updates.assignees?.[0]?.name ?? updates.assignee?.name ?? null;
+
+    if (isDraftTask(id)) {
+      const columnId = draftColumnId ?? editingTask?.columnId ?? "todo";
+      const createdTask = await createTask({
+        title: updates.title ?? editingTask?.title ?? "Nova tarefa",
+        priority: updates.priority ?? editingTask?.priority ?? "media",
+        dueDate: updates.dueDate ?? editingTask?.dueDate,
+        assigneeName: assigneeName ?? undefined,
+        columnId,
+        meetingId: updates.meetingId ?? editingTask?.meetingId ?? meetings[0]?.id ?? "",
+      });
+
+      addTask(createdTask.columnId, createdTask);
+      setDraftColumnId(null);
+      return;
+    }
+
+    updateTask(id, updates);
+    const persistedTask = await updateTaskById(id, {
+      title: updates.title,
+      priority: updates.priority,
+      dueDate: updates.dueDate,
+      assigneeName,
+    });
+    updateTask(id, persistedTask);
+  }
+
+  async function handleDeleteTask(id: string) {
+    if (isDraftTask(id)) {
+      setDraftColumnId(null);
+      return;
+    }
+
+    deleteTask(id);
+    await deleteTaskById(id);
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes fade-slide-up {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .task-card {
+          animation: fade-slide-up 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+          opacity: 0;
+        }
+      `}</style>
+
+      <KanbanBoard
+        columns={columns}
+        onDragEnd={handleDragEndWithPersist}
+        onAddTask={handleAddTask}
+        onEditTask={(task) => setEditingTask(task)}
+        onDeleteColumn={removeColumn}
+        onAddColumn={addColumn}
+      />
+
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          meetings={meetings}
+          onSave={handleSaveTask}
+          onDelete={handleDeleteTask}
+          onClose={() => {
+            setEditingTask(null);
+            setDraftColumnId(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 export default function TasksPage() {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todas");
-  const [meetingFilter, setMeetingFilter] = useState<string>("all");
-  const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [taskStates, setTaskStates] = useState<Record<string, boolean>>(
-    Object.fromEntries(mockTasks.map((t) => [t.id, t.completed]))
-  );
+  const [view, setView] = useState<"kanban" | "table">("kanban");
+  const [initialColumns, setInitialColumns] = useState<Column[] | null>(null);
+  const [meetings, setMeetings] = useState<TaskMeetingOption[]>([]);
 
-  // Derive unique meetings + owners for filters
-  const meetings = useMemo(() => {
-    const unique = new Map<string, string>();
-    mockTasks.forEach((t) => unique.set(t.meeting_id, t.meeting_title));
-    return Array.from(unique.entries());
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await fetchTaskBoardData();
+        setInitialColumns(data.columns);
+        setMeetings(data.meetings);
+      } catch {
+        setInitialColumns(COLUMN_DEFS.map((def) => ({ ...def, tasks: [] })));
+        setMeetings([]);
+      }
+    }
+    load();
   }, []);
 
-  const owners = useMemo(() => {
-    const unique = new Set<string>();
-    mockTasks.forEach((t) => {
-      if (t.owner) unique.add(t.owner);
-    });
-    return Array.from(unique).sort();
-  }, []);
-
-  // Filter + sort
-  const filteredTasks = useMemo(() => {
-    let tasks = mockTasks.map((t) => ({
-      ...t,
-      completed: taskStates[t.id] ?? t.completed,
-    }));
-
-    if (statusFilter === "pendentes") {
-      tasks = tasks.filter((t) => !t.completed);
-    } else if (statusFilter === "concluidas") {
-      tasks = tasks.filter((t) => t.completed);
-    }
-
-    if (meetingFilter !== "all") {
-      tasks = tasks.filter((t) => t.meeting_id === meetingFilter);
-    }
-
-    if (ownerFilter !== "all") {
-      tasks = tasks.filter((t) => t.owner === ownerFilter);
-    }
-
-    // Sort: pending first, then by created_at desc
-    tasks.sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-
-    return tasks;
-  }, [statusFilter, meetingFilter, ownerFilter, taskStates]);
-
-  const toggleTask = (taskId: string) => {
-    setTaskStates((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
-  };
+  if (!initialColumns) return <LoadingState />;
 
   return (
-    <div>
-      {/* Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold text-notura-ink">
-          Tarefas
-        </h1>
-        <p className="mt-1 text-sm text-notura-secondary">
-          Todas as tarefas extraídas das suas reuniões
-        </p>
-      </div>
-
-      {/* Filter bar */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Status filter — button group */}
-        <div className="flex rounded-lg border border-notura-border bg-white">
-          {(
-            [
-              { key: "todas", label: "Todas" },
-              { key: "pendentes", label: "Pendentes" },
-              { key: "concluidas", label: "Concluídas" },
-            ] as const
-          ).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setStatusFilter(key)}
-              className={cn(
-                "px-3 py-1.5 text-sm font-medium transition-all first:rounded-l-lg last:rounded-r-lg",
-                statusFilter === key
-                  ? "bg-notura-primary text-white"
-                  : "text-notura-secondary hover:bg-gray-50 hover:text-notura-ink"
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Meeting filter */}
-        <Select value={meetingFilter} onValueChange={setMeetingFilter}>
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue placeholder="Todas as reuniões" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as reuniões</SelectItem>
-            {meetings.map(([id, title]) => (
-              <SelectItem key={id} value={id}>
-                {title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Owner filter */}
-        <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-          <SelectTrigger className="w-full sm:w-44">
-            <SelectValue placeholder="Todos os responsáveis" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {owners.map((owner) => (
-              <SelectItem key={owner} value={owner}>
-                {owner}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Task list */}
-      {filteredTasks.length === 0 ? (
-        <EmptyState />
+    <>
+      <TasksPageHeader
+        view={view}
+        onViewChange={setView}
+        onNewTask={() => {}}
+      />
+      {view === "kanban" ? (
+        <TasksBoardContent initialColumns={initialColumns} meetings={meetings} />
       ) : (
-        <div className="mt-4 space-y-2">
-          {filteredTasks.map((task) => {
-            const isChecked = task.completed;
-            return (
-              <Card
-                key={task.id}
-                className={cn(
-                  "transition-all",
-                  isChecked && "opacity-60"
-                )}
-              >
-                <CardContent className="flex items-start gap-3 p-4">
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={() => toggleTask(task.id)}
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        "text-sm text-notura-ink",
-                        isChecked && "line-through text-notura-secondary"
-                      )}
-                    >
-                      {task.description}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/dashboard/meetings/${task.meeting_id}`}
-                        className="text-xs text-notura-primary hover:underline"
-                      >
-                        {task.meeting_title}
-                      </Link>
-                      {task.owner && (
-                        <div className="flex items-center gap-1.5">
-                          <Avatar className="h-5 w-5">
-                            <AvatarFallback
-                              name={task.owner}
-                              className="text-[9px]"
-                            >
-                              {getInitials(task.owner)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs text-notura-secondary">
-                            {task.owner}
-                          </span>
-                        </div>
-                      )}
-                      <span
-                        className={cn("text-xs", dueDateColor(task.due_date))}
-                      >
-                        {dueDateLabel(task.due_date)}
-                      </span>
-                      <Badge variant={priorityVariant(task.priority as Priority)}>
-                        {priorityLabel(task.priority as Priority)}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <TasksTable columns={initialColumns} />
       )}
-    </div>
+    </>
   );
 }

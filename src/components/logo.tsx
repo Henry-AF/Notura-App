@@ -17,7 +17,7 @@ function Logo({ className, size = 32 }: LogoProps) {
       aria-label="Notura"
     >
       {/* Rounded square container */}
-      <rect width="40" height="40" rx="10" fill="#7C3AED" />
+      <rect width="40" height="40" rx="10" fill="#10B981" />
       {/* Stylized N with a play-triangle integrated into the right stroke */}
       <path
         d="M12 30V10L21 22V10"
@@ -31,7 +31,7 @@ function Logo({ className, size = 32 }: LogoProps) {
       <circle cx="28" cy="20" r="5" fill="white" opacity="0.9" />
       <path
         d="M26.5 17.5L30.5 20L26.5 22.5V17.5Z"
-        fill="#7C3AED"
+        fill="#10B981"
       />
     </svg>
   );

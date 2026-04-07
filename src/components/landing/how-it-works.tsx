@@ -1,74 +1,72 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Mic, Activity, MessageCircle } from "lucide-react";
-
 const steps = [
   {
-    icon: Mic,
-    title: "Conecta",
+    icon: "mic",
+    step: "PASSO 01",
+    title: "Gravar",
     description:
-      "Faça upload do áudio da reunião ou conecte diretamente ao Google Meet.",
+      "Captura de áudio cristalina de qualquer plataforma (Zoom, Meet, Presencial).",
   },
   {
-    icon: Activity,
-    title: "Processa",
+    icon: "translate",
+    step: "PASSO 02",
+    title: "Transcrever",
     description:
-      "Nossa IA transcreve e extrai decisões, tarefas e prazos automaticamente.",
+      "Nossa IA transcreve cada palavra com 98% de precisão em tempo real.",
   },
   {
-    icon: MessageCircle,
-    title: "Recebe",
+    icon: "auto_fix_high",
+    step: "PASSO 03",
+    title: "Resumir",
     description:
-      "O resumo chega no seu WhatsApp em minutos, pronto para compartilhar.",
+      "Extração automática de pontos chave, decisões e próximos passos.",
+  },
+  {
+    icon: "chat_bubble",
+    step: "PASSO 04",
+    title: "Enviar",
+    description:
+      "Receba o resumo estruturado instantaneamente no seu WhatsApp.",
+  },
+  {
+    icon: "dashboard",
+    step: "PASSO 05",
+    title: "Gerenciar",
+    description:
+      "Acompanhe tarefas e prazos no seu dashboard inteligente Notura.",
   },
 ];
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0 },
-};
-
 export function HowItWorks() {
   return (
-    <section className="bg-notura-bg px-4 py-24 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <motion.h2
-          className="text-center font-display text-3xl font-bold text-notura-ink sm:text-4xl"
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.5 }}
-        >
-          Como funciona
-        </motion.h2>
-        <div className="mt-14 grid gap-8 md:grid-cols-3">
-          {steps.map((step, i) => (
-            <motion.div
-              key={step.title}
-              className="flex flex-col items-center text-center"
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ delay: i * 0.15, duration: 0.5 }}
+    <section className="py-24 bg-surface-container-low" id="como-funciona">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-20">
+          <h2 className="text-3xl lg:text-5xl font-bold tracking-tight mb-4 text-on-surface">
+            Fluxo de Trabalho Inteligente
+          </h2>
+          <p className="text-on-surface-variant text-lg">
+            Deixe o Notura cuidar de toda a carga cognitiva das suas reuniões.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+          {steps.map((step) => (
+            <div
+              key={step.step}
+              className="bg-surface-container-lowest p-8 rounded-3xl shadow-sm border border-outline-variant/10 flex flex-col items-start transition-transform hover:-translate-y-2"
             >
-              <div className="relative mb-2">
-                <span className="font-display text-6xl font-extrabold text-violet-100 select-none">
-                  0{i + 1}
-                </span>
+              <div className="w-12 h-12 bg-primary-container text-on-primary-container rounded-2xl flex items-center justify-center mb-6">
+                <span className="material-symbols-outlined">{step.icon}</span>
               </div>
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 shadow-sm">
-                <step.icon className="h-7 w-7 text-violet-600" />
-              </div>
-              <h3 className="mt-4 font-display text-lg font-semibold text-notura-ink">
-                {step.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-notura-secondary">
+              <span className="text-[10px] font-bold tracking-widest text-primary mb-2">
+                {step.step}
+              </span>
+              <h3 className="text-xl font-bold mb-3 text-on-surface">{step.title}</h3>
+              <p className="text-sm text-on-surface-variant leading-relaxed">
                 {step.description}
               </p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

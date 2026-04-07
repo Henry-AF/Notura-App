@@ -1,355 +1,271 @@
-"use client";
+﻿"use client";
 
-import React from "react";
-import Link from "next/link";
+import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Calendar,
-  CheckSquare,
-  Clock,
-  MessageCircle,
-  Plus,
-  ArrowRight,
-  FileAudio,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { cn, formatRelativeTime, formatDuration } from "@/lib/utils";
-import type { Meeting, MeetingStatus, DashboardStats } from "@/types/database";
+  DashboardHeader,
+  MetricsRow,
+  RecentMeetingsTable,
+  InsightCard,
+  UpgradeCard,
+  TodayTasks,
+} from "@/components/dashboard";
+import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
+import { ToastProvider, useToast } from "@/components/upload/Toast";
+import { fetchDashboardOverview } from "./dashboard-api";
+import { updateTaskById } from "./tasks/tasks-api";
 
-// ─── Mock Data ──────────────────────────────────────────────────────────────
+// ─── Inner page ───────────────────────────────────────────────────────────────
 
-const mockStats: DashboardStats = {
-  meetings_this_month: 12,
-  tasks_generated: 34,
-  hours_saved: 4,
-  whatsapp_connected: true,
-};
+function DashboardPageInner() {
+  const router = useRouter();
+  const { show } = useToast();
 
-const mockMeetings: (Meeting & { task_count: number })[] = [
-  {
-    id: "m1",
-    user_id: "u1",
-    title: "Alinhamento trimestral — Equipe RH",
-    client_name: "Interno",
-    meeting_date: "2026-03-19",
-    audio_r2_key: null,
-    transcript: null,
-    summary_whatsapp: null,
-    summary_json: null,
-    whatsapp_number: "5511999887766",
-    whatsapp_status: "sent",
-    status: "completed",
-    source: "upload",
-    duration_seconds: 2700,
-    cost_usd: 0.12,
-    prompt_version: "v3.0",
-    error_message: null,
-    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    completed_at: new Date(Date.now() - 1.5 * 3600000).toISOString(),
-    task_count: 5,
-  },
-  {
-    id: "m2",
-    user_id: "u1",
-    title: "Revisão contrato — Fernanda Vieira Advocacia",
-    client_name: "Fernanda Vieira",
-    meeting_date: "2026-03-18",
-    audio_r2_key: null,
-    transcript: null,
-    summary_whatsapp: null,
-    summary_json: null,
-    whatsapp_number: "5511988776655",
-    whatsapp_status: "sent",
-    status: "completed",
-    source: "upload",
-    duration_seconds: 1800,
-    cost_usd: 0.08,
-    prompt_version: "v3.0",
-    error_message: null,
-    created_at: new Date(Date.now() - 26 * 3600000).toISOString(),
-    completed_at: new Date(Date.now() - 25 * 3600000).toISOString(),
-    task_count: 3,
-  },
-  {
-    id: "m3",
-    user_id: "u1",
-    title: "Sprint planning — Projeto Nova Plataforma",
-    client_name: "Equipe Dev",
-    meeting_date: "2026-03-17",
-    audio_r2_key: null,
-    transcript: null,
-    summary_whatsapp: null,
-    summary_json: null,
-    whatsapp_number: "5511977665544",
-    whatsapp_status: "sent",
-    status: "completed",
-    source: "chrome_extension",
-    duration_seconds: 3600,
-    cost_usd: 0.15,
-    prompt_version: "v3.0",
-    error_message: null,
-    created_at: new Date(Date.now() - 50 * 3600000).toISOString(),
-    completed_at: new Date(Date.now() - 49 * 3600000).toISOString(),
-    task_count: 8,
-  },
-  {
-    id: "m4",
-    user_id: "u1",
-    title: "Entrevista candidata — Ana Paula Costa",
-    client_name: null,
-    meeting_date: "2026-03-16",
-    audio_r2_key: null,
-    transcript: null,
-    summary_whatsapp: null,
-    summary_json: null,
-    whatsapp_number: "5511999887766",
-    whatsapp_status: "failed",
-    status: "completed",
-    source: "upload",
-    duration_seconds: 2100,
-    cost_usd: 0.09,
-    prompt_version: "v3.0",
-    error_message: null,
-    created_at: new Date(Date.now() - 74 * 3600000).toISOString(),
-    completed_at: new Date(Date.now() - 73 * 3600000).toISOString(),
-    task_count: 2,
-  },
-  {
-    id: "m5",
-    user_id: "u1",
-    title: "Reunião semanal — Diretoria",
-    client_name: "Diretoria",
-    meeting_date: "2026-03-15",
-    audio_r2_key: null,
-    transcript: null,
-    summary_whatsapp: null,
-    summary_json: null,
-    whatsapp_number: "5511999887766",
-    whatsapp_status: "pending",
-    status: "processing",
-    source: "upload",
-    duration_seconds: null,
-    cost_usd: null,
-    prompt_version: null,
-    error_message: null,
-    created_at: new Date(Date.now() - 0.5 * 3600000).toISOString(),
-    completed_at: null,
-    task_count: 0,
-  },
-];
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("");
+  const [plan, setPlan] = useState<"free" | "pro" | "team">("free");
+  const [metrics, setMetrics] = useState<MetricCardProps[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [todayCount, setTodayCount] = useState(0);
 
-// ─── Status badge mapping ──────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
 
-function statusLabel(status: MeetingStatus): string {
-  const map: Record<MeetingStatus, string> = {
-    pending: "Pendente",
-    processing: "Processando",
-    completed: "Concluída",
-    failed: "Erro",
-  };
-  return map[status];
-}
+    async function load() {
+      try {
+        const overview = await fetchDashboardOverview();
+        if (cancelled) return;
 
-function statusVariant(
-  status: MeetingStatus
-): "default" | "processing" | "completed" | "failed" {
-  const map: Record<MeetingStatus, "default" | "processing" | "completed" | "failed"> = {
-    pending: "default",
-    processing: "processing",
-    completed: "completed",
-    failed: "failed",
-  };
-  return map[status];
-}
+        setUserName(overview.userName);
+        setPlan(overview.plan);
+        setTodayCount(overview.todayCount);
+        setMetrics(overview.metrics);
+        setMeetings(overview.meetings);
+        setTasks(overview.tasks);
+      } catch {
+        if (!cancelled) {
+          show("Erro ao carregar dashboard.", "error");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [show]);
 
-// ─── Metric Card ────────────────────────────────────────────────────────────
+  const handleRetry = useCallback(
+    async (id: string) => {
+      show("Reprocessando...", "warning");
+      try {
+        const res = await fetch(`/api/meetings/${id}/retry`, { method: "POST" });
+        if (!res.ok) throw new Error();
+        setMeetings((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, status: "processing" as const } : m))
+        );
+        show("Reunião enviada para reprocessamento.", "success");
+      } catch {
+        show("Erro ao reprocessar. Tente novamente.", "error");
+      }
+    },
+    [show]
+  );
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: React.ReactNode;
-  accent?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-5">
+  const handleViewProcessing = useCallback(
+    (id: string) => {
+      router.push(`/dashboard/meetings/${id}`);
+    },
+    [router]
+  );
+
+  const handleRowClick = useCallback(
+    (id: string) => {
+      router.push(`/dashboard/meetings/${id}`);
+    },
+    [router]
+  );
+
+  const handleToggleTask = useCallback(async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const newCompleted = !task.completed;
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed: newCompleted, isNew: false } : t))
+    );
+    // Update open-task count metric in real time
+    setMetrics((prev) =>
+      prev.map((m) =>
+        m.label === "Tarefas abertas"
+          ? { ...m, value: Math.max(0, (m.value as number) + (newCompleted ? -1 : 1)) }
+          : m
+      )
+    );
+    try {
+      await updateTaskById(id, { completed: newCompleted });
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, completed: task.completed, isNew: task.isNew } : t
+        )
+      );
+      setMetrics((prev) =>
+        prev.map((m) =>
+          m.label === "Tarefas abertas"
+            ? { ...m, value: Math.max(0, (m.value as number) + (newCompleted ? 1 : -1)) }
+            : m
+        )
+      );
+      show("Erro ao atualizar tarefa.", "error");
+    }
+  }, [tasks, show]);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: 240,
+        }}
+      >
         <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-            accent
-              ? "bg-violet-100 text-violet-600"
-              : "bg-gray-100 text-notura-secondary"
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-notura-secondary">{label}</p>
-          <p className="mt-0.5 font-display text-xl font-semibold text-notura-ink">
-            {value}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: "50%",
+            border: "2px solid #6C5CE7",
+            borderTopColor: "transparent",
+            animation: "spin 0.7s linear infinite",
+          }}
+        />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
-// ─── Empty State ────────────────────────────────────────────────────────────
+  const newCount = tasks.filter((t) => t.isNew && !t.completed).length;
 
-function EmptyState() {
   return (
-    <Card className="mt-6">
-      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        {/* CSS illustration */}
-        <div className="relative mb-6">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-violet-100">
-            <FileAudio className="h-10 w-10 text-violet-600" />
+    <>
+      {/* Stagger animation styles */}
+      <style>{`
+        @keyframes fade-slide-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .anim-in {
+          animation: fade-slide-up 0.25s ease-out forwards;
+          opacity: 0;
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="anim-in" style={{ animationDelay: "0ms" }}>
+        <DashboardHeader
+          userName={userName}
+          meetingsProcessedToday={todayCount}
+          onNewMeeting={() => router.push("/dashboard/new")}
+        />
+      </div>
+
+      {/* Main grid */}
+      <div
+        className="mt-6"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          gap: "24px",
+        }}
+      >
+        {/* Two-column layout on large screens */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: "24px",
+            alignItems: "start",
+          }}
+          className="lg:dashboard-grid"
+        >
+          {/* Left column */}
+          <div style={{ minWidth: 0 }}>
+            {/* Metrics row */}
+            <div className="anim-in" style={{ animationDelay: "60ms" }}>
+              <MetricsRow metrics={metrics} />
+            </div>
+
+            {/* Recent meetings table */}
+            <div className="anim-in mt-6" style={{ animationDelay: "120ms" }}>
+              <RecentMeetingsTable
+                meetings={meetings}
+                onViewAll={() => router.push("/dashboard/meetings")}
+                onRetry={handleRetry}
+                onViewProcessing={handleViewProcessing}
+                onRowClick={handleRowClick}
+              />
+            </div>
           </div>
-          <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-notura-primary text-white shadow-md">
-            <Plus className="h-4 w-4" />
+
+          {/* Right sidebar */}
+          <div
+            className="flex flex-col gap-4"
+            style={{ flexShrink: 0 }}
+          >
+            <div className="anim-in" style={{ animationDelay: "80ms" }}>
+              <InsightCard
+                title="Dicas de produtividade"
+                body="Agende suas reuniões mais importantes pela manhã — você terá mais energia e foco para tomar decisões estratégicas."
+              />
+            </div>
+            {plan === "free" && (
+              <div className="anim-in" style={{ animationDelay: "140ms" }}>
+                <UpgradeCard
+                  planName="plano gratuito"
+                  onViewPlans={() => router.push("/pricing")}
+                />
+              </div>
+            )}
+            <div className="anim-in" style={{ animationDelay: "200ms" }}>
+              <TodayTasks
+                tasks={tasks}
+                newCount={newCount}
+                onToggle={handleToggleTask}
+              />
+            </div>
           </div>
         </div>
-        <h3 className="font-display text-lg font-semibold text-notura-ink">
-          Sua primeira reunião está a um clique
-        </h3>
-        <p className="mt-2 max-w-sm text-sm text-notura-secondary">
-          Faça upload de um áudio ou conecte seu Google Meet para começar a
-          receber resumos automáticos no WhatsApp.
-        </p>
-        <Button asChild className="mt-6 gap-2">
-          <Link href="/dashboard/new">
-            <Plus className="h-4 w-4" />
-            Nova Reunião
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Responsive grid style */}
+      <style>{`
+        @media (min-width: 1100px) {
+          .lg\\:dashboard-grid {
+            grid-template-columns: 1fr 320px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .meeting-date-col,
+          .meeting-action-col {
+            display: none !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page export ──────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  // Toggle this to false to see empty state
-  const hasMeetings = mockMeetings.length > 0;
-
   return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-notura-ink">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-notura-secondary">
-            Visão geral das suas reuniões e tarefas
-          </p>
-        </div>
-        <Button asChild className="gap-2">
-          <Link href="/dashboard/new">
-            <Plus className="h-4 w-4" />
-            Nova Reunião
-          </Link>
-        </Button>
-      </div>
-
-      {/* Metric cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          icon={Calendar}
-          label="Reuniões este mês"
-          value={mockStats.meetings_this_month}
-          accent
-        />
-        <MetricCard
-          icon={CheckSquare}
-          label="Tarefas geradas"
-          value={mockStats.tasks_generated}
-        />
-        <MetricCard
-          icon={Clock}
-          label="Horas economizadas"
-          value={`${mockStats.hours_saved}h`}
-        />
-        <MetricCard
-          icon={MessageCircle}
-          label="WhatsApp"
-          value={
-            mockStats.whatsapp_connected ? (
-              <Badge variant="completed">Conectado</Badge>
-            ) : (
-              <Badge variant="default">Desconectado</Badge>
-            )
-          }
-        />
-      </div>
-
-      {/* Meetings list or empty state */}
-      {hasMeetings ? (
-        <div className="mt-8">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold text-notura-ink">
-              Reuniões recentes
-            </h2>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-1 text-sm font-medium text-notura-primary hover:text-notura-primary-dark"
-            >
-              Ver todas
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {mockMeetings.map((meeting) => (
-              <Link key={meeting.id} href={`/dashboard/meetings/${meeting.id}`}>
-                <Card className="transition-shadow hover:shadow-card">
-                  <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    {/* Left: title + meta */}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-notura-ink">
-                        {meeting.title}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-notura-secondary">
-                        <span>{formatRelativeTime(meeting.created_at)}</span>
-                        {meeting.duration_seconds && (
-                          <>
-                            <span className="text-notura-border">·</span>
-                            <span>
-                              {formatDuration(meeting.duration_seconds)}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: badges */}
-                    <div className="flex shrink-0 items-center gap-2">
-                      {meeting.task_count > 0 && (
-                        <Badge variant="default">
-                          {meeting.task_count}{" "}
-                          {meeting.task_count === 1 ? "tarefa" : "tarefas"}
-                        </Badge>
-                      )}
-                      <Badge variant={statusVariant(meeting.status as MeetingStatus)}>
-                        {statusLabel(meeting.status as MeetingStatus)}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <EmptyState />
-      )}
-    </div>
+    <ToastProvider>
+      <DashboardPageInner />
+    </ToastProvider>
   );
 }

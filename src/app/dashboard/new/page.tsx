@@ -1,415 +1,354 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useRef, useCallback } from "react";
-import Link from "next/link";
+import React, { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronRight, FileAudio, CheckCircle, Loader2 } from "lucide-react";
 import {
-  Upload,
-  FileAudio,
-  X,
-  Monitor,
-  Video,
-  ArrowLeft,
-  Chrome,
-  ExternalLink,
-} from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+  DropZone,
+  UploadProgressCard,
+  MeetingForm,
+  PlanBadge,
+  AiInsightTip,
+  ToastProvider,
+  useToast,
+} from "@/components/upload";
+import type { MeetingFormData } from "@/components/upload";
 
-// ─── File size formatter ────────────────────────────────────────────────────
+// ─── XHR upload with progress ────────────────────────────────────────────────
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
-}
-
-const ACCEPTED_TYPES = [
-  "audio/mpeg",
-  "audio/mp4",
-  "audio/x-m4a",
-  "audio/webm",
-  "audio/wav",
-  "audio/ogg",
-  "video/mp4",
-  "video/webm",
-];
-
-const ACCEPTED_EXTENSIONS = ".mp3,.mp4,.m4a,.webm,.wav,.ogg";
-
-// ─── Upload Tab ─────────────────────────────────────────────────────────────
-
-function UploadTab() {
-  const router = useRouter();
-  const [file, setFile] = useState<File | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [meetingDate, setMeetingDate] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped && (ACCEPTED_TYPES.includes(dropped.type) || dropped.name.match(/\.(mp3|mp4|m4a|webm|wav|ogg)$/i))) {
-      setFile(dropped);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragActive(false);
-  }, []);
-
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selected = e.target.files?.[0];
-      if (selected) setFile(selected);
-    },
-    []
-  );
-
-  const handleProcess = useCallback(() => {
-    if (!file) return;
-    setUploading(true);
-    setUploadProgress(0);
-    setUploadError(null);
-
-    const formData = new FormData();
-    formData.append("audio", file);
-    if (clientName.trim()) formData.append("client_name", clientName.trim());
-    if (meetingDate) formData.append("meeting_date", meetingDate);
-    formData.append("whatsapp_number", whatsappNumber.trim());
-
+function uploadWithProgress(
+  formData: FormData,
+  onProgress: (pct: number) => void
+): Promise<string> {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/meetings/upload");
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) {
-        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        onProgress(Math.round((e.loaded / e.total) * 100));
       }
     });
 
     xhr.addEventListener("load", () => {
-      if (xhr.status === 201) {
-        const data = JSON.parse(xhr.responseText) as { meetingId: string };
-        router.push(`/dashboard/meetings/${data.meetingId}`);
-      } else {
-        let message = "Erro ao enviar arquivo. Tente novamente.";
+      if (xhr.status === 201 || xhr.status === 200) {
         try {
-          const data = JSON.parse(xhr.responseText) as { error?: string };
-          if (data.error) message = data.error;
-        } catch { /* ignore */ }
-        setUploadError(message);
-        setUploading(false);
-        setUploadProgress(0);
+          const body = JSON.parse(xhr.responseText) as { meetingId?: string };
+          if (body.meetingId) {
+            resolve(body.meetingId);
+          } else {
+            reject(new Error("Resposta inválida do servidor."));
+          }
+        } catch {
+          reject(new Error("Resposta inválida do servidor."));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText) as { error?: string };
+          reject(new Error(err.error ?? "Erro ao processar. Tente novamente."));
+        } catch {
+          reject(new Error(`Erro ${xhr.status}. Tente novamente.`));
+        }
       }
     });
 
-    xhr.addEventListener("error", () => {
-      setUploadError("Falha de conexão. Verifique sua internet e tente novamente.");
-      setUploading(false);
-      setUploadProgress(0);
-    });
+    xhr.addEventListener("error", () =>
+      reject(new Error("Falha na conexão. Verifique sua internet."))
+    );
+    xhr.addEventListener("abort", () => reject(new Error("Upload cancelado.")));
 
-    xhr.open("POST", "/api/meetings/upload");
     xhr.send(formData);
-  }, [file, clientName, meetingDate, whatsappNumber, router]);
-
-  const removeFile = useCallback(() => {
-    setFile(null);
-    setUploading(false);
-    setUploadProgress(0);
-    setUploadError(null);
-    if (inputRef.current) inputRef.current.value = "";
-  }, []);
-
-  return (
-    <div className="space-y-6">
-      {/* Dropzone */}
-      {!file ? (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => inputRef.current?.click()}
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition-all",
-            dragActive
-              ? "border-violet-400 bg-violet-50"
-              : "border-notura-border bg-gray-50 hover:border-violet-300 hover:bg-violet-50/40"
-          )}
-        >
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-violet-100">
-            <Upload className="h-6 w-6 text-violet-600" />
-          </div>
-          <p className="mt-4 text-sm font-medium text-notura-ink">
-            Arraste o áudio aqui ou clique para escolher
-          </p>
-          <p className="mt-1.5 text-xs text-notura-secondary">
-            MP3, MP4, M4A, WEBM, WAV, OGG — máx. 500MB
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPTED_EXTENSIONS}
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100">
-              <FileAudio className="h-5 w-5 text-violet-600" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-notura-ink">
-                {file.name}
-              </p>
-              <p className="text-xs text-notura-secondary">
-                {formatFileSize(file.size)}
-              </p>
-              {uploading && (
-                <div className="mt-2">
-                  <Progress value={Math.min(uploadProgress, 100)} />
-                  <p className="mt-1 text-xs text-notura-secondary">
-                    {uploadProgress >= 100
-                      ? "Upload concluído — processando..."
-                      : `Enviando... ${Math.round(Math.min(uploadProgress, 100))}%`}
-                  </p>
-                </div>
-              )}
-            </div>
-            {!uploading && (
-              <button
-                onClick={removeFile}
-                className="shrink-0 rounded-md p-1.5 text-notura-secondary hover:bg-gray-100 hover:text-notura-ink"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Form fields */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-            Data
-          </label>
-          <Input
-            type="date"
-            value={meetingDate}
-            onChange={(e) => setMeetingDate(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-            Cliente
-          </label>
-          <Input
-            placeholder="Nome do cliente (opcional)"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-            WhatsApp para entrega
-          </label>
-          <Input
-            placeholder="+55 (11) 99999-9999"
-            value={whatsappNumber}
-            onChange={(e) => setWhatsappNumber(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {uploadError && (
-        <p className="text-sm text-red-500">{uploadError}</p>
-      )}
-
-      <Button
-        onClick={handleProcess}
-        disabled={!file || uploading || !whatsappNumber.trim()}
-        className="w-full gap-2 sm:w-auto"
-      >
-        <Upload className="h-4 w-4" />
-        Processar reunião
-      </Button>
-    </div>
-  );
+  });
 }
 
-// ─── Google Meet Tab ────────────────────────────────────────────────────────
+// ─── Upload progress overlay ─────────────────────────────────────────────────
 
-function GoogleMeetTab() {
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-              <Chrome className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle className="text-base">
-                Instale a extensão Notura para Chrome
-              </CardTitle>
-              <CardDescription>
-                Capture automaticamente suas reuniões no Google Meet
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="secondary" className="gap-2" asChild>
-            <a href="#" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" />
-              Baixar extensão do Chrome
-            </a>
-          </Button>
-
-          <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
-            <span className="text-sm text-notura-secondary">
-              Extensão não detectada
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-dashed">
-        <CardContent className="py-8 text-center">
-          <Monitor className="mx-auto h-8 w-8 text-notura-secondary" />
-          <p className="mt-3 text-sm text-notura-secondary">
-            Após instalar a extensão, suas reuniões do Google Meet aparecerão
-            aqui automaticamente.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+function formatFileSize(bytes: number): string {
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-// ─── Zoom Tab ───────────────────────────────────────────────────────────────
-
-function ZoomTab() {
-  const [zoomUrl, setZoomUrl] = useState("");
+function UploadingOverlay({
+  file,
+  progress,
+}: {
+  file: File;
+  progress: number;
+}) {
+  const isDone = progress >= 100;
 
   const steps = [
-    "Acesse as configurações do Zoom e ative a gravação na nuvem",
-    "Após a reunião, copie o link da gravação no portal do Zoom",
-    'Cole o link abaixo e clique em "Importar gravação"',
+    { label: "Enviando áudio", done: isDone, active: !isDone },
+    { label: "Iniciando transcrição", done: false, active: isDone },
+    { label: "Análise com IA", done: false, active: false },
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-notura-ink">
-          Cole o link da gravação na nuvem do Zoom
-        </label>
-        <Input
-          placeholder="https://zoom.us/rec/share/..."
-          value={zoomUrl}
-          onChange={(e) => setZoomUrl(e.target.value)}
-        />
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-8 rounded-2xl p-10" style={{ border: "1px solid rgb(var(--cn-border))", background: "rgb(var(--cn-card))" }}>
+      {/* Spinning ring */}
+      <div className="relative flex h-20 w-20 items-center justify-center">
+        <svg
+          className="absolute inset-0 h-full w-full -rotate-90"
+          viewBox="0 0 100 100"
+          fill="none"
+        >
+          <circle cx="50" cy="50" r="42" stroke="rgba(58,61,74,0.4)" strokeWidth="5" />
+          <circle
+            cx="50"
+            cy="50"
+            r="42"
+            stroke="url(#uploadGrad)"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeDasharray="263.9"
+            strokeDashoffset={
+              isDone ? 0 : 263.9 - (progress / 100) * 263.9
+            }
+            style={{ transition: "stroke-dashoffset 0.5s ease" }}
+          />
+          <defs>
+            <linearGradient id="uploadGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#6851FF" />
+              <stop offset="100%" stopColor="#8B7AFF" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div
+          className="flex h-12 w-12 items-center justify-center rounded-full"
+          style={{ background: "rgba(104,81,255,0.15)" }}
+        >
+          {isDone ? (
+            <CheckCircle className="h-6 w-6 text-[#4ECB71]" />
+          ) : (
+            <FileAudio className="h-6 w-6 text-[#6851FF]" />
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Como ativar a gravação em nuvem
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-3">
-            {steps.map((step, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">
+      {/* Label */}
+      <div className="text-center">
+        <p className="font-semibold text-white">
+          {isDone ? "Upload concluído" : `Enviando... ${progress}%`}
+        </p>
+        <p className="mt-1 text-sm" style={{ color: "rgb(var(--cn-muted))" }}>
+          {file.name} · {formatFileSize(file.size)}
+        </p>
+      </div>
+
+      {/* Steps */}
+      <div className="flex w-full max-w-xs flex-col gap-2.5">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+              style={{
+                background: step.done
+                  ? "rgba(78,203,113,0.15)"
+                  : step.active
+                  ? "rgba(104,81,255,0.15)"
+                  : "rgba(255,255,255,0.04)",
+              }}
+            >
+              {step.done ? (
+                <CheckCircle className="h-3.5 w-3.5 text-[#4ECB71]" />
+              ) : step.active ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#6851FF]" />
+              ) : (
+                <span
+                  className="text-[10px] font-bold"
+                  style={{ color: "rgb(var(--cn-muted))" }}
+                >
                   {i + 1}
                 </span>
-                <span className="text-sm text-notura-ink leading-relaxed">
-                  {step}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-
-      <Button disabled={!zoomUrl.trim()} className="gap-2">
-        <Video className="h-4 w-4" />
-        Importar gravação
-      </Button>
+              )}
+            </div>
+            <span
+              className="text-sm"
+              style={{
+                color: step.done ? "#4ECB71" : step.active ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))",
+                fontWeight: step.active ? 500 : 400,
+              }}
+            >
+              {step.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Inner page (needs ToastProvider above) ───────────────────────────────────
+
+function UploadPageInner() {
+  const router = useRouter();
+  const { show } = useToast();
+
+  const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
+
+  // ── Simulate file-read progress (cosmetic) ────────────────────────────────
+
+  const startProgress = useCallback(() => {
+    startTimeRef.current = Date.now();
+    setProgress(0);
+    setTimeRemaining("");
+
+    intervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        const increment = Math.random() * 8 + 6; // faster: 1-2s to 100%
+        const next = Math.min(prev + increment, 100);
+
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        const rate = next / elapsed;
+        const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
+        setTimeRemaining(next >= 100 ? "" : `${remaining}s restantes`);
+
+        if (next >= 100 && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return next;
+      });
+    }, 200);
+  }, []);
+
+  const handleFile = useCallback(
+    (f: File) => {
+      setFile(f);
+      startProgress();
+    },
+    [startProgress]
+  );
+
+  const handleRemove = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setFile(null);
+    setProgress(0);
+    setTimeRemaining("");
+  }, []);
+
+  // ── Submit: real XHR upload ───────────────────────────────────────────────
+
+  const handleSubmit = useCallback(
+    async (data: MeetingFormData) => {
+      if (!file) return;
+
+      setIsUploading(true);
+      setUploadPct(0);
+
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("client_name", data.clientName);
+      formData.append("meeting_date", data.meetingDate);
+      formData.append("whatsapp_number", data.whatsappNumber);
+
+      try {
+        const meetingId = await uploadWithProgress(formData, setUploadPct);
+        // Brief pause so user sees 100%
+        await new Promise<void>((r) => setTimeout(r, 600));
+        router.push(`/dashboard/processing?id=${meetingId}`);
+      } catch (err) {
+        show(
+          err instanceof Error ? err.message : "Erro inesperado.",
+          "error"
+        );
+        setIsUploading(false);
+        setUploadPct(0);
+      }
+    },
+    [file, router, show]
+  );
+
+  return (
+    <div className="animate-fade-in min-h-full">
+      {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
+      <nav className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: "rgb(var(--cn-muted))" }}>
+        <Link href="/dashboard" className="transition-colors" style={{ color: "rgb(var(--cn-muted))" }} onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-ink2))")} onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-muted))")}>
+          Dashboard
+        </Link>
+        <ChevronRight className="h-3 w-3" style={{ color: "rgb(var(--cn-border))" }} />
+        <span style={{ color: "rgb(var(--cn-ink2))" }}>Nova Reunião</span>
+      </nav>
+
+      {/* ── Page title ───────────────────────────────────────────────────── */}
+      <h1 className="font-display text-3xl font-extrabold" style={{ color: "rgb(var(--cn-ink))" }}>
+        Iniciar Processamento
+      </h1>
+      <p className="mt-1.5 max-w-lg text-sm" style={{ color: "rgb(var(--cn-ink2))" }}>
+        Transforme sua conversa em inteligência acionável. Envie o áudio e
+        receba o resumo em instantes.
+      </p>
+
+      {/* ── Two-column layout ─────────────────────────────────────────────── */}
+      <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+        {/* Left column */}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {/* PlanBadge (visible on mobile, above dropzone) */}
+          <div className="lg:hidden">
+            <PlanBadge used={7} total={10} />
+          </div>
+
+          {isUploading ? (
+            <UploadingOverlay file={file!} progress={uploadPct} />
+          ) : file ? (
+            <UploadProgressCard
+              file={file}
+              progress={progress}
+              timeRemaining={timeRemaining}
+              onRemove={handleRemove}
+            />
+          ) : (
+            <DropZone
+              onFile={handleFile}
+              onError={(msg) => show(msg, "error")}
+            />
+          )}
+        </div>
+
+        {/* Right column */}
+        {!isUploading && (
+          <div className="flex w-full shrink-0 flex-col gap-4 lg:w-[340px]">
+            {/* PlanBadge (desktop) */}
+            <div className="hidden lg:block">
+              <PlanBadge used={7} total={10} />
+            </div>
+
+            {/* Meeting form */}
+            <div
+              className="rounded-2xl border p-5"
+              style={{ background: "rgb(var(--cn-card))", borderColor: "rgb(var(--cn-border))" }}
+            >
+              <MeetingForm
+                onSubmit={handleSubmit}
+                onValidationError={(msg) => show(msg, "warning")}
+                isSubmitting={false}
+                hasFile={!!file}
+              />
+            </div>
+
+            {/* AI insight tip */}
+            <AiInsightTip />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page export (wraps with ToastProvider) ───────────────────────────────────
 
 export default function NewMeetingPage() {
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/dashboard">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="font-display text-2xl font-bold text-notura-ink">
-            Nova Reunião
-          </h1>
-          <p className="mt-0.5 text-sm text-notura-secondary">
-            Escolha como deseja capturar sua reunião
-          </p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="upload" className="w-full">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="upload" className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload de arquivo
-          </TabsTrigger>
-          <TabsTrigger value="meet" className="gap-2">
-            <Monitor className="h-4 w-4" />
-            Google Meet
-          </TabsTrigger>
-          <TabsTrigger value="zoom" className="gap-2">
-            <Video className="h-4 w-4" />
-            Zoom
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="upload">
-          <UploadTab />
-        </TabsContent>
-
-        <TabsContent value="meet">
-          <GoogleMeetTab />
-        </TabsContent>
-
-        <TabsContent value="zoom">
-          <ZoomTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <ToastProvider>
+      <UploadPageInner />
+    </ToastProvider>
   );
 }

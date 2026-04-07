@@ -9,29 +9,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── New violet design system ─────────────────────────
+        // ── Adaptive design system (CSS-variable based) ────
         notura: {
-          // Primary violet
-          primary: "#7C3AED",
-          "primary-light": "#EDE9FE",
-          "primary-dark": "#5B21B6",
-          accent: "#A78BFA",
-          // Neutral
-          ink: "#1E1B4B",
-          secondary: "#6B7280",
-          muted: "#9CA3AF",
-          surface: "#FFFFFF",
-          bg: "#FAFAFA",
-          border: "#E5E7EB",
-          // Status
-          success: "#10B981",
+          // Brand purple (static)
+          primary: "#6851FF",
+          "primary-light": "#8B7AFF",
+          "primary-dark": "#5740EE",
+          "primary-glow": "rgba(104,81,255,0.3)",
+          secondary: "#BA2BF2",
+          processing: "#E43790",
+          // Adaptive backgrounds
+          bg: "rgb(var(--cn-bg) / <alpha-value>)",
+          "bg-secondary": "rgb(var(--cn-bg2) / <alpha-value>)",
+          surface: "rgb(var(--cn-surface) / <alpha-value>)",
+          "surface-2": "rgb(var(--cn-surface2) / <alpha-value>)",
+          // Adaptive text
+          ink: "rgb(var(--cn-ink) / <alpha-value>)",
+          "ink-secondary": "rgb(var(--cn-ink2) / <alpha-value>)",
+          muted: "rgb(var(--cn-muted) / <alpha-value>)",
+          // Adaptive borders
+          border: "rgb(var(--cn-border) / <alpha-value>)",
+          // Status (static)
+          success: "#22C55E",
           warning: "#F59E0B",
           error: "#EF4444",
-          // Legacy aliases kept for compatibility
-          green: "#10B981",
-          "green-light": "#D1FAE5",
-          "green-dark": "#065F46",
-          white: "#FFFFFF",
         },
         violet: {
           50: "#F5F3FF",
@@ -74,7 +75,7 @@ const config: Config = {
         md: "0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04)",
         lg: "0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)",
         xl: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
-        glow: "0 0 40px rgba(124, 58, 237, 0.15)",
+        glow: "0 0 40px rgba(104, 81, 255, 0.25)",
         // Legacy
         subtle: "0 1px 3px rgba(0,0,0,0.08)",
         card: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",

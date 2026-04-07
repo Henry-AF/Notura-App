@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -14,7 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { fetchMeetingStatus } from "./processing-api";
 
 // ─── Processing steps ─────────────────────────────────────────────────────────
 
@@ -57,6 +57,24 @@ const STEPS: Step[] = [
     minMs: 3000,
   },
 ];
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid #6851FF",
+          borderTopColor: "transparent",
+          animation: "spin 0.7s linear infinite",
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 // ─── Waveform animation ───────────────────────────────────────────────────────
 
@@ -240,7 +258,7 @@ interface MeetingMeta {
   decisionCount: number;
 }
 
-export default function ProcessingPage() {
+function ProcessingPageContent() {
   const router = useRouter();
   const params = useSearchParams();
   const meetingId = params.get("id");
@@ -275,19 +293,14 @@ export default function ProcessingPage() {
   useEffect(() => {
     if (!meetingId || done || failed) return;
 
-    const supabase = createClient();
+    const currentMeetingId = meetingId;
     let cancelled = false;
 
     async function poll() {
       if (cancelled) return;
       try {
-        const { data } = await supabase
-          .from("meetings")
-          .select("status, title, tasks(id), decisions(id)")
-          .eq("id", meetingId as string)
-          .single();
-
-        if (cancelled || !data) return;
+        const data = await fetchMeetingStatus(currentMeetingId);
+        if (cancelled) return;
 
         if (data.status === "completed") {
           // Mark all steps done
@@ -295,12 +308,12 @@ export default function ProcessingPage() {
           setDone(true);
           setMeta({
             title: data.title ?? null,
-            taskCount: Array.isArray(data.tasks) ? data.tasks.length : 0,
-            decisionCount: Array.isArray(data.decisions) ? data.decisions.length : 0,
+            taskCount: data.taskCount,
+            decisionCount: data.decisionCount,
           });
           // Navigate after a short celebration delay
           setTimeout(() => {
-            router.push(`/dashboard/meetings/${meetingId}`);
+            router.push(`/dashboard/meetings/${currentMeetingId}`);
           }, 3000);
         } else if (data.status === "failed") {
           setFailed(true);
@@ -313,7 +326,7 @@ export default function ProcessingPage() {
       }
     }
 
-    poll();
+    void poll();
     const interval = setInterval(poll, 4000);
     return () => {
       cancelled = true;
@@ -528,5 +541,13 @@ export default function ProcessingPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function ProcessingPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <ProcessingPageContent />
+    </Suspense>
   );
 }

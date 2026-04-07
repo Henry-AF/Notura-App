@@ -6,11 +6,14 @@ import Link from "next/link";
 export interface SidebarPlanWidgetProps {
   planName: string;
   used: number;
-  total: number;
+  total: number | null;
 }
 
 export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetProps) {
-  const pct = total > 0 ? Math.min((used / total) * 100, 100) : 0;
+  const pct =
+    typeof total === "number" && total > 0
+      ? Math.min((used / total) * 100, 100)
+      : null;
 
   return (
     <div
@@ -35,25 +38,38 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
       </p>
 
       {/* Progress bar */}
-      <div
-        style={{
-          height: 4,
-          background: "rgb(var(--cn-border))",
-          borderRadius: "999px",
-          overflow: "hidden",
-          marginBottom: "8px",
-        }}
-      >
+      {pct !== null ? (
         <div
           style={{
-            width: `${pct}%`,
-            height: "100%",
-            background: "#6C5CE7",
+            height: 4,
+            background: "rgb(var(--cn-border))",
             borderRadius: "999px",
-            transition: "width 0.4s ease",
+            overflow: "hidden",
+            marginBottom: "8px",
           }}
-        />
-      </div>
+        >
+          <div
+            style={{
+              width: `${pct}%`,
+              height: "100%",
+              background: "#6C5CE7",
+              borderRadius: "999px",
+              transition: "width 0.4s ease",
+            }}
+          />
+        </div>
+      ) : (
+        <p
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontSize: "11px",
+            color: "rgb(var(--cn-ink2))",
+            marginBottom: "8px",
+          }}
+        >
+          Sem limite mensal
+        </p>
+      )}
 
       {/* CTA */}
       <Link

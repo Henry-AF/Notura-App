@@ -9,11 +9,6 @@ import { inngest } from "@/lib/inngest";
 import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
-// Remove the default 4 MB body-size limit so large audio files can be uploaded.
-export const config = {
-  api: { bodyParser: false },
-};
-
 // Allow up to 5 minutes for large uploads on serverless/edge.
 export const maxDuration = 300;
 

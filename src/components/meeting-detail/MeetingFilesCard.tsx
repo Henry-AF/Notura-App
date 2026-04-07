@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileText, Image } from "lucide-react";
+import { FileText, Image as ImageIcon } from "lucide-react";
 
 export interface MeetingFile {
   id: string;
@@ -50,7 +50,7 @@ function FileIcon({ type }: { type: MeetingFile["type"] }) {
           flexShrink: 0,
         }}
       >
-        <Image style={{ width: 14, height: 14, color: "#74C0FC" }} />
+        <ImageIcon style={{ width: 14, height: 14, color: "#74C0FC" }} />
       </div>
     );
   }

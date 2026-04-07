@@ -1,145 +1,134 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-
-const plans = [
-  {
-    name: "Free",
-    price: "R$0",
-    period: "",
-    description: "Para experimentar sem compromisso",
-    features: [
-      "3 reuniões por mês",
-      "Transcrição completa",
-      "Resumo por email",
-      "Exportar PDF",
-    ],
-    cta: "Começar grátis",
-    highlighted: false,
-  },
-  {
-    name: "Pro",
-    price: "R$79",
-    period: "/mês",
-    description: "Para profissionais que vivem de reunião",
-    features: [
-      "30 reuniões por mês",
-      "Entrega via WhatsApp",
-      "Extração de tarefas e prazos",
-      "Integração Zoom",
-      "Suporte prioritário",
-    ],
-    cta: "Assinar Pro",
-    highlighted: true,
-  },
-  {
-    name: "Equipe",
-    price: "R$49",
-    period: "/usuário/mês",
-    description: "Para times que precisam estar alinhados",
-    features: [
-      "Reuniões ilimitadas",
-      "Tudo do Pro",
-      "Dashboard da equipe",
-      "Tarefas compartilhadas",
-      "Relatórios mensais",
-    ],
-    cta: "Falar com vendas",
-    highlighted: false,
-  },
-];
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0 },
-};
 
 export function Pricing() {
   return (
-    <section className="bg-notura-bg px-4 py-24 sm:px-6 lg:px-8" id="pricing">
-      <div className="mx-auto max-w-5xl">
-        <motion.h2
-          className="text-center font-display text-3xl font-bold text-notura-ink sm:text-4xl"
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.5 }}
-        >
-          Planos simples, sem surpresas
-        </motion.h2>
-        <motion.p
-          className="mx-auto mt-3 max-w-lg text-center text-notura-secondary"
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-        >
-          Comece grátis e faça upgrade quando precisar.
-        </motion.p>
-
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {plans.map((plan, i) => (
-            <motion.div
-              key={plan.name}
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ delay: i * 0.12, duration: 0.5 }}
+    <section className="py-24 bg-surface-container-low" id="precos">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl font-bold mb-4 text-on-surface">
+            Planos que crescem com você
+          </h2>
+          <p className="text-on-surface-variant">
+            Comece grátis e escale quando precisar.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          {/* Starter */}
+          <div className="bg-surface-container-lowest p-10 rounded-3xl border border-outline-variant/10 flex flex-col">
+            <h3 className="text-xl font-bold mb-2 text-on-surface">Starter</h3>
+            <div className="flex items-baseline gap-1 mb-6">
+              <span className="text-4xl font-black text-on-surface">R$ 0</span>
+              <span className="text-on-surface-variant">/mês</span>
+            </div>
+            <ul className="space-y-4 mb-10 flex-1">
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                3 reuniões / mês
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Transcrição com IA
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface-variant/60">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Extração de Tarefas
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface-variant/60">
+                <span className="material-symbols-outlined text-lg">close</span>
+                Integração WhatsApp
+              </li>
+              
+            </ul>
+            <Link
+              href="/signup"
+              className="w-full py-3 rounded-full border-2 border-outline-variant font-bold hover:bg-surface-container transition-all text-center text-on-surface"
             >
-              <Card
-                className={cn(
-                  "relative h-full flex flex-col",
-                  plan.highlighted &&
-                    "border-violet-400 shadow-glow ring-1 ring-violet-200"
-                )}
-              >
-                {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-notura-primary px-3 py-0.5 text-xs font-semibold text-white whitespace-nowrap">
-                    Mais popular
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle className="text-base">{plan.name}</CardTitle>
-                  <div className="mt-2 flex items-baseline gap-1">
-                    <span className="font-display text-3xl font-bold text-notura-ink">
-                      {plan.price}
-                    </span>
-                    {plan.period && (
-                      <span className="text-sm text-notura-secondary">{plan.period}</span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-notura-secondary">{plan.description}</p>
-                </CardHeader>
-                <CardContent className="flex flex-1 flex-col">
-                  <ul className="flex-1 space-y-2.5">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm text-notura-ink">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    variant={plan.highlighted ? "default" : "secondary"}
-                    className="mt-6 w-full"
-                    asChild
-                  >
-                    <Link href="/signup">{plan.cta}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+              Começar Grátis
+            </Link>
+          </div>
+
+          {/* Pro */}
+          <div className="bg-primary text-on-primary p-10 rounded-3xl shadow-2xl scale-105 relative z-10 flex flex-col">
+            <div className="absolute top-4 right-6 bg-tertiary-fixed text-on-tertiary-fixed text-[10px] font-bold px-2 py-1 rounded">
+              POPULAR
+            </div>
+            <h3 className="text-xl font-bold mb-2">Pro</h3>
+            <div className="flex items-baseline gap-1 mb-6">
+              <span className="text-4xl font-black">R$ 59</span>
+              <span className="text-on-primary/80">/mês</span>
+            </div>
+            <ul className="space-y-4 mb-10 flex-1">
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                30 Reuniões / mês
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Transcrição com IA
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Resumo via WhatsApp
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Tarefas e Decisões
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Exportação em PDF
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <span className="material-symbols-outlined text-lg">check</span>
+                Suporte Prioritário
+              </li>
+            </ul>
+            <Link
+              href="/signup"
+              className="w-full py-4 rounded-full bg-white text-primary font-black shadow-lg hover:opacity-90 transition-all text-center"
+            >
+              Assinar Agora
+            </Link>
+          </div>
+
+          {/* Enterprise */}
+          <div className="bg-surface-container-lowest p-10 rounded-3xl border border-outline-variant/10 flex flex-col">
+            <h3 className="text-xl font-bold mb-2 text-on-surface">Enterprise</h3>
+            <div className="flex items-baseline gap-1 mb-6">
+              <span className="text-4xl font-black">R$ 99</span>
+              <span className="text-on-primary/80">/mês</span>
+            </div>
+            <ul className="space-y-4 mb-10 flex-1">
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Reuniões Ilimitadas
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Todos os recursos do plano Pro
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Múltiliplos usuários e equipes
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Dashboards
+              </li>
+              <li className="flex items-center gap-3 text-sm text-on-surface">
+                <span className="material-symbols-outlined text-primary text-lg">check</span>
+                Integrações
+              </li>
+            </ul>
+            <button className="w-full py-3 rounded-full border-2 border-outline-variant font-bold hover:bg-surface-container transition-all text-on-surface">
+              Falar com Vendas
+            </button>
+          </div>
         </div>
       </div>
     </section>
   );
 }
+

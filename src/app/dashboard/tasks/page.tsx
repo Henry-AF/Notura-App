@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KanbanBoard, TasksPageHeader, TaskEditModal } from "@/components/tasks";
 import { useKanban } from "@/hooks/useKanban";
 import type { Column, Task } from "@/components/tasks";
@@ -181,11 +181,13 @@ function TasksTable({ columns }: { columns: Column[] }) {
 function TasksBoardContent({
   initialColumns,
   meetings,
+  onRegisterAddTask,
 }: {
   initialColumns: Column[];
   meetings: TaskMeetingOption[];
+  onRegisterAddTask?: (fn: (columnId: string) => void) => void;
 }) {
-  const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn } =
+  const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn, renameColumn } =
     useKanban(initialColumns);
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -197,7 +199,14 @@ function TasksBoardContent({
 
   const handleDragEndWithPersist = useCallback(
     async (result: DropResult) => {
-      const { destination, source } = result;
+      const { destination, source, type } = result;
+
+      // Column reorder — no API persistence needed
+      if (type === "COLUMN") {
+        handleDragEnd(result);
+        return;
+      }
+
       const srcColumn = columns.find((c) => c.id === source.droppableId);
       const movedTask = srcColumn?.tasks[source.index];
 
@@ -212,6 +221,12 @@ function TasksBoardContent({
     },
     [handleDragEnd, columns]
   );
+
+  // Register handleAddTask so parent's "Nova Tarefa" button can call it
+  useEffect(() => {
+    onRegisterAddTask?.(handleAddTask);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterAddTask]);
 
   function handleAddTask(columnId: string) {
     setDraftColumnId(columnId);
@@ -283,6 +298,7 @@ function TasksBoardContent({
         onEditTask={(task) => setEditingTask(task)}
         onDeleteColumn={removeColumn}
         onAddColumn={addColumn}
+        onRenameColumn={renameColumn}
       />
 
       {editingTask && (
@@ -305,6 +321,7 @@ export default function TasksPage() {
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [initialColumns, setInitialColumns] = useState<Column[] | null>(null);
   const [meetings, setMeetings] = useState<TaskMeetingOption[]>([]);
+  const addTaskFnRef = useRef<((columnId: string) => void) | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -327,10 +344,14 @@ export default function TasksPage() {
       <TasksPageHeader
         view={view}
         onViewChange={setView}
-        onNewTask={() => {}}
+        onNewTask={() => addTaskFnRef.current?.("todo")}
       />
       {view === "kanban" ? (
-        <TasksBoardContent initialColumns={initialColumns} meetings={meetings} />
+        <TasksBoardContent
+          initialColumns={initialColumns}
+          meetings={meetings}
+          onRegisterAddTask={(fn) => { addTaskFnRef.current = fn; }}
+        />
       ) : (
         <TasksTable columns={initialColumns} />
       )}

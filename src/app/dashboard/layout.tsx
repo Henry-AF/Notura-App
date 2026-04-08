@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/client";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ThemeProvider } from "@/lib/theme-context";
+import { fetchCurrentUser } from "./settings/settings-api";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
@@ -33,13 +34,26 @@ const navItems = [
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];
 
+type DashboardShellUser = {
+  name: string;
+  plan: "free" | "pro" | "team";
+  meetingsThisMonth: number;
+  monthlyLimit: number | null;
+};
+
+function getPlanLabel(plan: DashboardShellUser["plan"]) {
+  if (plan === "pro") return "Plano Pro";
+  if (plan === "team") return "Plano Team";
+  return "Plano Gratuito";
+}
+
 // ─── User profile dropdown ────────────────────────────────────────────────────
 
 function UserDropdown({
   user,
   onClose,
 }: {
-  user: { name: string; plan: string };
+  user: DashboardShellUser;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -99,7 +113,7 @@ function UserDropdown({
             {user.name || "Usuário"}
           </p>
           <p className="text-[11px] text-notura-ink-secondary capitalize">
-            {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+            {getPlanLabel(user.plan)}
           </p>
         </div>
       </div>
@@ -142,7 +156,7 @@ function SidebarContent({
   onUpgradeClick,
 }: {
   onNavigate?: () => void;
-  user: { name: string; plan: string };
+  user: DashboardShellUser;
   onUpgradeClick: () => void;
 }) {
   const pathname = usePathname();
@@ -205,9 +219,9 @@ function SidebarContent({
       <div className="px-4 pb-4 pt-3 space-y-3">
         {/* Plan usage widget */}
         <SidebarPlanWidget
-          planName={user.plan === "pro" ? "Plano Pro" : "Plano Gratuito"}
-          used={3}
-          total={10}
+          planName={getPlanLabel(user.plan)}
+          used={user.meetingsThisMonth}
+          total={user.monthlyLimit}
         />
 
         {/* Upgrade nudge */}
@@ -244,7 +258,7 @@ function SidebarContent({
                 {user.name || "Usuário"}
               </p>
               <p className="text-[11px] text-notura-ink-secondary capitalize">
-                {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+                {getPlanLabel(user.plan)}
               </p>
             </div>
           </button>
@@ -266,32 +280,40 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState({ name: "", plan: "free" });
+  const [user, setUser] = useState<DashboardShellUser>({
+    name: "",
+    plan: "free",
+    meetingsThisMonth: 0,
+    monthlyLimit: 3,
+  });
   const [showPlanModal, setShowPlanModal] = useState(false);
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      if (!authUser) return;
-      Promise.all([
-        supabase
-          .from("profiles")
-          .select("name")
-          .eq("id", authUser.id)
-          .single(),
-        supabase
-          .from("billing_accounts")
-          .select("plan")
-          .eq("user_id", authUser.id)
-          .maybeSingle(),
-      ]).then(([profileRes, billingRes]) => {
-        setUser({
-          name: profileRes.data?.name ?? authUser.email ?? "",
-          plan: (billingRes.data?.plan ?? "free") as string,
-        });
+  const loadUser = useCallback(async () => {
+    try {
+      const currentUser = await fetchCurrentUser();
+      setUser({
+        name: currentUser.name || currentUser.email || "",
+        plan: currentUser.plan,
+        meetingsThisMonth: currentUser.meetingsThisMonth,
+        monthlyLimit: currentUser.monthlyLimit,
       });
-    });
+    } catch {
+      // ignore sidebar refresh failures
+    }
   }, []);
+
+  useEffect(() => {
+    void loadUser();
+
+    const handleUserUpdated = () => {
+      void loadUser();
+    };
+
+    window.addEventListener("notura:user-updated", handleUserUpdated);
+    return () => {
+      window.removeEventListener("notura:user-updated", handleUserUpdated);
+    };
+  }, [loadUser]);
 
   return (
     <ThemeProvider>

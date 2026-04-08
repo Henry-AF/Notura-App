@@ -3,32 +3,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
 import type { MeetingWithRelations } from "@/types/database";
 
-export async function GET(
+export const GET = withAuth<{ id: string }, NextRequest>(async (
   _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  { params, auth }
+) => {
+  const meetingId = params.id;
+  await requireOwnership(auth.supabaseAdmin, "meetings", meetingId, auth.user.id);
+
   try {
-    const meetingId = params.id;
-
-    // ── Auth ──────────────────────────────────────────────────────────────
-    const supabaseAuth = createServerSupabase();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Não autenticado." },
-        { status: 401 }
-      );
-    }
-
     // ── Fetch meeting ────────────────────────────────────────────────────
-    const supabase = createServiceRoleClient();
+    const supabase = auth.supabaseAdmin;
 
     const { data: meeting, error: meetingError } = await supabase
       .from("meetings")
@@ -38,15 +25,7 @@ export async function GET(
 
     if (meetingError || !meeting) {
       return NextResponse.json(
-        { error: "Reunião não encontrada." },
-        { status: 404 }
-      );
-    }
-
-    // ── Authorization: verify ownership ──────────────────────────────────
-    if (meeting.user_id !== user.id) {
-      return NextResponse.json(
-        { error: "Você não tem permissão para acessar esta reunião." },
+        { error: "Acesso negado." },
         { status: 403 }
       );
     }
@@ -85,4 +64,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

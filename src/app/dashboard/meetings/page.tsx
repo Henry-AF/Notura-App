@@ -310,15 +310,15 @@ export default function MeetingsPage() {
             display: "flex",
             alignItems: "center",
             gap: 8,
-            background: "#1C1C1C",
-            border: "1px solid #2E2E2E",
+            background: "rgb(var(--cn-input-bg))",
+            border: "1px solid rgb(var(--cn-input-border))",
             borderRadius: "10px",
             padding: "10px 14px",
             flex: "1 1 260px",
             maxWidth: 400,
           }}
         >
-          <Search style={{ width: 15, height: 15, color: "#606060", flexShrink: 0 }} />
+          <Search style={{ width: 15, height: 15, color: "rgb(var(--cn-muted))", flexShrink: 0 }} />
           <input
             type="text"
             placeholder="Buscar por cliente ou título..."
@@ -330,7 +330,7 @@ export default function MeetingsPage() {
               outline: "none",
               fontFamily: "Inter, sans-serif",
               fontSize: "14px",
-              color: "#FFFFFF",
+              color: "rgb(var(--cn-ink))",
               width: "100%",
             }}
           />
@@ -340,7 +340,7 @@ export default function MeetingsPage() {
               onClick={() => setSearch("")}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}
             >
-              <X style={{ width: 14, height: 14, color: "#606060" }} />
+              <X style={{ width: 14, height: 14, color: "rgb(var(--cn-muted))" }} />
             </button>
           )}
         </div>

@@ -52,7 +52,12 @@ export async function PATCH(
   if (typeof data.priority === "string") updatePayload.priority = toDatabasePriority(data.priority);
   if (typeof data.owner === "string" || data.owner === null) updatePayload.owner = data.owner;
   if (typeof data.due_date === "string" || data.due_date === null) updatePayload.due_date = data.due_date;
-  if (typeof data.completed === "boolean") {
+  if (typeof data.kanban_status === "string") {
+    // Derive completed from kanban_status; kanban_status column not yet in DB (pending migration 007)
+    const isDone = data.kanban_status === "done";
+    updatePayload.completed = isDone;
+    updatePayload.completed_at = isDone ? new Date().toISOString() : null;
+  } else if (typeof data.completed === "boolean") {
     updatePayload.completed = data.completed;
     updatePayload.completed_at = data.completed ? new Date().toISOString() : null;
   }

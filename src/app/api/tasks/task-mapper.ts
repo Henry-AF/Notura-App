@@ -3,6 +3,7 @@ import type { Database } from "@/types/database";
 
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"] & {
   meetings?: { title: string | null; client_name: string | null } | null;
+  kanban_status?: string | null;
 };
 
 const COLUMN_DEFS: Omit<Column, "tasks">[] = [
@@ -55,7 +56,7 @@ export function mapTaskRowToBoardTask(task: TaskRow): Task {
     id: task.id,
     title: task.description,
     priority: normalizeTaskPriority(task.priority),
-    columnId: task.completed ? "done" : "todo",
+    columnId: task.kanban_status ?? (task.completed ? "done" : "todo"),
     meetingId: task.meeting_id,
     dueDate: task.due_date ?? undefined,
     completedDate: task.completed_at
@@ -72,14 +73,21 @@ export function mapTaskRowToBoardTask(task: TaskRow): Task {
 }
 
 export function buildTaskColumns(tasks: TaskRow[]): Column[] {
-  const todoTasks = tasks.filter((task) => !task.completed).map(mapTaskRowToBoardTask);
-  const doneTasks = tasks.filter((task) => task.completed).map(mapTaskRowToBoardTask);
+  const validIds = new Set(COLUMN_DEFS.map((c) => c.id));
+  const colMap = new Map<string, Task[]>();
 
-  return [
-    { ...COLUMN_DEFS[0], tasks: todoTasks },
-    { ...COLUMN_DEFS[1], tasks: [] },
-    { ...COLUMN_DEFS[2], tasks: doneTasks },
-  ];
+  for (const task of tasks) {
+    const colId = task.kanban_status ?? (task.completed ? "done" : "todo");
+    const key = validIds.has(colId) ? colId : "todo";
+    const existing = colMap.get(key) ?? [];
+    existing.push(mapTaskRowToBoardTask(task));
+    colMap.set(key, existing);
+  }
+
+  return COLUMN_DEFS.map((def) => ({
+    ...def,
+    tasks: colMap.get(def.id) ?? [],
+  }));
 }
 
 export function buildTaskMeetingOptions(

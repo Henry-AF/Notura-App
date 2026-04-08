@@ -375,6 +375,12 @@ describe("fetchMeetingDetail", () => {
 - **Maximum cyclomatic complexity: 10.** Deeply nested conditionals must be refactored.
 - **Prefer small, composable functions** over large monolithic ones. Each function should
   do one thing and do it well.
+- These limits also apply to `tsx` component functions. A large screen is not an exception
+  to become monolithic: page components may compose multiple visual sections, but state,
+  fetch orchestration, data mapping, event handlers and heavy JSX blocks should be extracted
+  into named helpers or subcomponents as the page grows.
+- A `page.tsx` may still be longer than a small helper if it is mostly declarative composition,
+  but if the page function itself starts accumulating multiple responsibilities, break it up.
 
 ```typescript
 // ❌ AVOID — one large function doing everything

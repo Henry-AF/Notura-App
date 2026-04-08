@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Droppable } from "@hello-pangea/dnd";
+import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 import { TaskCard } from "./TaskCard";
 import type { Task } from "./TaskCard";
 
@@ -19,7 +20,9 @@ export interface KanbanColumnProps {
   onAddTask: (columnId: string) => void;
   onEditTask: (task: Task) => void;
   onDeleteColumn: (columnId: string) => void;
+  onRenameColumn?: (columnId: string, newTitle: string) => void;
   canDelete?: boolean;
+  dragHandleProps?: DraggableProvidedDragHandleProps | null;
 }
 
 export function KanbanColumn({
@@ -27,10 +30,38 @@ export function KanbanColumn({
   onAddTask,
   onEditTask,
   onDeleteColumn,
+  onRenameColumn,
   canDelete = true,
+  dragHandleProps,
 }: KanbanColumnProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(column.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingTitle) titleInputRef.current?.focus();
+  }, [editingTitle]);
+
+  function handleStartRename() {
+    setTitleDraft(column.title);
+    setEditingTitle(true);
+    setShowMenu(false);
+  }
+
+  function handleCommitRename() {
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== column.title) {
+      onRenameColumn?.(column.id, trimmed);
+    }
+    setEditingTitle(false);
+  }
+
+  function handleRenameKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handleCommitRename();
+    if (e.key === "Escape") setEditingTitle(false);
+  }
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
@@ -80,27 +111,53 @@ export function KanbanColumn({
           marginBottom: 12,
           padding: "0 2px",
         }}
+        {...(dragHandleProps ?? {})}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
           <div
             style={{
               width: 8,
               height: 8,
               borderRadius: "50%",
               background: column.dotColor,
+              flexShrink: 0,
             }}
           />
-          <span
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontWeight: 600,
-              fontSize: 13,
-              color: "rgb(var(--cn-ink2))",
-              letterSpacing: "0.03em",
-            }}
-          >
-            {column.title}
-          </span>
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={handleRenameKeyDown}
+              onBlur={handleCommitRename}
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                fontSize: 13,
+                color: "rgb(var(--cn-ink))",
+                background: "rgb(var(--cn-input-bg))",
+                border: "1px solid #6C5CE7",
+                borderRadius: 6,
+                padding: "2px 6px",
+                width: "100%",
+                outline: "none",
+              }}
+            />
+          ) : (
+            <span
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                fontSize: 13,
+                color: "rgb(var(--cn-ink2))",
+                letterSpacing: "0.03em",
+                cursor: dragHandleProps ? "grab" : "default",
+              }}
+            >
+              {column.title}
+            </span>
+          )}
           <span
             style={{
               fontFamily: "Inter, sans-serif",
@@ -198,30 +255,56 @@ export function KanbanColumn({
                   }}
                 >
                   {!confirmDelete ? (
-                    <button
-                      onClick={handleDeleteClick}
-                      style={{
-                        width: "100%",
-                        padding: "8px 10px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: "transparent",
-                        color: "#FF6B6B",
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 13,
-                        textAlign: "left",
-                        cursor: "pointer",
-                        transition: "background 0.15s",
-                      }}
-                      onMouseEnter={(e) =>
-                        ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,107,107,0.1)")
-                      }
-                      onMouseLeave={(e) =>
-                        ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
-                      }
-                    >
-                      Excluir coluna
-                    </button>
+                    <>
+                      <button
+                        onClick={handleStartRename}
+                        style={{
+                          width: "100%",
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: "transparent",
+                          color: "rgb(var(--cn-ink2))",
+                          fontFamily: "Inter, sans-serif",
+                          fontSize: 13,
+                          textAlign: "left",
+                          cursor: "pointer",
+                          transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(e) =>
+                          ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")
+                        }
+                        onMouseLeave={(e) =>
+                          ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+                        }
+                      >
+                        Renomear coluna
+                      </button>
+                      <button
+                        onClick={handleDeleteClick}
+                        style={{
+                          width: "100%",
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: "transparent",
+                          color: "#FF6B6B",
+                          fontFamily: "Inter, sans-serif",
+                          fontSize: 13,
+                          textAlign: "left",
+                          cursor: "pointer",
+                          transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(e) =>
+                          ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,107,107,0.1)")
+                        }
+                        onMouseLeave={(e) =>
+                          ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+                        }
+                      >
+                        Excluir coluna
+                      </button>
+                    </>
                   ) : (
                     <div style={{ padding: "4px 2px" }}>
                       <p

@@ -371,8 +371,8 @@ describe("fetchMeetingDetail", () => {
 
 ## Code Quality Rules
 
-- **Maximum function length: 50 lines.** If a function exceeds this, extract a named helper.
-- **Maximum cyclomatic complexity: 8.** Deeply nested conditionals must be refactored.
+- **Maximum function length: 80 lines.** If a function exceeds this, extract a named helper.
+- **Maximum cyclomatic complexity: 10.** Deeply nested conditionals must be refactored.
 - **Prefer small, composable functions** over large monolithic ones. Each function should
   do one thing and do it well.
 
@@ -462,7 +462,7 @@ Before writing any code, verify:
 - [ ] Is this an insert into `tasks`, `decisions` or `open_items`? → `upsert` with `dedupe_key`
 - [ ] Does this interact with an external library? → Must live in or import from `lib/`
 - [ ] Does a `lib/` helper already exist for this? → Use it, do not rewrite it
-- [ ] Is any function longer than 50 lines? → Extract named helpers
+- [ ] Is any function longer than 80 lines? → Extract named helpers
 - [ ] Is there optional chaining on a non-nullable type? → Remove it
 - [ ] Is there a null check on a value the type guarantees exists? → Remove it
 - [ ] Is this a new page? → Create `page-name-api.ts` and `page-name-api.test.ts` alongside it

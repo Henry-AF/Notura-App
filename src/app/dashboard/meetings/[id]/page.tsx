@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MeetingBreadcrumb,
@@ -16,9 +16,15 @@ import {
   AIFloatingButton,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask, MeetingFile } from "@/components/meeting-detail";
+import { KanbanBoard } from "@/components/tasks";
+import type { DropResult } from "@hello-pangea/dnd";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
 import { updateTaskById } from "@/app/dashboard/tasks/tasks-api";
 import { fetchMeetingDetail } from "./meeting-api";
+import {
+  buildMeetingTaskColumns,
+  setMeetingTaskCompletion,
+} from "./meeting-task-kanban";
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
@@ -170,6 +176,7 @@ function MeetingDetailInner({ id }: { id: string }) {
   const [insightMessage, setInsightMessage] = useState("");
 
   const [activeTab, setActiveTab] = useState<MeetingTab>("summary");
+  const taskColumns = useMemo(() => buildMeetingTaskColumns(tasks), [tasks]);
 
   // ─── Decisions & open items for tabs ─────────────────────────────────────
   const [decisions, setDecisions] = useState<Array<{ id: string; description: string; decided_by: string | null; confidence: string }>>([]);
@@ -219,19 +226,7 @@ function MeetingDetailInner({ id }: { id: string }) {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const newCompleted = !task.completed;
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                completed: newCompleted,
-                completedLabel: newCompleted
-                  ? `Concluído ${new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`
-                  : undefined,
-              }
-            : t
-        )
-      );
+      setTasks((prev) => setMeetingTaskCompletion(prev, taskId, newCompleted));
       try {
         await updateTaskById(taskId, { completed: newCompleted });
       } catch {
@@ -240,6 +235,39 @@ function MeetingDetailInner({ id }: { id: string }) {
       }
     },
     [tasks, show]
+  );
+
+  const handleTaskBoardDragEnd = useCallback(
+    async (result: DropResult) => {
+      const { source, destination, type } = result;
+      if (!destination || type === "COLUMN") return;
+      if (
+        source.droppableId === destination.droppableId &&
+        source.index === destination.index
+      ) {
+        return;
+      }
+
+      const sourceColumn = taskColumns.find((column) => column.id === source.droppableId);
+      const movedTask = sourceColumn?.tasks[source.index];
+      if (!movedTask) return;
+
+      const task = tasks.find((item) => item.id === movedTask.id);
+      if (!task) return;
+
+      const newCompleted = destination.droppableId === "done";
+      if (task.completed === newCompleted) return;
+
+      setTasks((prev) => setMeetingTaskCompletion(prev, movedTask.id, newCompleted));
+
+      try {
+        await updateTaskById(movedTask.id, { completed: newCompleted });
+      } catch {
+        setTasks((prev) => prev.map((item) => (item.id === task.id ? task : item)));
+        show("Erro ao atualizar tarefa.", "error");
+      }
+    },
+    [show, taskColumns, tasks]
   );
 
   const handleShare = useCallback(() => {
@@ -362,59 +390,17 @@ function MeetingDetailInner({ id }: { id: string }) {
             >
               Tarefas ({tasks.length})
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {tasks.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 10,
-                    padding: "10px 14px",
-                    background: "rgb(var(--cn-bg))",
-                    borderRadius: 8,
-                    border: "1px solid rgb(var(--cn-border))",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => handleToggleTask(t.id)}
-                >
-                  <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: 4,
-                      border: `2px solid ${t.completed ? "#6C5CE7" : "rgb(var(--cn-input-border))"}`,
-                      background: t.completed ? "#6C5CE7" : "transparent",
-                      flexShrink: 0,
-                      marginTop: 1,
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p
-                      style={{
-                        fontSize: 13,
-                        color: t.completed ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
-                        margin: 0,
-                        textDecoration: t.completed ? "line-through" : "none",
-                      }}
-                    >
-                      {t.text}
-                    </p>
-                    {(t.assignee || t.dueDate) && (
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: "rgb(var(--cn-muted))",
-                          margin: "4px 0 0",
-                        }}
-                      >
-                        {[t.assignee, t.dueDate].filter(Boolean).join(" · ")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <KanbanBoard
+              columns={taskColumns}
+              onDragEnd={handleTaskBoardDragEnd}
+              onAddTask={() => show("Criação de tarefas em breve.", "warning")}
+              onEditTask={(task) => {
+                void handleToggleTask(task.id);
+              }}
+              onDeleteColumn={() => {}}
+              onAddColumn={() => {}}
+              allowColumnManagement={false}
+            />
           </div>
         ) : (
           <ComingSoon label="Tarefas" />

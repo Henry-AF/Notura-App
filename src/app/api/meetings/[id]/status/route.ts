@@ -1,39 +1,24 @@
 import { NextResponse } from "next/server";
-import {
-  createServerSupabase,
-  createServiceRoleClient,
-} from "@/lib/supabase/server";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
 
-export async function GET(
+export const GET = withAuth<{ id: string }>(async (
   _request: Request,
-  { params }: { params: { id: string } }
-) {
-  const supabaseAuth = createServerSupabase();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseAuth.auth.getUser();
+  { params, auth }
+) => {
+  const supabase = auth.supabaseAdmin;
+  await requireOwnership(supabase, "meetings", params.id, auth.user.id);
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
-  const supabase = createServiceRoleClient();
   const { data: meeting, error: meetingError } = await supabase
     .from("meetings")
-    .select("id, title, status, user_id")
+    .select("id, title, status")
     .eq("id", params.id)
     .single();
 
   if (meetingError || !meeting) {
     return NextResponse.json(
-      { error: "Reunião não encontrada." },
-      { status: 404 }
+      { error: "Acesso negado." },
+      { status: 403 }
     );
-  }
-
-  if (meeting.user_id !== user.id) {
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
   const [tasksResult, decisionsResult] = await Promise.all([
@@ -65,4 +50,4 @@ export async function GET(
     taskCount: tasksResult.count ?? 0,
     decisionCount: decisionsResult.count ?? 0,
   });
-}
+});

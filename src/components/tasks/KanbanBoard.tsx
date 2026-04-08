@@ -16,6 +16,7 @@ export interface KanbanBoardProps {
   onDeleteColumn: (columnId: string) => void;
   onAddColumn: (title: string) => void;
   onRenameColumn?: (columnId: string, newTitle: string) => void;
+  allowColumnManagement?: boolean;
 }
 
 export function KanbanBoard({
@@ -26,6 +27,7 @@ export function KanbanBoard({
   onDeleteColumn,
   onAddColumn,
   onRenameColumn,
+  allowColumnManagement = true,
 }: KanbanBoardProps) {
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState("");
@@ -96,7 +98,7 @@ export function KanbanBoard({
                           onEditTask={onEditTask}
                           onDeleteColumn={onDeleteColumn}
                           onRenameColumn={onRenameColumn}
-                          canDelete={true}
+                          canDelete={allowColumnManagement}
                           dragHandleProps={draggableProvided.dragHandleProps}
                         />
                       </div>
@@ -109,7 +111,7 @@ export function KanbanBoard({
           </Droppable>
 
           {/* Add column */}
-          {addingColumn ? (
+          {allowColumnManagement && addingColumn ? (
             <div
               style={{
                 width: 300,
@@ -219,7 +221,7 @@ export function KanbanBoard({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : allowColumnManagement ? (
             <button
               type="button"
               onClick={() => setAddingColumn(true)}
@@ -258,7 +260,7 @@ export function KanbanBoard({
               <Plus style={{ width: 16, height: 16 }} />
               Nova coluna
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </DragDropContext>

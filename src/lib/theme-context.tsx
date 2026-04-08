@@ -32,7 +32,7 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 /**
  * Returns a CSS color value that adapts to the current theme.
- * dark value is used when data-theme="dark" (or not set), light when "light".
+ * light value is used by default (no data-theme), dark when data-theme="dark".
  *
  * Components with inline styles should call useThemeColor() or just use the
  * pre-built THEME_COLORS map.

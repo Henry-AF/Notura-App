@@ -18,15 +18,26 @@ const COLUMN_COLORS = [
 export function useKanban(initialColumns: Column[]) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
 
-  // Drag & drop
+  // Drag & drop (tasks and columns)
   const handleDragEnd = useCallback((result: DropResult) => {
-    const { source, destination } = result;
+    const { source, destination, type } = result;
     if (!destination) return;
     if (
       source.droppableId === destination.droppableId &&
       source.index === destination.index
     )
       return;
+
+    // Column reorder
+    if (type === "COLUMN") {
+      setColumns((prev) => {
+        const next = [...prev];
+        const [removed] = next.splice(source.index, 1);
+        next.splice(destination.index, 0, removed);
+        return next;
+      });
+      return;
+    }
 
     setColumns((prev) => {
       const next = prev.map((col) => ({ ...col, tasks: [...col.tasks] }));
@@ -104,5 +115,24 @@ export function useKanban(initialColumns: Column[]) {
     setColumns((prev) => prev.filter((c) => c.id !== columnId));
   }, []);
 
-  return { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn };
+  // Rename column
+  const renameColumn = useCallback((columnId: string, newTitle: string) => {
+    setColumns((prev) =>
+      prev.map((col) =>
+        col.id === columnId ? { ...col, title: newTitle } : col
+      )
+    );
+  }, []);
+
+  // Move column (drag & drop)
+  const moveColumn = useCallback((fromIndex: number, toIndex: number) => {
+    setColumns((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, removed);
+      return next;
+    });
+  }, []);
+
+  return { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn, renameColumn, moveColumn };
 }

@@ -1,25 +1,19 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
 import { inngest } from "@/lib/inngest";
 
 // POST /api/meetings/:id/retry — Re-enqueue processing for a failed meeting
-export async function POST(
+export const POST = withAuth<{ id: string }>(async (
   _req: Request,
-  { params }: { params: { id: string } }
-) {
+  { params, auth }
+) => {
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Meeting ID obrigatório." }, { status: 400 });
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
-  const supabase = createServiceRoleClient();
+  const supabase = auth.supabaseAdmin;
+  await requireOwnership(supabase, "meetings", id, auth.user.id);
 
   // ── Fetch meeting with required processing fields ─────────────────────────
   const { data: meeting, error: fetchError } = await supabase
@@ -29,11 +23,6 @@ export async function POST(
     .single();
 
   if (fetchError || !meeting) {
-    return NextResponse.json({ error: "Reunião não encontrada." }, { status: 404 });
-  }
-
-  // ── Ownership check ───────────────────────────────────────────────────────
-  if (meeting.user_id !== user.id) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
@@ -66,9 +55,9 @@ export async function POST(
       meetingId: meeting.id,
       r2Key: meeting.audio_r2_key,
       whatsappNumber: meeting.whatsapp_number ?? "",
-      userId: user.id,
+      userId: auth.user.id,
     },
   });
 
   return NextResponse.json({ success: true, meetingId: id }, { status: 200 });
-}
+});

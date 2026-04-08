@@ -1,5 +1,4 @@
 "use client";
-"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -265,4 +264,3 @@ export function KanbanBoard({
     </DragDropContext>
   );
 }
-

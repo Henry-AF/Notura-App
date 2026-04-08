@@ -168,7 +168,7 @@ export function SmartSummaryCard({
                 lineHeight: 1.6,
               }}
             >
-              "{nextSteps}"
+              &ldquo;{nextSteps}&rdquo;
             </blockquote>
           </>
         )}

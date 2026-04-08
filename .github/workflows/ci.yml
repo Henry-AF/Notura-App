@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-anon-key"
+  SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
+  NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+  STRIPE_SECRET_KEY: "sk_test_ci"
+  STRIPE_PRO_PRICE_ID: "price_ci_pro"
+  STRIPE_TEAM_PRICE_ID: "price_ci_team"
+  ABACATEPAY_API_KEY: "abacatepay-ci-key"
+  ABACATEPAY_PRO_PRODUCT_ID: "abacatepay-ci-pro"
+  ABACATEPAY_PLATINUM_PRODUCT_ID: "abacatepay-ci-team"
+  ASSEMBLYAI_API_KEY: "assemblyai-ci-key"
+  GEMINI_API_KEY: "gemini-ci-key"
+  R2_ACCOUNT_ID: "ci-account"
+  R2_ACCESS_KEY_ID: "ci-access-key"
+  R2_SECRET_ACCESS_KEY: "ci-secret-key"
+  R2_BUCKET_NAME: "ci-bucket"
+  WHATSAPP_ACCESS_TOKEN: "ci-whatsapp-token"
+  WHATSAPP_PHONE_NUMBER_ID: "ci-phone-number-id"
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Enforce gradual strict lint on changed TypeScript files
+        run: npm run lint:changed
+
+      - name: Run tests
+        run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build -- --no-lint

@@ -21,9 +21,9 @@ interface MeetingFormProps {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const labelCls =
-  "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.1em] text-[#606060]";
+  "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.1em] text-[#6b7280]";
 const inputCls =
-  "w-full appearance-none rounded-lg border border-[#3A3A3A] bg-[#1E1E1E] py-2.5 pr-3.5 text-sm text-white outline-none placeholder-[#606060] transition-colors focus:border-[#6851FF]";
+  "w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2.5 pr-3.5 text-sm text-[#191c1e] outline-none placeholder-[#9ca3af] transition-colors focus:border-[#6851FF] focus:ring-2 focus:ring-[#6851FF]/10";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ export function MeetingForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      <h2 className="font-display text-[15px] font-bold text-white">
+      <h2 className="font-display text-[15px] font-bold text-[#191c1e]">
         Informações da Reunião
       </h2>
 
@@ -66,7 +66,7 @@ export function MeetingForm({
       <div>
         <label className={labelCls}>Nome do cliente</label>
         <div className="relative">
-          <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#606060]" />
+          <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
           <input
             type="text"
             placeholder="Ex: Tech Solutions Inc."
@@ -81,13 +81,13 @@ export function MeetingForm({
       <div>
         <label className={labelCls}>Data da reunião</label>
         <div className="relative">
-          <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#606060]" />
+          <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
           <input
             type="date"
             value={meetingDate}
             onChange={(e) => setMeetingDate(e.target.value)}
             className={`${inputCls} pl-9`}
-            style={{ colorScheme: "dark" }}
+            style={{ colorScheme: "light" }}
           />
         </div>
       </div>
@@ -96,7 +96,7 @@ export function MeetingForm({
       <div>
         <label className={labelCls}>Número WhatsApp para resumo</label>
         <div className="relative">
-          <MessageSquare className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#606060]" />
+          <MessageSquare className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
           <input
             type="tel"
             placeholder="+55 (00) 00000-0000"
@@ -105,7 +105,7 @@ export function MeetingForm({
             className={`${inputCls} pl-9`}
           />
         </div>
-        <p className="mt-1.5 text-[11px] text-[#606060]">
+        <p className="mt-1.5 text-[11px] text-[#9ca3af]">
           Enviaremos os insights e próximos passos automaticamente.
         </p>
       </div>
@@ -115,7 +115,7 @@ export function MeetingForm({
         <button
           type="submit"
           disabled={disabled}
-          className="flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 font-display text-[15px] font-bold text-white transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#333333] disabled:text-[#606060]"
+          className="flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 font-display text-[15px] font-bold text-white transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
           style={disabled ? {} : { background: isSubmitting ? "#5740EE" : "#6851FF" }}
           onMouseEnter={(e) => {
             if (!disabled)
@@ -137,7 +137,7 @@ export function MeetingForm({
             </>
           )}
         </button>
-        <p className="mt-2 text-center text-[11px] text-[#606060]">
+        <p className="mt-2 text-center text-[11px] text-[#9ca3af]">
           O processamento leva em média 2 a 5 minutos.
         </p>
       </div>

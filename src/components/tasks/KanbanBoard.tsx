@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { DragDropContext } from "@hello-pangea/dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { KanbanColumn } from "./KanbanColumn";
 import type { Column } from "./KanbanColumn";
 import type { Task } from "./TaskCard";
@@ -15,6 +15,7 @@ export interface KanbanBoardProps {
   onEditTask: (task: Task) => void;
   onDeleteColumn: (columnId: string) => void;
   onAddColumn: (title: string) => void;
+  onRenameColumn?: (columnId: string, newTitle: string) => void;
 }
 
 export function KanbanBoard({
@@ -24,6 +25,7 @@ export function KanbanBoard({
   onEditTask,
   onDeleteColumn,
   onAddColumn,
+  onRenameColumn,
 }: KanbanBoardProps) {
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState("");
@@ -68,17 +70,43 @@ export function KanbanBoard({
           }}
         >
           {/* Columns */}
-          {columns.map((col) => (
-            <div key={col.id} style={{ width: 300, flexShrink: 0 }}>
-              <KanbanColumn
-                column={col}
-                onAddTask={onAddTask}
-                onEditTask={onEditTask}
-                onDeleteColumn={onDeleteColumn}
-                canDelete={true}
-              />
-            </div>
-          ))}
+          <Droppable droppableId="all-columns" direction="horizontal" type="COLUMN">
+            {(droppableProvided) => (
+              <div
+                ref={droppableProvided.innerRef}
+                {...droppableProvided.droppableProps}
+                style={{ display: "flex", gap: 20, alignItems: "flex-start" }}
+              >
+                {columns.map((col, idx) => (
+                  <Draggable key={col.id} draggableId={`col-${col.id}`} index={idx}>
+                    {(draggableProvided, snapshot) => (
+                      <div
+                        ref={draggableProvided.innerRef}
+                        {...draggableProvided.draggableProps}
+                        style={{
+                          width: 300,
+                          flexShrink: 0,
+                          opacity: snapshot.isDragging ? 0.85 : 1,
+                          ...draggableProvided.draggableProps.style,
+                        }}
+                      >
+                        <KanbanColumn
+                          column={col}
+                          onAddTask={onAddTask}
+                          onEditTask={onEditTask}
+                          onDeleteColumn={onDeleteColumn}
+                          onRenameColumn={onRenameColumn}
+                          canDelete={true}
+                          dragHandleProps={draggableProvided.dragHandleProps}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {droppableProvided.placeholder}
+              </div>
+            )}
+          </Droppable>
 
           {/* Add column */}
           {addingColumn ? (

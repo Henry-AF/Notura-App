@@ -67,7 +67,16 @@ function PhoneConnectModal({
   }, [onClose]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMasked(formatBRPhone(e.target.value));
+    const allDigits = e.target.value.replace(/\D/g, "");
+    // The mask always begins with "+55 ...", so when the input re-fires its own
+    // masked value, the digits string already has "55" prepended from the country
+    // code. Strip those two prefix digits before reformatting so the user's
+    // actual DDD+number is preserved correctly.
+    const userDigits =
+      e.target.value.includes("+55") && allDigits.startsWith("55")
+        ? allDigits.slice(2)
+        : allDigits;
+    setMasked(formatBRPhone(userDigits));
   };
 
   return (

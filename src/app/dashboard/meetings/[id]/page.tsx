@@ -9,21 +9,26 @@ import {
   SmartSummaryCard,
   KeyDecisionCard,
   AlertPointCard,
-  MeetingTasksSidebar,
-  MeetingLocationCard,
-  MeetingFilesCard,
   AIInsightToast,
   AIFloatingButton,
 } from "@/components/meeting-detail";
-import type { MeetingTab, MeetingTask, MeetingFile } from "@/components/meeting-detail";
-import { KanbanBoard } from "@/components/tasks";
+import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
+import { KanbanBoard, TaskEditModal } from "@/components/tasks";
+import type { Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
-import { updateTaskById } from "@/app/dashboard/tasks/tasks-api";
+import {
+  createTask,
+  deleteTaskById,
+  updateTaskById,
+} from "@/app/dashboard/tasks/tasks-api";
 import { fetchMeetingDetail } from "./meeting-api";
 import {
   buildMeetingTaskColumns,
+  type MeetingTaskColumnId,
+  mapBoardTaskToMeetingTask,
   setMeetingTaskCompletion,
+  upsertMeetingTask,
 } from "./meeting-task-kanban";
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
@@ -168,19 +173,34 @@ function MeetingDetailInner({ id }: { id: string }) {
   const [keyDecision, setKeyDecision] = useState("");
   const [alertPoint, setAlertPoint] = useState("");
   const [transcript, setTranscript] = useState<string | null>(null);
-  const [location, setLocation] = useState("Reunião Online");
 
   // Tasks & files
   const [tasks, setTasks] = useState<MeetingTask[]>([]);
-  const [files, setFiles] = useState<MeetingFile[]>([]);
   const [insightMessage, setInsightMessage] = useState("");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
+  const [taskColumnById, setTaskColumnById] = useState<Record<string, MeetingTaskColumnId>>({});
 
   const [activeTab, setActiveTab] = useState<MeetingTab>("summary");
-  const taskColumns = useMemo(() => buildMeetingTaskColumns(tasks), [tasks]);
+  const taskColumns = useMemo(
+    () => buildMeetingTaskColumns(tasks, taskColumnById),
+    [taskColumnById, tasks]
+  );
+  const taskMeetingOptions = useMemo(
+    () => [{ id, label: clientName || "Reunião atual" }],
+    [clientName, id]
+  );
 
   // ─── Decisions & open items for tabs ─────────────────────────────────────
   const [decisions, setDecisions] = useState<Array<{ id: string; description: string; decided_by: string | null; confidence: string }>>([]);
   const [openItems, setOpenItems] = useState<Array<{ id: string; description: string; context: string | null }>>([]);
+
+  function buildInitialTaskColumnMap(meetingTasks: MeetingTask[]): Record<string, MeetingTaskColumnId> {
+    return meetingTasks.reduce<Record<string, MeetingTaskColumnId>>((acc, task) => {
+      acc[task.id] = task.completed ? "done" : "todo";
+      return acc;
+    }, {});
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -199,9 +219,8 @@ function MeetingDetailInner({ id }: { id: string }) {
         setKeyDecision(meeting.keyDecision);
         setAlertPoint(meeting.alertPoint);
         setTranscript(meeting.transcript);
-        setLocation(meeting.location);
         setTasks(meeting.tasks);
-        setFiles(meeting.files);
+        setTaskColumnById(buildInitialTaskColumnMap(meeting.tasks));
         setInsightMessage(meeting.insightMessage);
         setDecisions(meeting.decisions);
         setOpenItems(meeting.openItems);
@@ -221,21 +240,77 @@ function MeetingDetailInner({ id }: { id: string }) {
     };
   }, [id]);
 
-  const handleToggleTask = useCallback(
-    async (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task) return;
-      const newCompleted = !task.completed;
-      setTasks((prev) => setMeetingTaskCompletion(prev, taskId, newCompleted));
-      try {
-        await updateTaskById(taskId, { completed: newCompleted });
-      } catch {
-        setTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
-        show("Erro ao atualizar tarefa.", "error");
-      }
-    },
-    [tasks, show]
-  );
+  function isDraftTask(taskId: string) {
+    return taskId.startsWith("task-draft-");
+  }
+
+  const handleAddTask = useCallback((columnId: string) => {
+    setDraftColumnId(columnId);
+    setEditingTask({
+      id: `task-draft-${Date.now()}`,
+      title: "Nova tarefa",
+      priority: "media",
+      columnId,
+      meetingId: id,
+    });
+  }, [id]);
+
+  const handleSaveTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
+    const assigneeName = updates.assignees?.[0]?.name ?? updates.assignee?.name;
+
+    if (isDraftTask(taskId)) {
+      const draftColumn = (draftColumnId ?? "todo") as MeetingTaskColumnId;
+      const persistedTask = await createTask({
+        title: updates.title ?? "Nova tarefa",
+        priority: updates.priority ?? "media",
+        dueDate: updates.dueDate,
+        assigneeName,
+        columnId: draftColumn,
+        meetingId: id,
+      });
+      const persistedColumnId = persistedTask.columnId as MeetingTaskColumnId;
+      setTasks((prev) =>
+        upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
+      );
+      setTaskColumnById((prev) => ({
+        ...prev,
+        [persistedTask.id]: persistedColumnId === "done" ? "done" : draftColumn,
+      }));
+      setDraftColumnId(null);
+      return;
+    }
+
+    const persistedTask = await updateTaskById(taskId, {
+      title: updates.title,
+      priority: updates.priority,
+      dueDate: updates.dueDate,
+      assigneeName,
+    });
+    setTasks((prev) =>
+      upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
+    );
+    setTaskColumnById((prev) => ({
+      ...prev,
+      [taskId]: persistedTask.completed
+        ? "done"
+        : (prev[taskId] === "in_progress" ? "in_progress" : "todo"),
+    }));
+  }, [draftColumnId, id]);
+
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    if (isDraftTask(taskId)) {
+      setDraftColumnId(null);
+      return;
+    }
+
+    await deleteTaskById(taskId);
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setTaskColumnById((prev) => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+  }, []);
 
   const handleTaskBoardDragEnd = useCallback(
     async (result: DropResult) => {
@@ -255,15 +330,40 @@ function MeetingDetailInner({ id }: { id: string }) {
       const task = tasks.find((item) => item.id === movedTask.id);
       if (!task) return;
 
-      const newCompleted = destination.droppableId === "done";
-      if (task.completed === newCompleted) return;
+      const destinationColumnId = destination.droppableId as MeetingTaskColumnId;
+      const previousColumnId = source.droppableId as MeetingTaskColumnId;
+      const newCompleted = destinationColumnId === "done";
+      const completionChanged = task.completed !== newCompleted;
+
+      setTaskColumnById((prev) => ({
+        ...prev,
+        [movedTask.id]: destinationColumnId,
+      }));
+
+      if (!completionChanged) {
+        return;
+      }
 
       setTasks((prev) => setMeetingTaskCompletion(prev, movedTask.id, newCompleted));
 
       try {
-        await updateTaskById(movedTask.id, { completed: newCompleted });
+        const persistedTask = await updateTaskById(movedTask.id, { completed: newCompleted });
+        setTasks((prev) =>
+          upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
+        );
+        setTaskColumnById((prev) => ({
+          ...prev,
+          [movedTask.id]:
+            persistedTask.completed
+              ? "done"
+              : (destinationColumnId === "in_progress" ? "in_progress" : "todo"),
+        }));
       } catch {
         setTasks((prev) => prev.map((item) => (item.id === task.id ? task : item)));
+        setTaskColumnById((prev) => ({
+          ...prev,
+          [movedTask.id]: previousColumnId,
+        }));
         show("Erro ao atualizar tarefa.", "error");
       }
     },
@@ -287,10 +387,6 @@ function MeetingDetailInner({ id }: { id: string }) {
     }
   }, [id, show]);
 
-  const handleOpenFile = useCallback((file: MeetingFile) => {
-    if (file.url && file.url !== "#") window.open(file.url, "_blank");
-  }, []);
-
   // ─── Main content per active tab ──────────────────────────────────────────
   function renderMainContent() {
     if (meetingStatus !== "completed") {
@@ -300,32 +396,40 @@ function MeetingDetailInner({ id }: { id: string }) {
     switch (activeTab) {
       case "summary":
         return (
-          <>
-            <div className="anim-in" style={{ animationDelay: "120ms" }}>
-              <SmartSummaryCard
-                summary={summary || "Resumo não disponível."}
-                nextSteps={nextStep}
-                onCopyToWhatsApp={() =>
-                  show("Resumo copiado para WhatsApp!", "success")
-                }
-              />
-            </div>
+          <div
+            className="summary-layout anim-in"
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                keyDecision || alertPoint
+                  ? "minmax(0, 1.9fr) minmax(240px, 1fr)"
+                  : "1fr",
+              gap: 16,
+              alignItems: "start",
+              animationDelay: "120ms",
+            }}
+          >
+            <SmartSummaryCard
+              summary={summary || "Resumo não disponível."}
+              nextSteps={nextStep}
+              onCopyToWhatsApp={() =>
+                show("Resumo copiado para WhatsApp!", "success")
+              }
+            />
             {(keyDecision || alertPoint) && (
               <div
-                className="anim-in"
+                className="decision-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gridTemplateColumns: "1fr",
                   gap: 16,
-                  marginTop: 16,
-                  animationDelay: "180ms",
                 }}
               >
                 {keyDecision && <KeyDecisionCard decision={keyDecision} />}
                 {alertPoint && <AlertPointCard alert={alertPoint} />}
               </div>
             )}
-          </>
+          </div>
         );
 
       case "transcript":
@@ -369,7 +473,7 @@ function MeetingDetailInner({ id }: { id: string }) {
         );
 
       case "tasks":
-        return tasks.length > 0 ? (
+        return (
           <div
             style={{
               background: "rgb(var(--cn-card))",
@@ -393,17 +497,13 @@ function MeetingDetailInner({ id }: { id: string }) {
             <KanbanBoard
               columns={taskColumns}
               onDragEnd={handleTaskBoardDragEnd}
-              onAddTask={() => show("Criação de tarefas em breve.", "warning")}
-              onEditTask={(task) => {
-                void handleToggleTask(task.id);
-              }}
+              onAddTask={handleAddTask}
+              onEditTask={setEditingTask}
               onDeleteColumn={() => {}}
               onAddColumn={() => {}}
               allowColumnManagement={false}
             />
           </div>
-        ) : (
-          <ComingSoon label="Tarefas" />
         );
 
       case "decisions":
@@ -536,9 +636,9 @@ function MeetingDetailInner({ id }: { id: string }) {
           animation: fade-slide-up 0.25s ease-out forwards;
           opacity: 0;
         }
-        @media (min-width: 1100px) {
-          .meeting-detail-grid {
-            grid-template-columns: 1fr 320px !important;
+        @media (max-width: 980px) {
+          .summary-layout {
+            grid-template-columns: 1fr !important;
           }
         }
         @media (max-width: 480px) {
@@ -573,47 +673,30 @@ function MeetingDetailInner({ id }: { id: string }) {
         <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
       </div>
 
-      {/* Two-column grid */}
-      <div
-        className="meeting-detail-grid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: 24,
-          alignItems: "start",
-        }}
-      >
-        {/* Left column: main content */}
-        <div style={{ minWidth: 0 }}>
-          {renderMainContent()}
-        </div>
-
-        {/* Right column: sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
-          {/* Tasks */}
-          <div className="anim-in" style={{ animationDelay: "100ms" }}>
-            <MeetingTasksSidebar
-              tasks={tasks}
-              onToggle={handleToggleTask}
-              onAddTask={() => show("Funcionalidade em breve.", "warning")}
-            />
-          </div>
-
-          {/* Location */}
-          <div className="anim-in" style={{ animationDelay: "160ms" }}>
-            <MeetingLocationCard location={location} />
-          </div>
-
-          {/* Files */}
-          <div className="anim-in" style={{ animationDelay: "200ms" }}>
-            <MeetingFilesCard
-              files={files}
-              onViewAll={() => router.push(`/dashboard/meetings/${id}/files`)}
-              onOpenFile={handleOpenFile}
-            />
-          </div>
-        </div>
+      <div style={{ minWidth: 0 }}>
+        {renderMainContent()}
       </div>
+
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          meetings={taskMeetingOptions}
+          onSave={(taskId, updates) => {
+            void handleSaveTask(taskId, updates).catch(() => {
+              show("Erro ao salvar tarefa.", "error");
+            });
+          }}
+          onDelete={(taskId) => {
+            void handleDeleteTask(taskId).catch(() => {
+              show("Erro ao excluir tarefa.", "error");
+            });
+          }}
+          onClose={() => {
+            setEditingTask(null);
+            setDraftColumnId(null);
+          }}
+        />
+      )}
 
       {/* AI Insight Toast (fixed bottom-left in sidebar area) */}
       <AIInsightToast userInitials="HT" message={insightMessage} />

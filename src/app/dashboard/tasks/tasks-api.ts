@@ -33,6 +33,7 @@ interface UpdateTaskInput {
   dueDate?: string;
   assigneeName?: string | null;
   completed?: boolean;
+  kanbanStatus?: string;
 }
 
 function normalizeError(error: unknown, fallback: string) {
@@ -77,6 +78,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       due_date: input.dueDate,
       owner: input.assigneeName,
       completed: input.columnId === "done",
+      kanban_status: input.columnId,
     }),
   });
   const body = await parseJson<TaskResponse>(response);
@@ -101,6 +103,7 @@ export async function updateTaskById(
       due_date: input.dueDate,
       owner: input.assigneeName,
       completed: input.completed,
+      kanban_status: input.kanbanStatus,
     }),
   });
   const body = await parseJson<TaskResponse>(response);

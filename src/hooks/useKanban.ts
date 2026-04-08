@@ -134,5 +134,10 @@ export function useKanban(initialColumns: Column[]) {
     });
   }, []);
 
-  return { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn, renameColumn, moveColumn };
+  // Reset columns from external source (e.g. after API error revert)
+  const resetColumns = useCallback((newColumns: Column[]) => {
+    setColumns(newColumns);
+  }, []);
+
+  return { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn, removeColumn, renameColumn, moveColumn, resetColumns };
 }

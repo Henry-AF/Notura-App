@@ -7,14 +7,15 @@ import {
   LayoutGrid,
   Video,
   CheckSquare,
-  Settings,
+  Users,
+  Mic,
   UploadCloud,
-  PlusCircle,
+  Plus,
   Menu,
   X,
-  Zap,
   LogOut,
-  RefreshCw,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
 import { LogoFull, Logo } from "@/components/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -22,25 +23,129 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { PlanModal } from "@/components/settings/PlanModal";
+import { SettingsModal } from "@/components/settings/SettingsModal";
 import { ThemeProvider } from "@/lib/theme-context";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
-  { href: "/dashboard/recording", label: "Nova Reunião", icon: PlusCircle },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
   { href: "/dashboard/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/dashboard/new", label: "Upload", icon: UploadCloud },
-  { href: "/dashboard/settings", label: "Configurações", icon: Settings },
+  { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
+
+// ─── Criar dropdown ───────────────────────────────────────────────────────────
+
+function CriarDropdown({ onNavigate }: { onNavigate?: () => void }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  function go(href: string) {
+    setOpen(false);
+    onNavigate?.();
+    router.push(href);
+  }
+
+  return (
+    <div ref={ref} className="relative px-3 mb-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]"
+        style={{ background: "linear-gradient(135deg, #6C5CE7, #8B5CF6)" }}
+      >
+        <span className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Criar
+        </span>
+        <ChevronDown
+          className="h-3.5 w-3.5 transition-transform duration-200"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-3 right-3 top-full mt-1.5 overflow-hidden rounded-xl border shadow-xl z-50"
+          style={{
+            background: "rgb(var(--cn-card))",
+            borderColor: "rgb(var(--cn-border))",
+            animation: "dropDown 0.15s cubic-bezier(0.25,0.46,0.45,0.94)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => go("/dashboard/recording")}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors"
+            style={{ color: "rgb(var(--cn-ink2))" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+          >
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: "rgba(108,92,231,0.15)" }}
+            >
+              <Mic className="h-3.5 w-3.5 text-[#6C5CE7]" />
+            </div>
+            <div className="text-left">
+              <p className="font-medium" style={{ color: "rgb(var(--cn-ink))" }}>Nova reunião</p>
+              <p className="text-xs" style={{ color: "rgb(var(--cn-muted))" }}>Gravar ou iniciar reunião</p>
+            </div>
+          </button>
+
+          <div style={{ height: 1, background: "rgb(var(--cn-border))", margin: "0 12px" }} />
+
+          <button
+            type="button"
+            onClick={() => go("/dashboard/new")}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors"
+            style={{ color: "rgb(var(--cn-ink2))" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+          >
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: "rgba(78,203,113,0.15)" }}
+            >
+              <UploadCloud className="h-3.5 w-3.5 text-[#4ECB71]" />
+            </div>
+            <div className="text-left">
+              <p className="font-medium" style={{ color: "rgb(var(--cn-ink))" }}>Upload de arquivo</p>
+              <p className="text-xs" style={{ color: "rgb(var(--cn-muted))" }}>Enviar áudio ou vídeo</p>
+            </div>
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes dropDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 // ─── User profile dropdown ────────────────────────────────────────────────────
 
 function UserDropdown({
   user,
   onClose,
+  onSettingsClick,
 }: {
   user: { name: string; plan: string };
   onClose: () => void;
+  onSettingsClick: () => void;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
@@ -61,12 +166,6 @@ function UserDropdown({
   }, [onClose]);
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
-
-  async function handleSwitch() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
@@ -107,12 +206,12 @@ function UserDropdown({
       <div className="my-1 border-t border-notura-border/40" />
 
       <button
-        onClick={handleSwitch}
+        onClick={() => { onClose(); onSettingsClick(); }}
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-notura-ink-secondary transition-colors hover:bg-notura-surface hover:text-notura-ink"
         role="menuitem"
       >
-        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-        Trocar conta
+        <Settings className="h-3.5 w-3.5 shrink-0" />
+        Configurações
       </button>
 
       <button
@@ -140,18 +239,18 @@ function SidebarContent({
   onNavigate,
   user,
   onUpgradeClick,
+  onSettingsClick,
 }: {
   onNavigate?: () => void;
   user: { name: string; plan: string };
   onUpgradeClick: () => void;
+  onSettingsClick: () => void;
 }) {
   const pathname = usePathname();
   const [showDropdown, setShowDropdown] = useState(false);
 
   function isActive(item: (typeof navItems)[0]) {
     if (item.exact) return pathname === item.href;
-    if ((item as { matchPrefix?: string }).matchPrefix)
-      return pathname.startsWith((item as { matchPrefix?: string }).matchPrefix!);
     return pathname.startsWith(item.href);
   }
 
@@ -172,6 +271,9 @@ function SidebarContent({
         </Link>
       </div>
 
+      {/* Criar CTA */}
+      <CriarDropdown onNavigate={onNavigate} />
+
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 px-3">
         {navItems.map((item) => {
@@ -179,7 +281,7 @@ function SidebarContent({
           const active = isActive(item);
           return (
             <Link
-              key={`${item.href}-${item.label}`}
+              key={item.href}
               href={item.href}
               onClick={onNavigate}
               className={cn(
@@ -201,29 +303,14 @@ function SidebarContent({
         })}
       </nav>
 
-      {/* Bottom: plan widget + upgrade nudge + profile */}
+      {/* Bottom: plan widget + profile */}
       <div className="px-4 pb-4 pt-3 space-y-3">
         {/* Plan usage widget */}
         <SidebarPlanWidget
           planName={user.plan === "pro" ? "Plano Pro" : "Plano Gratuito"}
           used={3}
-          total={10}
+          total={user.plan === "pro" ? 30 : 3}
         />
-
-        {/* Upgrade nudge */}
-        {user.plan === "free" && (
-          <button
-            type="button"
-            onClick={() => {
-              onNavigate?.();
-              onUpgradeClick();
-            }}
-            className="flex w-full items-center gap-2 rounded-lg bg-notura-primary/10 border border-notura-primary/30 px-3 py-2.5 text-xs font-medium text-notura-primary hover:bg-notura-primary/20 transition-colors"
-          >
-            <Zap className="h-3.5 w-3.5 shrink-0" />
-            <span>Upgrade para ilimitado</span>
-          </button>
-        )}
 
         {/* User profile area — click to open dropdown */}
         <div className="relative">
@@ -250,7 +337,11 @@ function SidebarContent({
           </button>
 
           {showDropdown && (
-            <UserDropdown user={user} onClose={() => setShowDropdown(false)} />
+            <UserDropdown
+              user={user}
+              onClose={() => setShowDropdown(false)}
+              onSettingsClick={onSettingsClick}
+            />
           )}
         </div>
       </div>
@@ -268,6 +359,7 @@ export default function DashboardLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState({ name: "", plan: "free" });
   const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -301,6 +393,7 @@ export default function DashboardLayout({
           <SidebarContent
             user={user}
             onUpgradeClick={() => setShowPlanModal(true)}
+            onSettingsClick={() => setShowSettingsModal(true)}
           />
         </aside>
 
@@ -334,6 +427,10 @@ export default function DashboardLayout({
               setMobileOpen(false);
               setShowPlanModal(true);
             }}
+            onSettingsClick={() => {
+              setMobileOpen(false);
+              setShowSettingsModal(true);
+            }}
           />
         </aside>
 
@@ -365,6 +462,17 @@ export default function DashboardLayout({
           <PlanModal
             currentPlan={user.plan}
             onClose={() => setShowPlanModal(false)}
+          />
+        )}
+
+        {/* Global settings modal */}
+        {showSettingsModal && (
+          <SettingsModal
+            onClose={() => setShowSettingsModal(false)}
+            onUpgradeClick={() => {
+              setShowSettingsModal(false);
+              setShowPlanModal(true);
+            }}
           />
         )}
       </div>

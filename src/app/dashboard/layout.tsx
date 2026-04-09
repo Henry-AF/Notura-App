@@ -29,7 +29,7 @@ import { ThemeProvider } from "@/lib/theme-context";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
-  { href: "/dashboard/tasks", label: "Tarefas", icon: CheckSquare },
+  // { href: "/dashboard/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
 

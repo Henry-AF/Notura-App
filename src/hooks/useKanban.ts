@@ -46,12 +46,12 @@ export function useKanban(initialColumns: Column[]) {
       const dstCol = next.find((c) => c.id === destination.droppableId)!;
       const [moved] = srcCol.tasks.splice(source.index, 1);
 
-      if (dstCol.id === "done") {
+      if (dstCol.id === "completed") {
         moved.completedDate = `Concluido em ${new Date().toLocaleDateString(
           "pt-BR",
           { day: "numeric", month: "short" }
         )}`;
-        moved.columnId = "done";
+        moved.columnId = "completed";
       } else {
         moved.completedDate = undefined;
         moved.columnId = dstCol.id;

@@ -10,9 +10,6 @@ import {
   ArrowUpDown,
   Check,
   MoreHorizontal,
-  Calendar,
-  Clock,
-  Flag,
   ChevronRight,
 } from "lucide-react";
 import {
@@ -40,7 +37,7 @@ const COLUMN_DEFS: Omit<Column, "tasks">[] = [
     badgeBg: "rgba(255,169,77,0.15)",
   },
   {
-    id: "done",
+    id: "completed",
     title: "Concluído",
     dotColor: "#4ECB71",
     badgeColor: "#4ECB71",
@@ -50,8 +47,16 @@ const COLUMN_DEFS: Omit<Column, "tasks">[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+type TaskStatus = "todo" | "in_progress" | "completed";
+
+function toTaskStatus(columnId: string): TaskStatus {
+  if (columnId === "in_progress") return "in_progress";
+  if (columnId === "completed" || columnId === "done") return "completed";
+  return "todo";
+}
+
 function getProgress(columnId: string): number {
-  if (columnId === "done") return 100;
+  if (columnId === "completed") return 100;
   if (columnId === "in_progress") return 50;
   return 10;
 }
@@ -128,7 +133,7 @@ function LoadingState() {
 function ProductivityPulse({ columns }: { columns: Column[] }) {
   const allTasks = columns.flatMap((c) => c.tasks);
   const total = allTasks.length;
-  const done = allTasks.filter((t) => t.columnId === "done").length;
+  const done = allTasks.filter((t) => t.columnId === "completed").length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
   return (
@@ -200,7 +205,7 @@ function UpcomingDeadlines({ columns }: { columns: Column[] }) {
 
   const upcoming = columns
     .flatMap((c) => c.tasks)
-    .filter((t) => t.columnId !== "done" && t.dueDate)
+    .filter((t) => t.columnId !== "completed" && t.dueDate)
     .map((t) => ({ task: t, due: parseDueDate(t.dueDate) }))
     .filter(({ due }) => due && due >= today && due <= next7Days)
     .sort((a, b) => a.due!.getTime() - b.due!.getTime())
@@ -348,9 +353,6 @@ function TaskRow({
     return () => document.removeEventListener("mousedown", handle);
   }, [showMenu]);
 
-  const progress = getProgress(task.columnId);
-  const progressColor =
-    task.columnId === "done" ? "#4ECB71" : task.priority === "alta" ? "#FF6B6B" : task.priority === "media" ? "#FFA94D" : "#6C5CE7";
   const dueDateInfo = getDueDateInfo(task.dueDate);
   const assigneeName = task.assignees?.[0]?.name ?? task.assignee?.name ?? "";
   const meeting = meetings.find((m) => m.id === task.meetingId);
@@ -375,13 +377,13 @@ function TaskRow({
           onClick={() => onToggleDone(task)}
           style={{
             width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-            border: task.columnId === "done" ? "none" : "1.5px solid rgb(var(--cn-border))",
-            background: task.columnId === "done" ? "#4ECB71" : "transparent",
+            border: task.columnId === "completed" ? "none" : "1.5px solid rgb(var(--cn-border))",
+            background: task.columnId === "completed" ? "#4ECB71" : "transparent",
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             transition: "all 0.15s",
           }}
         >
-          {task.columnId === "done" && <Check style={{ width: 10, height: 10, color: "#fff" }} />}
+          {task.columnId === "completed" && <Check style={{ width: 10, height: 10, color: "#fff" }} />}
         </button>
       </td>
 
@@ -390,8 +392,8 @@ function TaskRow({
         <span
           style={{
             fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14,
-            color: task.columnId === "done" ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
-            textDecoration: task.columnId === "done" ? "line-through" : "none",
+            color: task.columnId === "completed" ? "rgb(var(--cn-muted))" : "rgb(var(--cn-ink))",
+            textDecoration: task.columnId === "completed" ? "line-through" : "none",
           }}
         >
           {task.title}
@@ -562,11 +564,11 @@ function WorkspaceTasksList({
 }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"dueDate" | "priority" | "progress">("dueDate");
-  const [filterStatus, setFilterStatus] = useState<"all" | "todo" | "in_progress" | "done">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "todo" | "in_progress" | "completed">("all");
   const [showFilters, setShowFilters] = useState(false);
 
   const allTasks = columns.flatMap((c) => c.tasks);
-  const activeToday = allTasks.filter((t) => t.columnId !== "done").length;
+  const activeToday = allTasks.filter((t) => t.columnId !== "completed").length;
 
   const filtered = allTasks
     .filter((t) => {
@@ -693,8 +695,8 @@ function WorkspaceTasksList({
         {/* Filter pills (expandable) */}
         {showFilters && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            {(["all", "todo", "in_progress", "done"] as const).map((s) => {
-              const labels = { all: "Todas", todo: "A Fazer", in_progress: "Em Andamento", done: "Concluídas" };
+            {(["all", "todo", "in_progress", "completed"] as const).map((s) => {
+              const labels = { all: "Todas", todo: "A Fazer", in_progress: "Em Andamento", completed: "Concluídas" };
               const active = filterStatus === s;
               return (
                 <button
@@ -831,7 +833,7 @@ function loadCustomCols(): CustomColMeta[] {
 }
 
 function saveCustomCols(cols: Column[]) {
-  const custom = cols.filter((c) => !["todo", "in_progress", "done"].includes(c.id));
+  const custom = cols.filter((c) => !["todo", "in_progress", "completed"].includes(c.id));
   localStorage.setItem(CUSTOM_COLS_KEY, JSON.stringify(custom.map(({ id, title, dotColor, badgeColor, badgeBg }) => ({ id, title, dotColor, badgeColor, badgeBg }))));
 }
 
@@ -906,7 +908,7 @@ function TasksPageContent({
       const snapshot = columns.map((c) => ({ ...c, tasks: [...c.tasks] }));
       handleDragEnd(result);
       try {
-        await updateTaskById(movedTask.id, { kanbanStatus: destination.droppableId });
+        await updateTaskById(movedTask.id, { status: toTaskStatus(destination.droppableId) });
       } catch {
         resetColumns(snapshot);
         setDragError("Falha ao mover tarefa. Tente novamente.");
@@ -964,10 +966,10 @@ function TasksPageContent({
   }
 
   async function handleToggleDone(task: Task) {
-    const newColumnId = task.columnId === "done" ? "todo" : "done";
+    const newColumnId = task.columnId === "completed" ? "todo" : "completed";
     updateTask(task.id, { columnId: newColumnId });
     try {
-      await updateTaskById(task.id, { kanbanStatus: newColumnId });
+      await updateTaskById(task.id, { status: toTaskStatus(newColumnId) });
     } catch {
       // Revert on failure
       updateTask(task.id, { columnId: task.columnId });

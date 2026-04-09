@@ -32,8 +32,7 @@ interface UpdateTaskInput {
   priority?: Task["priority"];
   dueDate?: string;
   assigneeName?: string | null;
-  completed?: boolean;
-  kanbanStatus?: string;
+  status?: "todo" | "in_progress" | "completed";
 }
 
 function normalizeError(error: unknown, fallback: string) {
@@ -77,8 +76,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       priority: input.priority,
       due_date: input.dueDate,
       owner: input.assigneeName,
-      completed: input.columnId === "done",
-      kanban_status: input.columnId,
+      status: input.columnId === "completed" ? "completed" : input.columnId,
     }),
   });
   const body = await parseJson<TaskResponse>(response);
@@ -102,8 +100,7 @@ export async function updateTaskById(
       priority: input.priority,
       due_date: input.dueDate,
       owner: input.assigneeName,
-      completed: input.completed,
-      kanban_status: input.kanbanStatus,
+      status: input.status,
     }),
   });
   const body = await parseJson<TaskResponse>(response);

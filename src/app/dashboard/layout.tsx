@@ -34,6 +34,19 @@ const navItems = [
   { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
 
+type DashboardShellUser = {
+  name: string;
+  plan: "free" | "pro" | "team";
+  meetingsThisMonth: number;
+  monthlyLimit: number | null;
+};
+
+function getPlanLabel(plan: DashboardShellUser["plan"]) {
+  if (plan === "pro") return "Plano Pro";
+  if (plan === "team") return "Plano Team";
+  return "Plano Gratuito";
+}
+
 // ─── Criar dropdown ───────────────────────────────────────────────────────────
 
 function CriarDropdown({ onNavigate }: { onNavigate?: () => void }) {

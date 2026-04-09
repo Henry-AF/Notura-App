@@ -1,21 +1,15 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
-import { mapTaskRowToBoardTask, normalizeTaskStatus, toDatabasePriority } from "../task-mapper";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
+import { mapTaskRowToBoardTask, toDatabasePriority } from "../task-mapper";
 
 // PATCH /api/tasks/:id — Update a task (ownership verified)
-export async function PATCH(
+export const PATCH = withAuth<{ id: string }>(async (
   req: Request,
-  { params }: { params: { id: string } }
-) {
+  { params, auth }
+) => {
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Task ID obrigatório." }, { status: 400 });
-  }
-
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
 
   let body: unknown;
@@ -29,21 +23,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Corpo inválido." }, { status: 400 });
   }
 
-  const supabase = createServiceRoleClient();
-
-  // Verify ownership before updating
-  const { data: existing, error: fetchError } = await supabase
-    .from("tasks")
-    .select("id, user_id")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !existing) {
-    return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
-  }
-  if (existing.user_id !== user.id) {
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
-  }
+  const supabase = auth.supabaseAdmin;
+  await requireOwnership(supabase, "tasks", id, auth.user.id);
 
   const data = body as Record<string, unknown>;
   const updatePayload: Record<string, unknown> = {};
@@ -78,39 +59,20 @@ export async function PATCH(
   }
 
   return NextResponse.json({ task: mapTaskRowToBoardTask(updated) }, { status: 200 });
-}
+});
 
 // DELETE /api/tasks/:id — Delete a task (ownership verified)
-export async function DELETE(
+export const DELETE = withAuth<{ id: string }>(async (
   _req: Request,
-  { params }: { params: { id: string } }
-) {
+  { params, auth }
+) => {
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Task ID obrigatório." }, { status: 400 });
   }
 
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
-  const supabase = createServiceRoleClient();
-
-  // Verify ownership before deleting
-  const { data: existing, error: fetchError } = await supabase
-    .from("tasks")
-    .select("id, user_id")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !existing) {
-    return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
-  }
-  if (existing.user_id !== user.id) {
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
-  }
+  const supabase = auth.supabaseAdmin;
+  await requireOwnership(supabase, "tasks", id, auth.user.id);
 
   const { error: deleteError } = await supabase
     .from("tasks")
@@ -122,4 +84,4 @@ export async function DELETE(
   }
 
   return NextResponse.json({ success: true }, { status: 200 });
-}
+});

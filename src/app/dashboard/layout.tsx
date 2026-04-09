@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -25,6 +25,7 @@ import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { ThemeProvider } from "@/lib/theme-context";
+import { fetchCurrentUser } from "./settings/settings-api";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
@@ -143,7 +144,7 @@ function UserDropdown({
   onClose,
   onSettingsClick,
 }: {
-  user: { name: string; plan: string };
+  user: DashboardShellUser;
   onClose: () => void;
   onSettingsClick: () => void;
 }) {
@@ -198,7 +199,7 @@ function UserDropdown({
             {user.name || "Usuário"}
           </p>
           <p className="text-[11px] text-notura-ink-secondary capitalize">
-            {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+            {getPlanLabel(user.plan)}
           </p>
         </div>
       </div>
@@ -242,7 +243,7 @@ function SidebarContent({
   onSettingsClick,
 }: {
   onNavigate?: () => void;
-  user: { name: string; plan: string };
+  user: DashboardShellUser;
   onUpgradeClick: () => void;
   onSettingsClick: () => void;
 }) {
@@ -331,7 +332,7 @@ function SidebarContent({
                 {user.name || "Usuário"}
               </p>
               <p className="text-[11px] text-notura-ink-secondary capitalize">
-                {user.plan === "pro" ? "Plano Pro" : user.plan === "team" ? "Plano Team" : "Plano Gratuito"}
+                {getPlanLabel(user.plan)}
               </p>
             </div>
           </button>
@@ -357,33 +358,41 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState({ name: "", plan: "free" });
+  const [user, setUser] = useState<DashboardShellUser>({
+    name: "",
+    plan: "free",
+    meetingsThisMonth: 0,
+    monthlyLimit: 3,
+  });
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
-      if (!authUser) return;
-      Promise.all([
-        supabase
-          .from("profiles")
-          .select("name")
-          .eq("id", authUser.id)
-          .single(),
-        supabase
-          .from("billing_accounts")
-          .select("plan")
-          .eq("user_id", authUser.id)
-          .maybeSingle(),
-      ]).then(([profileRes, billingRes]) => {
-        setUser({
-          name: profileRes.data?.name ?? authUser.email ?? "",
-          plan: (billingRes.data?.plan ?? "free") as string,
-        });
+  const loadUser = useCallback(async () => {
+    try {
+      const currentUser = await fetchCurrentUser();
+      setUser({
+        name: currentUser.name || currentUser.email || "",
+        plan: currentUser.plan,
+        meetingsThisMonth: currentUser.meetingsThisMonth,
+        monthlyLimit: currentUser.monthlyLimit,
       });
-    });
+    } catch {
+      // ignore sidebar refresh failures
+    }
   }, []);
+
+  useEffect(() => {
+    void loadUser();
+
+    const handleUserUpdated = () => {
+      void loadUser();
+    };
+
+    window.addEventListener("notura:user-updated", handleUserUpdated);
+    return () => {
+      window.removeEventListener("notura:user-updated", handleUserUpdated);
+    };
+  }, [loadUser]);
 
   return (
     <ThemeProvider>

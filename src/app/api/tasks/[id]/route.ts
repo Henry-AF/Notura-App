@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
-import { mapTaskRowToBoardTask, toDatabasePriority } from "../task-mapper";
+import { mapTaskRowToBoardTask, normalizeTaskStatus, toDatabasePriority } from "../task-mapper";
 
 // PATCH /api/tasks/:id — Update a task (ownership verified)
 export const PATCH = withAuth<{ id: string }>(async (

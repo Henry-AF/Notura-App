@@ -154,6 +154,7 @@ export interface Database {
           owner: string | null
           due_date: string | null
           priority: string
+          status: "todo" | "in_progress" | "completed"
           completed: boolean
           completed_at: string | null
           created_at: string
@@ -167,6 +168,7 @@ export interface Database {
           owner?: string | null
           due_date?: string | null
           priority?: string
+          status?: "todo" | "in_progress" | "completed"
           completed?: boolean
           completed_at?: string | null
           created_at?: string
@@ -180,6 +182,7 @@ export interface Database {
           owner?: string | null
           due_date?: string | null
           priority?: string
+          status?: "todo" | "in_progress" | "completed"
           completed?: boolean
           completed_at?: string | null
           created_at?: string

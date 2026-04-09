@@ -5,6 +5,7 @@ import {
   buildTaskColumns,
   buildTaskMeetingOptions,
   mapTaskRowToBoardTask,
+  normalizeTaskStatus,
   toDatabasePriority,
 } from "./task-mapper";
 
@@ -18,7 +19,7 @@ export async function GET() {
   const supabase = createServiceRoleClient();
   const { data: tasks, error } = await supabase
     .from("tasks")
-    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)")
+    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, status, completed, completed_at, created_at, meetings(title, client_name)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -82,6 +83,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
+  const taskStatus = normalizeTaskStatus(
+    typeof data.status === "string"
+      ? data.status
+      : typeof data.kanban_status === "string"
+      ? data.kanban_status
+      : typeof data.completed === "boolean"
+      ? (data.completed ? "completed" : "todo")
+      : "todo"
+  );
+  const isCompleted = taskStatus === "completed";
+
   const { data: task, error: insertError } = await supabase
     .from("tasks")
     .insert({
@@ -94,13 +106,11 @@ export async function POST(request: Request) {
       ),
       owner: typeof data.owner === "string" ? data.owner : null,
       due_date: typeof data.due_date === "string" ? data.due_date : null,
-      completed: typeof data.completed === "boolean" ? data.completed : false,
-      completed_at:
-        typeof data.completed === "boolean" && data.completed
-          ? new Date().toISOString()
-          : null,
+      status: taskStatus,
+      completed: isCompleted,
+      completed_at: isCompleted ? new Date().toISOString() : null,
     })
-    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)")
+    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, status, completed, completed_at, created_at, meetings(title, client_name)")
     .single();
 
   if (insertError || !task) {

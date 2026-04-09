@@ -33,8 +33,17 @@ export const PATCH = withAuth<{ id: string }>(async (
   if (typeof data.priority === "string") updatePayload.priority = toDatabasePriority(data.priority);
   if (typeof data.owner === "string" || data.owner === null) updatePayload.owner = data.owner;
   if (typeof data.due_date === "string" || data.due_date === null) updatePayload.due_date = data.due_date;
-  if (typeof data.completed === "boolean") {
+  if (typeof data.status === "string" || typeof data.kanban_status === "string") {
+    const nextStatus = normalizeTaskStatus(
+      typeof data.status === "string" ? data.status : (data.kanban_status as string)
+    );
+    const isCompleted = nextStatus === "completed";
+    updatePayload.status = nextStatus;
+    updatePayload.completed = isCompleted;
+    updatePayload.completed_at = isCompleted ? new Date().toISOString() : null;
+  } else if (typeof data.completed === "boolean") {
     updatePayload.completed = data.completed;
+    updatePayload.status = data.completed ? "completed" : "todo";
     updatePayload.completed_at = data.completed ? new Date().toISOString() : null;
   }
 
@@ -42,7 +51,7 @@ export const PATCH = withAuth<{ id: string }>(async (
     .from("tasks")
     .update(updatePayload)
     .eq("id", id)
-    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, completed, completed_at, created_at, meetings(title, client_name)")
+    .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, status, completed, completed_at, created_at, meetings(title, client_name)")
     .single();
 
   if (updateError || !updated) {

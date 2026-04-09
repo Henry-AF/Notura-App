@@ -146,13 +146,15 @@ export function KanbanColumn({
             />
           ) : (
             <span
+              onDoubleClick={onRenameColumn ? handleStartRename : undefined}
+              title={onRenameColumn ? "Duplo clique para renomear" : undefined}
               style={{
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 600,
                 fontSize: 13,
                 color: "rgb(var(--cn-ink2))",
                 letterSpacing: "0.03em",
-                cursor: dragHandleProps ? "grab" : "default",
+                cursor: dragHandleProps ? "grab" : onRenameColumn ? "text" : "default",
               }}
             >
               {column.title}
@@ -392,6 +394,30 @@ export function KanbanColumn({
                 onEdit={onEditTask}
               />
             ))}
+            {column.tasks.length === 0 && !snapshot.isDraggingOver && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 80,
+                  gap: 6,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>📭</span>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 12,
+                    color: "rgb(var(--cn-muted))",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Nenhuma tarefa aqui
+                </span>
+              </div>
+            )}
             {provided.placeholder}
           </div>
         )}

@@ -27,7 +27,7 @@ import {
   buildMeetingTaskColumns,
   type MeetingTaskColumnId,
   mapBoardTaskToMeetingTask,
-  setMeetingTaskCompletion,
+  setMeetingTaskStatus,
   upsertMeetingTask,
 } from "./meeting-task-kanban";
 
@@ -197,9 +197,21 @@ function MeetingDetailInner({ id }: { id: string }) {
 
   function buildInitialTaskColumnMap(meetingTasks: MeetingTask[]): Record<string, MeetingTaskColumnId> {
     return meetingTasks.reduce<Record<string, MeetingTaskColumnId>>((acc, task) => {
-      acc[task.id] = task.completed ? "done" : "todo";
+      if (task.status === "in_progress") {
+        acc[task.id] = "in_progress";
+      } else if (task.status === "completed" || task.completed) {
+        acc[task.id] = "completed";
+      } else {
+        acc[task.id] = "todo";
+      }
       return acc;
     }, {});
+  }
+
+  function toMeetingTaskColumnId(columnId: string | undefined): MeetingTaskColumnId {
+    if (columnId === "in_progress") return "in_progress";
+    if (columnId === "completed" || columnId === "done") return "completed";
+    return "todo";
   }
 
   useEffect(() => {
@@ -274,7 +286,7 @@ function MeetingDetailInner({ id }: { id: string }) {
       );
       setTaskColumnById((prev) => ({
         ...prev,
-        [persistedTask.id]: persistedColumnId === "done" ? "done" : draftColumn,
+        [persistedTask.id]: toMeetingTaskColumnId(persistedColumnId) ?? draftColumn,
       }));
       setDraftColumnId(null);
       return;
@@ -291,9 +303,7 @@ function MeetingDetailInner({ id }: { id: string }) {
     );
     setTaskColumnById((prev) => ({
       ...prev,
-      [taskId]: persistedTask.completed
-        ? "done"
-        : (prev[taskId] === "in_progress" ? "in_progress" : "todo"),
+      [taskId]: toMeetingTaskColumnId(persistedTask.columnId),
     }));
   }, [draftColumnId, id]);
 
@@ -323,51 +333,45 @@ function MeetingDetailInner({ id }: { id: string }) {
         return;
       }
 
-      const sourceColumn = taskColumns.find((column) => column.id === source.droppableId);
-      const movedTask = sourceColumn?.tasks[source.index];
-      if (!movedTask) return;
-
-      const task = tasks.find((item) => item.id === movedTask.id);
-      if (!task) return;
-
-      const destinationColumnId = destination.droppableId as MeetingTaskColumnId;
-      const previousColumnId = source.droppableId as MeetingTaskColumnId;
-      const newCompleted = destinationColumnId === "done";
-      const completionChanged = task.completed !== newCompleted;
-
-      setTaskColumnById((prev) => ({
-        ...prev,
-        [movedTask.id]: destinationColumnId,
-      }));
-
-      if (!completionChanged) {
+      if (source.droppableId === destination.droppableId) {
         return;
       }
 
-      setTasks((prev) => setMeetingTaskCompletion(prev, movedTask.id, newCompleted));
+      const movedTaskId = result.draggableId;
+      if (!movedTaskId) return;
+
+      const task = tasks.find((item) => item.id === movedTaskId);
+      if (!task) return;
+
+      const destinationColumnId = toMeetingTaskColumnId(destination.droppableId);
+      const previousColumnId =
+        taskColumnById[movedTaskId] ?? toMeetingTaskColumnId(source.droppableId);
+
+      setTaskColumnById((prev) => ({
+        ...prev,
+        [movedTaskId]: destinationColumnId,
+      }));
+      setTasks((prev) => setMeetingTaskStatus(prev, movedTaskId, destinationColumnId));
 
       try {
-        const persistedTask = await updateTaskById(movedTask.id, { completed: newCompleted });
+        const persistedTask = await updateTaskById(movedTaskId, { status: destinationColumnId });
         setTasks((prev) =>
           upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
         );
         setTaskColumnById((prev) => ({
           ...prev,
-          [movedTask.id]:
-            persistedTask.completed
-              ? "done"
-              : (destinationColumnId === "in_progress" ? "in_progress" : "todo"),
+          [movedTaskId]: toMeetingTaskColumnId(persistedTask.columnId),
         }));
       } catch {
         setTasks((prev) => prev.map((item) => (item.id === task.id ? task : item)));
         setTaskColumnById((prev) => ({
           ...prev,
-          [movedTask.id]: previousColumnId,
+          [movedTaskId]: previousColumnId,
         }));
         show("Erro ao atualizar tarefa.", "error");
       }
     },
-    [show, taskColumns, tasks]
+    [show, taskColumnById, tasks]
   );
 
   const handleShare = useCallback(() => {

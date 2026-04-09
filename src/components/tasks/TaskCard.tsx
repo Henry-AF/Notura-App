@@ -114,7 +114,7 @@ const PRIORITY_COLORS: Record<Task["priority"], { border: string; dot: string; l
 };
 
 export function TaskCard({ task, index, onEdit }: TaskCardProps) {
-  const isDone = task.columnId === "done";
+  const isDone = task.columnId === "completed";
   const p = PRIORITY_COLORS[task.priority];
   const allAssignees: { name: string; avatarUrl?: string }[] = task.assignees?.length
     ? task.assignees

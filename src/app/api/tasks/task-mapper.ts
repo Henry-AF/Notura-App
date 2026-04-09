@@ -3,6 +3,9 @@ import type { Database } from "@/types/database";
 
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"] & {
   meetings?: { title: string | null; client_name: string | null } | null;
+  status?: string | null;
+  completed?: boolean;
+  kanban_status?: string | null;
 };
 
 const COLUMN_DEFS: Omit<Column, "tasks">[] = [
@@ -21,7 +24,7 @@ const COLUMN_DEFS: Omit<Column, "tasks">[] = [
     badgeBg: "rgba(255,169,77,0.15)",
   },
   {
-    id: "done",
+    id: "completed",
     title: "Concluído",
     dotColor: "#4ECB71",
     badgeColor: "#4ECB71",
@@ -47,6 +50,29 @@ export function toDatabasePriority(
   return "baixa";
 }
 
+export function normalizeTaskStatus(
+  status: string | null | undefined
+): "todo" | "in_progress" | "completed" {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "in_progress" || normalized === "in progress") {
+    return "in_progress";
+  }
+  if (normalized === "completed" || normalized === "done") {
+    return "completed";
+  }
+  return "todo";
+}
+
+function resolveTaskColumnId(task: TaskRow): "todo" | "in_progress" | "completed" {
+  if (typeof task.status === "string" && task.status.trim()) {
+    return normalizeTaskStatus(task.status);
+  }
+  if (typeof task.kanban_status === "string" && task.kanban_status.trim()) {
+    return normalizeTaskStatus(task.kanban_status);
+  }
+  return task.completed ? "completed" : "todo";
+}
+
 export function mapTaskRowToBoardTask(task: TaskRow): Task {
   const meetingSource =
     task.meetings?.client_name ?? task.meetings?.title ?? undefined;
@@ -55,7 +81,7 @@ export function mapTaskRowToBoardTask(task: TaskRow): Task {
     id: task.id,
     title: task.description,
     priority: normalizeTaskPriority(task.priority),
-    columnId: task.completed ? "done" : "todo",
+    columnId: resolveTaskColumnId(task),
     meetingId: task.meeting_id,
     dueDate: task.due_date ?? undefined,
     completedDate: task.completed_at
@@ -72,14 +98,21 @@ export function mapTaskRowToBoardTask(task: TaskRow): Task {
 }
 
 export function buildTaskColumns(tasks: TaskRow[]): Column[] {
-  const todoTasks = tasks.filter((task) => !task.completed).map(mapTaskRowToBoardTask);
-  const doneTasks = tasks.filter((task) => task.completed).map(mapTaskRowToBoardTask);
+  const validIds = new Set(COLUMN_DEFS.map((c) => c.id));
+  const colMap = new Map<string, Task[]>();
 
-  return [
-    { ...COLUMN_DEFS[0], tasks: todoTasks },
-    { ...COLUMN_DEFS[1], tasks: [] },
-    { ...COLUMN_DEFS[2], tasks: doneTasks },
-  ];
+  for (const task of tasks) {
+    const colId = resolveTaskColumnId(task);
+    const key = validIds.has(colId) ? colId : "todo";
+    const existing = colMap.get(key) ?? [];
+    existing.push(mapTaskRowToBoardTask(task));
+    colMap.set(key, existing);
+  }
+
+  return COLUMN_DEFS.map((def) => ({
+    ...def,
+    tasks: colMap.get(def.id) ?? [],
+  }));
 }
 
 export function buildTaskMeetingOptions(

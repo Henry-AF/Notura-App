@@ -27,6 +27,12 @@ interface Pref {
   enabled: boolean;
 }
 
+function resolveMonthlyLimit(plan: string | null | undefined): number {
+  if (plan === "team") return 999;
+  if (plan === "pro") return 30;
+  return 3;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SettingsModal({
@@ -68,16 +74,18 @@ export function SettingsModal({
 
       const [profileRes, billingRes] = await Promise.all([
         supabase.from("profiles").select("name, company").eq("id", user.id).single(),
-        supabase.from("billing_accounts").select("plan, meetings_this_month, monthly_limit").eq("user_id", user.id).maybeSingle(),
+        supabase.from("billing_accounts").select("plan, meetings_this_month").eq("user_id", user.id).maybeSingle(),
       ]);
+
+      const plan = billingRes.data?.plan ?? "free";
 
       const loaded: UserData = {
         name: profileRes.data?.name ?? "",
         email: user.email ?? "",
         company: profileRes.data?.company ?? "",
-        plan: billingRes.data?.plan ?? "free",
+        plan,
         meetingsUsed: billingRes.data?.meetings_this_month ?? 0,
-        monthlyLimit: billingRes.data?.monthly_limit ?? 3,
+        monthlyLimit: resolveMonthlyLimit(plan),
       };
       setData(loaded);
       setName(loaded.name);

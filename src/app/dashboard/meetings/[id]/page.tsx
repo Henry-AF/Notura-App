@@ -17,6 +17,8 @@ import { KanbanBoard, TaskEditModal } from "@/components/tasks";
 import type { Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
+import { Button } from "@/components/ui/button";
+import { LoadingState as AppLoadingState, SectionCard } from "@/components/ui/app";
 import {
   createTask,
   deleteTaskById,
@@ -33,64 +35,20 @@ import {
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
-function LoadingState() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: 240,
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          border: "2px solid #6C5CE7",
-          borderTopColor: "transparent",
-          animation: "spin 0.7s linear infinite",
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
+function MeetingLoadingState() {
+  return <AppLoadingState label="Carregando reunião..." />;
 }
 
 // ─── Not found state ──────────────────────────────────────────────────────────
 
 function NotFoundState({ onBack }: { onBack: () => void }) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: "48px 24px",
-        textAlign: "center",
-      }}
-    >
-      <p style={{ color: "rgb(var(--cn-ink2))", fontFamily: "Inter, sans-serif", fontSize: 14 }}>
-        Reunião não encontrada.
-      </p>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          marginTop: 16,
-          background: "#6C5CE7",
-          color: "#fff",
-          border: "none",
-          borderRadius: 999,
-          padding: "8px 20px",
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
+    <SectionCard className="rounded-xl px-6 py-12 text-center">
+      <p className="text-sm text-muted-foreground">Reunião não encontrada.</p>
+      <Button type="button" className="mt-4 rounded-full px-6" onClick={onBack}>
         Voltar
-      </button>
-    </div>
+      </Button>
+    </SectionCard>
   );
 }
 
@@ -98,34 +56,13 @@ function NotFoundState({ onBack }: { onBack: () => void }) {
 
 function ProcessingState({ clientName }: { clientName: string }) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: "48px 24px",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          border: "2px solid #74C0FC",
-          borderTopColor: "transparent",
-          animation: "spin 0.7s linear infinite",
-          margin: "0 auto 16px",
-        }}
-      />
-      <p style={{ color: "#74C0FC", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600 }}>
-        Processando reunião com {clientName}
-      </p>
-      <p style={{ color: "rgb(var(--cn-muted))", fontFamily: "Inter, sans-serif", fontSize: 13, marginTop: 6 }}>
+    <SectionCard className="rounded-xl px-6 py-12 text-center">
+      <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+      <p className="text-sm font-semibold text-sky-500">Processando reunião com {clientName}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
         O resumo e as tarefas serão gerados em instantes.
       </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -133,18 +70,7 @@ function ProcessingState({ clientName }: { clientName: string }) {
 
 function ComingSoon({ label }: { label: string }) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: "48px 24px",
-        textAlign: "center",
-        color: "rgb(var(--cn-muted))",
-        fontFamily: "Inter, sans-serif",
-        fontSize: 14,
-      }}
-    >
+    <div className="rounded-xl border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
       {label} — em breve
     </div>
   );
@@ -626,7 +552,7 @@ function MeetingDetailInner({ id }: { id: string }) {
     }
   }
 
-  if (loading) return <LoadingState />;
+  if (loading) return <MeetingLoadingState />;
   if (notFound) return <NotFoundState onBack={() => router.push("/dashboard")} />;
 
   return (

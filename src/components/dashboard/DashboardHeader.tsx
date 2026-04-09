@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export interface DashboardHeaderProps {
   userName: string;
@@ -25,66 +26,28 @@ export function DashboardHeader({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      {/* Left: greeting */}
       <div>
-        <h1
-          style={{
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 800,
-            fontSize: "36px",
-            lineHeight: 1.1,
-            color: "rgb(var(--cn-ink))",
-            margin: 0,
-          }}
-        >
+        <h1 className="font-display text-3xl font-extrabold leading-tight text-foreground sm:text-4xl">
           {greeting.text}, {userName} {greeting.emoji}
         </h1>
-        <p
-          className="mt-1.5"
-          style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "rgb(var(--cn-ink2))" }}
-        >
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Sua inteligência fluida processou{" "}
-          <span style={{ color: "rgb(var(--cn-ink))", fontWeight: 700 }}>
+          <span className="font-bold text-foreground">
             {meetingsProcessedToday} reuniões
           </span>{" "}
           hoje.
         </p>
       </div>
 
-      {/* Right: CTA button */}
-      <button
+      <Button
         type="button"
         onClick={onNewMeeting}
-        className="flex shrink-0 items-center gap-2"
-        style={{
-          background: "#6C5CE7",
-          color: "#FFFFFF",
-          borderRadius: "999px",
-          padding: "12px 24px",
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontWeight: 700,
-          fontSize: "14px",
-          border: "none",
-          cursor: "pointer",
-          transition: "background 0.15s, transform 0.1s",
-          marginTop: "4px",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = "#5A4BD1";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = "#6C5CE7";
-        }}
-        onMouseDown={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.97)";
-        }}
-        onMouseUp={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-        }}
+        size="lg"
+        className="mt-1 rounded-full px-6"
       >
-        <Plus style={{ width: 18, height: 18 }} />
+        <Plus className="h-[18px] w-[18px]" />
         Nova reunião
-      </button>
+      </Button>
     </div>
   );
 }

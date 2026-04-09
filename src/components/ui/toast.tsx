@@ -33,9 +33,9 @@ const Toast = React.forwardRef<
     className={cn(
       "group pointer-events-auto relative flex w-full items-center gap-3 overflow-hidden rounded-lg border p-4 shadow-elevated transition-all data-[state=open]:animate-slide-up data-[state=closed]:animate-fade-in",
       {
-        "border-notura-border bg-white": variant === "default",
-        "border-violet-200 bg-violet-50": variant === "success",
-        "border-red-200 bg-red-50": variant === "error",
+        "border-border bg-card text-card-foreground": variant === "default",
+        "border-emerald-500/30 bg-emerald-500/10 text-foreground": variant === "success",
+        "border-destructive/30 bg-destructive/10 text-foreground": variant === "error",
       },
       className
     )}
@@ -51,7 +51,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitive.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-notura-border bg-white px-3 text-sm font-medium hover:bg-notura-surface",
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
       className
     )}
     {...props}
@@ -83,7 +83,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitive.Title
     ref={ref}
-    className={cn("text-sm font-medium text-notura-ink", className)}
+    className={cn("text-sm font-medium text-foreground", className)}
     {...props}
   />
 ));
@@ -95,7 +95,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-notura-muted", className)}
+    className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

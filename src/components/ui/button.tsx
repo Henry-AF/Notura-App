@@ -6,23 +6,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "rounded-full bg-notura-primary text-white shadow-md hover:bg-notura-primary-dark active:bg-notura-primary-dark hover:-translate-y-0.5 active:translate-y-0",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
         secondary:
-          "rounded-full border-[1.5px] border-notura-border bg-white text-notura-ink hover:border-emerald-300 hover:text-notura-primary active:bg-emerald-50",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline:
+          "border border-input bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground",
         ghost:
-          "rounded-md text-notura-secondary hover:text-notura-primary hover:bg-emerald-50 active:bg-emerald-100",
+          "text-foreground hover:bg-accent hover:text-accent-foreground",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         danger:
-          "rounded-full bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800 hover:-translate-y-0.5 active:translate-y-0",
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
       },
       size: {
-        sm: "h-8 px-4 text-xs",
-        md: "h-10 px-5 text-sm",
-        lg: "h-12 px-7 text-base",
+        sm: "h-9 rounded-md px-3",
+        md: "h-10 px-4 py-2",
+        lg: "h-11 rounded-md px-8",
       },
     },
     defaultVariants: {

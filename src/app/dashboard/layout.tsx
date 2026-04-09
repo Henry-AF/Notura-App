@@ -74,78 +74,55 @@ function CriarDropdown({ onNavigate }: { onNavigate?: () => void }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]"
-        style={{ background: "linear-gradient(135deg, #6C5CE7, #8B5CF6)" }}
+        className="flex w-full items-center justify-between gap-2 rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]"
       >
         <span className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           Criar
         </span>
         <ChevronDown
-          className="h-3.5 w-3.5 transition-transform duration-200"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+          className={cn(
+            "h-3.5 w-3.5 transition-transform duration-200",
+            open ? "rotate-180" : "rotate-0"
+          )}
         />
       </button>
 
       {open && (
         <div
-          className="absolute left-3 right-3 top-full mt-1.5 overflow-hidden rounded-xl border shadow-xl z-50"
-          style={{
-            background: "rgb(var(--cn-card))",
-            borderColor: "rgb(var(--cn-border))",
-            animation: "dropDown 0.15s cubic-bezier(0.25,0.46,0.45,0.94)",
-          }}
+          className="absolute left-3 right-3 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border bg-card shadow-xl animate-slide-down"
         >
           <button
             type="button"
             onClick={() => go("/dashboard/recording")}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors"
-            style={{ color: "rgb(var(--cn-ink2))" }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
           >
-            <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-              style={{ background: "rgba(108,92,231,0.15)" }}
-            >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15">
               <Mic className="h-3.5 w-3.5 text-[#6C5CE7]" />
             </div>
             <div className="text-left">
-              <p className="font-medium" style={{ color: "rgb(var(--cn-ink))" }}>Nova reunião</p>
-              <p className="text-xs" style={{ color: "rgb(var(--cn-muted))" }}>Gravar ou iniciar reunião</p>
+              <p className="font-medium text-foreground">Nova reunião</p>
+              <p className="text-xs text-muted-foreground">Gravar ou iniciar reunião</p>
             </div>
           </button>
 
-          <div style={{ height: 1, background: "rgb(var(--cn-border))", margin: "0 12px" }} />
+          <div className="mx-3 h-px bg-border" />
 
           <button
             type="button"
             onClick={() => go("/dashboard/new")}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors"
-            style={{ color: "rgb(var(--cn-ink2))" }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgb(var(--cn-card2))")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
           >
-            <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-              style={{ background: "rgba(78,203,113,0.15)" }}
-            >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
               <UploadCloud className="h-3.5 w-3.5 text-[#4ECB71]" />
             </div>
             <div className="text-left">
-              <p className="font-medium" style={{ color: "rgb(var(--cn-ink))" }}>Upload de arquivo</p>
-              <p className="text-xs" style={{ color: "rgb(var(--cn-muted))" }}>Enviar áudio ou vídeo</p>
+              <p className="font-medium text-foreground">Upload de arquivo</p>
+              <p className="text-xs text-muted-foreground">Enviar áudio ou vídeo</p>
             </div>
           </button>
         </div>
       )}
-
-      <style>{`
-        @keyframes dropDown {
-          from { opacity: 0; transform: translateY(-6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -196,8 +173,7 @@ function UserDropdown({
   return (
     <div
       ref={ref}
-      className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-notura-border/50 bg-notura-bg-secondary p-1.5 shadow-xl z-50"
-      style={{ animation: "dropUp 0.15s cubic-bezier(0.25,0.46,0.45,0.94)" }}
+      className="absolute bottom-full left-0 right-0 z-50 mb-1 rounded-xl border border-notura-border/50 bg-notura-bg-secondary p-1.5 shadow-xl animate-slide-up"
       role="menu"
     >
       {/* Profile header */}
@@ -236,13 +212,6 @@ function UserDropdown({
         <LogOut className="h-3.5 w-3.5 shrink-0" />
         Sair
       </button>
-
-      <style>{`
-        @keyframes dropUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

@@ -2,96 +2,48 @@
 
 import React from "react";
 import { Calendar, Share2, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusBadge } from "@/components/ui/app";
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG = {
-  completed: { bg: "rgba(78,203,113,0.15)", color: "#4ECB71", label: "Concluído" },
-  processing: { bg: "rgba(116,192,252,0.15)", color: "#74C0FC", label: "Processando" },
-  failed: { bg: "rgba(255,107,107,0.15)", color: "#FF6B6B", label: "Falhou" },
-  scheduled: { bg: "rgba(255,169,77,0.15)", color: "#FFA94D", label: "Agendado" },
-} as const;
-
-// ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-function hashColor(name: string): { bg: string; color: string } {
-  const PALETTE = [
-    { bg: "rgba(116,192,252,0.15)", color: "#4A8FD9" },
-    { bg: "rgba(162,155,254,0.15)", color: "#7B6EE0" },
-    { bg: "rgba(255,138,138,0.15)", color: "#D94F4F" },
-    { bg: "rgba(78,203,113,0.15)", color: "#3AAD66" },
-    { bg: "rgba(255,169,77,0.15)", color: "#D98B2A" },
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return PALETTE[Math.abs(hash) % PALETTE.length];
+function statusLabel(
+  status: MeetingHeaderProps["status"]
+): "completed" | "processing" | "failed" | "scheduled" | "pending" {
+  if (status === "completed") return "completed";
+  if (status === "processing") return "processing";
+  if (status === "failed") return "failed";
+  if (status === "scheduled") return "scheduled";
+  return "pending";
 }
 
 function ParticipantAvatars({
   participants,
-  maxVisible = 3,
+  maxVisible = 4,
 }: {
   participants: Array<{ name: string; avatarUrl?: string }>;
   maxVisible?: number;
 }) {
   const visible = participants.slice(0, maxVisible);
-  const extra = participants.length - maxVisible;
+  const extra = participants.length - visible.length;
 
   return (
-    <div style={{ display: "flex", alignItems: "center" }}>
-      {visible.map((p, i) => {
-        const style = hashColor(p.name);
-        const initial = p.name.trim()[0]?.toUpperCase() ?? "?";
-        return (
-          <div
-            key={i}
-            title={p.name}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: style.bg,
-              color: style.color,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-              fontWeight: 700,
-              marginLeft: i === 0 ? 0 : -8,
-              border: "2px solid rgb(var(--cn-bg))",
-              position: "relative",
-            }}
-          >
-            {initial}
-          </div>
-        );
-      })}
-      {extra > 0 && (
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: "rgb(var(--cn-card2))",
-            color: "rgb(var(--cn-ink2))",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 11,
-            fontWeight: 700,
-            marginLeft: -8,
-            border: "2px solid rgb(var(--cn-bg))",
-            flexShrink: 0,
-          }}
+    <div className="flex items-center">
+      {visible.map((participant, index) => (
+        <Avatar
+          key={`${participant.name}-${index}`}
+          className="-ml-2 h-7 w-7 border-2 border-background first:ml-0"
         >
+          <AvatarFallback name={participant.name} className="text-[10px] font-semibold" />
+        </Avatar>
+      ))}
+      {extra > 0 ? (
+        <div className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground">
           +{extra}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
-
-// ─── MeetingHeader ────────────────────────────────────────────────────────────
 
 export interface MeetingHeaderProps {
   clientName: string;
@@ -102,22 +54,6 @@ export interface MeetingHeaderProps {
   onEdit: () => void;
 }
 
-const actionBtnBase: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid rgb(var(--cn-border))",
-  borderRadius: 8,
-  padding: "8px 16px",
-  color: "rgb(var(--cn-ink))",
-  fontFamily: "Inter, sans-serif",
-  fontWeight: 600,
-  fontSize: 13,
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  cursor: "pointer",
-  transition: "all 0.15s",
-};
-
 export function MeetingHeader({
   clientName,
   date,
@@ -126,101 +62,30 @@ export function MeetingHeader({
   onShare,
   onEdit,
 }: MeetingHeaderProps) {
-  const statusCfg = STATUS_CONFIG[status];
-
   return (
-    <div style={{ marginBottom: 20 }}>
-      {/* Row 1: title + action buttons */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-        <h1
-          style={{
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 800,
-            fontSize: 48,
-            color: "rgb(var(--cn-ink))",
-            lineHeight: 1.1,
-            margin: 0,
-          }}
-        >
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground md:text-5xl">
           {clientName}
         </h1>
-
-        <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 6 }}>
-          <button
-            type="button"
-            onClick={onShare}
-            style={actionBtnBase}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "rgb(var(--cn-card))";
-              el.style.borderColor = "rgb(var(--cn-border))";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "transparent";
-              el.style.borderColor = "rgb(var(--cn-border))";
-            }}
-          >
-            <Share2 style={{ width: 14, height: 14 }} />
+        <div className="flex shrink-0 items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onShare}>
+            <Share2 className="h-4 w-4" />
             Compartilhar
-          </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            style={actionBtnBase}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "rgb(var(--cn-card))";
-              el.style.borderColor = "rgb(var(--cn-border))";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "transparent";
-              el.style.borderColor = "rgb(var(--cn-border))";
-            }}
-          >
-            <Pencil style={{ width: 14, height: 14 }} />
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
             Editar
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Row 2: date, status badge, participants */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          marginTop: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Date */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Calendar style={{ width: 14, height: 14, color: "rgb(var(--cn-muted))", flexShrink: 0 }} />
-          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, color: "rgb(var(--cn-muted))" }}>
-            {date}
-          </span>
-        </div>
-
-        {/* Status badge */}
-        <span
-          style={{
-            padding: "4px 12px",
-            borderRadius: 999,
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 600,
-            fontSize: 11,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            background: statusCfg.bg,
-            color: statusCfg.color,
-          }}
-        >
-          {statusCfg.label}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          {date}
         </span>
-
-        {/* Participants */}
+        <StatusBadge status={statusLabel(status)} />
         <ParticipantAvatars participants={participants} />
       </div>
     </div>

@@ -6,9 +6,12 @@ import { cn } from "@/lib/utils";
 
 function generateColorFromName(name: string): string {
   const colors = [
-    "bg-emerald-600", "bg-blue-600", "bg-violet-600",
-    "bg-rose-600", "bg-amber-600", "bg-teal-600",
-    "bg-indigo-600", "bg-pink-600",
+    "bg-notura-primary",
+    "bg-notura-processing",
+    "bg-notura-primary-dark",
+    "bg-notura-secondary",
+    "bg-emerald-600",
+    "bg-blue-600",
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -53,7 +56,7 @@ const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   AvatarFallbackProps
 >(({ className, name, children, ...props }, ref) => {
-  const bgColor = name ? generateColorFromName(name) : "bg-notura-muted";
+  const bgColor = name ? generateColorFromName(name) : "bg-muted";
   const initials = name
     ? name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
     : null;
@@ -62,7 +65,7 @@ const AvatarFallback = React.forwardRef<
     <AvatarPrimitive.Fallback
       ref={ref}
       className={cn(
-        "flex h-full w-full items-center justify-center rounded-full text-sm font-medium text-white",
+        "flex h-full w-full items-center justify-center rounded-full text-sm font-medium text-primary-foreground",
         bgColor,
         className
       )}

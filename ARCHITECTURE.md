@@ -120,7 +120,29 @@ await supabase.from("tasks").upsert(tasks, { onConflict: "meeting_id,dedupe_key"
 
 ---
 
-## Rule #6 — Reusable logic lives in `lib/`
+## Rule #6 — Never call internal API routes from server-side code
+
+Calling `/api/*` routes from within server-side code (Route Handlers, Inngest
+functions, lib utilities) adds unnecessary network overhead and hides the real
+dependency. Import the underlying function directly instead.
+
+```typescript
+// ❌ FORBIDDEN — HTTP call to your own API from the backend
+const res = await fetch("http://localhost:3000/api/tasks");
+const tasks = await res.json();
+
+// ✅ CORRECT — import the function directly
+import { getTasks } from "@/lib/tasks";
+const tasks = await getTasks();
+```
+
+This rule applies to any server-side context: Route Handlers, Inngest steps,
+lib modules, and server components. The only place that legitimately calls
+`/api/*` routes over HTTP is the frontend companion helper (`page-name-api.ts`).
+
+---
+
+## Rule #7 — Reusable logic lives in `lib/`
 
 Any function that interacts with an external library (Supabase, Inngest, AssemblyAI,
 Gemini, R2, WhatsApp, etc.) or that can be reused across more than one file must live
@@ -187,7 +209,7 @@ src/
 
 ---
 
-## Rule #7 — Every new page requires a companion API helper and test file
+## Rule #8 — Every new page requires a companion API helper and test file
 
 Every new screen/page must be accompanied by two files in the same folder:
 
@@ -371,16 +393,10 @@ describe("fetchMeetingDetail", () => {
 
 ## Code Quality Rules
 
-- **Maximum function length: 80 lines.** If a function exceeds this, extract a named helper.
-- **Maximum cyclomatic complexity: 10.** Deeply nested conditionals must be refactored.
+- **Maximum function length: 50 lines.** If a function exceeds this, extract a named helper.
+- **Maximum cyclomatic complexity: 8.** Deeply nested conditionals must be refactored.
 - **Prefer small, composable functions** over large monolithic ones. Each function should
   do one thing and do it well.
-- These limits also apply to `tsx` component functions. A large screen is not an exception
-  to become monolithic: page components may compose multiple visual sections, but state,
-  fetch orchestration, data mapping, event handlers and heavy JSX blocks should be extracted
-  into named helpers or subcomponents as the page grows.
-- A `page.tsx` may still be longer than a small helper if it is mostly declarative composition,
-  but if the page function itself starts accumulating multiple responsibilities, break it up.
 
 ```typescript
 // ❌ AVOID — one large function doing everything
@@ -468,7 +484,8 @@ Before writing any code, verify:
 - [ ] Is this an insert into `tasks`, `decisions` or `open_items`? → `upsert` with `dedupe_key`
 - [ ] Does this interact with an external library? → Must live in or import from `lib/`
 - [ ] Does a `lib/` helper already exist for this? → Use it, do not rewrite it
-- [ ] Is any function longer than 80 lines? → Extract named helpers
+- [ ] Is any function longer than 50 lines? → Extract named helpers
 - [ ] Is there optional chaining on a non-nullable type? → Remove it
 - [ ] Is there a null check on a value the type guarantees exists? → Remove it
+- [ ] Does server-side code call an internal `/api/*` route? → Import the lib function directly
 - [ ] Is this a new page? → Create `page-name-api.ts` and `page-name-api.test.ts` alongside it

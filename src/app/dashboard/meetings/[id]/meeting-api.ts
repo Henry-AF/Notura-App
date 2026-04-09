@@ -50,23 +50,39 @@ function normalizeTaskPriority(priority: string): MeetingTask["priority"] {
   return "Baixa";
 }
 
+function normalizeTaskStatus(
+  status: string | null | undefined,
+  completed: boolean
+): "todo" | "in_progress" | "completed" {
+  if (status === "in_progress") return "in_progress";
+  if (status === "completed" || status === "done") return "completed";
+  return completed ? "completed" : "todo";
+}
+
 export function mapMeetingDetail(
   meeting: MeetingWithRelations
 ): MeetingDetailData {
   const summaryJson = (meeting.summary_json as MeetingJSON | null) ?? null;
   const participants =
     summaryJson?.meeting?.participants?.map((name) => ({ name })) ?? [];
-  const tasks: MeetingTask[] = (meeting.tasks ?? []).map((task) => ({
-    id: task.id,
-    text: task.description,
-    completed: task.completed,
-    assignee: task.owner ?? undefined,
-    priority: normalizeTaskPriority(task.priority),
-    dueDate: task.due_date ? formatDate(task.due_date) : undefined,
-    completedLabel: task.completed_at
-      ? `Concluído em ${formatDate(task.completed_at)}`
-      : undefined,
-  }));
+  const tasks: MeetingTask[] = (meeting.tasks ?? []).map((task) => {
+    const status = normalizeTaskStatus(task.status, task.completed);
+    const completed = status === "completed";
+
+    return {
+      id: task.id,
+      text: task.description,
+      completed,
+      status,
+      assignee: task.owner ?? undefined,
+      priority: normalizeTaskPriority(task.priority),
+      dueDate: task.due_date ? formatDate(task.due_date) : undefined,
+      completedLabel:
+        completed && task.completed_at
+          ? `Concluído em ${formatDate(task.completed_at)}`
+          : undefined,
+    };
+  });
   const decisions = (meeting.decisions ?? []).map((decision) => ({
     id: decision.id,
     description: decision.description,

@@ -55,6 +55,7 @@ describe("meeting detail api client", () => {
               owner: "Ana",
               due_date: "2026-04-10",
               priority: "média",
+              status: "in_progress",
               completed: false,
               completed_at: null,
               created_at: "2026-04-07T09:30:00.000Z",
@@ -102,6 +103,7 @@ describe("meeting detail api client", () => {
         id: "task-1",
         text: "Enviar proposta",
         priority: "Média",
+        status: "in_progress",
       })
     );
     expect(meeting.keyDecision).toBe("Seguir com a proposta premium");

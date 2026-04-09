@@ -15,6 +15,64 @@ const COLUMN_COLORS = [
   { dot: "#E91E8C", badge: "#E91E8C", bg: "rgba(233,30,140,0.15)" },
 ];
 
+function cloneColumns(columns: Column[]): Column[] {
+  return columns.map((col) => ({ ...col, tasks: [...col.tasks] }));
+}
+
+export function applyTaskUpdates(
+  previousColumns: Column[],
+  taskId: string,
+  updates: Partial<Task>
+): Column[] {
+  const next = cloneColumns(previousColumns);
+  let sourceColumnIndex = -1;
+  let sourceTaskIndex = -1;
+
+  for (let i = 0; i < next.length; i++) {
+    const idx = next[i]?.tasks.findIndex((task) => task.id === taskId) ?? -1;
+    if (idx !== -1) {
+      sourceColumnIndex = i;
+      sourceTaskIndex = idx;
+      break;
+    }
+  }
+
+  if (sourceColumnIndex === -1 || sourceTaskIndex === -1) {
+    return previousColumns;
+  }
+
+  const sourceColumn = next[sourceColumnIndex]!;
+  const currentTask = sourceColumn.tasks[sourceTaskIndex]!;
+  const targetColumnId =
+    typeof updates.columnId === "string" ? updates.columnId : currentTask.columnId;
+
+  if (targetColumnId !== sourceColumn.id) {
+    const [removedTask] = sourceColumn.tasks.splice(sourceTaskIndex, 1);
+    const destinationColumn = next.find((col) => col.id === targetColumnId);
+
+    if (!destinationColumn) {
+      sourceColumn.tasks.splice(sourceTaskIndex, 0, { ...removedTask, ...updates });
+      return next;
+    }
+
+    const movedTask: Task = { ...removedTask, ...updates, columnId: destinationColumn.id };
+    if (destinationColumn.id === "completed") {
+      movedTask.completedDate = `Concluido em ${new Date().toLocaleDateString("pt-BR", {
+        day: "numeric",
+        month: "short",
+      })}`;
+    } else if (!("completedDate" in updates)) {
+      movedTask.completedDate = undefined;
+    }
+
+    destinationColumn.tasks.unshift(movedTask);
+    return next;
+  }
+
+  sourceColumn.tasks[sourceTaskIndex] = { ...currentTask, ...updates };
+  return next;
+}
+
 export function useKanban(initialColumns: Column[]) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
 
@@ -73,14 +131,7 @@ export function useKanban(initialColumns: Column[]) {
 
   // Update task
   const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    setColumns((prev) =>
-      prev.map((col) => ({
-        ...col,
-        tasks: col.tasks.map((t) =>
-          t.id === taskId ? { ...t, ...updates } : t
-        ),
-      }))
-    );
+    setColumns((prev) => applyTaskUpdates(prev, taskId, updates));
   }, []);
 
   // Delete task

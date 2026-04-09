@@ -3,21 +3,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, RefreshCw, Sparkles, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { formatRelativeTime } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Status = "completed" | "processing" | "failed";
-
-interface Meeting {
-  id: string;
-  clientName: string;
-  title: string;
-  date: string;
-  rawDate: string;
-  status: Status;
-}
+import {
+  fetchMeetings,
+  type MeetingsPageMeeting as Meeting,
+  type MeetingsPageStatus as Status,
+} from "./meetings-api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -212,36 +202,28 @@ export default function MeetingsPage() {
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("meetings")
-        .select("id, title, client_name, status, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      const mapped: Meeting[] = (data ?? []).map((m) => {
-        const uiStatus: Status =
-          m.status === "completed" ? "completed" : m.status === "failed" ? "failed" : "processing";
-        return {
-          id: m.id,
-          clientName: m.client_name ?? m.title ?? "—",
-          title: m.title ?? "—",
-          date: formatRelativeTime(m.created_at),
-          rawDate: m.created_at,
-          status: uiStatus,
-        };
-      });
-
-      setMeetings(mapped);
-      setLoading(false);
+      try {
+        const data = await fetchMeetings();
+        if (!cancelled) {
+          setMeetings(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setMeetings([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
-    load();
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleRetry = useCallback(async (id: string) => {

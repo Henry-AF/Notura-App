@@ -177,7 +177,7 @@ export default function MeetingsPage() {
         description={
           loading
             ? "Carregando..."
-            : `${meetings.length} reunião${meetings.length !== 1 ? "ões" : ""} no total`
+            : `${meetings.length} ${meetings.length !== 1 ? "reuniões" : "reunião"} no total`
         }
       />
 

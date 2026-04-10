@@ -7,6 +7,11 @@ import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/se
 import { buildR2Key, uploadAudio } from "@/lib/r2";
 import { inngest } from "@/lib/inngest";
 import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
+import { validateMeetingDate } from "@/lib/meetings/meeting-date";
+import {
+  getWhatsappNumberValidationError,
+  normalizeWhatsappNumber,
+} from "@/lib/meetings/whatsapp-number";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
 // Allow up to 5 minutes for large uploads on serverless/edge.
@@ -92,6 +97,29 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  const whatsappNumberError = getWhatsappNumberValidationError(whatsappNumber);
+  if (whatsappNumberError) {
+    return NextResponse.json(
+      { error: whatsappNumberError },
+      { status: 400 }
+    );
+  }
+  const normalizedWhatsappNumber = normalizeWhatsappNumber(whatsappNumber);
+
+  if (!meetingDate || meetingDate.trim().length === 0) {
+    return NextResponse.json(
+      { error: "Campo 'meeting_date' é obrigatório." },
+      { status: 400 }
+    );
+  }
+
+  const meetingDateError = validateMeetingDate(meetingDate);
+  if (meetingDateError) {
+    return NextResponse.json(
+      { error: meetingDateError },
+      { status: 400 }
+    );
+  }
 
   if (audioFile.size > MAX_FILE_SIZE) {
     return NextResponse.json(
@@ -136,7 +164,7 @@ export async function POST(request: NextRequest) {
     client_name: clientName,
     meeting_date: meetingDate,
     audio_r2_key: r2Key,
-    whatsapp_number: whatsappNumber.trim(),
+    whatsapp_number: normalizedWhatsappNumber,
     status: "pending" as MeetingStatus,
     whatsapp_status: "pending" as WhatsAppStatus,
     source: "upload" as MeetingSource,
@@ -168,7 +196,7 @@ export async function POST(request: NextRequest) {
       data: {
         meetingId: meeting.id,
         r2Key,
-        whatsappNumber: whatsappNumber.trim(),
+        whatsappNumber: normalizedWhatsappNumber,
         userId: user.id,
       },
     });

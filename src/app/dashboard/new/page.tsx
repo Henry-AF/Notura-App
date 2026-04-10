@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, FileAudio, CheckCircle, Loader2 } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   useToast,
 } from "@/components/upload";
 import type { MeetingFormData } from "@/components/upload";
+import { fetchNewMeetingDefaults } from "./new-api";
 
 // ─── XHR upload with progress ────────────────────────────────────────────────
 
@@ -190,6 +191,7 @@ function UploadPageInner() {
   const [timeRemaining, setTimeRemaining] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+  const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -233,6 +235,28 @@ function UploadPageInner() {
     setFile(null);
     setProgress(0);
     setTimeRemaining("");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDefaults() {
+      try {
+        const defaults = await fetchNewMeetingDefaults();
+        if (!cancelled) {
+          setAccountWhatsappNumber(defaults.accountWhatsappNumber);
+        }
+      } catch {
+        if (!cancelled) {
+          setAccountWhatsappNumber("");
+        }
+      }
+    }
+
+    void loadDefaults();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Submit: real XHR upload ───────────────────────────────────────────────
@@ -331,6 +355,7 @@ function UploadPageInner() {
                 onValidationError={(msg) => show(msg, "warning")}
                 isSubmitting={false}
                 hasFile={!!file}
+                accountWhatsappNumber={accountWhatsappNumber}
               />
             </div>
 

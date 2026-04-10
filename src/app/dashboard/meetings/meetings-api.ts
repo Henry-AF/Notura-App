@@ -1,20 +1,7 @@
 import { formatRelativeTime } from "@/lib/utils";
-import { normalizeError, parseJson } from "@/lib/api-client";
+import { getOwnedMeetings, type MeetingsListItem } from "@/lib/meetings/list";
 
 export type MeetingsPageStatus = "completed" | "processing" | "failed";
-
-interface MeetingsResponseItem {
-  id: string;
-  clientName: string | null;
-  title: string | null;
-  createdAt: string;
-  status: string;
-}
-
-interface MeetingsResponse {
-  meetings?: MeetingsResponseItem[];
-  error?: string;
-}
 
 export interface MeetingsPageMeeting {
   id: string;
@@ -32,25 +19,19 @@ export function normalizeMeetingsStatus(status: string): MeetingsPageStatus {
 }
 
 export function mapMeetingsResponse(
-  response: MeetingsResponse
+  meetings: MeetingsListItem[]
 ): MeetingsPageMeeting[] {
-  return (response.meetings ?? []).map((meeting) => ({
+  return meetings.map((meeting) => ({
     id: meeting.id,
-    clientName: meeting.clientName ?? meeting.title ?? "—",
+    clientName: meeting.client_name ?? meeting.title ?? "—",
     title: meeting.title ?? "—",
-    date: formatRelativeTime(meeting.createdAt),
-    rawDate: meeting.createdAt,
+    date: formatRelativeTime(meeting.created_at),
+    rawDate: meeting.created_at,
     status: normalizeMeetingsStatus(meeting.status),
   }));
 }
 
 export async function fetchMeetings(): Promise<MeetingsPageMeeting[]> {
-  const response = await fetch("/api/meetings", { method: "GET" });
-  const body = await parseJson<MeetingsResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(normalizeError(body.error, "Erro ao carregar reuniões."));
-  }
-
-  return mapMeetingsResponse(body);
+  const meetings = await getOwnedMeetings();
+  return mapMeetingsResponse(meetings);
 }

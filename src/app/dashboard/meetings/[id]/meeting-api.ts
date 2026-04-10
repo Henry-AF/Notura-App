@@ -1,6 +1,6 @@
 import type { MeetingFile, MeetingTask } from "@/components/meeting-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { normalizeError, parseJson } from "@/lib/api-client";
+import { getOwnedMeetingWithRelations } from "@/lib/meetings/detail";
 import type { MeetingJSON, MeetingWithRelations } from "@/types/database";
 
 export interface MeetingDetailData {
@@ -28,10 +28,6 @@ export interface MeetingDetailData {
     description: string;
     context: string | null;
   }>;
-}
-
-interface MeetingDetailResponse extends Partial<MeetingWithRelations> {
-  error?: string;
 }
 
 function normalizeMeetingStatus(
@@ -135,12 +131,6 @@ export function mapMeetingDetail(
 }
 
 export async function fetchMeetingDetail(id: string): Promise<MeetingDetailData> {
-  const response = await fetch(`/api/meetings/${id}`, { method: "GET" });
-  const body = await parseJson<MeetingDetailResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(normalizeError(body.error, "Erro ao carregar reunião."));
-  }
-
-  return mapMeetingDetail(body as MeetingWithRelations);
+  const meeting = await getOwnedMeetingWithRelations(id);
+  return mapMeetingDetail(meeting);
 }

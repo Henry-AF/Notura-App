@@ -1,35 +1,10 @@
 import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
 import { formatRelativeTime } from "@/lib/utils";
-import { normalizeError, parseJson } from "@/lib/api-client";
+import {
+  getDashboardOverview,
+  type DashboardOverviewResponse,
+} from "@/lib/dashboard/overview";
 import type { Plan } from "@/types/database";
-
-interface DashboardMeetingResponse {
-  id: string;
-  clientName: string | null;
-  title: string | null;
-  createdAt: string;
-  status: string;
-}
-
-interface DashboardTaskResponse {
-  id: string;
-  text: string;
-  completed: boolean;
-  createdAt: string;
-}
-
-interface DashboardOverviewResponse {
-  userName?: string;
-  plan?: Plan;
-  meetingsThisMonth?: number;
-  monthlyLimit?: number | null;
-  recentMeetings?: DashboardMeetingResponse[];
-  openTasks?: DashboardTaskResponse[];
-  openTaskCount?: number;
-  hoursSaved?: number;
-  todayCount?: number;
-  error?: string;
-}
 
 export interface DashboardOverviewData {
   userName: string;
@@ -53,7 +28,7 @@ export function normalizeDashboardMeetingStatus(
 export function mapDashboardOverview(
   response: DashboardOverviewResponse
 ): DashboardOverviewData {
-  const meetings = (response.recentMeetings ?? []).map((meeting) => ({
+  const meetings = response.recentMeetings.map((meeting) => ({
     id: meeting.id,
     clientName: meeting.clientName ?? meeting.title ?? "—",
     title: meeting.title ?? "—",
@@ -61,7 +36,7 @@ export function mapDashboardOverview(
     status: normalizeDashboardMeetingStatus(meeting.status),
   }));
 
-  const tasks = (response.openTasks ?? []).map((task) => ({
+  const tasks = response.openTasks.map((task) => ({
     id: task.id,
     text: task.text,
     completed: task.completed,
@@ -70,11 +45,10 @@ export function mapDashboardOverview(
   }));
 
   return {
-    userName: response.userName ?? "Usuário",
-    plan: response.plan ?? "free",
-    meetingsThisMonth: response.meetingsThisMonth ?? 0,
-    monthlyLimit:
-      typeof response.monthlyLimit === "number" ? response.monthlyLimit : null,
+    userName: response.userName,
+    plan: response.plan,
+    meetingsThisMonth: response.meetingsThisMonth,
+    monthlyLimit: response.monthlyLimit,
     meetings,
     tasks,
     metrics: [
@@ -83,7 +57,7 @@ export function mapDashboardOverview(
         iconBg: "rgba(108,92,231,0.15)",
         iconColor: "#A29BFE",
         label: "Reuniões este mês",
-        value: response.meetingsThisMonth ?? 0,
+        value: response.meetingsThisMonth,
         trend: { direction: "neutral", label: "ESTE MÊS" },
       },
       {
@@ -91,7 +65,7 @@ export function mapDashboardOverview(
         iconBg: "rgba(255,169,77,0.15)",
         iconColor: "#FFA94D",
         label: "Tarefas abertas",
-        value: response.openTaskCount ?? 0,
+        value: response.openTaskCount,
         trend: { direction: "neutral", label: "PENDENTE" },
       },
       {
@@ -99,21 +73,15 @@ export function mapDashboardOverview(
         iconBg: "rgba(78,203,113,0.15)",
         iconColor: "#4ECB71",
         label: "Horas economizadas",
-        value: response.hoursSaved ?? 0,
+        value: response.hoursSaved,
         trend: { direction: "up", label: "SALVAS" },
       },
     ],
-    todayCount: response.todayCount ?? 0,
+    todayCount: response.todayCount,
   };
 }
 
 export async function fetchDashboardOverview(): Promise<DashboardOverviewData> {
-  const response = await fetch("/api/dashboard/overview", { method: "GET" });
-  const body = await parseJson<DashboardOverviewResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(normalizeError(body.error, "Erro ao carregar dashboard."));
-  }
-
-  return mapDashboardOverview(body);
+  const overview = await getDashboardOverview();
+  return mapDashboardOverview(overview);
 }

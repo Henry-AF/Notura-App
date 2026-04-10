@@ -13,6 +13,7 @@ import type { Integration, Preference } from "@/components/settings";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
 import { useTheme } from "@/lib/theme-context";
+import { LoadingState } from "@/components/ui/app";
 import {
   fetchCurrentUser,
   updateCurrentUser,
@@ -38,31 +39,6 @@ function getPlanName(plan: CurrentUser["plan"]): string {
 
 function notifyUserUpdated() {
   window.dispatchEvent(new Event("notura:user-updated"));
-}
-
-function LoadingState() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: 240,
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          border: "2px solid #6C5CE7",
-          borderTopColor: "transparent",
-          animation: "spin 0.7s linear infinite",
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
 }
 
 // ─── Inner page ───────────────────────────────────────────────────────────────
@@ -224,7 +200,7 @@ function SettingsPageInner() {
   }, [router, show]);
 
   if (loading) {
-    return <LoadingState />;
+    return <LoadingState label="Carregando configurações..." />;
   }
 
   return (

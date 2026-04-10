@@ -9,54 +9,15 @@ export interface AIInsightToastProps {
 
 export function AIInsightToast({ userInitials, message }: AIInsightToastProps) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 80,
-        left: 8,
-        width: 224,
-        background: "#1A1A2E",
-        border: "1px solid rgba(108,92,231,0.3)",
-        borderRadius: 10,
-        padding: "12px 14px",
-        zIndex: 30,
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 6,
-        }}
-      >
-        <span style={{ fontSize: 12, color: "#6C5CE7", lineHeight: 1 }}>✦</span>
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 10,
-            color: "#A29BFE",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          }}
-        >
+    <div className="fixed bottom-20 left-2 z-30 w-56 rounded-lg border border-primary/30 bg-popover/95 p-3 shadow-lg backdrop-blur-sm">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className="text-xs leading-none text-primary">✦</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-primary/90">
           AI Insight {userInitials}
         </span>
       </div>
 
-      {/* Body */}
-      <p
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 400,
-          fontSize: 12,
-          color: "rgb(var(--cn-muted))",
-          lineHeight: 1.5,
-          margin: 0,
-        }}
-      >
+      <p className="m-0 text-xs leading-relaxed text-muted-foreground">
         {message}
       </p>
     </div>

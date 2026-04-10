@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AlertCircle } from "lucide-react";
+import { SectionCard } from "@/components/ui/app";
 
 export interface AlertPointCardProps {
   alert: string;
@@ -9,50 +10,16 @@ export interface AlertPointCardProps {
 
 export function AlertPointCard({ alert }: AlertPointCardProps) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 12,
-        }}
-      >
-        <AlertCircle
-          style={{ width: 14, height: 14, color: "#FF6B6B", flexShrink: 0 }}
-        />
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 10,
-            color: "rgb(var(--cn-muted))",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-          }}
-        >
+    <SectionCard className="rounded-xl">
+      <div className="mb-3 flex items-center gap-1.5">
+        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
           Ponto de Alerta
         </span>
       </div>
-      <p
-        style={{
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontWeight: 600,
-          fontSize: 16,
-          color: "rgb(var(--cn-ink))",
-          lineHeight: 1.4,
-          margin: 0,
-        }}
-      >
+      <p className="font-display text-base font-semibold leading-relaxed text-card-foreground">
         {alert}
       </p>
-    </div>
+    </SectionCard>
   );
 }

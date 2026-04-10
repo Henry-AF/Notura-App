@@ -1,14 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const getOwnedMeetingWithRelations = vi.fn();
+
+vi.mock("@/lib/meetings/detail", () => ({
+  getOwnedMeetingWithRelations,
+}));
+
 describe("meeting detail api client", () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.restoreAllMocks();
+    getOwnedMeetingWithRelations.mockReset();
   });
 
-  it("fetches a meeting detail through /api/meetings/:id and maps page data", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
+  it("loads meeting detail from shared server helper and maps page data", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("meeting detail should not fetch /api internally"));
+
+    getOwnedMeetingWithRelations.mockResolvedValue({
           id: "meeting-1",
           user_id: "user-1",
           title: "Reunião — Acme",
@@ -84,17 +94,13 @@ describe("meeting detail api client", () => {
               created_at: "2026-04-07T09:31:00.000Z",
             },
           ],
-        }),
-        { status: 200 }
-      )
-    );
+    });
 
     const mod = await import("./meeting-api");
     const meeting = await mod.fetchMeetingDetail("meeting-1");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/meetings/meeting-1", {
-      method: "GET",
-    });
+    expect(getOwnedMeetingWithRelations).toHaveBeenCalledWith("meeting-1");
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(meeting.clientName).toBe("Acme");
     expect(meeting.meetingStatus).toBe("completed");
     expect(meeting.participants).toEqual([{ name: "Ana" }, { name: "Bruno" }]);
@@ -109,5 +115,17 @@ describe("meeting detail api client", () => {
     expect(meeting.keyDecision).toBe("Seguir com a proposta premium");
     expect(meeting.alertPoint).toBe("Enviar proposta");
     expect(meeting.location).toBe("https://meet.example.com/abc");
+  });
+
+  it("throws a useful error when shared server helper fails", async () => {
+    getOwnedMeetingWithRelations.mockRejectedValue(
+      new Error("Falha ao carregar reunião.")
+    );
+
+    const mod = await import("./meeting-api");
+
+    await expect(mod.fetchMeetingDetail("meeting-1")).rejects.toThrow(
+      "Falha ao carregar reunião."
+    );
   });
 });

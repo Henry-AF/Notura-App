@@ -9,44 +9,106 @@
     --font-manrope: 'Manrope', system-ui, sans-serif;
     --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-inter: 'Inter', system-ui, sans-serif;
-    /* Light theme (default) */
-    --cn-bg: 245 244 252;
+    --radius: 0.75rem;
+
+    /* Semantic tokens (light) */
+    --background: 245 244 252;
+    --foreground: 14 13 20;
+
+    --card: 255 255 255;
+    --card-foreground: 14 13 20;
+
+    --popover: 255 255 255;
+    --popover-foreground: 14 13 20;
+
+    --primary: 104 81 255;
+    --primary-foreground: 255 255 255;
+
+    --secondary: 238 236 252;
+    --secondary-foreground: 90 88 110;
+
+    --muted: 185 182 210;
+    --muted-foreground: 90 88 110;
+
+    --accent: 238 236 252;
+    --accent-foreground: 14 13 20;
+
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
+
+    --border: 210 207 238;
+    --input: 210 207 238;
+    --ring: 104 81 255;
+
+    /* Legacy Notura aliases (compatibility layer) */
+    --cn-bg: var(--background);
     --cn-bg2: 255 255 255;
-    --cn-surface: 255 255 255;
-    --cn-surface2: 238 236 252;
-    --cn-ink: 14 13 20;
-    --cn-ink2: 90 88 110;
-    --cn-border: 210 207 238;
-    --cn-muted: 185 182 210;
-    --cn-card: 255 255 255;
+    --cn-surface: var(--card);
+    --cn-surface2: var(--secondary);
+    --cn-ink: var(--foreground);
+    --cn-ink2: var(--secondary-foreground);
+    --cn-border: var(--border);
+    --cn-muted: var(--muted);
+    --cn-card: var(--card);
     --cn-card2: 248 247 254;
-    --cn-input-bg: 248 247 254;
-    --cn-input-border: 210 207 238;
+    --cn-input-bg: var(--card);
+    --cn-input-border: var(--input);
   }
 
   html[data-theme="dark"] {
-    --cn-bg: 12 11 14;
-    --cn-bg2: 20 19 25;
-    --cn-surface: 29 27 38;
-    --cn-surface2: 37 34 48;
-    --cn-ink: 244 244 246;
-    --cn-ink2: 149 152 168;
-    --cn-border: 44 40 91;
-    --cn-muted: 58 61 74;
-    --cn-card: 28 28 28;
+    --background: 12 11 14;
+    --foreground: 244 244 246;
+
+    --card: 28 28 28;
+    --card-foreground: 244 244 246;
+
+    --popover: 20 19 25;
+    --popover-foreground: 244 244 246;
+
+    --primary: 139 122 255;
+    --primary-foreground: 255 255 255;
+
+    --secondary: 37 34 48;
+    --secondary-foreground: 149 152 168;
+
+    --muted: 58 61 74;
+    --muted-foreground: 149 152 168;
+
+    --accent: 37 34 48;
+    --accent-foreground: 244 244 246;
+
+    --destructive: 255 107 107;
+    --destructive-foreground: 255 255 255;
+
+    --border: 44 40 91;
+    --input: 58 58 58;
+    --ring: 139 122 255;
+
+    --cn-bg: var(--background);
+    --cn-bg2: var(--popover);
+    --cn-surface: var(--card);
+    --cn-surface2: var(--secondary);
+    --cn-ink: var(--foreground);
+    --cn-ink2: var(--secondary-foreground);
+    --cn-border: var(--border);
+    --cn-muted: var(--muted);
+    --cn-card: var(--card);
     --cn-card2: 36 36 36;
     --cn-input-bg: 30 30 30;
-    --cn-input-border: 58 58 58;
+    --cn-input-border: var(--input);
   }
 
   html {
     scroll-behavior: smooth;
   }
 
+  * {
+    @apply border-border;
+  }
+
   body {
-    @apply bg-notura-bg text-notura-ink antialiased;
+    @apply bg-background text-foreground antialiased;
     font-family: var(--font-inter), system-ui, sans-serif;
-    /* Smooth theme transition */
     transition: background-color 0.35s ease, color 0.25s ease;
   }
 
@@ -60,9 +122,8 @@
     font-family: var(--font-plus-jakarta), system-ui, sans-serif;
   }
 
-  /* Focus ring — purple */
   *:focus-visible {
-    @apply outline-none ring-2 ring-notura-primary/50 ring-offset-2 ring-offset-notura-bg;
+    @apply outline-none ring-2 ring-ring/50 ring-offset-2 ring-offset-background;
   }
 
   /* Scrollbar */
@@ -92,21 +153,19 @@
 }
 
 @layer components {
-  /* Status badges */
   .badge-recording {
-    @apply bg-notura-processing text-white text-xs font-medium px-3 py-1 rounded-full animate-pulse-slow;
+    @apply rounded-full bg-notura-processing px-3 py-1 text-xs font-medium text-white animate-pulse-slow;
   }
   .badge-processing {
-    @apply bg-amber-500/20 text-amber-400 text-xs font-medium px-3 py-1 rounded-full;
+    @apply rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-500;
   }
   .badge-completed {
-    @apply bg-notura-success/15 text-notura-success text-xs font-medium px-3 py-1 rounded-full;
+    @apply rounded-full bg-notura-success/15 px-3 py-1 text-xs font-medium text-notura-success;
   }
   .badge-failed {
-    @apply bg-notura-error/15 text-notura-error text-xs font-medium px-3 py-1 rounded-full;
+    @apply rounded-full bg-notura-error/15 px-3 py-1 text-xs font-medium text-notura-error;
   }
 
-  /* Priority badges */
   .priority-alta {
     @apply bg-notura-error/15 text-notura-error;
   }
@@ -117,17 +176,14 @@
     @apply bg-notura-muted/30 text-notura-ink-secondary;
   }
 
-  /* Gradient mesh blob helpers */
   .mesh-blob {
     @apply absolute rounded-full blur-3xl opacity-60 pointer-events-none;
   }
 
-  /* Purple gradient text */
   .text-gradient {
     @apply bg-gradient-to-r from-notura-primary to-notura-primary-light bg-clip-text text-transparent;
   }
 
-  /* Section label */
   .label-pill {
     @apply inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-3 py-1 text-xs font-medium uppercase tracking-wider text-notura-primary;
   }

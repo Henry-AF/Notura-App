@@ -1,38 +1,8 @@
-import type { MeetingFile, MeetingTask } from "@/components/meeting-detail";
+import type { MeetingTask } from "@/components/meeting-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { normalizeError, parseJson } from "@/lib/api-client";
+import { getOwnedMeetingWithRelations } from "@/lib/meetings/detail";
 import type { MeetingJSON, MeetingWithRelations } from "@/types/database";
-
-export interface MeetingDetailData {
-  clientName: string;
-  meetingDate: string;
-  meetingStatus: "completed" | "processing" | "failed" | "scheduled";
-  participants: Array<{ name: string }>;
-  summary: string;
-  nextStep: string;
-  keyDecision: string;
-  alertPoint: string;
-  transcript: string | null;
-  location: string;
-  tasks: MeetingTask[];
-  files: MeetingFile[];
-  insightMessage: string;
-  decisions: Array<{
-    id: string;
-    description: string;
-    decided_by: string | null;
-    confidence: string;
-  }>;
-  openItems: Array<{
-    id: string;
-    description: string;
-    context: string | null;
-  }>;
-}
-
-interface MeetingDetailResponse extends Partial<MeetingWithRelations> {
-  error?: string;
-}
+import type { MeetingDetailData } from "./meeting-types";
 
 function normalizeMeetingStatus(
   status: string | null | undefined
@@ -94,7 +64,7 @@ export function mapMeetingDetail(
     description: item.description,
     context: item.context,
   }));
-  const files: MeetingFile[] = meeting.audio_r2_key
+  const files: MeetingDetailData["files"] = meeting.audio_r2_key
     ? [
         {
           id: "audio",
@@ -135,12 +105,6 @@ export function mapMeetingDetail(
 }
 
 export async function fetchMeetingDetail(id: string): Promise<MeetingDetailData> {
-  const response = await fetch(`/api/meetings/${id}`, { method: "GET" });
-  const body = await parseJson<MeetingDetailResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(normalizeError(body.error, "Erro ao carregar reunião."));
-  }
-
-  return mapMeetingDetail(body as MeetingWithRelations);
+  const meeting = await getOwnedMeetingWithRelations(id);
+  return mapMeetingDetail(meeting);
 }

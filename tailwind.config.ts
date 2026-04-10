@@ -9,6 +9,39 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        border: "rgb(var(--border) / <alpha-value>)",
+        input: "rgb(var(--input) / <alpha-value>)",
+        ring: "rgb(var(--ring) / <alpha-value>)",
+        background: "rgb(var(--background) / <alpha-value>)",
+        foreground: "rgb(var(--foreground) / <alpha-value>)",
+        primary: {
+          DEFAULT: "rgb(var(--primary) / <alpha-value>)",
+          foreground: "rgb(var(--primary-foreground) / <alpha-value>)",
+        },
+        secondary: {
+          DEFAULT: "rgb(var(--secondary) / <alpha-value>)",
+          foreground: "rgb(var(--secondary-foreground) / <alpha-value>)",
+        },
+        destructive: {
+          DEFAULT: "rgb(var(--destructive) / <alpha-value>)",
+          foreground: "rgb(var(--destructive-foreground) / <alpha-value>)",
+        },
+        muted: {
+          DEFAULT: "rgb(var(--muted) / <alpha-value>)",
+          foreground: "rgb(var(--muted-foreground) / <alpha-value>)",
+        },
+        accent: {
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          foreground: "rgb(var(--accent-foreground) / <alpha-value>)",
+        },
+        popover: {
+          DEFAULT: "rgb(var(--popover) / <alpha-value>)",
+          foreground: "rgb(var(--popover-foreground) / <alpha-value>)",
+        },
+        card: {
+          DEFAULT: "rgb(var(--card) / <alpha-value>)",
+          foreground: "rgb(var(--card-foreground) / <alpha-value>)",
+        },
         // ── Adaptive design system (CSS-variable based) ────
         notura: {
           // Brand purple (static)
@@ -55,7 +88,6 @@ const config: Config = {
         "surface-container": "#edeef1",
         "surface-container-high": "#e7e8eb",
         "surface-container-highest": "#e1e2e5",
-        "primary": "#630ed4",
         "on-primary": "#ffffff",
         "primary-container": "#7c3aed",
         "on-primary-container": "#ede0ff",
@@ -83,10 +115,10 @@ const config: Config = {
         "display-sm": ["20px", { fontWeight: "600" }],
       },
       borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
         xs: "6px",
-        sm: "8px",
-        md: "12px",
-        lg: "16px",
         xl: "24px",
         "2xl": "32px",
         full: "9999px",

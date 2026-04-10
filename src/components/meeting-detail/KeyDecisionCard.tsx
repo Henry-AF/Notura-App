@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Star } from "lucide-react";
+import { SectionCard } from "@/components/ui/app";
 
 export interface KeyDecisionCardProps {
   decision: string;
@@ -9,50 +10,16 @@ export interface KeyDecisionCardProps {
 
 export function KeyDecisionCard({ decision }: KeyDecisionCardProps) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 12,
-        }}
-      >
-        <Star
-          style={{ width: 14, height: 14, color: "#FFA94D", flexShrink: 0 }}
-        />
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 10,
-            color: "rgb(var(--cn-muted))",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-          }}
-        >
+    <SectionCard className="rounded-xl">
+      <div className="mb-3 flex items-center gap-1.5">
+        <Star className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
           Decisão Chave
         </span>
       </div>
-      <p
-        style={{
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontWeight: 600,
-          fontSize: 16,
-          color: "rgb(var(--cn-ink))",
-          lineHeight: 1.4,
-          margin: 0,
-        }}
-      >
+      <p className="font-display text-base font-semibold leading-relaxed text-card-foreground">
         {decision}
       </p>
-    </div>
+    </SectionCard>
   );
 }

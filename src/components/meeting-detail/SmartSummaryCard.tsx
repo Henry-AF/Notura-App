@@ -2,53 +2,60 @@
 
 import React from "react";
 import { WhatsAppCopyButton } from "./WhatsAppCopyButton";
+import { SectionCard } from "@/components/ui/app";
 
-// ─── Simple markdown renderer ─────────────────────────────────────────────────
+function renderInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={`${part}-${index}`} className="font-semibold text-foreground">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
+  });
+}
 
 function renderMarkdown(text: string): React.ReactNode[] {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
 
-  lines.forEach((line, i) => {
-    if (line.trim() === "") {
-      nodes.push(<br key={`br-${i}`} />);
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      nodes.push(<br key={`line-break-${index}`} />);
       return;
     }
 
-    // List item
-    if (line.trim().startsWith("•") || line.trim().startsWith("-")) {
-      const content = line.trim().replace(/^[•\-]\s*/, "");
+    if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+      const content = trimmed.replace(/^[•\-]\s*/, "");
       nodes.push(
-        <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          <span style={{ color: "#6C5CE7", marginTop: 2, flexShrink: 0 }}>•</span>
+        <div key={`list-${index}`} className="mb-1.5 flex gap-2">
+          <span className="mt-0.5 shrink-0 text-primary">•</span>
           <span>{renderInline(content)}</span>
         </div>
       );
       return;
     }
 
-    // Section header (line ending with ":")
-    if (line.trim().endsWith(":") && !line.includes("**")) {
+    if (trimmed.endsWith(":") && !trimmed.includes("**")) {
       nodes.push(
         <p
-          key={i}
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 600,
-            fontSize: 14,
-            color: "rgb(var(--cn-ink))",
-            marginTop: 16,
-            marginBottom: 6,
-          }}
+          key={`heading-${index}`}
+          className="mb-1.5 mt-4 text-sm font-semibold text-foreground"
         >
-          {line.trim()}
+          {trimmed}
         </p>
       );
       return;
     }
 
     nodes.push(
-      <p key={i} style={{ margin: "0 0 4px" }}>
+      <p key={`paragraph-${index}`} className="mb-1 text-sm leading-relaxed text-muted-foreground">
         {renderInline(line)}
       </p>
     );
@@ -56,22 +63,6 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
   return nodes;
 }
-
-function renderInline(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} style={{ color: "rgb(var(--cn-ink))", fontWeight: 600 }}>
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
-}
-
-// ─── SmartSummaryCard ─────────────────────────────────────────────────────────
 
 export interface SmartSummaryCardProps {
   summary: string;
@@ -87,135 +78,33 @@ export function SmartSummaryCard({
   onCopyToWhatsApp,
 }: SmartSummaryCardProps) {
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: 14,
-        padding: 24,
-      }}
+    <SectionCard
+      title="Resumo Inteligente"
+      actions={<WhatsAppCopyButton text={summary} onCopy={onCopyToWhatsApp} />}
+      className="rounded-xl"
     >
-      {/* Card header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18, color: "#6C5CE7" }}>✦</span>
-          <span
-            style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontWeight: 700,
-              fontSize: 18,
-              color: "rgb(var(--cn-ink))",
-            }}
-          >
-            Resumo Inteligente
-          </span>
-        </div>
-        <WhatsAppCopyButton text={summary} onCopy={onCopyToWhatsApp} />
-      </div>
+      <div className="rounded-lg bg-background/70 p-5">
+        <div className="text-sm text-muted-foreground">{renderMarkdown(summary)}</div>
 
-      {/* Summary body */}
-      <div
-        style={{
-          background: "rgb(var(--cn-bg))",
-          borderRadius: 10,
-          padding: 20,
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 400,
-          fontSize: 14,
-          color: "rgb(var(--cn-ink2))",
-          lineHeight: 1.7,
-        }}
-      >
-        {renderMarkdown(summary)}
-
-        {/* Próximos Passos blockquote */}
-        {nextSteps && (
+        {nextSteps ? (
           <>
-            <p
-              style={{
-                fontFamily: "Inter, sans-serif",
-                fontWeight: 600,
-                fontSize: 14,
-                color: "rgb(var(--cn-ink))",
-                marginTop: 16,
-                marginBottom: 8,
-              }}
-            >
-              Próximos Passos:
-            </p>
-            <blockquote
-              style={{
-                background: "rgba(104,81,255,0.08)",
-                borderLeft: "3px solid #6C5CE7",
-                borderRadius: "0 8px 8px 0",
-                padding: "14px 16px",
-                marginTop: 0,
-                marginLeft: 0,
-                marginRight: 0,
-                fontFamily: "Inter, sans-serif",
-                fontStyle: "italic",
-                fontSize: 13,
-                color: "rgb(var(--cn-ink2))",
-                lineHeight: 1.6,
-              }}
-            >
+            <p className="mb-2 mt-4 text-sm font-semibold text-foreground">Proximos passos:</p>
+            <blockquote className="rounded-r-md border-l-2 border-primary bg-primary/10 px-4 py-3 text-sm italic leading-relaxed text-muted-foreground">
               &ldquo;{nextSteps}&rdquo;
             </blockquote>
           </>
-        )}
+        ) : null}
       </div>
 
-      {/* Footer */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginTop: 16,
-          paddingTop: 16,
-          borderTop: "1px solid rgb(var(--cn-border))",
-        }}
-      >
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: "#6C5CE7",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 10,
-            color: "#FFFFFF",
-            flexShrink: 0,
-          }}
-        >
+      <div className="mt-4 flex items-start gap-2 border-t pt-4">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
           AI
         </div>
-        <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontSize: 12,
-            color: "rgb(var(--cn-muted))",
-            fontStyle: "italic",
-          }}
-        >
-          Este resumo foi gerado automaticamente pela Inteligência Notura.
-          Revise antes de compartilhar.
+        <span className="text-xs italic text-muted-foreground">
+          Este resumo foi gerado automaticamente pela Inteligencia Notura. Revise antes de compartilhar.
           {generatedAt ? ` • ${generatedAt}` : ""}
         </span>
       </div>
-    </div>
+    </SectionCard>
   );
 }

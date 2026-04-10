@@ -51,3 +51,31 @@ describe("GET /api/meetings/[id]", () => {
     expect(await response.json()).toEqual({ error: "Acesso negado." });
   });
 });
+
+describe("PATCH /api/meetings/[id]", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns 403 when trying to edit a meeting that does not belong to the user", async () => {
+    createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
+    createServiceRoleClient.mockReturnValue(createMissingMeetingAdminClient());
+
+    const mod = await import("./route");
+    const response = await mod.PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: "Novo título",
+          clientName: "Nova empresa",
+          meetingDate: "2026-04-10",
+        }),
+      }) as NextRequest,
+      { params: { id: "missing-meeting" } }
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Acesso negado." });
+  });
+});

@@ -51,6 +51,11 @@ type DashboardOverviewQueryResults = Awaited<
   ReturnType<typeof fetchDashboardQueryResults>
 >;
 
+interface CompletedMeetingSecondsResult {
+  data: number | null;
+  error: { code?: string; message?: string } | null;
+}
+
 function toUserName(name: string | null | undefined, email: string | null) {
   if (name?.trim()) return name.trim();
   if (email?.includes("@")) return email.split("@")[0] ?? "Usuário";
@@ -59,12 +64,6 @@ function toUserName(name: string | null | undefined, email: string | null) {
 
 function getStartOfDayIso(now: Date): string {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-}
-
-function sumCompletedMeetingSeconds(
-  meetings: Array<{ duration_seconds: number | null }>
-): number {
-  return meetings.reduce((sum, meeting) => sum + (meeting.duration_seconds ?? 0), 0);
 }
 
 async function getAuthenticatedUser() {
@@ -81,6 +80,58 @@ async function getAuthenticatedUser() {
   return user;
 }
 
+function isMissingRpcFunctionError(
+  error: CompletedMeetingSecondsResult["error"]
+): boolean {
+  return error?.code === "42883";
+}
+
+async function fetchCompletedMeetingSeconds(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  userId: string
+): Promise<CompletedMeetingSecondsResult> {
+  const rpcResult = await supabase.rpc("get_total_completed_meeting_seconds", {
+    p_user_id: userId,
+  });
+
+  if (!rpcResult.error) {
+    return {
+      data: Number(rpcResult.data ?? 0),
+      error: null,
+    };
+  }
+
+  if (!isMissingRpcFunctionError(rpcResult.error)) {
+    return {
+      data: null,
+      error: rpcResult.error,
+    };
+  }
+
+  const fallbackResult = await supabase
+    .from("meetings")
+    .select("duration_seconds")
+    .eq("user_id", userId)
+    .eq("status", "completed");
+
+  if (fallbackResult.error) {
+    return {
+      data: null,
+      error: fallbackResult.error,
+    };
+  }
+
+  const totalSeconds = (fallbackResult.data ?? []).reduce(
+    (sum, meeting) => sum + (meeting.duration_seconds ?? 0),
+    0
+  );
+
+  return {
+    data: totalSeconds,
+    error: null,
+  };
+}
+
 async function fetchDashboardQueryResults(userId: string, startOfDay: string) {
   const supabase = createServiceRoleClient();
   const [
@@ -89,7 +140,7 @@ async function fetchDashboardQueryResults(userId: string, startOfDay: string) {
     recentMeetingsResult,
     openTaskCountResult,
     openTasksResult,
-    completedMeetingsResult,
+    completedMeetingSecondsResult,
     todayMeetingsResult,
   ] = await Promise.all([
     supabase.from("profiles").select("name").eq("id", userId).maybeSingle(),
@@ -112,11 +163,7 @@ async function fetchDashboardQueryResults(userId: string, startOfDay: string) {
       .eq("completed", false)
       .order("created_at", { ascending: false })
       .limit(5),
-    supabase
-      .from("meetings")
-      .select("duration_seconds")
-      .eq("user_id", userId)
-      .eq("status", "completed"),
+    fetchCompletedMeetingSeconds(supabase, userId),
     supabase
       .from("meetings")
       .select("id", { count: "exact", head: true })
@@ -131,7 +178,7 @@ async function fetchDashboardQueryResults(userId: string, startOfDay: string) {
     recentMeetingsResult,
     openTaskCountResult,
     openTasksResult,
-    completedMeetingsResult,
+    completedMeetingSecondsResult,
     todayMeetingsResult,
   };
 }
@@ -142,7 +189,7 @@ function assertDashboardQueryResults(results: DashboardOverviewQueryResults) {
     !results.recentMeetingsResult.error &&
     !results.openTaskCountResult.error &&
     !results.openTasksResult.error &&
-    !results.completedMeetingsResult.error &&
+    !results.completedMeetingSecondsResult.error &&
     !results.todayMeetingsResult.error
   ) {
     return;
@@ -153,7 +200,7 @@ function assertDashboardQueryResults(results: DashboardOverviewQueryResults) {
     recentMeetingsError: results.recentMeetingsResult.error,
     openTaskCountError: results.openTaskCountResult.error,
     openTasksError: results.openTasksResult.error,
-    completedMeetingsError: results.completedMeetingsResult.error,
+    completedMeetingSecondsError: results.completedMeetingSecondsResult.error,
     todayMeetingsError: results.todayMeetingsResult.error,
   });
 
@@ -164,9 +211,7 @@ function mapDashboardOverview(
   user: DashboardUser,
   results: DashboardOverviewQueryResults
 ): DashboardOverviewResponse {
-  const totalSeconds = sumCompletedMeetingSeconds(
-    results.completedMeetingsResult.data ?? []
-  );
+  const totalSeconds = Number(results.completedMeetingSecondsResult.data ?? 0);
 
   return {
     userName: toUserName(results.profileResult.data?.name, user.email ?? null),

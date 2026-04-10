@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DashboardHeader,
@@ -102,6 +102,14 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
     () => tasks.filter((task) => task.isNew && !task.completed).length,
     [tasks]
   );
+
+  useEffect(() => {
+    void router.prefetch("/dashboard/new");
+    void router.prefetch("/dashboard/meetings");
+    meetings.slice(0, 8).forEach((meeting) => {
+      void router.prefetch(`/dashboard/meetings/${meeting.id}`);
+    });
+  }, [meetings, router]);
 
   return (
     <PageShell>

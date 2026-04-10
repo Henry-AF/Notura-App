@@ -5,5 +5,6 @@ export { FilterBar } from "./filter-bar";
 export { LoadingState } from "./loading-state";
 export { PageHeader } from "./page-header";
 export { PageShell } from "./page-shell";
+export { RouteLoading } from "./route-loading";
 export { SectionCard } from "./section-card";
 export { StatusBadge } from "./status-badge";

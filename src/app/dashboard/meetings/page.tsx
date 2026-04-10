@@ -164,6 +164,12 @@ export default function MeetingsPage() {
     });
   }, [meetings, search, statusFilter]);
 
+  useEffect(() => {
+    meetings.slice(0, 12).forEach((meeting) => {
+      void router.prefetch(`/dashboard/meetings/${meeting.id}`);
+    });
+  }, [meetings, router]);
+
   return (
     <PageShell>
       <PageHeader

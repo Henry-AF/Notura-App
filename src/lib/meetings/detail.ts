@@ -7,24 +7,17 @@ import {
 import type { Database, MeetingWithRelations } from "@/types/database";
 
 type SupabaseAdminClient = SupabaseClient<Database>;
-type MeetingRow = Database["public"]["Tables"]["meetings"]["Row"];
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type DecisionRow = Database["public"]["Tables"]["decisions"]["Row"];
 type OpenItemRow = Database["public"]["Tables"]["open_items"]["Row"];
 
-interface MeetingRelationsResult {
-  tasks: TaskRow[];
-  decisions: DecisionRow[];
-  openItems: OpenItemRow[];
-}
-
-async function fetchMeetingRow(
+async function fetchMeetingWithRelations(
   supabaseAdmin: SupabaseAdminClient,
   meetingId: string
-): Promise<MeetingRow> {
+): Promise<MeetingWithRelations> {
   const { data, error } = await supabaseAdmin
     .from("meetings")
-    .select("*")
+    .select("*, tasks(*), decisions(*), open_items(*)")
     .eq("id", meetingId)
     .single();
 
@@ -32,51 +25,21 @@ async function fetchMeetingRow(
     throw new Error("Erro ao carregar reunião.");
   }
 
-  return data;
+  return data as MeetingWithRelations;
 }
 
-async function fetchMeetingRelations(
-  supabaseAdmin: SupabaseAdminClient,
-  meetingId: string
-): Promise<MeetingRelationsResult> {
-  const [tasksResult, decisionsResult, openItemsResult] = await Promise.all([
-    supabaseAdmin
-      .from("tasks")
-      .select("*")
-      .eq("meeting_id", meetingId)
-      .order("created_at", { ascending: true }),
-    supabaseAdmin
-      .from("decisions")
-      .select("*")
-      .eq("meeting_id", meetingId)
-      .order("created_at", { ascending: true }),
-    supabaseAdmin
-      .from("open_items")
-      .select("*")
-      .eq("meeting_id", meetingId)
-      .order("created_at", { ascending: true }),
-  ]);
-
-  if (tasksResult.error || decisionsResult.error || openItemsResult.error) {
-    throw new Error("Erro ao carregar reunião.");
-  }
-
-  return {
-    tasks: tasksResult.data ?? [],
-    decisions: decisionsResult.data ?? [],
-    openItems: openItemsResult.data ?? [],
-  };
+function sortByCreatedAtAsc<T extends { created_at: string }>(rows: T[]): T[] {
+  const sorted = [...rows];
+  sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return sorted;
 }
 
-function buildMeetingWithRelations(
-  meeting: MeetingRow,
-  relations: MeetingRelationsResult
-): MeetingWithRelations {
+function withSortedRelations(meeting: MeetingWithRelations): MeetingWithRelations {
   return {
     ...meeting,
-    tasks: relations.tasks,
-    decisions: relations.decisions,
-    open_items: relations.openItems,
+    tasks: sortByCreatedAtAsc(meeting.tasks ?? []),
+    decisions: sortByCreatedAtAsc(meeting.decisions ?? []),
+    open_items: sortByCreatedAtAsc(meeting.open_items ?? []),
   };
 }
 
@@ -87,10 +50,8 @@ export async function getMeetingWithRelationsForUser(
 ): Promise<MeetingWithRelations> {
   await requireOwnership(supabaseAdmin, "meetings", meetingId, userId);
 
-  const meeting = await fetchMeetingRow(supabaseAdmin, meetingId);
-  const relations = await fetchMeetingRelations(supabaseAdmin, meetingId);
-
-  return buildMeetingWithRelations(meeting, relations);
+  const meeting = await fetchMeetingWithRelations(supabaseAdmin, meetingId);
+  return withSortedRelations(meeting);
 }
 
 export async function getOwnedMeetingWithRelationsForAuth(

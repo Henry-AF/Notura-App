@@ -13,7 +13,7 @@ import {
 import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
-import type { DashboardOverviewData } from "./dashboard-api";
+import type { DashboardOverviewData } from "./dashboard-types";
 import { updateTaskById } from "./tasks/tasks-api";
 
 export interface DashboardClientProps {

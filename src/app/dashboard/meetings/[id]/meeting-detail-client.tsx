@@ -24,7 +24,7 @@ import {
   deleteTaskById,
   updateTaskById,
 } from "@/app/dashboard/tasks/tasks-api";
-import type { MeetingDetailData } from "./meeting-api";
+import type { MeetingDetailData } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
   type MeetingTaskColumnId,

@@ -1,4 +1,5 @@
-import { fetchMeetings, type MeetingsPageMeeting } from "./meetings-api";
+import { fetchMeetings } from "./meetings-api";
+import type { MeetingsPageMeeting } from "./meetings-types";
 import { MeetingsClient } from "./meetings-client";
 
 export default async function MeetingsPage() {

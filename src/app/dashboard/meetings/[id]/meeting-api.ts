@@ -1,34 +1,8 @@
-import type { MeetingFile, MeetingTask } from "@/components/meeting-detail";
+import type { MeetingTask } from "@/components/meeting-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getOwnedMeetingWithRelations } from "@/lib/meetings/detail";
 import type { MeetingJSON, MeetingWithRelations } from "@/types/database";
-
-export interface MeetingDetailData {
-  clientName: string;
-  meetingDate: string;
-  meetingStatus: "completed" | "processing" | "failed" | "scheduled";
-  participants: Array<{ name: string }>;
-  summary: string;
-  nextStep: string;
-  keyDecision: string;
-  alertPoint: string;
-  transcript: string | null;
-  location: string;
-  tasks: MeetingTask[];
-  files: MeetingFile[];
-  insightMessage: string;
-  decisions: Array<{
-    id: string;
-    description: string;
-    decided_by: string | null;
-    confidence: string;
-  }>;
-  openItems: Array<{
-    id: string;
-    description: string;
-    context: string | null;
-  }>;
-}
+import type { MeetingDetailData } from "./meeting-types";
 
 function normalizeMeetingStatus(
   status: string | null | undefined
@@ -90,7 +64,7 @@ export function mapMeetingDetail(
     description: item.description,
     context: item.context,
   }));
-  const files: MeetingFile[] = meeting.audio_r2_key
+  const files: MeetingDetailData["files"] = meeting.audio_r2_key
     ? [
         {
           id: "audio",

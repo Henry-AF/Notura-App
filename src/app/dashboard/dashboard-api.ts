@@ -1,25 +1,13 @@
-import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   getDashboardOverview,
   type DashboardOverviewResponse,
 } from "@/lib/dashboard/overview";
-import type { Plan } from "@/types/database";
-
-export interface DashboardOverviewData {
-  userName: string;
-  plan: Plan;
-  meetingsThisMonth: number;
-  monthlyLimit: number | null;
-  meetings: Meeting[];
-  tasks: Task[];
-  metrics: MetricCardProps[];
-  todayCount: number;
-}
+import type { DashboardOverviewData } from "./dashboard-types";
 
 export function normalizeDashboardMeetingStatus(
   status: string
-): Meeting["status"] {
+): DashboardOverviewData["meetings"][number]["status"] {
   if (status === "completed") return "completed";
   if (status === "failed") return "failed";
   return "processing";

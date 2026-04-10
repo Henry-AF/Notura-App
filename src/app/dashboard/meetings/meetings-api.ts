@@ -1,16 +1,6 @@
 import { formatRelativeTime } from "@/lib/utils";
 import { getOwnedMeetings, type MeetingsListItem } from "@/lib/meetings/list";
-
-export type MeetingsPageStatus = "completed" | "processing" | "failed";
-
-export interface MeetingsPageMeeting {
-  id: string;
-  clientName: string;
-  title: string;
-  date: string;
-  rawDate: string;
-  status: MeetingsPageStatus;
-}
+import type { MeetingsPageMeeting, MeetingsPageStatus } from "./meetings-types";
 
 export function normalizeMeetingsStatus(status: string): MeetingsPageStatus {
   if (status === "completed") return "completed";

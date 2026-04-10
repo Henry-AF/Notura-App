@@ -1,5 +1,6 @@
 import { ToastProvider } from "@/components/upload/Toast";
-import { fetchMeetingDetail, type MeetingDetailData } from "./meeting-api";
+import { fetchMeetingDetail } from "./meeting-api";
+import type { MeetingDetailData } from "./meeting-types";
 import { MeetingDetailClient } from "./meeting-detail-client";
 
 export default async function MeetingDetailPage({

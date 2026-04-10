@@ -17,7 +17,7 @@ import {
 import {
   type MeetingsPageMeeting as Meeting,
   type MeetingsPageStatus as Status,
-} from "./meetings-api";
+} from "./meetings-types";
 
 const STATUS_OPTIONS: { value: Status | "all"; label: string }[] = [
   { value: "all", label: "Todos" },

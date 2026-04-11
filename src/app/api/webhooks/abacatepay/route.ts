@@ -6,6 +6,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
+import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
@@ -35,7 +37,9 @@ function parsePlanFromExternalId(
   return { userId: parts[1], plan: plan as "pro" | "team" };
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export const POST = withPublicRateLimit<NextRequest>(
+  RATE_LIMIT_POLICIES.abacatepayWebhook,
+  async (request: NextRequest): Promise<NextResponse> => {
   const secret = request.nextUrl.searchParams.get("webhookSecret");
   if (!WEBHOOK_SECRET || secret !== WEBHOOK_SECRET) {
     return new NextResponse(null, { status: 401 });
@@ -63,7 +67,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({ received: true });
-}
+  }
+);
 
 async function handleBillingPaid(
   data: AbacatePayWebhookEvent["data"]

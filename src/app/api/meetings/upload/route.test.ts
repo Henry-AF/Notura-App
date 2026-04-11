@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
@@ -137,5 +138,45 @@ describe("POST /api/meetings/upload", () => {
         }),
       })
     );
+  });
+
+  it("returns 429 with standard payload and rate limit headers when the limit is reached", async () => {
+    createServerSupabase.mockReturnValue(createServerClient({ id: "rate-limit-user" }));
+
+    const mod = await import("./route");
+
+    const callUpload = async () => {
+      const formData = new FormData();
+      formData.append(
+        "audio",
+        new File([new Uint8Array([1, 2, 3])], "audio.mp3", { type: "audio/mpeg" })
+      );
+      formData.append("client_name", "Acme");
+      formData.append("meeting_date", "2026-04-10");
+      formData.append("whatsapp_number", "(11) 98888-7777");
+
+      return mod.POST(
+        new Request("http://localhost/api/meetings/upload", {
+          method: "POST",
+          body: formData,
+        }) as NextRequest,
+        { params: {} } as never
+      );
+    };
+
+    let response: Response = await callUpload();
+    for (let i = 0; i < RATE_LIMIT_POLICIES.meetingsUpload.limit; i += 1) {
+      response = await callUpload();
+    }
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Muitas requisições. Tente novamente em instantes.",
+      code: "rate_limited",
+    });
+    expect(response.headers.get("x-ratelimit-limit")).toBeTruthy();
+    expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
+    expect(response.headers.get("x-ratelimit-reset")).toBeTruthy();
+    expect(response.headers.get("retry-after")).toBeTruthy();
   });
 });

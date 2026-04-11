@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
@@ -13,10 +14,9 @@ import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/datab
 // Registers a meeting record for an already-uploaded audio file and enqueues
 // processing. Expects the R2 key from a prior upload step.
 
-export const POST = withAuth<Record<string, string>, NextRequest>(async (
-  req: NextRequest,
-  { auth }
-) => {
+export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingsProcess,
+  async (req: NextRequest, { auth }) => {
   // ── Parse & validate body ────────────────────────────────────────────────
   let body: unknown;
   try {
@@ -97,4 +97,5 @@ export const POST = withAuth<Record<string, string>, NextRequest>(async (
     { meetingId: meeting.id, status: "pending" as MeetingStatus },
     { status: 201 }
   );
-});
+  }
+);

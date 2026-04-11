@@ -3,9 +3,12 @@
 // The token is safe to expose to the browser and expires after 8 minutes.
 
 import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 
-export const POST = withAuth(async () => {
+export const POST = withAuthRateLimit(
+  RATE_LIMIT_POLICIES.assemblyAiToken,
+  async () => {
   const apiKey = process.env.ASSEMBLYAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -42,4 +45,5 @@ export const POST = withAuth(async () => {
       { status: 500 }
     );
   }
-});
+  }
+);

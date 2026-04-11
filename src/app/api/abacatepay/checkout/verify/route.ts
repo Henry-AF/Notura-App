@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import {
   getAbacatePayPendingExternalId,
   getAbacatePaySubscriptionById,
@@ -10,7 +11,9 @@ import { getOrCreateBillingAccount } from "@/lib/billing";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
-export const POST = withAuth(async (_request, { auth }) => {
+export const POST = withAuthRateLimit(
+  RATE_LIMIT_POLICIES.abacatepayCheckoutVerify,
+  async (_request, { auth }) => {
   let userIdForLog = "anonymous";
 
   try {
@@ -119,4 +122,5 @@ export const POST = withAuth(async (_request, { auth }) => {
       { status: 500 }
     );
   }
-});
+  }
+);

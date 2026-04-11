@@ -21,6 +21,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
+import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest";
 import { timingSafeEqual } from "crypto";
@@ -82,7 +84,9 @@ function formatTranscript(payload: AssemblyAIWebhookPayload): string {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-export async function POST(request: NextRequest) {
+export const POST = withPublicRateLimit<NextRequest>(
+  RATE_LIMIT_POLICIES.assemblyAiWebhook,
+  async (request: NextRequest) => {
   // ── 1. Authenticate ───────────────────────────────────────────────────────
   const webhookSecret = process.env.ASSEMBLYAI_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -187,4 +191,5 @@ export async function POST(request: NextRequest) {
   );
 
   return NextResponse.json({ ok: true });
-}
+  }
+);

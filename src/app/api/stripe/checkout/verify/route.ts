@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { getStripe, isPaidCheckoutSession } from "@/lib/stripe";
 import type { Plan } from "@/types/database";
 
@@ -7,10 +8,9 @@ interface VerifyCheckoutBody {
   sessionId?: string;
 }
 
-export const POST = withAuth<Record<string, string>, NextRequest>(async (
-  request: NextRequest,
-  { auth }
-) => {
+export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+  RATE_LIMIT_POLICIES.stripeCheckoutVerify,
+  async (request: NextRequest, { auth }) => {
   try {
     const body = (await request.json()) as VerifyCheckoutBody;
     const sessionId = body.sessionId?.trim();
@@ -68,4 +68,5 @@ export const POST = withAuth<Record<string, string>, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);

@@ -4,6 +4,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
@@ -11,7 +13,9 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withPublicRateLimit<NextRequest>(
+  RATE_LIMIT_POLICIES.stripeWebhook,
+  async (request: NextRequest) => {
   const stripe = getStripe();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
   let event: Stripe.Event;
@@ -167,4 +171,5 @@ export async function POST(request: NextRequest) {
 
   // Always return 200 quickly to acknowledge receipt
   return NextResponse.json({ received: true }, { status: 200 });
-}
+  }
+);

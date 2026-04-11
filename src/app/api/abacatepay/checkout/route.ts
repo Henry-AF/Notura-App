@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   createAbacatePaySubscriptionCheckout,
@@ -22,10 +23,9 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
 }
 
-export const POST = withAuth<Record<string, string>, NextRequest>(async (
-  request: NextRequest,
-  { auth }
-) => {
+export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+  RATE_LIMIT_POLICIES.abacatepayCheckout,
+  async (request: NextRequest, { auth }) => {
   let userIdForLog = "anonymous";
   let planForLog: Plan | null = null;
 
@@ -144,4 +144,5 @@ export const POST = withAuth<Record<string, string>, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);

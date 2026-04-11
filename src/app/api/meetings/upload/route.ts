@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/api/auth";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { buildR2Key, uploadAudio } from "@/lib/r2";
 import { inngest } from "@/lib/inngest";
@@ -34,10 +35,9 @@ function serverError(message: string, detail: unknown, status = 500) {
   );
 }
 
-export const POST = withAuth<Record<string, string>, NextRequest>(async (
-  request: NextRequest,
-  { auth }
-) => {
+export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingsUpload,
+  async (request: NextRequest, { auth }) => {
   const { billingAccount, meetingsThisMonth, monthlyLimit } =
     await getBillingStatus(auth.user.id);
 
@@ -221,4 +221,5 @@ export const POST = withAuth<Record<string, string>, NextRequest>(async (
     },
     { status: 201 }
   );
-});
+  }
+);

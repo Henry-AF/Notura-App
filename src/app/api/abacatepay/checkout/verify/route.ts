@@ -6,18 +6,19 @@ import {
   isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
 import { getOrCreateBillingAccount } from "@/lib/billing";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
 export async function POST() {
   let userIdForLog = "anonymous";
 
   try {
-    const supabase = createServerSupabase();
+    const sessionSupabase = createServerSupabase();
+    const db = createServiceRoleClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await sessionSupabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
@@ -25,7 +26,7 @@ export async function POST() {
 
     userIdForLog = user.id;
 
-    const billingAccount = await getOrCreateBillingAccount(user.id, supabase);
+    const billingAccount = await getOrCreateBillingAccount(user.id, db);
 
     if (!billingAccount.abacatepay_pending_checkout_id) {
       if (billingAccount.plan !== "free") {
@@ -91,7 +92,7 @@ export async function POST() {
       );
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("billing_accounts")
       .update({
         plan: pendingPlan,

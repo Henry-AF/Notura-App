@@ -22,15 +22,34 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh the session (required for Supabase SSR token rotation)
-  const { data: { user } } = await supabase.auth.getUser();
+  // Refresh the session (required for Supabase SSR token rotation).
+  // A stale or revoked refresh token (refresh_token_not_found) must be treated
+  // as unauthenticated — clear the session cookies and redirect to login.
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    if (result.error?.code === "refresh_token_not_found") {
+      await supabase.auth.signOut();
+      user = null;
+    }
+  } catch {
+    user = null;
+  }
 
   // Redirect unauthenticated users away from protected routes
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    // Clear the stale auth cookies so they don't loop
+    request.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith("sb-")) {
+        redirectResponse.cookies.delete(name);
+      }
+    });
+    return redirectResponse;
   }
 
   return response;

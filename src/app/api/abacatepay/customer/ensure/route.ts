@@ -5,17 +5,18 @@ import {
   ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST() {
   let userIdForLog = "anonymous";
 
   try {
-    const supabase = createServerSupabase();
+    const sessionSupabase = createServerSupabase();
+    const db = createServiceRoleClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await sessionSupabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
@@ -23,9 +24,9 @@ export async function POST() {
 
     userIdForLog = user.id;
 
-    const context = await loadAbacatePayCustomerContext(supabase, user.id);
+    const context = await loadAbacatePayCustomerContext(db, user.id);
     const result = await ensureAbacatePayCustomer(
-      supabase,
+      db,
       {
         id: user.id,
         email: user.email ?? null,

@@ -1,15 +1,15 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 
 export interface SidebarPlanWidgetProps {
   planName: string;
   used: number;
   total: number | null;
+  onUpgradeClick?: () => void;
 }
 
-export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetProps) {
+export function SidebarPlanWidget({ planName, used, total, onUpgradeClick }: SidebarPlanWidgetProps) {
   const pct =
     typeof total === "number" && total > 0
       ? Math.min((used / total) * 100, 100)
@@ -72,9 +72,14 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
       )}
 
       {/* CTA */}
-      <Link
-        href="/pricing"
+      <button
+        type="button"
+        onClick={onUpgradeClick}
         style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: onUpgradeClick ? "pointer" : "default",
           fontFamily: "Inter, sans-serif",
           fontWeight: 600,
           fontSize: "12px",
@@ -83,14 +88,14 @@ export function SidebarPlanWidget({ planName, used, total }: SidebarPlanWidgetPr
           transition: "color 0.15s",
         }}
         onMouseEnter={(e) =>
-          ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-ink))")
+          ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink))")
         }
         onMouseLeave={(e) =>
-          ((e.currentTarget as HTMLAnchorElement).style.color = "#A29BFE")
+          ((e.currentTarget as HTMLButtonElement).style.color = "#A29BFE")
         }
       >
         Upgrade para ilimitado
-      </Link>
+      </button>
     </div>
   );
 }

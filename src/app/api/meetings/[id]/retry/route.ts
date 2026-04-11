@@ -26,12 +26,12 @@ export const POST = withAuth<{ id: string }>(async (
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  // ── Only retry meetings that failed or are not yet processing ─────────────
-  if (meeting.status === "processing") {
-    return NextResponse.json({ error: "Reunião já está sendo processada." }, { status: 409 });
-  }
-  if (meeting.status === "completed") {
-    return NextResponse.json({ error: "Reunião já foi processada com sucesso." }, { status: 409 });
+  // ── Only retry failed meetings to avoid duplicate queueing ─────────────────
+  if (meeting.status !== "failed") {
+    return NextResponse.json(
+      { error: "Somente reuniões com falha podem ser reprocessadas manualmente." },
+      { status: 409 }
+    );
   }
 
   if (!meeting.audio_r2_key) {

@@ -9,6 +9,12 @@ import { inngest } from "@/lib/inngest";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
 import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
+import {
+  PROCESS_MEETING_CONCURRENCY,
+  PROCESS_MEETING_RETRY_ATTEMPTS,
+  toNonRetriableJobError,
+  toProviderQueueError,
+} from "@/lib/jobs/meeting-queue-guardrails";
 import { AssemblyAI } from "assemblyai";
 import {
   generateMeetingSummary,
@@ -133,7 +139,8 @@ function resolveInngestRequestId(eventId: unknown): string {
 export const processMeeting = inngest.createFunction(
   {
     id: "process-meeting",
-    retries: 2,
+    retries: PROCESS_MEETING_RETRY_ATTEMPTS,
+    concurrency: PROCESS_MEETING_CONCURRENCY,
     triggers: [{ event: "meeting/process" }],
   },
   async ({ event, step }) => {
@@ -145,7 +152,16 @@ export const processMeeting = inngest.createFunction(
     try {
       const { meetingId, r2Key, whatsappNumber, userId } = await step.run(
         "validate-event-data",
-        async () => parseMeetingProcessEventData(event.data)
+        async () => {
+          try {
+            return parseMeetingProcessEventData(event.data);
+          } catch (error) {
+            throw toNonRetriableJobError(
+              "Invalid meeting/process event payload",
+              error
+            );
+          }
+        }
       );
       userIdForLog = userId;
       meetingIdForLog = meetingId;
@@ -196,28 +212,44 @@ export const processMeeting = inngest.createFunction(
         //   transcript.id as assemblyai_transcript_id. The webhook endpoint at
         //   /api/webhooks/assemblyai will fire meeting/transcription.completed to
         //   resume processing without blocking this worker.
-        const audioUrl = await getPresignedDownloadUrl(r2Key, 3600);
+        let audioUrl: string;
+        try {
+          audioUrl = await getPresignedDownloadUrl(r2Key, 3600);
+        } catch (error) {
+          throw toProviderQueueError("r2", error);
+        }
 
-        const aai = getAAI();
-        const transcriptResult = await aai.transcripts.transcribe({
-          audio_url: audioUrl,
-          speech_models: ["universal-3-pro"],  // highest accuracy; replaces deprecated speech_model
-          language_code: "pt",
-          speaker_labels: true,
-          // ── Quality flags ──────────────────────────────────────────
-          punctuate: true,          // sentence-level punctuation
-          format_text: true,        // proper casing, numbers as words
-          disfluencies: false,      // strip fillers: "é...", "né...", "tipo..."
-        });
+        let transcriptResult: Awaited<ReturnType<AssemblyAI["transcripts"]["transcribe"]>>;
+        try {
+          const aai = getAAI();
+          transcriptResult = await aai.transcripts.transcribe({
+            audio_url: audioUrl,
+            speech_models: ["universal-3-pro"], // highest accuracy; replaces deprecated speech_model
+            language_code: "pt",
+            speaker_labels: true,
+            // ── Quality flags ──────────────────────────────────────────
+            punctuate: true, // sentence-level punctuation
+            format_text: true, // proper casing, numbers as words
+            disfluencies: false, // strip fillers: "é...", "né...", "tipo..."
+          });
+        } catch (error) {
+          throw toProviderQueueError("assemblyai", error);
+        }
 
         if (transcriptResult.status === "error") {
-          throw new Error(
-            `AssemblyAI transcription failed: ${transcriptResult.error ?? "unknown error"}`
+          throw toProviderQueueError(
+            "assemblyai",
+            new Error(
+              `AssemblyAI transcription failed: ${transcriptResult.error ?? "unknown error"}`
+            )
           );
         }
 
         if (!transcriptResult.text) {
-          throw new Error("AssemblyAI returned empty transcript");
+          throw toProviderQueueError(
+            "assemblyai",
+            new Error("AssemblyAI returned empty transcript")
+          );
         }
 
         // Build transcript: prefer utterances (speaker + timestamp), fall back to full text
@@ -279,7 +311,13 @@ export const processMeeting = inngest.createFunction(
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
       const { summaryWhatsapp, summaryJson } = await step.run(
         "summarize-meeting",
-        async () => generateMeetingSummary(transcript)
+        async () => {
+          try {
+            return await generateMeetingSummary(transcript);
+          } catch (error) {
+            throw toProviderQueueError("gemini", error);
+          }
+        }
       );
 
       // ── Step 4: Save results to Supabase ───────────────────────────────

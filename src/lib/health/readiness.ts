@@ -89,6 +89,18 @@ async function checkDatabaseConnection(): Promise<void> {
 async function checkQueueConfiguration(): Promise<void> {
   readRequiredEnv("INNGEST_EVENT_KEY");
   readRequiredEnv("INNGEST_SIGNING_KEY");
+
+  const response = await fetchWithTimeout("https://api.inngest.com/health", {
+    method: "GET",
+  });
+
+  if (response.status >= 500) {
+    throw new Error(`Inngest queue unavailable (status ${response.status})`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Inngest queue healthcheck failed (status ${response.status})`);
+  }
 }
 
 async function checkAssemblyAiAvailability(): Promise<void> {
@@ -122,7 +134,6 @@ async function checkR2Availability(): Promise<void> {
   readRequiredEnv("R2_ACCOUNT_ID");
   readRequiredEnv("R2_ACCESS_KEY_ID");
   readRequiredEnv("R2_SECRET_ACCESS_KEY");
-  readRequiredEnv("R2_BUCKET_NAME");
 
   await checkR2Health();
 }

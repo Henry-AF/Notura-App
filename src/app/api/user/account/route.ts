@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getSupabaseBrowserConfig, getSupabaseServiceRoleKey } from "@/lib/env";
 import { createClient } from "@supabase/supabase-js";
 
 // DELETE /api/user/account — Permanently delete the authenticated user's account
-export async function DELETE() {
-  // ── Identify the authenticated user ──────────────────────────────────────
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
-  const userId = user.id;
+export const DELETE = withAuth(async (_request, { auth }) => {
+  const userId = auth.user.id;
   const supabase = createServiceRoleClient();
 
   // ── Delete user data from application tables ──────────────────────────────
@@ -44,4 +37,4 @@ export async function DELETE() {
   }
 
   return NextResponse.json({ success: true }, { status: 200 });
-}
+});

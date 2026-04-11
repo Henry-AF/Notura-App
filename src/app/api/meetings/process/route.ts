@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import {
@@ -12,14 +13,10 @@ import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/datab
 // Registers a meeting record for an already-uploaded audio file and enqueues
 // processing. Expects the R2 key from a prior upload step.
 
-export async function POST(req: NextRequest) {
-  // ── Auth ────────────────────────────────────────────────────────────────
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
+export const POST = withAuth<Record<string, string>, NextRequest>(async (
+  req: NextRequest,
+  { auth }
+) => {
   // ── Parse & validate body ────────────────────────────────────────────────
   let body: unknown;
   try {
@@ -58,7 +55,7 @@ export async function POST(req: NextRequest) {
   const { data: meeting, error: insertError } = await supabase
     .from("meetings")
     .insert({
-      user_id: user.id,
+      user_id: auth.user.id,
       title: `Reunião — ${data.clientName.trim()}`,
       client_name: data.clientName.trim(),
       meeting_date: data.meetingDate,
@@ -84,7 +81,7 @@ export async function POST(req: NextRequest) {
         meetingId: meeting.id,
         r2Key: data.r2Key.trim(),
         whatsappNumber: normalizedWhatsappNumber,
-        userId: user.id,
+        userId: auth.user.id,
       },
     });
   } catch (e) {
@@ -100,4 +97,4 @@ export async function POST(req: NextRequest) {
     { meetingId: meeting.id, status: "pending" as MeetingStatus },
     { status: 201 }
   );
-}
+});

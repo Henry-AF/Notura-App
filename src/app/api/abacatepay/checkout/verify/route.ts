@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api/auth";
 import {
   getAbacatePayPendingExternalId,
   getAbacatePaySubscriptionById,
@@ -6,27 +7,17 @@ import {
   isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
 import { getOrCreateBillingAccount } from "@/lib/billing";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
-export async function POST() {
+export const POST = withAuth(async (_request, { auth }) => {
   let userIdForLog = "anonymous";
 
   try {
-    const sessionSupabase = createServerSupabase();
     const db = createServiceRoleClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await sessionSupabase.auth.getUser();
+    userIdForLog = auth.user.id;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
-    }
-
-    userIdForLog = user.id;
-
-    const billingAccount = await getOrCreateBillingAccount(user.id, db);
+    const billingAccount = await getOrCreateBillingAccount(auth.user.id, db);
 
     if (!billingAccount.abacatepay_pending_checkout_id) {
       if (billingAccount.plan !== "free") {
@@ -65,7 +56,7 @@ export async function POST() {
       );
     }
 
-    const expectedExternalId = getAbacatePayPendingExternalId(user.id, pendingPlan);
+    const expectedExternalId = getAbacatePayPendingExternalId(auth.user.id, pendingPlan);
     if (subscription.externalId !== expectedExternalId) {
       return NextResponse.json(
         { error: "Checkout nao pertence ao usuario autenticado." },
@@ -78,7 +69,7 @@ export async function POST() {
         ? subscription.metadata.userId
         : null;
 
-    if (subscriptionUserId !== user.id) {
+    if (subscriptionUserId !== auth.user.id) {
       return NextResponse.json(
         { error: "Metadados do pagamento nao pertencem ao usuario autenticado." },
         { status: 403 }
@@ -102,7 +93,7 @@ export async function POST() {
         abacatepay_pending_plan: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_id", user.id);
+      .eq("user_id", auth.user.id);
 
     if (updateError) {
       return NextResponse.json(
@@ -128,4 +119,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

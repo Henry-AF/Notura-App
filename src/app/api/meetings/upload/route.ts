@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { buildR2Key, uploadAudio } from "@/lib/r2";
 import { inngest } from "@/lib/inngest";
 import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
@@ -33,48 +34,35 @@ function serverError(message: string, detail: unknown, status = 500) {
   );
 }
 
-export async function POST(request: NextRequest) {
-  // ── Auth ──────────────────────────────────────────────────────────────
-  let user: Awaited<ReturnType<ReturnType<typeof createServerSupabase>["auth"]["getUser"]>>["data"]["user"];
-  try {
-    const supabaseAuth = createServerSupabase();
-    const { data, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !data.user) {
-      return NextResponse.json(
-        { error: "Não autenticado. Faça login para continuar." },
-        { status: 401 }
-      );
-    }
-    user = data.user;
-  } catch (e) {
-    return serverError("Falha ao verificar autenticação.", e, 500);
+export const POST = withAuth<Record<string, string>, NextRequest>(async (
+  request: NextRequest,
+  { auth }
+) => {
+  const { billingAccount, meetingsThisMonth, monthlyLimit } =
+    await getBillingStatus(auth.user.id);
+
+  if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
+    return NextResponse.json(
+      {
+        error:
+          billingAccount.plan === "free"
+            ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
+            : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
+      },
+      { status: 403 }
+    );
   }
 
-    const { billingAccount, meetingsThisMonth, monthlyLimit } =
-      await getBillingStatus(user.id);
-
-    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
-      return NextResponse.json(
-        {
-          error:
-            billingAccount.plan === "free"
-              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
-              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
-        },
-        { status: 403 }
-      );
-    }
-
-    // ── Parse multipart form data ────────────────────────────────────────
-    let formData: FormData;
-    try {
-      formData = await request.formData();
-    } catch {
-      return NextResponse.json(
-        { error: "Requisição inválida. Envie um multipart/form-data com o campo 'audio'." },
-        { status: 400 }
-      );
-    }
+  // ── Parse multipart form data ────────────────────────────────────────
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Requisição inválida. Envie um multipart/form-data com o campo 'audio'." },
+      { status: 400 }
+    );
+  }
 
   const audioFile = formData.get("audio") as File | null;
   const clientName = (formData.get("client_name") as string | null) || null;
@@ -137,7 +125,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Upload to R2 ─────────────────────────────────────────────────────
-  const r2Key = buildR2Key(user.id, audioFile.name);
+  const r2Key = buildR2Key(auth.user.id, audioFile.name);
   let fileBuffer: Buffer;
   try {
     console.log("[upload] lendo buffer do arquivo…");
@@ -159,7 +147,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
 
   const meetingInsert = {
-    user_id: user.id,
+    user_id: auth.user.id,
     title: clientName ? `Reunião — ${clientName}` : "Nova reunião",
     client_name: clientName,
     meeting_date: meetingDate,
@@ -197,12 +185,12 @@ export async function POST(request: NextRequest) {
         meetingId: meeting.id,
         r2Key,
         whatsappNumber: normalizedWhatsappNumber,
-        userId: user.id,
+        userId: auth.user.id,
       },
     });
 
     try {
-      await syncMeetingsThisMonth(user.id, meetingsThisMonth + 1);
+      await syncMeetingsThisMonth(auth.user.id, meetingsThisMonth + 1);
     } catch (billingError) {
       console.error("[upload] Failed to sync billing usage:", billingError);
     }
@@ -233,4 +221,4 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 }
   );
-}
+});

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   createAbacatePaySubscriptionCheckout,
   getAbacatePayPendingExternalId,
@@ -21,27 +22,18 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth<Record<string, string>, NextRequest>(async (
+  request: NextRequest,
+  { auth }
+) => {
   let userIdForLog = "anonymous";
   let planForLog: Plan | null = null;
 
   try {
-    const sessionSupabase = createServerSupabase();
     const db = createServiceRoleClient();
-    const [authResult, body] = await Promise.all([
-      sessionSupabase.auth.getUser(),
-      request.json() as Promise<CreateCheckoutBody>,
-    ]);
-    const {
-      data: { user },
-      error: authError,
-    } = authResult;
+    const body = (await request.json()) as CreateCheckoutBody;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
-    }
-
-    userIdForLog = user.id;
+    userIdForLog = auth.user.id;
     const plan = body.plan;
     planForLog = plan ?? null;
 
@@ -52,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const customerContext = await loadAbacatePayCustomerContext(db, user.id);
+    const customerContext = await loadAbacatePayCustomerContext(db, auth.user.id);
     if (customerContext.billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
@@ -63,8 +55,8 @@ export async function POST(request: NextRequest) {
     const ensuredCustomer = await ensureAbacatePayCustomer(
       db,
       {
-        id: user.id,
-        email: user.email ?? null,
+        id: auth.user.id,
+        email: auth.user.email ?? null,
       },
       customerContext,
       {
@@ -89,11 +81,11 @@ export async function POST(request: NextRequest) {
     const subscription = await createAbacatePaySubscriptionCheckout({
       productId: getAbacatePayProductId(plan),
       customerId: ensuredCustomer.customerId,
-      externalId: getAbacatePayPendingExternalId(user.id, plan),
+      externalId: getAbacatePayPendingExternalId(auth.user.id, plan),
       returnUrl: returnUrl.toString(),
       completionUrl: completionUrl.toString(),
       metadata: {
-        userId: user.id,
+        userId: auth.user.id,
         plan,
         origin: "onboarding",
       },
@@ -114,7 +106,7 @@ export async function POST(request: NextRequest) {
         abacatepay_pending_plan: plan,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_id", user.id);
+      .eq("user_id", auth.user.id);
 
     if (billingUpdateError) {
       return NextResponse.json(
@@ -152,4 +144,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,20 +3,9 @@
 // The token is safe to expose to the browser and expires after 8 minutes.
 
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
 
-export async function POST() {
-  // Auth guard — only authenticated users may receive a token
-  const supabase = createServerSupabase();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
+export const POST = withAuth(async () => {
   const apiKey = process.env.ASSEMBLYAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -53,4 +42,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

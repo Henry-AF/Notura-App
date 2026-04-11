@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
 import { getStripe, isPaidCheckoutSession } from "@/lib/stripe";
 import type { Plan } from "@/types/database";
 
@@ -7,18 +7,11 @@ interface VerifyCheckoutBody {
   sessionId?: string;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth<Record<string, string>, NextRequest>(async (
+  request: NextRequest,
+  { auth }
+) => {
   try {
-    const supabase = createServerSupabase();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    }
-
     const body = (await request.json()) as VerifyCheckoutBody;
     const sessionId = body.sessionId?.trim();
 
@@ -34,7 +27,7 @@ export async function POST(request: NextRequest) {
     const sessionUserId = session.metadata?.user_id;
     const plan = session.metadata?.plan as Plan | undefined;
 
-    if (sessionUserId !== user.id || session.client_reference_id !== user.id) {
+    if (sessionUserId !== auth.user.id || session.client_reference_id !== auth.user.id) {
       return NextResponse.json(
         { error: "Sessão de pagamento não pertence ao usuário autenticado." },
         { status: 403 }
@@ -75,4 +68,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

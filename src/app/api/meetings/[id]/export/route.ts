@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
 
-export async function POST(
+export const POST = withAuth<{ id: string }>(async (
   _request: Request,
-  { params }: { params: { id: string } }
-) {
+  { params, auth }
+) => {
+  await requireOwnership(auth.supabaseAdmin, "meetings", params.id, auth.user.id);
   return NextResponse.json({ success: true, meetingId: params.id });
-}
+});

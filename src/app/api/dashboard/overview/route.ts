@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api/auth";
 import {
   DashboardOverviewLoadError,
-  DashboardUnauthorizedError,
   getDashboardOverview,
 } from "@/lib/dashboard/overview";
 
-export async function GET() {
+export const GET = withAuth(async () => {
   try {
     const overview = await getDashboardOverview();
     return NextResponse.json(overview);
   } catch (error) {
-    if (error instanceof DashboardUnauthorizedError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
-
     if (error instanceof DashboardOverviewLoadError) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -24,4 +20,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

@@ -301,7 +301,6 @@ export default function RecordingPage() {
       audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(stream);
       sourceRef.current = src;
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const proc = ctx.createScriptProcessor(4096, 1, 1);
       processorRef.current = proc;
       proc.onaudioprocess = (e) => {

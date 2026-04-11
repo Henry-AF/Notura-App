@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
 import {
   buildTaskColumns,
@@ -9,18 +10,12 @@ import {
   toDatabasePriority,
 } from "./task-mapper";
 
-export async function GET() {
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
+export const GET = withAuth(async (_request, { auth }) => {
   const supabase = createServiceRoleClient();
   const { data: tasks, error } = await supabase
     .from("tasks")
     .select("id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, status, completed, completed_at, created_at, meetings(title, client_name)")
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -30,7 +25,7 @@ export async function GET() {
   const { data: meetings, error: meetingsError } = await supabase
     .from("meetings")
     .select("id, title, client_name")
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
     .order("created_at", { ascending: false });
 
   if (meetingsError) {
@@ -41,15 +36,9 @@ export async function GET() {
     columns: buildTaskColumns(tasks ?? []),
     meetings: buildTaskMeetingOptions(meetings ?? []),
   });
-}
+});
 
-export async function POST(request: Request) {
-  const supabaseAuth = createServerSupabase();
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { auth }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -70,18 +59,7 @@ export async function POST(request: Request) {
 
   const meetingId = data.meeting_id.trim();
 
-  const { data: meeting, error: meetingError } = await supabase
-    .from("meetings")
-    .select("id, user_id")
-    .eq("id", meetingId)
-    .single();
-
-  if (meetingError || !meeting) {
-    return NextResponse.json({ error: "Reunião não encontrada." }, { status: 404 });
-  }
-  if (meeting.user_id !== user.id) {
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
-  }
+  await requireOwnership(supabase, "meetings", meetingId, auth.user.id);
 
   const taskStatus = normalizeTaskStatus(
     typeof data.status === "string"
@@ -98,7 +76,7 @@ export async function POST(request: Request) {
     .from("tasks")
     .insert({
       meeting_id: meetingId,
-      user_id: user.id,
+      user_id: auth.user.id,
       dedupe_key: randomUUID(),
       description: data.description.trim(),
       priority: toDatabasePriority(
@@ -121,4 +99,4 @@ export async function POST(request: Request) {
     { task: mapTaskRowToBoardTask(task) },
     { status: 201 }
   );
-}
+});

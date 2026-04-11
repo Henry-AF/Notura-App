@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api/auth";
 import { getBillingStatus } from "@/lib/billing";
-import {
-  createServerSupabase,
-  createServiceRoleClient,
-} from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
 interface AuthenticatedUser {
@@ -46,35 +44,14 @@ async function buildCurrentUserResponse(user: AuthenticatedUser) {
   };
 }
 
-async function requireUser() {
-  const supabaseAuth = createServerSupabase();
-  const {
-    data: { user },
-    error,
-  } = await supabaseAuth.auth.getUser();
-
-  if (error || !user) {
-    return {
-      user: null,
-      response: NextResponse.json({ error: "Não autenticado." }, { status: 401 }),
-    };
-  }
-
-  return {
-    user: {
-      id: user.id,
-      email: user.email ?? null,
-    },
-    response: null,
-  };
-}
-
-export async function GET() {
-  const auth = await requireUser();
-  if (!auth.user) return auth.response!;
-
+export const GET = withAuth(async (_request, { auth }) => {
   try {
-    return NextResponse.json(await buildCurrentUserResponse(auth.user));
+    return NextResponse.json(
+      await buildCurrentUserResponse({
+        id: auth.user.id,
+        email: auth.user.email ?? null,
+      })
+    );
   } catch (error) {
     console.error("[user/me] GET failed:", error);
     return NextResponse.json(
@@ -82,12 +59,9 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PATCH(request: Request) {
-  const auth = await requireUser();
-  if (!auth.user) return auth.response!;
-
+export const PATCH = withAuth(async (request, { auth }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -138,7 +112,12 @@ export async function PATCH(request: Request) {
       );
     }
 
-    return NextResponse.json(await buildCurrentUserResponse(auth.user));
+    return NextResponse.json(
+      await buildCurrentUserResponse({
+        id: auth.user.id,
+        email: auth.user.email ?? null,
+      })
+    );
   } catch (error) {
     console.error("[user/me] PATCH unexpected failure:", error);
     return NextResponse.json(
@@ -146,4 +125,4 @@ export async function PATCH(request: Request) {
       { status: 500 }
     );
   }
-}
+});

@@ -91,7 +91,8 @@ describe("POST /api/meetings/upload", () => {
       new Request("http://localhost/api/meetings/upload", {
         method: "POST",
         body: formData,
-      }) as NextRequest
+      }) as NextRequest,
+      { params: {} } as never
     );
 
     expect(response.status).toBe(400);
@@ -119,7 +120,8 @@ describe("POST /api/meetings/upload", () => {
       new Request("http://localhost/api/meetings/upload", {
         method: "POST",
         body: formData,
-      }) as NextRequest
+      }) as NextRequest,
+      { params: {} } as never
     );
 
     expect(response.status).toBe(201);

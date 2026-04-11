@@ -1,42 +1,33 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api/auth";
 import { isAbacatePayTimeoutError } from "@/lib/abacatepay";
 import {
   AbacatePayCustomerNotReadyError,
   ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export async function POST() {
+export const POST = withAuth(async (_request, { auth }) => {
   let userIdForLog = "anonymous";
 
   try {
-    const sessionSupabase = createServerSupabase();
     const db = createServiceRoleClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await sessionSupabase.auth.getUser();
+    userIdForLog = auth.user.id;
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Nao autenticado." }, { status: 401 });
-    }
-
-    userIdForLog = user.id;
-
-    const context = await loadAbacatePayCustomerContext(db, user.id);
+    const context = await loadAbacatePayCustomerContext(db, auth.user.id);
     const result = await ensureAbacatePayCustomer(
       db,
       {
-        id: user.id,
-        email: user.email ?? null,
+        id: auth.user.id,
+        email: auth.user.email ?? null,
       },
       context
     );
 
     if (result.status === "in_progress") {
       console.log(
-        `[abacatepay-customer] customer prewarm user=${user.id} status=in_progress`
+        `[abacatepay-customer] customer prewarm user=${auth.user.id} status=in_progress`
       );
 
       return NextResponse.json(
@@ -48,7 +39,7 @@ export async function POST() {
       );
     }
 
-    console.log(`[abacatepay-customer] customer prewarm user=${user.id} status=ready`);
+    console.log(`[abacatepay-customer] customer prewarm user=${auth.user.id} status=ready`);
 
     return NextResponse.json({
       success: true,
@@ -85,4 +76,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { withAuth } from "@/lib/api/auth";
 import { getOrCreateBillingAccount } from "@/lib/billing";
 import { getAppBaseUrl, getStripe, getStripePriceId } from "@/lib/stripe";
 import type { Plan } from "@/types/database";
@@ -12,18 +12,11 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth<Record<string, string>, NextRequest>(async (
+  request: NextRequest,
+  { auth }
+) => {
   try {
-    const supabase = createServerSupabase();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    }
-
     const body = (await request.json()) as CreateCheckoutBody;
     const plan = body.plan;
 
@@ -34,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const billingAccount = await getOrCreateBillingAccount(user.id);
+    const billingAccount = await getOrCreateBillingAccount(auth.user.id);
     if (billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
@@ -42,7 +35,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!billingAccount.stripe_customer_id && !user.email) {
+    if (!billingAccount.stripe_customer_id && !auth.user.email) {
       return NextResponse.json(
         { error: "Seu usuário não possui email válido para iniciar o checkout." },
         { status: 400 }
@@ -67,14 +60,14 @@ export async function POST(request: NextRequest) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl.toString(),
       cancel_url: cancelUrl.toString(),
-      client_reference_id: user.id,
+      client_reference_id: auth.user.id,
       metadata: {
-        user_id: user.id,
+        user_id: auth.user.id,
         plan,
       },
       ...(billingAccount.stripe_customer_id
         ? { customer: billingAccount.stripe_customer_id }
-        : { customer_email: user.email ?? undefined }),
+        : { customer_email: auth.user.email ?? undefined }),
     });
 
     if (!session.url) {
@@ -95,4 +88,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

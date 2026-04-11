@@ -33,6 +33,7 @@ const ID_ROUTES_REQUIRING_OWNERSHIP = [
 ];
 
 const PUBLIC_ROUTES = [
+  "src/app/api/internal/health/route.ts",
   "src/app/api/inngest/route.ts",
   "src/app/api/webhooks/abacatepay/route.ts",
   "src/app/api/webhooks/assemblyai/route.ts",

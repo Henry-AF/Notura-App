@@ -51,4 +51,9 @@ export const RATE_LIMIT_POLICIES = {
     limit: 120,
     windowMs: 60_000,
   },
+  internalHealth: {
+    bucket: "api:internal/health",
+    limit: 240,
+    windowMs: 60_000,
+  },
 } as const satisfies Record<string, RateLimitPolicy>;

@@ -149,7 +149,9 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
             <div className="animate-fade-in [animation-delay:140ms]">
               <UpgradeCard
                 planName="plano gratuito"
-                onViewPlans={() => router.push("/pricing")}
+                onViewPlans={() =>
+                  window.dispatchEvent(new Event("notura:open-plan-modal"))
+                }
               />
             </div>
           )}

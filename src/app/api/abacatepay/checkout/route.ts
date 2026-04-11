@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
 import {
   createAbacatePaySubscriptionCheckout,
   getAbacatePayPendingExternalId,
@@ -26,9 +26,10 @@ export async function POST(request: NextRequest) {
   let planForLog: Plan | null = null;
 
   try {
-    const supabase = createServerSupabase();
+    const sessionSupabase = createServerSupabase();
+    const db = createServiceRoleClient();
     const [authResult, body] = await Promise.all([
-      supabase.auth.getUser(),
+      sessionSupabase.auth.getUser(),
       request.json() as Promise<CreateCheckoutBody>,
     ]);
     const {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const customerContext = await loadAbacatePayCustomerContext(supabase, user.id);
+    const customerContext = await loadAbacatePayCustomerContext(db, user.id);
     if (customerContext.billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ensuredCustomer = await ensureAbacatePayCustomer(
-      supabase,
+      db,
       {
         id: user.id,
         email: user.email ?? null,
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: billingUpdateError } = await supabase
+    const { error: billingUpdateError } = await db
       .from("billing_accounts")
       .update({
         abacatepay_customer_id: ensuredCustomer.customerId,

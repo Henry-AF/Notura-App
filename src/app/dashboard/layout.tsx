@@ -293,6 +293,7 @@ function SidebarContent({
           planName={user.plan === "pro" ? "Plano Pro" : "Plano Gratuito"}
           used={3}
           total={user.plan === "pro" ? 30 : 3}
+          onUpgradeClick={onUpgradeClick}
         />
 
         {/* User profile area — click to open dropdown */}
@@ -366,13 +367,14 @@ export default function DashboardLayout({
   useEffect(() => {
     void loadUser();
 
-    const handleUserUpdated = () => {
-      void loadUser();
-    };
+    const handleUserUpdated = () => void loadUser();
+    const handleOpenPlanModal = () => setShowPlanModal(true);
 
     window.addEventListener("notura:user-updated", handleUserUpdated);
+    window.addEventListener("notura:open-plan-modal", handleOpenPlanModal);
     return () => {
       window.removeEventListener("notura:user-updated", handleUserUpdated);
+      window.removeEventListener("notura:open-plan-modal", handleOpenPlanModal);
     };
   }, [loadUser]);
 

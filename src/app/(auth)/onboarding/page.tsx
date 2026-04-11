@@ -1,76 +1,446 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import {
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Check, MessageCircle, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  MessageCircle,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
+import {
+  ensureAbacatepayCustomer,
+  startOnboardingCheckout,
+  verifyOnboardingPayment,
+} from "./onboarding-api";
+
+type OnboardingStep = 1 | 2 | 3;
+
+interface OnboardingPlan {
+  id: Plan;
+  name: string;
+  price: string;
+  desc: string;
+  popular?: boolean;
+}
+
+interface SearchParamsReader {
+  get(name: string): string | null;
+}
+
+interface StepIntroProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}
+
+interface PhoneStepProps {
+  phone: string;
+  error: string | null;
+  loading: boolean;
+  onPhoneChange: (value: string) => void;
+  onContinue: () => void;
+  onSkip: () => void;
+}
+
+interface PlanStepProps {
+  error: string | null;
+  loading: boolean;
+  paymentVerifying: boolean;
+  selectedPlan: Plan;
+  onPlanChange: (plan: Plan) => void;
+  onContinue: () => void;
+}
+
+interface SuccessStepProps {
+  onContinue: () => void;
+}
+
+interface PlanOptionButtonProps {
+  plan: OnboardingPlan;
+  selected: boolean;
+  onSelect: (plan: Plan) => void;
+}
+
+interface PaymentRedirectOptions {
+  pathname: string;
+  searchParams: SearchParamsReader;
+  setError: (value: string | null) => void;
+  setLoading: (value: boolean) => void;
+  setPaymentVerifying: (value: boolean) => void;
+  setSelectedPlan: (value: Plan) => void;
+  setStep: (value: OnboardingStep) => void;
+}
 
 const plans = [
   {
-    id: "free" as const,
+    id: "free",
     name: "Free",
     price: "R$0",
     desc: "3 reuniões/mês",
   },
   {
-    id: "pro" as const,
+    id: "pro",
     name: "Pro",
     price: "R$79/mês",
     desc: "30 reuniões + WhatsApp",
     popular: true,
   },
   {
-    id: "team" as const,
+    id: "team",
     name: "Equipe",
     price: "R$49/usuário",
     desc: "Reuniões ilimitadas",
   },
-];
+] satisfies readonly OnboardingPlan[];
 
-function OnboardingFallback() {
+const onboardingHighlights = [
+  {
+    label: "Setup em poucos minutos",
+    description:
+      "Conecte o canal principal e entre no dashboard com o fluxo inicial resolvido.",
+  },
+  {
+    label: "WhatsApp como canal padrão",
+    description:
+      "Os resumos e próximos passos já saem prontos para o número configurado.",
+  },
+  {
+    label: "Plano flexível",
+    description:
+      "Você pode começar no free e subir quando o volume das reuniões crescer.",
+  },
+] as const;
+
+const successChecklist = [
+  "Faça upload do áudio da reunião",
+  "Espere a IA processar (2-3 minutos)",
+  "Receba o resumo no WhatsApp",
+] as const;
+
+function isPlan(value: string | null): value is Plan {
+  return value === "free" || value === "pro" || value === "team";
+}
+
+function clearCurrentSearch(pathname: string) {
+  window.history.replaceState({}, "", pathname);
+}
+
+function OnboardingShell({ children }: { children: ReactNode }) {
   return (
-    <div className="py-12 text-center text-sm text-notura-secondary">
-      Carregando onboarding...
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(104,81,255,0.14),transparent_45%)] bg-background px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between pb-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-foreground">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <span className="font-display text-xl font-bold">Notura</span>
+        </Link>
+      </div>
+
+      <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:items-start">
+        <Card className="hidden overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-card to-background lg:block">
+          <CardContent className="flex min-h-[640px] flex-col justify-between p-8">
+            <div className="space-y-6">
+              <span className="inline-flex w-fit items-center rounded-full bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">
+                Configuração inicial
+              </span>
+
+              <div className="space-y-3">
+                <h1 className="font-display text-4xl font-bold leading-tight text-foreground">
+                  Ajuste a experiência do Notura antes da primeira reunião.
+                </h1>
+                <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+                  Defina o WhatsApp, escolha o plano ideal e siga para o dashboard
+                  com tudo pronto para receber resumos e decisões.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {onboardingHighlights.map((highlight) => (
+                <div
+                  key={highlight.label}
+                  className="rounded-2xl border border-border/70 bg-background/85 p-4"
+                >
+                  <p className="text-sm font-semibold text-foreground">
+                    {highlight.label}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {highlight.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-border/80 bg-card shadow-lg shadow-primary/5">
+          <CardContent className="p-5 sm:p-8">
+            <div className="mx-auto w-full max-w-lg">{children}</div>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
+function StepIndicator({ step }: { step: OnboardingStep }) {
+  return (
+    <div className="flex items-center justify-center gap-2.5 sm:justify-start">
+      {[1, 2, 3].map((item) => (
+        <div
+          key={item}
+          className={cn(
+            "h-2 rounded-full transition-all",
+            item === step
+              ? "w-10 bg-notura-primary"
+              : item < step
+                ? "w-2 bg-notura-primary"
+                : "w-2 bg-notura-border"
+          )}
+        />
+      ))}
     </div>
   );
 }
 
-function OnboardingPageContent() {
-  const prewarmStartedRef = useRef(false);
-  const prewarmRetriedRef = useRef(false);
-  const prewarmRetryTimeoutRef = useRef<number | null>(null);
-  const currentStepRef = useRef(1);
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<Plan>("free");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [paymentVerifying, setPaymentVerifying] = useState(false);
+function StepIntro({ icon: Icon, title, description }: StepIntroProps) {
+  return (
+    <div className="space-y-4 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
+        <Icon className="h-6 w-6 text-violet-600" />
+      </div>
+      <div className="space-y-2">
+        <h1 className="font-display text-2xl font-semibold text-notura-ink sm:text-[30px]">
+          {title}
+        </h1>
+        <p className="text-sm leading-relaxed text-notura-ink-secondary">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    currentStepRef.current = step;
-  }, [step]);
+function PhoneStep({
+  phone,
+  error,
+  loading,
+  onPhoneChange,
+  onContinue,
+  onSkip,
+}: PhoneStepProps) {
+  return (
+    <div className="space-y-8">
+      <StepIntro
+        icon={MessageCircle}
+        title="Seu número de WhatsApp"
+        description="É para lá que enviaremos os resumos das reuniões."
+      />
 
+      <div className="space-y-5">
+        <div>
+          <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-notura-ink">
+            Número com DDD
+          </label>
+          <div className="flex items-stretch gap-2 sm:gap-3">
+            <div className="flex h-11 w-[72px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-notura-border bg-gray-50 px-3 text-sm text-notura-secondary">
+              +55
+            </div>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={(event) => onPhoneChange(event.target.value)}
+              className="min-w-0 flex-1"
+            />
+          </div>
+        </div>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+        <div className="space-y-3">
+          <Button className="w-full rounded-full" onClick={onContinue} disabled={loading || !phone}>
+            {loading ? "Salvando..." : "Continuar"}
+            <ArrowRight className="ml-1 h-4 w-4" />
+          </Button>
+
+          <button
+            type="button"
+            onClick={onSkip}
+            className="w-full text-center text-sm text-notura-secondary transition-colors hover:text-notura-ink"
+          >
+            Pular por enquanto
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanOptionButton({ plan, selected, onSelect }: PlanOptionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(plan.id)}
+      className={cn(
+        "w-full rounded-2xl border bg-card text-left shadow-sm transition-all",
+        selected
+          ? "border-violet-500 ring-1 ring-violet-200"
+          : "border-border/80 hover:border-notura-muted/40"
+      )}
+    >
+      <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
+        <div
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+            selected ? "border-violet-500 bg-violet-600" : "border-notura-border"
+          )}
+        >
+          {selected ? <Check className="h-3 w-3 text-white" /> : null}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-notura-ink">{plan.name}</span>
+            {plan.popular ? (
+              <span className="rounded-full bg-notura-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+                Popular
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-notura-secondary">{plan.desc}</p>
+        </div>
+
+        <span className="text-sm font-semibold text-notura-ink sm:ml-auto">
+          {plan.price}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function PlanStep({
+  error,
+  loading,
+  paymentVerifying,
+  selectedPlan,
+  onPlanChange,
+  onContinue,
+}: PlanStepProps) {
+  const buttonLabel = paymentVerifying
+    ? "Confirmando pagamento..."
+    : loading
+      ? selectedPlan === "free"
+        ? "Continuando..."
+        : "Redirecionando para pagamento..."
+      : selectedPlan === "free"
+        ? "Continuar"
+        : "Ir para pagamento";
+
+  return (
+    <div className="space-y-8">
+      <StepIntro
+        icon={Sparkles}
+        title="Escolha seu plano"
+        description="Você pode mudar a qualquer momento."
+      />
+
+      <div className="space-y-4">
+        <div className="space-y-3">
+          {plans.map((plan) => (
+            <PlanOptionButton
+              key={plan.id}
+              plan={plan}
+              selected={selectedPlan === plan.id}
+              onSelect={onPlanChange}
+            />
+          ))}
+        </div>
+
+        <p className="text-center text-xs leading-relaxed text-notura-muted">
+          Esta etapa não libera acesso pago sozinha. O plano válido só muda após
+          confirmação do pagamento pelo gateway.
+        </p>
+
+        {error ? <p className="text-center text-sm text-red-600">{error}</p> : null}
+
+        <Button
+          className="w-full rounded-full"
+          onClick={onContinue}
+          disabled={loading || paymentVerifying}
+        >
+          {buttonLabel}
+          <ArrowRight className="ml-1 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SuccessStep({ onContinue }: SuccessStepProps) {
+  return (
+    <div className="space-y-8 text-center">
+      <StepIntro
+        icon={Check}
+        title="Tudo pronto!"
+        description="Agora é só fazer upload da gravação da sua reunião. Em poucos minutos, o resumo com decisões e tarefas chega no seu WhatsApp."
+      />
+
+      <div className="mx-auto max-w-sm space-y-3 text-left">
+        {successChecklist.map((item, index) => (
+          <div key={item} className="flex items-start gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
+              {index + 1}
+            </span>
+            <p className="text-sm text-notura-ink">{item}</p>
+          </div>
+        ))}
+      </div>
+
+      <Button className="w-full rounded-full" onClick={onContinue}>
+        Ir para o dashboard
+        <ArrowRight className="ml-1 h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function usePaymentRedirect({
+  pathname,
+  searchParams,
+  setError,
+  setLoading,
+  setPaymentVerifying,
+  setSelectedPlan,
+  setStep,
+}: PaymentRedirectOptions) {
   useEffect(() => {
     const payment = searchParams.get("payment");
     const planParam = searchParams.get("plan");
 
-    if (planParam === "free" || planParam === "pro" || planParam === "team") {
+    if (isPlan(planParam)) {
       setSelectedPlan(planParam);
     }
 
     if (payment === "canceled") {
       setStep(2);
       setError("Pagamento cancelado. Você pode tentar novamente quando quiser.");
-      window.history.replaceState({}, "", pathname);
+      clearCurrentSearch(pathname);
       return;
     }
 
@@ -80,25 +450,18 @@ function OnboardingPageContent() {
 
     let cancelled = false;
 
-    async function verifyPayment() {
+    async function runVerification() {
       setStep(2);
       setPaymentVerifying(true);
       setLoading(true);
       setError(null);
 
       try {
-        const response = await fetch("/api/abacatepay/checkout/verify", {
-          method: "POST",
-        });
-
-        const data = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          throw new Error(data.error || "Não foi possível confirmar o pagamento.");
-        }
+        await verifyOnboardingPayment();
 
         if (!cancelled) {
           setStep(3);
-          window.history.replaceState({}, "", pathname);
+          clearCurrentSearch(pathname);
         }
       } catch (verifyError) {
         if (!cancelled) {
@@ -108,7 +471,7 @@ function OnboardingPageContent() {
               : "Pagamento não confirmado.";
           setError(message);
           setStep(2);
-          window.history.replaceState({}, "", pathname);
+          clearCurrentSearch(pathname);
         }
       } finally {
         if (!cancelled) {
@@ -118,12 +481,31 @@ function OnboardingPageContent() {
       }
     }
 
-    void verifyPayment();
+    void runVerification();
 
     return () => {
       cancelled = true;
     };
-  }, [pathname, searchParams]);
+  }, [
+    pathname,
+    searchParams,
+    setError,
+    setLoading,
+    setPaymentVerifying,
+    setSelectedPlan,
+    setStep,
+  ]);
+}
+
+function useCheckoutPrewarm(step: OnboardingStep) {
+  const currentStepRef = useRef(step);
+  const prewarmStartedRef = useRef(false);
+  const prewarmRetriedRef = useRef(false);
+  const retryTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    currentStepRef.current = step;
+  }, [step]);
 
   useEffect(() => {
     if (step !== 2 || prewarmStartedRef.current) {
@@ -135,31 +517,21 @@ function OnboardingPageContent() {
 
     async function runPrewarm(isRetry: boolean) {
       try {
-        const response = await fetch("/api/abacatepay/customer/ensure", {
-          method: "POST",
-        });
-
-        if (response.ok || response.status === 202) {
+        const ready = await ensureAbacatepayCustomer();
+        if (ready) {
           return;
         }
-
-        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
-          prewarmRetriedRef.current = true;
-          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
-            if (currentStepRef.current === 2) {
-              void runPrewarm(true);
-            }
-          }, 2000);
-        }
       } catch {
-        if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
-          prewarmRetriedRef.current = true;
-          prewarmRetryTimeoutRef.current = window.setTimeout(() => {
-            if (currentStepRef.current === 2) {
-              void runPrewarm(true);
-            }
-          }, 2000);
-        }
+        // Retry once below if the customer prewarm is temporarily unavailable.
+      }
+
+      if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
+        prewarmRetriedRef.current = true;
+        retryTimeoutRef.current = window.setTimeout(() => {
+          if (currentStepRef.current === 2) {
+            void runPrewarm(true);
+          }
+        }, 2000);
       }
     }
 
@@ -168,31 +540,63 @@ function OnboardingPageContent() {
     return () => {
       cancelled = true;
 
-      if (prewarmRetryTimeoutRef.current !== null) {
-        window.clearTimeout(prewarmRetryTimeoutRef.current);
+      if (retryTimeoutRef.current !== null) {
+        window.clearTimeout(retryTimeoutRef.current);
       }
     };
   }, [step]);
+}
+
+function OnboardingFallback() {
+  return (
+    <OnboardingShell>
+      <div className="py-12 text-center text-sm text-notura-secondary">
+        Carregando onboarding...
+      </div>
+    </OnboardingShell>
+  );
+}
+
+function OnboardingPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [step, setStep] = useState<OnboardingStep>(1);
+  const [phone, setPhone] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("free");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentVerifying, setPaymentVerifying] = useState(false);
+
+  usePaymentRedirect({
+    pathname,
+    searchParams,
+    setError,
+    setLoading,
+    setPaymentVerifying,
+    setSelectedPlan,
+    setStep,
+  });
+  useCheckoutPrewarm(step);
 
   async function handleSavePhone() {
     setLoading(true);
     setError(null);
+
     try {
-      const result = await saveOnboardingProfile({
-        whatsappNumber: phone,
-      });
+      const result = await saveOnboardingProfile({ whatsappNumber: phone });
 
       if (!result.success) {
         setError(result.error ?? "Não foi possível salvar seu número.");
         return;
       }
+
+      setStep(2);
     } catch {
       setError("Ocorreu um erro inesperado ao salvar seu número.");
     } finally {
       setLoading(false);
     }
-
-    setStep(2);
   }
 
   async function handleSelectPlan() {
@@ -206,35 +610,16 @@ function OnboardingPageContent() {
     }
 
     try {
-      const response = await fetch("/api/abacatepay/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ plan: selectedPlan }),
-      });
+      const checkout = await startOnboardingCheckout(selectedPlan);
 
-      const data = (await response.json()) as {
-        checkoutUrl?: string;
-        alreadyActive?: boolean;
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error || "Falha ao iniciar o checkout.");
-      }
-
-      if (data.alreadyActive) {
+      if (checkout.alreadyActive) {
         setStep(3);
         return;
       }
 
-      if (!data.checkoutUrl) {
-        throw new Error("Checkout não retornou URL de redirecionamento.");
+      if (checkout.checkoutUrl) {
+        window.location.assign(checkout.checkoutUrl);
       }
-
-      window.location.assign(data.checkoutUrl);
-      return;
     } catch (checkoutError) {
       const message =
         checkoutError instanceof Error
@@ -247,199 +632,38 @@ function OnboardingPageContent() {
   }
 
   return (
-    <div>
-      {/* Step indicator */}
-      <div className="mb-8 flex items-center justify-center gap-2">
-        {[1, 2, 3].map((s) => (
-          <div
-            key={s}
-            className={cn(
-              "h-2 rounded-full transition-all",
-              s === step ? "w-8 bg-notura-primary" : s < step ? "w-2 bg-notura-primary" : "w-2 bg-notura-border"
-            )}
+    <OnboardingShell>
+      <div className="space-y-8">
+        <div className="space-y-3 text-center sm:text-left">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+            Etapa {step} de 3
+          </p>
+          <StepIndicator step={step} />
+        </div>
+
+        {step === 1 ? (
+          <PhoneStep
+            phone={phone}
+            error={error}
+            loading={loading}
+            onPhoneChange={setPhone}
+            onContinue={handleSavePhone}
+            onSkip={() => setStep(2)}
           />
-        ))}
+        ) : step === 2 ? (
+          <PlanStep
+            error={error}
+            loading={loading}
+            paymentVerifying={paymentVerifying}
+            selectedPlan={selectedPlan}
+            onPlanChange={setSelectedPlan}
+            onContinue={handleSelectPlan}
+          />
+        ) : (
+          <SuccessStep onContinue={() => router.push("/dashboard")} />
+        )}
       </div>
-
-      {/* Step 1 — WhatsApp */}
-      {step === 1 && (
-        <div>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
-            <MessageCircle className="h-6 w-6 text-violet-600" />
-          </div>
-          <h1 className="mt-5 text-center font-display text-2xl font-semibold text-notura-ink">
-            Seu número de WhatsApp
-          </h1>
-          <p className="mt-2 text-center text-sm text-notura-secondary">
-            É para lá que enviaremos os resumos das reuniões.
-          </p>
-
-          <div className="mt-8">
-            <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-notura-ink">
-              Número com DDD
-            </label>
-            <div className="flex gap-2">
-              <div className="flex h-11 items-center rounded-md border-[1.5px] border-notura-border bg-gray-50 px-3 text-sm text-notura-secondary">
-                +55
-              </div>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="(11) 99999-9999"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-          </div>
-
-          {error && (
-            <p className="mt-3 text-sm text-red-600">{error}</p>
-          )}
-
-          <Button
-            className="mt-6 w-full"
-            onClick={handleSavePhone}
-            disabled={loading || !phone}
-          >
-            {loading ? "Salvando..." : "Continuar"}
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-
-          <button
-            onClick={() => setStep(2)}
-            className="mt-3 w-full text-center text-sm text-notura-secondary hover:text-notura-ink"
-          >
-            Pular por enquanto
-          </button>
-        </div>
-      )}
-
-      {/* Step 2 — Plan */}
-      {step === 2 && (
-        <div>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
-            <Sparkles className="h-6 w-6 text-violet-600" />
-          </div>
-          <h1 className="mt-5 text-center font-display text-2xl font-semibold text-notura-ink">
-            Escolha seu plano
-          </h1>
-          <p className="mt-2 text-center text-sm text-notura-secondary">
-            Você pode mudar a qualquer momento.
-          </p>
-
-          <div className="mt-8 space-y-3">
-            {plans.map((plan) => (
-              <Card
-                key={plan.id}
-                className={cn(
-                  "cursor-pointer transition-all",
-                  selectedPlan === plan.id
-                    ? "border-violet-500 ring-1 ring-violet-200"
-                    : "hover:border-notura-muted/40"
-                )}
-                onClick={() => setSelectedPlan(plan.id)}
-              >
-                <CardContent className="flex items-center gap-4 py-4">
-                  <div
-                    className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors",
-                      selectedPlan === plan.id
-                        ? "border-violet-500 bg-violet-600"
-                        : "border-notura-border"
-                    )}
-                  >
-                    {selectedPlan === plan.id && (
-                      <Check className="h-3 w-3 text-white" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-notura-ink">
-                        {plan.name}
-                      </span>
-                      {plan.popular && (
-                        <span className="rounded-full bg-notura-primary px-2 py-0.5 text-[10px] font-semibold text-white">
-                          Popular
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-notura-secondary">{plan.desc}</p>
-                  </div>
-                  <span className="text-sm font-semibold text-notura-ink">
-                    {plan.price}
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <p className="mt-4 text-center text-xs text-notura-muted">
-            Esta etapa não libera acesso pago sozinha. O plano válido só muda após confirmação do pagamento pelo gateway.
-          </p>
-
-          {error && (
-            <p className="mt-3 text-center text-sm text-red-600">{error}</p>
-          )}
-
-          <Button
-            className="mt-6 w-full"
-            onClick={handleSelectPlan}
-            disabled={loading || paymentVerifying}
-          >
-            {paymentVerifying
-              ? "Confirmando pagamento..."
-              : loading
-              ? selectedPlan === "free"
-                ? "Continuando..."
-                : "Redirecionando para pagamento..."
-              : selectedPlan === "free"
-              ? "Continuar"
-              : "Ir para pagamento"}
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Step 3 — Tutorial */}
-      {step === 3 && (
-        <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-violet-100">
-            <Check className="h-7 w-7 text-violet-600" />
-          </div>
-          <h1 className="mt-5 font-display text-2xl font-semibold text-notura-ink">
-            Tudo pronto!
-          </h1>
-          <p className="mt-2 text-sm text-notura-secondary">
-            Agora é só fazer upload da gravação da sua reunião. Em poucos minutos, o resumo com
-            decisões e tarefas chega no seu WhatsApp.
-          </p>
-
-          <div className="mx-auto mt-8 max-w-xs space-y-3 text-left">
-            {[
-              "Faça upload do áudio da reunião",
-              "Espere a IA processar (2-3 minutos)",
-              "Receba o resumo no WhatsApp",
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
-                  {i + 1}
-                </span>
-                <p className="text-sm text-notura-ink">{item}</p>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            className="mt-8 w-full"
-            onClick={() => router.push("/dashboard")}
-          >
-            Ir para o dashboard
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
-      )}
-    </div>
+    </OnboardingShell>
   );
 }
 

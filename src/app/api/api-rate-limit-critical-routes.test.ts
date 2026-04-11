@@ -150,7 +150,8 @@ describe("critical API routes rate limiting", () => {
       },
     ] as const;
 
-    for (const [index, testCase] of authenticatedCases.entries()) {
+    for (let index = 0; index < authenticatedCases.length; index += 1) {
+      const testCase = authenticatedCases[index];
       vi.resetModules();
       await setupPatchedPolicies();
       createServerSupabase.mockReturnValue(

@@ -6,6 +6,14 @@ import {
   createRateLimitExceededResponse,
   type RateLimitPolicy,
 } from "@/lib/api/rate-limit";
+import {
+  captureObservedError,
+  createRequestId,
+  getErrorMessage,
+  getRoutePath,
+  logStructured,
+  withRequestIdHeader,
+} from "@/lib/observability";
 
 type RouteParams = Record<string, string>;
 
@@ -65,16 +73,79 @@ export function withPublicRateLimit<
   handler: PublicRateLimitedHandler<TRequest, TContext>
 ) {
   return async (request: TRequest, context: TContext): Promise<Response> => {
-    const decision = consumeRateLimit({
-      request,
-      policy,
-    });
+    const requestId = createRequestId(request);
+    const route = getRoutePath(request);
+    const startedAt = Date.now();
 
-    if (decision.limited) {
-      return createRateLimitExceededResponse(decision);
+    try {
+      const decision = consumeRateLimit({
+        request,
+        policy,
+      });
+
+      if (decision.limited) {
+        const limitedResponse = createRateLimitExceededResponse(decision);
+        withRequestIdHeader(limitedResponse, requestId);
+
+        logStructured("warn", {
+          event: "api.request.completed",
+          requestId,
+          route,
+          durationMs: Date.now() - startedAt,
+          status: limitedResponse.status,
+        });
+
+        return limitedResponse;
+      }
+
+      const response = await handler(request, context);
+      attachRateLimitHeaders(response, decision.headers);
+      withRequestIdHeader(response, requestId);
+
+      logStructured("info", {
+        event: "api.request.completed",
+        requestId,
+        route,
+        durationMs: Date.now() - startedAt,
+        status: response.status,
+      });
+
+      if (response.status >= 500) {
+        captureObservedError(new Error(`API route returned status ${response.status}`), {
+          event: "api.request.failed",
+          requestId,
+          route,
+          durationMs: Date.now() - startedAt,
+          status: response.status,
+          extra: {
+            captureReason: "response_status",
+          },
+        });
+      }
+
+      return response;
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      const message = getErrorMessage(error);
+
+      logStructured("error", {
+        event: "api.request.failed",
+        requestId,
+        route,
+        durationMs,
+        status: 500,
+        errorMessage: message,
+      });
+
+      captureObservedError(error, {
+        event: "api.request.failed",
+        requestId,
+        route,
+        durationMs,
+        status: 500,
+      });
+
+      throw error;
     }
-
-    const response = await handler(request, context);
-    return attachRateLimitHeaders(response, decision.headers);
   };
 }

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  captureObservedError,
+  createRequestId,
+  getErrorMessage,
+  getRoutePath,
+  logStructured,
+  withRequestIdHeader,
+} from "@/lib/observability";
 import type { Database } from "@/types/database";
 
 type RouteParams = Record<string, string>;
@@ -89,13 +97,91 @@ export function withAuth<
     request: TRequest,
     context: RouteContext<TParams>
   ): Promise<Response> => {
+    const requestId = createRequestId(request);
+    const route = getRoutePath(request);
+    const startedAt = Date.now();
+    let userId: string | undefined;
+
     try {
       const auth = await requireAuth();
-      return await handler(request, { ...context, auth });
+      userId = auth.user.id;
+      const response = await handler(request, { ...context, auth });
+      withRequestIdHeader(response, requestId);
+
+      logStructured("info", {
+        event: "api.request.completed",
+        requestId,
+        userId,
+        route,
+        durationMs: Date.now() - startedAt,
+        status: response.status,
+      });
+
+      if (response.status >= 500) {
+        captureObservedError(new Error(`API route returned status ${response.status}`), {
+          event: "api.request.failed",
+          requestId,
+          userId,
+          route,
+          durationMs: Date.now() - startedAt,
+          status: response.status,
+          extra: {
+            captureReason: "response_status",
+          },
+        });
+      }
+
+      return response;
     } catch (error) {
       if (error instanceof Response) {
+        withRequestIdHeader(error, requestId);
+        logStructured("warn", {
+          event: "api.request.completed",
+          requestId,
+          userId,
+          route,
+          durationMs: Date.now() - startedAt,
+          status: error.status,
+        });
+
+        if (error.status >= 500) {
+          captureObservedError(new Error(`API route returned status ${error.status}`), {
+            event: "api.request.failed",
+            requestId,
+            userId,
+            route,
+            durationMs: Date.now() - startedAt,
+            status: error.status,
+            extra: {
+              captureReason: "response_status",
+            },
+          });
+        }
+
         return error;
       }
+
+      const durationMs = Date.now() - startedAt;
+      const message = getErrorMessage(error);
+
+      logStructured("error", {
+        event: "api.request.failed",
+        requestId,
+        userId,
+        route,
+        durationMs,
+        status: 500,
+        errorMessage: message,
+      });
+
+      captureObservedError(error, {
+        event: "api.request.failed",
+        requestId,
+        userId,
+        route,
+        durationMs,
+        status: 500,
+      });
 
       throw error;
     }

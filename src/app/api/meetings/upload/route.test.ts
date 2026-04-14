@@ -5,11 +5,9 @@ import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const buildR2Key = vi.fn();
-const uploadAudio = vi.fn();
-const inngestSend = vi.fn();
+const getPresignedUploadUrl = vi.fn();
 const getBillingStatus = vi.fn();
-const syncMeetingsThisMonth = vi.fn();
-const meetingsInsert = vi.fn();
+const signUploadToken = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -18,18 +16,15 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/r2", () => ({
   buildR2Key,
-  uploadAudio,
-}));
-
-vi.mock("@/lib/inngest", () => ({
-  inngest: {
-    send: inngestSend,
-  },
+  getPresignedUploadUrl,
 }));
 
 vi.mock("@/lib/billing", () => ({
   getBillingStatus,
-  syncMeetingsThisMonth,
+}));
+
+vi.mock("@/lib/meetings/upload-token", () => ({
+  signUploadToken,
 }));
 
 function createServerClient(user: { id: string } | null) {
@@ -43,101 +38,110 @@ function createServerClient(user: { id: string } | null) {
   };
 }
 
-function createMeetingInsertClient() {
-  const single = vi.fn().mockResolvedValue({
-    data: { id: "meeting-1" },
-    error: null,
-  });
-  const select = vi.fn().mockReturnValue({ single });
-  meetingsInsert.mockImplementation(() => ({ select }));
-  const from = vi.fn().mockReturnValue({ insert: meetingsInsert });
-
-  return { from };
-}
-
 describe("POST /api/meetings/upload", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    meetingsInsert.mockClear();
 
     createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
-    createServiceRoleClient.mockReturnValue(createMeetingInsertClient());
-    buildR2Key.mockReturnValue("user-1/audio.mp3");
-    uploadAudio.mockResolvedValue(undefined);
-    inngestSend.mockResolvedValue(undefined);
+    createServiceRoleClient.mockReturnValue({});
+    buildR2Key.mockReturnValue("meetings/user-1/123/audio.mp3");
+    getPresignedUploadUrl.mockResolvedValue("https://r2.example/upload");
+    signUploadToken.mockReturnValue("signed-upload-token");
     getBillingStatus.mockResolvedValue({
       billingAccount: { plan: "pro" },
       meetingsThisMonth: 0,
       monthlyLimit: 30,
     });
-    syncMeetingsThisMonth.mockResolvedValue(undefined);
   });
 
-  it("rejects meeting_date when it is after today", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-10T09:00:00.000Z"));
-
-    const formData = new FormData();
-    formData.append(
-      "audio",
-      new File([new Uint8Array([1, 2, 3])], "audio.mp3", { type: "audio/mpeg" })
-    );
-    formData.append("client_name", "Acme");
-    formData.append("meeting_date", "2026-04-11");
-    formData.append("whatsapp_number", "+5511999999999");
-
+  it("returns a presigned upload URL and r2 key for valid requests", async () => {
     const mod = await import("./route");
     const response = await mod.POST(
       new Request("http://localhost/api/meetings/upload", {
         method: "POST",
-        body: formData,
-      }) as NextRequest,
-      { params: {} } as never
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "A data da reunião não pode ser maior que hoje.",
-    });
-    expect(uploadAudio).not.toHaveBeenCalled();
-    expect(inngestSend).not.toHaveBeenCalled();
-
-    vi.useRealTimers();
-  });
-
-  it("normalizes whatsapp_number before saving and enqueueing", async () => {
-    const formData = new FormData();
-    formData.append(
-      "audio",
-      new File([new Uint8Array([1, 2, 3])], "audio.mp3", { type: "audio/mpeg" })
-    );
-    formData.append("client_name", "Acme");
-    formData.append("meeting_date", "2026-04-10");
-    formData.append("whatsapp_number", "(11) 98888-7777");
-
-    const mod = await import("./route");
-    const response = await mod.POST(
-      new Request("http://localhost/api/meetings/upload", {
-        method: "POST",
-        body: formData,
-      }) as NextRequest,
-      { params: {} } as never
-    );
-
-    expect(response.status).toBe(201);
-    expect(meetingsInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        whatsapp_number: "5511988887777",
-      })
-    );
-    expect(inngestSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          whatsappNumber: "5511988887777",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: "audio.mp3",
+          contentType: "audio/mpeg",
+          fileSize: 1024,
         }),
-      })
+      }) as NextRequest,
+      { params: {} } as never
     );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      r2Key: "meetings/user-1/123/audio.mp3",
+      uploadUrl: "https://r2.example/upload",
+      uploadToken: "signed-upload-token",
+      method: "PUT",
+      expiresInSeconds: 900,
+    });
+    expect(buildR2Key).toHaveBeenCalledWith("user-1", "audio.mp3");
+    expect(getPresignedUploadUrl).toHaveBeenCalledWith(
+      "meetings/user-1/123/audio.mp3",
+      "audio/mpeg",
+      900
+    );
+    expect(signUploadToken).toHaveBeenCalledWith({
+      userId: "user-1",
+      r2Key: "meetings/user-1/123/audio.mp3",
+      contentType: "audio/mpeg",
+      fileSize: 1024,
+      expiresAt: expect.any(Number),
+    });
+  });
+
+  it("rejects files above 500MB", async () => {
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: "audio.mp3",
+          contentType: "audio/mpeg",
+          fileSize: 501 * 1024 * 1024,
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "Arquivo muito grande (501MB). O limite é 500MB.",
+    });
+    expect(getPresignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the monthly plan limit is reached", async () => {
+    getBillingStatus.mockResolvedValue({
+      billingAccount: { plan: "free" },
+      meetingsThisMonth: 3,
+      monthlyLimit: 3,
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: "audio.mp3",
+          contentType: "audio/mpeg",
+          fileSize: 1024,
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error:
+        "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões.",
+    });
+    expect(getPresignedUploadUrl).not.toHaveBeenCalled();
   });
 
   it("returns 429 with standard payload and rate limit headers when the limit is reached", async () => {
@@ -145,24 +149,19 @@ describe("POST /api/meetings/upload", () => {
 
     const mod = await import("./route");
 
-    const callUpload = async () => {
-      const formData = new FormData();
-      formData.append(
-        "audio",
-        new File([new Uint8Array([1, 2, 3])], "audio.mp3", { type: "audio/mpeg" })
-      );
-      formData.append("client_name", "Acme");
-      formData.append("meeting_date", "2026-04-10");
-      formData.append("whatsapp_number", "(11) 98888-7777");
-
-      return mod.POST(
+    const callUpload = async () =>
+      mod.POST(
         new Request("http://localhost/api/meetings/upload", {
           method: "POST",
-          body: formData,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            fileName: "audio.mp3",
+            contentType: "audio/mpeg",
+            fileSize: 1024,
+          }),
         }) as NextRequest,
         { params: {} } as never
       );
-    };
 
     let response: Response = await callUpload();
     for (let i = 0; i < RATE_LIMIT_POLICIES.meetingsUpload.limit; i += 1) {

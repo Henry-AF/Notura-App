@@ -8,6 +8,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -105,6 +106,33 @@ export async function checkR2Health(): Promise<void> {
       Bucket: BUCKET,
     })
   );
+}
+
+export async function doesObjectExist(key: string): Promise<boolean> {
+  try {
+    await r2Client.send(
+      new HeadObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+      })
+    );
+    return true;
+  } catch (error) {
+    const statusCode =
+      error && typeof error === "object" && "$metadata" in error
+        ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
+        : undefined;
+    const errorName =
+      error && typeof error === "object" && "name" in error
+        ? String(error.name)
+        : "";
+
+    if (statusCode === 404 || errorName === "NotFound" || errorName === "NoSuchKey") {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 export function buildR2Key(userId: string, filename: string): string {

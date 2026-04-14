@@ -14,54 +14,12 @@ import {
   useToast,
 } from "@/components/upload";
 import type { MeetingFormData } from "@/components/upload";
-import { fetchNewMeetingDefaults } from "./new-api";
-
-// ─── XHR upload with progress ────────────────────────────────────────────────
-
-function uploadWithProgress(
-  formData: FormData,
-  onProgress: (pct: number) => void
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/meetings/upload");
-
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status === 201 || xhr.status === 200) {
-        try {
-          const body = JSON.parse(xhr.responseText) as { meetingId?: string };
-          if (body.meetingId) {
-            resolve(body.meetingId);
-          } else {
-            reject(new Error("Resposta inválida do servidor."));
-          }
-        } catch {
-          reject(new Error("Resposta inválida do servidor."));
-        }
-      } else {
-        try {
-          const err = JSON.parse(xhr.responseText) as { error?: string };
-          reject(new Error(err.error ?? "Erro ao processar. Tente novamente."));
-        } catch {
-          reject(new Error(`Erro ${xhr.status}. Tente novamente.`));
-        }
-      }
-    });
-
-    xhr.addEventListener("error", () =>
-      reject(new Error("Falha na conexão. Verifique sua internet."))
-    );
-    xhr.addEventListener("abort", () => reject(new Error("Upload cancelado.")));
-
-    xhr.send(formData);
-  });
-}
+import {
+  initMeetingUpload,
+  processUploadedMeeting,
+  fetchNewMeetingDefaults,
+} from "./new-api";
+import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 // ─── Upload progress overlay ─────────────────────────────────────────────────
 
@@ -268,14 +226,20 @@ function UploadPageInner() {
       setIsUploading(true);
       setUploadPct(0);
 
-      const formData = new FormData();
-      formData.append("audio", file);
-      formData.append("client_name", data.clientName);
-      formData.append("meeting_date", data.meetingDate);
-      formData.append("whatsapp_number", data.whatsappNumber);
-
       try {
-        const meetingId = await uploadWithProgress(formData, setUploadPct);
+        const { r2Key, uploadUrl, uploadToken } = await initMeetingUpload({
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+        });
+        await uploadFileToSignedUrl(uploadUrl, file, file.type, setUploadPct);
+        const meetingId = await processUploadedMeeting({
+          clientName: data.clientName,
+          meetingDate: data.meetingDate,
+          whatsappNumber: data.whatsappNumber,
+          r2Key,
+          uploadToken,
+        });
         // Brief pause so user sees 100%
         await new Promise<void>((r) => setTimeout(r, 600));
         router.push(`/dashboard/processing?id=${meetingId}`);

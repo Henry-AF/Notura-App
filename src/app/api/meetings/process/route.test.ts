@@ -9,6 +9,7 @@ const syncMeetingsThisMonth = vi.fn();
 const meetingsInsert = vi.fn();
 const verifyUploadToken = vi.fn();
 const doesObjectExist = vi.fn();
+const getObjectMetadata = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -32,6 +33,7 @@ vi.mock("@/lib/meetings/upload-token", () => ({
 
 vi.mock("@/lib/r2", () => ({
   doesObjectExist,
+  getObjectMetadata,
 }));
 
 function createServerClient(user: { id: string } | null) {
@@ -80,6 +82,10 @@ describe("POST /api/meetings/process", () => {
       expiresAt: Date.now() + 60_000,
     });
     doesObjectExist.mockResolvedValue(true);
+    getObjectMetadata.mockResolvedValue({
+      contentLength: 123,
+      contentType: "audio/mpeg",
+    });
   });
 
   it("blocks meeting creation when the monthly limit is reached", async () => {
@@ -212,7 +218,7 @@ describe("POST /api/meetings/process", () => {
   });
 
   it("rejects processing when the uploaded object is missing in R2", async () => {
-    doesObjectExist.mockResolvedValue(false);
+    getObjectMetadata.mockResolvedValue(null);
 
     const mod = await import("./route");
     const response = await mod.POST(
@@ -233,6 +239,66 @@ describe("POST /api/meetings/process", () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: "Upload não encontrado no storage. Reenvie o arquivo e tente novamente.",
+    });
+    expect(meetingsInsert).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("rejects processing when the uploaded object exceeds 500MB", async () => {
+    getObjectMetadata.mockResolvedValue({
+      contentLength: 501 * 1024 * 1024,
+      contentType: "audio/mpeg",
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "Arquivo muito grande (501MB). O limite é 500MB.",
+    });
+    expect(meetingsInsert).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("rejects processing when the uploaded object size differs from the authorized upload", async () => {
+    getObjectMetadata.mockResolvedValue({
+      contentLength: 456,
+      contentType: "audio/mpeg",
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "Tamanho do upload não confere com o arquivo autorizado. Reenvie o arquivo e tente novamente.",
     });
     expect(meetingsInsert).not.toHaveBeenCalled();
     expect(inngestSend).not.toHaveBeenCalled();

@@ -10,12 +10,14 @@ import {
   getWhatsappNumberValidationError,
   normalizeWhatsappNumber,
 } from "@/lib/meetings/whatsapp-number";
-import { doesObjectExist } from "@/lib/r2";
+import { getObjectMetadata } from "@/lib/r2";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
 // ─── POST /api/meetings/process ───────────────────────────────────────────────
 // Registers a meeting record for an already-uploaded audio file and enqueues
 // processing. Expects the R2 key from a prior upload step.
+
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
@@ -86,10 +88,43 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const uploadExists = await doesObjectExist(uploadToken.r2Key);
-    if (!uploadExists) {
+    const uploadMetadata = await getObjectMetadata(uploadToken.r2Key);
+    if (!uploadMetadata) {
       return NextResponse.json(
         { error: "Upload não encontrado no storage. Reenvie o arquivo e tente novamente." },
+        { status: 409 }
+      );
+    }
+
+    if (
+      !Number.isFinite(uploadMetadata.contentLength) ||
+      uploadMetadata.contentLength === null ||
+      uploadMetadata.contentLength <= 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não foi possível validar o tamanho real do upload. Reenvie o arquivo e tente novamente.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (uploadMetadata.contentLength > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: `Arquivo muito grande (${Math.round(uploadMetadata.contentLength / 1024 / 1024)}MB). O limite é 500MB.`,
+        },
+        { status: 413 }
+      );
+    }
+
+    if (uploadMetadata.contentLength !== uploadToken.fileSize) {
+      return NextResponse.json(
+        {
+          error:
+            "Tamanho do upload não confere com o arquivo autorizado. Reenvie o arquivo e tente novamente.",
+        },
         { status: 409 }
       );
     }

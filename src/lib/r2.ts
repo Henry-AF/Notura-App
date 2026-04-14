@@ -108,31 +108,50 @@ export async function checkR2Health(): Promise<void> {
   );
 }
 
-export async function doesObjectExist(key: string): Promise<boolean> {
+function isMissingObjectError(error: unknown): boolean {
+  const statusCode =
+    error && typeof error === "object" && "$metadata" in error
+      ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
+      : undefined;
+  const errorName =
+    error && typeof error === "object" && "name" in error
+      ? String(error.name)
+      : "";
+
+  return statusCode === 404 || errorName === "NotFound" || errorName === "NoSuchKey";
+}
+
+export interface R2ObjectMetadata {
+  contentLength: number | null;
+  contentType: string | null;
+}
+
+export async function getObjectMetadata(
+  key: string
+): Promise<R2ObjectMetadata | null> {
   try {
-    await r2Client.send(
+    const response = await r2Client.send(
       new HeadObjectCommand({
         Bucket: BUCKET,
         Key: key,
       })
     );
-    return true;
-  } catch (error) {
-    const statusCode =
-      error && typeof error === "object" && "$metadata" in error
-        ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
-        : undefined;
-    const errorName =
-      error && typeof error === "object" && "name" in error
-        ? String(error.name)
-        : "";
 
-    if (statusCode === 404 || errorName === "NotFound" || errorName === "NoSuchKey") {
-      return false;
-    }
+    return {
+      contentLength:
+        typeof response.ContentLength === "number" ? response.ContentLength : null,
+      contentType: response.ContentType ?? null,
+    };
+  } catch (error) {
+    if (isMissingObjectError(error)) return null;
 
     throw error;
   }
+}
+
+export async function doesObjectExist(key: string): Promise<boolean> {
+  const metadata = await getObjectMetadata(key);
+  return metadata !== null;
 }
 
 export function buildR2Key(userId: string, filename: string): string {

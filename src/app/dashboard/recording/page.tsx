@@ -301,7 +301,8 @@ export default function RecordingPage() {
       audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(stream);
       sourceRef.current = src;
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      // createScriptProcessor is deprecated but remains the most compatible cross-browser approach
+      // eslint-disable-next-line
       const proc = ctx.createScriptProcessor(4096, 1, 1);
       processorRef.current = proc;
       proc.onaudioprocess = (e) => {

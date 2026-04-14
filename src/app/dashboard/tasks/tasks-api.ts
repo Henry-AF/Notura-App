@@ -33,6 +33,7 @@ interface UpdateTaskInput {
   dueDate?: string;
   assigneeName?: string | null;
   status?: "todo" | "in_progress" | "completed";
+  completed?: boolean;
 }
 
 function normalizeError(error: unknown, fallback: string) {

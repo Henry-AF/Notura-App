@@ -2,5 +2,13 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "src/app/api/meetings/upload/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/inngest/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

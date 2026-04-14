@@ -45,25 +45,32 @@ export async function POST(request: NextRequest) {
     return serverError("Falha ao verificar autenticação.", e, 500);
   }
 
-    const { billingAccount, meetingsThisMonth, monthlyLimit } =
-      await getBillingStatus(user.id);
+  // ── Billing check ─────────────────────────────────────────────────────
+  let billingAccount: Awaited<ReturnType<typeof getBillingStatus>>["billingAccount"];
+  let meetingsThisMonth: number;
+  let monthlyLimit: number | null;
+  try {
+    ({ billingAccount, meetingsThisMonth, monthlyLimit } = await getBillingStatus(user.id));
+  } catch (e) {
+    return serverError("Falha ao verificar status de cobrança.", e, 500);
+  }
 
-    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
-      return NextResponse.json(
-        {
-          error:
-            billingAccount.plan === "free"
-              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
-              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
-        },
-        { status: 403 }
-      );
-    }
+  if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
+    return NextResponse.json(
+      {
+        error:
+          billingAccount.plan === "free"
+            ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
+            : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
+      },
+      { status: 403 }
+    );
+  }
 
-    // ── Parse multipart form data ────────────────────────────────────────
-    let formData: FormData;
-    try {
-      formData = await request.formData();
+  // ── Parse multipart form data ────────────────────────────────────────
+  let formData: FormData;
+  try {
+    formData = await request.formData();
     } catch {
       return NextResponse.json(
         { error: "Requisição inválida. Envie um multipart/form-data com o campo 'audio'." },
@@ -161,6 +168,9 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Enqueue Inngest job ──────────────────────────────────────────────
+  // Fire-and-forget: the meeting record is already saved in Supabase and R2.
+  // A transient queue failure must NOT return a 500 — the upload succeeded and
+  // the job can be retried via the dashboard.
   try {
     console.log("[upload] enfileirando job Inngest…");
     await inngest.send({
@@ -172,28 +182,16 @@ export async function POST(request: NextRequest) {
         userId: user.id,
       },
     });
+    console.log("[upload] job Inngest enfileirado.");
+  } catch (inngestError) {
+    console.error("[upload] Falha ao enfileirar job Inngest (non-fatal):", inngestError);
+  }
 
-    try {
-      await syncMeetingsThisMonth(user.id, meetingsThisMonth + 1);
-    } catch (billingError) {
-      console.error("[upload] Failed to sync billing usage:", billingError);
-    }
-
-    // ── Response ─────────────────────────────────────────────────────────
-    return NextResponse.json(
-      {
-        meetingId: meeting.id,
-        status: "pending" as MeetingStatus,
-        estimatedMinutes: 3,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("[upload] Unexpected error:", error);
-    return NextResponse.json(
-      { error: "Erro interno do servidor. Tente novamente." },
-      { status: 500 }
-    );
+  // ── Sync billing usage (best-effort) ─────────────────────────────────
+  try {
+    await syncMeetingsThisMonth(user.id, meetingsThisMonth + 1);
+  } catch (billingError) {
+    console.error("[upload] Failed to sync billing usage:", billingError);
   }
 
   // ── Response ─────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
 import { mapTaskRowToBoardTask, normalizeTaskStatus, toDatabasePriority } from "../task-mapper";
+import type { Database } from "@/types/database";
 
 // PATCH /api/tasks/:id — Update a task (ownership verified)
 export const PATCH = withAuth<{ id: string }>(async (
@@ -27,7 +28,7 @@ export const PATCH = withAuth<{ id: string }>(async (
   await requireOwnership(supabase, "tasks", id, auth.user.id);
 
   const data = body as Record<string, unknown>;
-  const updatePayload: Record<string, unknown> = {};
+  const updatePayload: Database["public"]["Tables"]["tasks"]["Update"] = {};
 
   if (typeof data.description === "string") updatePayload.description = data.description.trim();
   if (typeof data.priority === "string") updatePayload.priority = toDatabasePriority(data.priority);

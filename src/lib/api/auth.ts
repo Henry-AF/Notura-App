@@ -65,7 +65,8 @@ export async function requireOwnership(
   resourceId: string,
   userId: string
 ) {
-  const { data, error } = (await supabaseAdmin
+  // eslint-disable-next-line
+  const { data, error } = (await (supabaseAdmin as any)
     .from(table)
     .select("id, user_id")
     .eq("id", resourceId)

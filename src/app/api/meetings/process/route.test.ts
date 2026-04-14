@@ -155,6 +155,34 @@ describe("POST /api/meetings/process", () => {
     expect(syncMeetingsThisMonth).toHaveBeenCalledWith("user-1", 4);
   });
 
+  it("does not sync billing usage when the processing job could not be enqueued", async () => {
+    inngestSend.mockRejectedValue(new Error("queue unavailable"));
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      meetingId: "meeting-1",
+      status: "pending",
+      warning: "Fila de processamento indisponível.",
+    });
+    expect(syncMeetingsThisMonth).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid upload tokens", async () => {
     verifyUploadToken.mockImplementation(() => {
       throw new Error("Token de upload inválido.");

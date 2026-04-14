@@ -153,12 +153,6 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       return NextResponse.json({ error: "Erro ao registrar reunião no banco de dados." }, { status: 500 });
     }
 
-    try {
-      await syncMeetingsThisMonth(auth.user.id, meetingsThisMonth + 1);
-    } catch (billingError) {
-      console.error("[meetings/process] failed to sync billing usage:", billingError);
-    }
-
     // ── Enqueue Inngest processing job ───────────────────────────────────────
     try {
       await inngest.send({
@@ -177,6 +171,12 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
         { meetingId: meeting.id, status: "pending" as MeetingStatus, warning: "Fila de processamento indisponível." },
         { status: 201 }
       );
+    }
+
+    try {
+      await syncMeetingsThisMonth(auth.user.id, meetingsThisMonth + 1);
+    } catch (billingError) {
+      console.error("[meetings/process] failed to sync billing usage:", billingError);
     }
 
     return NextResponse.json(

@@ -28,7 +28,7 @@ export function SidebarPlanWidget({
   const progress = hasLimit ? Math.min((used / total) * 100, 100) : 100;
 
   return (
-    <section className="rounded-xl border border-notura-border/50 bg-notura-bg p-3">
+    <section className="rounded-md border border-notura-border/50 bg-transparent p-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-notura-ink-secondary">
           {planName}

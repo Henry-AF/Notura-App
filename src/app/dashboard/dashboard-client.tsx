@@ -13,6 +13,7 @@ import {
 import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
+import { getPlanTitle } from "@/lib/plans";
 import type { DashboardOverviewData } from "./dashboard-types";
 import { updateTaskById } from "./tasks/tasks-api";
 
@@ -148,7 +149,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
           {initialOverview.plan === "free" && (
             <div className="animate-fade-in [animation-delay:140ms]">
               <UpgradeCard
-                planName="plano gratuito"
+                planName={getPlanTitle("free")}
                 onViewPlans={() =>
                   window.dispatchEvent(new Event("notura:open-plan-modal"))
                 }

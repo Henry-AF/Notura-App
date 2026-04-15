@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -19,6 +18,7 @@ import {
   ChevronDown,
   Copy,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import { fetchCurrentUser } from "../settings/settings-api";
 
@@ -447,19 +447,15 @@ export default function RecordingPage() {
   if (stage === "setup" || stage === "requesting") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard">
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          </Link>
-          <div>
-            <h1 className="font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink">
-              Nova Reuniao ao Vivo
-            </h1>
-            <p className="text-sm text-notura-ink-secondary">Configure e inicie a gravacao</p>
-          </div>
-        </div>
+        <PageHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Reuniões", href: "/dashboard/meetings" },
+            { label: "Ao vivo" },
+          ]}
+          title="Nova Reunião ao vivo"
+          description="Configure e inicie a gravação."
+        />
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {/* Meeting info + start */}
@@ -706,22 +702,28 @@ export default function RecordingPage() {
     <>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowStop(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink sm:text-2xl">
-              {meetingTitle || "Nova Reuniao"}
-            </h1>
-            <p className="text-xs text-notura-ink-secondary">
-              {participants.map((p) => p.name).join(", ")}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Reuniões", href: "/dashboard/meetings" },
+            { label: "Ao vivo" },
+          ]}
+          title={meetingTitle || "Nova Reunião"}
+          description={
+            participants.map((p) => p.name).join(", ") || "Gravação em andamento"
+          }
+          titleClassName="truncate"
+          descriptionClassName="max-w-none text-xs text-notura-ink-secondary"
+          actions={
+            <button
+              onClick={() => setShowStop(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2"
+              aria-label="Encerrar gravação"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          }
+        />
 
         {/* Recording card */}
         <div

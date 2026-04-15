@@ -4,7 +4,6 @@ import React, { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft,
   FileAudio,
   Wand2,
   MessageCircle,
@@ -13,6 +12,7 @@ import {
   Clock,
   AlertTriangle,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import { fetchMeetingStatus } from "./processing-api";
 
@@ -382,22 +382,16 @@ function ProcessingPageContent() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      {/* ── Back nav ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
-        <Link href="/dashboard">
-          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-manrope font-extrabold text-xl tracking-[-0.3px] text-notura-ink sm:text-2xl">
-            {meta.title ?? "Processando reunião..."}
-          </h1>
-          <p className="mt-0.5 text-xs text-notura-ink-secondary">
-            Análise em andamento
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Reuniões", href: "/dashboard/meetings" },
+          { label: "Processando" },
+        ]}
+        title={meta.title ?? "Processando reunião..."}
+        description="Análise em andamento"
+        titleClassName="truncate"
+      />
 
       {/* ── Hero card ──────────────────────────────────────────────────────── */}
       <div

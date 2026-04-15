@@ -13,7 +13,7 @@ import type { Integration, Preference } from "@/components/settings";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
 import { useTheme } from "@/lib/theme-context";
-import { LoadingState } from "@/components/ui/app";
+import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
   fetchCurrentUser,
   updateCurrentUser,
@@ -205,10 +205,14 @@ function SettingsPageInner() {
 
   return (
     <div>
-      {/* Page title */}
-      <h1 className="font-display text-[22px] font-bold text-notura-ink">
-        Configurações
-      </h1>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Configurações" },
+        ]}
+        title="Configurações"
+        description="Gerencie seu perfil, integrações, preferências e plano."
+      />
 
       {/* 2-col grid */}
       <div className="mt-6 grid gap-4" style={{ gridTemplateColumns: "1fr" }}>

@@ -2,8 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ChevronRight, FileAudio, CheckCircle, Loader2 } from "lucide-react";
+import { FileAudio, CheckCircle, Loader2 } from "lucide-react";
 import {
   DropZone,
   UploadProgressCard,
@@ -19,6 +18,7 @@ import {
   processUploadedMeeting,
   fetchNewMeetingDefaults,
 } from "./new-api";
+import { PageHeader } from "@/components/ui/app";
 import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 // ─── Upload progress overlay ─────────────────────────────────────────────────
@@ -257,23 +257,14 @@ function UploadPageInner() {
 
   return (
     <div className="animate-fade-in min-h-full">
-      {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
-      <nav className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider" style={{ color: "rgb(var(--cn-muted))" }}>
-        <Link href="/dashboard" className="transition-colors" style={{ color: "rgb(var(--cn-muted))" }} onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-ink2))")} onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgb(var(--cn-muted))")}>
-          Dashboard
-        </Link>
-        <ChevronRight className="h-3 w-3" style={{ color: "rgb(var(--cn-border))" }} />
-        <span style={{ color: "rgb(var(--cn-ink2))" }}>Nova Reunião</span>
-      </nav>
-
-      {/* ── Page title ───────────────────────────────────────────────────── */}
-      <h1 className="font-display text-3xl font-extrabold" style={{ color: "rgb(var(--cn-ink))" }}>
-        Iniciar Processamento
-      </h1>
-      <p className="mt-1.5 max-w-lg text-sm" style={{ color: "rgb(var(--cn-ink2))" }}>
-        Transforme sua conversa em inteligência acionável. Envie o áudio e
-        receba o resumo em instantes.
-      </p>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Nova reunião" },
+        ]}
+        title="Iniciar processamento"
+        description="Transforme sua conversa em inteligência acionável. Envie o áudio e receba o resumo em instantes."
+      />
 
       {/* ── Two-column layout ─────────────────────────────────────────────── */}
       <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">

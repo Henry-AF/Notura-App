@@ -95,6 +95,10 @@ export default function SignupPage() {
 
   return (
     <AuthShell
+      breadcrumbs={[
+        { label: "Acesso" },
+        { label: "Criar conta" },
+      ]}
       title="Crie sua conta"
       description="Comece a organizar reuniões e tarefas com o padrão Notura."
       sideTitle="Padronize suas decisões em um só lugar."

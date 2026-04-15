@@ -4,7 +4,11 @@ import React from "react";
 import { Calendar, Share2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { StatusBadge } from "@/components/ui/app";
+import {
+  PageHeader,
+  StatusBadge,
+  type PageHeaderBreadcrumb,
+} from "@/components/ui/app";
 
 function statusLabel(
   status: MeetingHeaderProps["status"]
@@ -46,6 +50,7 @@ function ParticipantAvatars({
 }
 
 export interface MeetingHeaderProps {
+  breadcrumbs: PageHeaderBreadcrumb[];
   clientName: string;
   date: string;
   status: "completed" | "processing" | "failed" | "scheduled";
@@ -55,6 +60,7 @@ export interface MeetingHeaderProps {
 }
 
 export function MeetingHeader({
+  breadcrumbs,
   clientName,
   date,
   status,
@@ -63,11 +69,21 @@ export function MeetingHeader({
   onEdit,
 }: MeetingHeaderProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground md:text-5xl">
-          {clientName}
-        </h1>
+    <PageHeader
+      breadcrumbs={breadcrumbs}
+      title={clientName}
+      description={
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            {date}
+          </span>
+          <StatusBadge status={statusLabel(status)} />
+          <ParticipantAvatars participants={participants} />
+        </div>
+      }
+      descriptionClassName="max-w-none"
+      actions={
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onShare}>
             <Share2 className="h-4 w-4" />
@@ -78,16 +94,7 @@ export function MeetingHeader({
             Editar
           </Button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          {date}
-        </span>
-        <StatusBadge status={statusLabel(status)} />
-        <ParticipantAvatars participants={participants} />
-      </div>
-    </div>
+      }
+    />
   );
 }

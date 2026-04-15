@@ -19,6 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -503,30 +504,28 @@ export default function ContactsPage() {
     <>
       <div className="space-y-10">
         {/* ── Page Header ──────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-manrope font-extrabold text-2xl tracking-[-0.4px] text-notura-ink sm:text-3xl">
-              Contatos & Integrações
-            </h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-notura-ink-secondary">
-              Gerencie os contatos que recebem resumos e conecte ferramentas externas.
-            </p>
-          </div>
-
-          {/* Add contact CTA */}
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex shrink-0 items-center gap-2 self-start rounded-full px-4 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 sm:self-auto"
-            style={{
-              background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
-              boxShadow:
-                "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
-            }}
-          >
-            <UserPlus className="h-4 w-4" />
-            Adicionar contato
-          </button>
-        </div>
+        <PageHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Contatos" },
+          ]}
+          title="Contatos & Integrações"
+          description="Gerencie os contatos que recebem resumos e conecte ferramentas externas."
+          actions={
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex shrink-0 items-center gap-2 self-start rounded-full px-4 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 sm:self-auto"
+              style={{
+                background: "linear-gradient(135deg, #6851FF, #8B7AFF)",
+                boxShadow:
+                  "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
+              }}
+            >
+              <UserPlus className="h-4 w-4" />
+              Adicionar contato
+            </button>
+          }
+        />
 
         {/* ── Contacts Section ─────────────────────────────────────────────── */}
         <section>

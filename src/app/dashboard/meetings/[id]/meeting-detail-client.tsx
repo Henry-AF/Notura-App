@@ -3,7 +3,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  MeetingBreadcrumb,
   MeetingHeader,
   MeetingTabs,
   SmartSummaryCard,
@@ -560,17 +559,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         }
       `}</style>
 
-      {/* Breadcrumb */}
       <div className="anim-in" style={{ animationDelay: "0ms" }}>
-        <MeetingBreadcrumb
-          clientName={clientName}
-          onBack={() => router.push("/dashboard")}
-        />
-      </div>
-
-      {/* Header */}
-      <div className="anim-in" style={{ animationDelay: "40ms" }}>
         <MeetingHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Reuniões", href: "/dashboard/meetings" },
+            { label: "Detalhes" },
+          ]}
           clientName={clientName}
           date={meetingDate}
           status={meetingStatus}
@@ -581,7 +576,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       </div>
 
       {/* Tabs */}
-      <div className="anim-in" style={{ animationDelay: "80ms" }}>
+      <div className="anim-in" style={{ animationDelay: "40ms" }}>
         <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
       </div>
 

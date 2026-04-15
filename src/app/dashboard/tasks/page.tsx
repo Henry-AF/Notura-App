@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
+import { PageHeader } from "@/components/ui/app";
 import { useKanban } from "@/hooks/useKanban";
 import type { Column, Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
@@ -606,30 +607,46 @@ function WorkspaceTasksList({
     <div>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h1
-              style={{
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-                fontWeight: 800, fontSize: 28,
-                color: "rgb(var(--cn-ink))", margin: 0,
-              }}
-            >
-              Tarefas do Workspace
-            </h1>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, color: "rgb(var(--cn-muted))", marginTop: 4, margin: "4px 0 0" }}>
+        <PageHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Tarefas" },
+          ]}
+          title="Tarefas do Workspace"
+          description={
+            <>
               <span
                 style={{
-                  display: "inline-block", width: 7, height: 7, borderRadius: "50%",
-                  background: "#6C5CE7", marginRight: 6, verticalAlign: "middle",
+                  display: "inline-block",
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "#6C5CE7",
+                  marginRight: 6,
+                  verticalAlign: "middle",
                 }}
               />
               Você tem{" "}
-              <strong style={{ color: "rgb(var(--cn-ink2))" }}>{activeToday} tarefa{activeToday !== 1 ? "s" : ""} ativa{activeToday !== 1 ? "s" : ""}</strong>{" "}
+              <strong style={{ color: "rgb(var(--cn-ink2))" }}>
+                {activeToday} tarefa{activeToday !== 1 ? "s" : ""} ativa
+                {activeToday !== 1 ? "s" : ""}
+              </strong>{" "}
               hoje
-            </p>
-          </div>
+            </>
+          }
+          descriptionClassName="max-w-none"
+        />
 
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            flexWrap: "wrap",
+            gap: 12,
+            marginTop: 24,
+          }}
+        >
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {/* Search */}
             <input
@@ -640,9 +657,13 @@ function WorkspaceTasksList({
               style={{
                 background: "rgb(var(--cn-input-bg))",
                 border: "1px solid rgb(var(--cn-input-border))",
-                borderRadius: 10, padding: "8px 14px",
-                fontFamily: "Inter, sans-serif", fontSize: 13,
-                color: "rgb(var(--cn-ink))", outline: "none", width: 200,
+                borderRadius: 10,
+                padding: "8px 14px",
+                fontFamily: "Inter, sans-serif",
+                fontSize: 13,
+                color: "rgb(var(--cn-ink))",
+                outline: "none",
+                width: 200,
               }}
             />
 
@@ -651,13 +672,19 @@ function WorkspaceTasksList({
               type="button"
               onClick={() => setShowFilters((v) => !v)}
               style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 14px", borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                borderRadius: 10,
                 border: "1px solid rgb(var(--cn-border))",
                 background: showFilters ? "rgba(108,92,231,0.1)" : "rgb(var(--cn-card))",
                 color: showFilters ? "#6C5CE7" : "rgb(var(--cn-ink2))",
-                fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500,
-                cursor: "pointer", transition: "all 0.15s",
+                fontFamily: "Inter, sans-serif",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.15s",
               }}
             >
               <SlidersHorizontal style={{ width: 14, height: 14 }} />
@@ -670,13 +697,21 @@ function WorkspaceTasksList({
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 14px", paddingRight: 32, borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  paddingRight: 32,
+                  borderRadius: 10,
                   border: "1px solid rgb(var(--cn-border))",
                   background: "rgb(var(--cn-card))",
                   color: "rgb(var(--cn-ink2))",
-                  fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500,
-                  cursor: "pointer", outline: "none", appearance: "none",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  outline: "none",
+                  appearance: "none",
                 }}
               >
                 <option value="dueDate">Ordenar: Prazo</option>
@@ -684,8 +719,14 @@ function WorkspaceTasksList({
               </select>
               <ArrowUpDown
                 style={{
-                  position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                  width: 12, height: 12, color: "rgb(var(--cn-muted))", pointerEvents: "none",
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 12,
+                  height: 12,
+                  color: "rgb(var(--cn-muted))",
+                  pointerEvents: "none",
                 }}
               />
             </div>

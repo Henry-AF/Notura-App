@@ -148,6 +148,10 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
   return (
     <PageShell>
       <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Reuniões" },
+        ]}
         title="Reuniões"
         description={`${meetings.length} ${meetings.length !== 1 ? "reuniões" : "reunião"} no total`}
       />

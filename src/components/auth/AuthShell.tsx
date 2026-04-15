@@ -3,9 +3,11 @@
 import Link from "next/link";
 import * as React from "react";
 import { Sparkles } from "lucide-react";
+import { PageHeader, type PageHeaderBreadcrumb } from "@/components/ui/app";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface AuthShellProps {
+  breadcrumbs?: PageHeaderBreadcrumb[];
   title: string;
   description: string;
   sideTitle: string;
@@ -15,6 +17,7 @@ interface AuthShellProps {
 }
 
 export function AuthShell({
+  breadcrumbs,
   title,
   description,
   sideTitle,
@@ -48,10 +51,13 @@ export function AuthShell({
 
         <Card className="border-border/90 bg-card">
           <CardContent className="space-y-8 p-6 sm:p-10">
-            <div className="space-y-2">
-              <h1 className="font-display text-3xl font-bold text-card-foreground">{title}</h1>
-              <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
+            <PageHeader
+              breadcrumbs={breadcrumbs}
+              title={title}
+              description={description}
+              titleClassName="text-card-foreground"
+              descriptionClassName="max-w-none"
+            />
             {children}
             {footer ? <div className="text-sm text-muted-foreground">{footer}</div> : null}
           </CardContent>

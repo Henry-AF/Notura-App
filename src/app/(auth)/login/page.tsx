@@ -62,6 +62,10 @@ export default function LoginPage() {
 
   return (
     <AuthShell
+      breadcrumbs={[
+        { label: "Acesso" },
+        { label: "Entrar" },
+      ]}
       title="Bem-vindo de volta"
       description="Entre na sua conta para continuar organizando suas reuniões."
       sideTitle="Transforme reuniões em decisões acionáveis."

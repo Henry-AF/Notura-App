@@ -1,14 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
 import { useToast } from "@/components/upload/Toast";
+import { PageHeader, PageShell, SectionCard } from "@/components/ui/app";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PageShell, SectionCard } from "@/components/ui/app";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import type { MeetingEditData } from "./meeting-edit-types";
 import { updateMeetingEditableFields } from "./meeting-edit-client-api";
@@ -108,20 +106,15 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
 
   return (
     <PageShell>
-      <nav className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        <Link href="/dashboard">Dashboard</Link>
-        <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-        <Link href={`/dashboard/meetings/${id}`}>Reunião</Link>
-        <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-        <span className="text-foreground">Editar</span>
-      </nav>
-
-      <h1 className="font-display text-3xl font-extrabold text-foreground">
-        Editar reunião
-      </h1>
-      <p className="mt-1.5 max-w-lg text-sm text-muted-foreground">
-        Atualize as informações principais da reunião.
-      </p>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Reuniões", href: "/dashboard/meetings" },
+          { label: "Editar" },
+        ]}
+        title="Editar reunião"
+        description="Atualize as informações principais da reunião."
+      />
 
       <SectionCard className="mt-6 rounded-xl">
         <form className="space-y-4" onSubmit={handleSubmit} noValidate>

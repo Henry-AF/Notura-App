@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
@@ -223,14 +224,13 @@ function StepIntro({ icon: Icon, title, description }: StepIntroProps) {
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
         <Icon className="h-6 w-6 text-violet-600" />
       </div>
-      <div className="space-y-2">
-        <h1 className="font-display text-2xl font-semibold text-notura-ink sm:text-[30px]">
-          {title}
-        </h1>
-        <p className="text-sm leading-relaxed text-notura-ink-secondary">
-          {description}
-        </p>
-      </div>
+      <PageHeader
+        title={title}
+        description={description}
+        className="text-center"
+        titleClassName="text-notura-ink"
+        descriptionClassName="max-w-none text-notura-ink-secondary"
+      />
     </div>
   );
 }

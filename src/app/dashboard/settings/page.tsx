@@ -12,6 +12,7 @@ import {
 import type { Integration, Preference } from "@/components/settings";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
+import { getPlanTitle } from "@/lib/plans";
 import { useTheme } from "@/lib/theme-context";
 import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
@@ -32,9 +33,7 @@ function getDaysUntilEndOfMonth(): number {
 }
 
 function getPlanName(plan: CurrentUser["plan"]): string {
-  if (plan === "pro") return "Plano Pro";
-  if (plan === "team") return "Plano Team";
-  return "Plano Gratuito";
+  return getPlanTitle(plan);
 }
 
 function notifyUserUpdated() {
@@ -56,7 +55,7 @@ function SettingsPageInner() {
   const [rawPlan, setRawPlan] = useState<"free" | "pro" | "team">("free");
 
   // Subscription fields
-  const [planName, setPlanName] = useState("Plano Gratuito");
+  const [planName, setPlanName] = useState(getPlanTitle("free"));
   const [meetingsUsed, setMeetingsUsed] = useState(0);
   const [meetingsTotal, setMeetingsTotal] = useState<number | null>(3);
 

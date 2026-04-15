@@ -204,7 +204,8 @@ export async function getAbacatePaySubscriptionById(
 export function isAbacatePaySubscriptionPaid(
   subscription: AbacatePaySubscription
 ): boolean {
-  return subscription.status === "paid" || subscription.status === "PAID";
+  const normalizedStatus = subscription.status?.trim().toUpperCase();
+  return normalizedStatus === "PAID" || normalizedStatus === "ACTIVE";
 }
 
 export function getAbacatePayPendingExternalId(
@@ -212,6 +213,28 @@ export function getAbacatePayPendingExternalId(
   plan: Exclude<Plan, "free">
 ): string {
   return `onboarding:${userId}:${plan}`;
+}
+
+export function getAbacatePayCheckoutExternalId(
+  userId: string,
+  plan: Exclude<Plan, "free">,
+  nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+): string {
+  return `${getAbacatePayPendingExternalId(userId, plan)}:${nonce}`;
+}
+
+export function parseAbacatePayOnboardingExternalId(
+  externalId: string
+): { userId: string; plan: Exclude<Plan, "free"> } | null {
+  const trimmed = externalId.trim();
+  if (!trimmed) return null;
+
+  const [origin, userId, plan] = trimmed.split(":");
+
+  if (origin !== "onboarding" || !userId) return null;
+  if (plan !== "pro" && plan !== "team") return null;
+
+  return { userId, plan };
 }
 
 export function getAbacatePayCustomerPhone(

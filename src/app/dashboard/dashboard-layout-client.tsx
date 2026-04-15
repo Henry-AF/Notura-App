@@ -22,6 +22,7 @@ import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getPlanTitle } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import {
   fetchCurrentUser,
@@ -48,9 +49,7 @@ const navItems: NavItem[] = [
 ];
 
 function getPlanLabel(plan: CurrentUser["plan"]) {
-  if (plan === "team") return "Plano Team";
-  if (plan === "pro") return "Plano Pro";
-  return "Plano Gratuito";
+  return getPlanTitle(plan);
 }
 
 function getUserInitials(name: string) {

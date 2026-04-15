@@ -9,9 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { parseAbacatePayOnboardingExternalId } from "@/lib/abacatepay";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
-const VALID_PLANS = new Set(["pro", "team"]);
 
 interface AbacatePayWebhookEvent {
   event: string;
@@ -24,17 +24,6 @@ interface AbacatePayWebhookEvent {
     customer?: { id?: string };
     metadata?: Record<string, unknown>;
   };
-}
-
-// Format: "onboarding:{userId}:{plan}"
-function parsePlanFromExternalId(
-  externalId: string
-): { userId: string; plan: "pro" | "team" } | null {
-  const parts = externalId.split(":");
-  if (parts.length !== 3 || parts[0] !== "onboarding") return null;
-  const plan = parts[2];
-  if (!VALID_PLANS.has(plan)) return null;
-  return { userId: parts[1], plan: plan as "pro" | "team" };
 }
 
 export const POST = withPublicRateLimit<NextRequest>(
@@ -76,7 +65,7 @@ async function handleBillingPaid(
   const externalId = data.externalId;
   if (!externalId) return NextResponse.json({ received: true });
 
-  const parsed = parsePlanFromExternalId(externalId);
+  const parsed = parseAbacatePayOnboardingExternalId(externalId);
   if (!parsed) return NextResponse.json({ received: true });
 
   const supabase = createServiceRoleClient();
@@ -106,7 +95,7 @@ async function handleSubscriptionCanceled(
   const nowIso = new Date().toISOString();
 
   if (data.externalId) {
-    const parsed = parsePlanFromExternalId(data.externalId);
+    const parsed = parseAbacatePayOnboardingExternalId(data.externalId);
     if (parsed) {
       const { error } = await supabase
         .from("billing_accounts")

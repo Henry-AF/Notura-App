@@ -1,15 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getPlanMonthlyLimit } from "@/lib/plans";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
 
-const PLAN_LIMITS: Record<Plan, number | null> = {
-  free: 3,
-  pro: 30,
-  team: null,
-};
-
 export function getMonthlyMeetingLimit(plan: Plan): number | null {
-  return PLAN_LIMITS[plan];
+  return getPlanMonthlyLimit(plan);
 }
 
 export async function getOrCreateBillingAccount(

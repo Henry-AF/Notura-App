@@ -1,3 +1,5 @@
+import { getPlanDisplayName, getPlanPriceLabel, getPlanTitle, isPlan } from "@/lib/plans";
+
 export interface PresentPlanCardInput {
   plan: string | null | undefined;
   meetingsThisMonth: number;
@@ -14,19 +16,6 @@ export interface PlanPresentation {
   progressValue: number | null;
 }
 
-const PLAN_COPY: Record<string, Pick<PlanPresentation, "title" | "badgeLabel" | "priceLabel">> = {
-  free: {
-    title: "Plano Free",
-    badgeLabel: "Free",
-    priceLabel: "R$0/mês",
-  },
-  pro: {
-    title: "Plano Pro",
-    badgeLabel: "Pro",
-    priceLabel: "R$79/mês",
-  },
-};
-
 function clampProgress(value: number) {
   return Math.max(0, Math.min(100, value));
 }
@@ -34,8 +23,14 @@ function clampProgress(value: number) {
 export function presentPlanCard(
   input: PresentPlanCardInput
 ): PlanPresentation {
-  const planKey = input.plan?.trim().toLowerCase() ?? "";
-  const knownPlan = PLAN_COPY[planKey];
+  const planKey = input.plan?.trim().toLowerCase();
+  const knownPlan = isPlan(planKey)
+    ? {
+        title: getPlanTitle(planKey),
+        badgeLabel: getPlanDisplayName(planKey),
+        priceLabel: getPlanPriceLabel(planKey),
+      }
+    : null;
 
   if (typeof input.monthlyLimit === "number" && input.monthlyLimit > 0) {
     const progressValue = clampProgress(

@@ -2,12 +2,19 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Check, X, Zap, Users, Sparkles, Loader2 } from "lucide-react";
+import {
+  APP_PLAN_IDS,
+  getPlanDisplayName,
+  getPlanMonthlyLimit,
+  getPlanPriceLabel,
+} from "@/lib/plans";
 import { useThemeColors } from "@/lib/theme-context";
+import type { Plan } from "@/types/database";
 
 // ─── Plan definitions ─────────────────────────────────────────────────────────
 
 interface PlanDef {
-  id: "free" | "pro" | "team";
+  id: Plan;
   name: string;
   price: string;
   period: string;
@@ -21,63 +28,71 @@ interface PlanDef {
   highlight?: boolean;
 }
 
-const PLANS: PlanDef[] = [
-  {
-    id: "free",
-    name: "Gratuito",
-    price: "R$ 0",
-    period: "/mês",
+function getPlanUsageFeature(planId: Plan): string {
+  const monthlyLimit = getPlanMonthlyLimit(planId);
+  return monthlyLimit === null
+    ? "Reuniões ilimitadas por mês"
+    : `Até ${monthlyLimit} reuniões por mês`;
+}
+
+const PLAN_STYLE: Record<
+  Plan,
+  Pick<PlanDef, "icon" | "iconColor" | "iconBg" | "badge" | "badgeColor" | "highlight">
+> = {
+  free: {
     icon: Sparkles,
     iconColor: "#9598A8",
     iconBg: "rgba(149,152,168,0.12)",
-    features: [
-      "3 reuniões por mês",
-      "Transcrição com IA",
-      "Resumo automático",
-      "Tarefas extraídas",
-    ],
-    cta: "Plano atual",
   },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "R$ 49",
-    period: "/mês",
-    badge: "Mais popular",
-    badgeColor: "#6851FF",
+  pro: {
     icon: Zap,
     iconColor: "#6851FF",
     iconBg: "rgba(104,81,255,0.15)",
-    features: [
-      "30 reuniões por mês",
-      "Transcrição com IA",
-      "Resumo via WhatsApp",
-      "Tarefas e decisões",
-      "Exportação PDF",
-      "Suporte prioritário",
-    ],
-    cta: "Assinar Pro",
+    badge: "Mais popular",
+    badgeColor: "#6851FF",
     highlight: true,
   },
-  {
-    id: "team",
-    name: "Team",
-    price: "R$ 149",
-    period: "/mês",
+  team: {
     icon: Users,
     iconColor: "#E91E8C",
     iconBg: "rgba(233,30,140,0.12)",
-    features: [
-      "Reuniões ilimitadas",
-      "Todos os recursos Pro",
-      "Múltiplos usuários",
-      "Dashboard de equipe",
-      "API de integração",
-      "SLA garantido",
-    ],
-    cta: "Assinar Team",
   },
-];
+};
+
+const PLAN_EXTRA_FEATURES: Record<Plan, string[]> = {
+  free: [
+    "Transcrição com IA",
+    "Resumo automático",
+    "Tarefas extraídas",
+  ],
+  pro: [
+    "Resumo via WhatsApp",
+    "Tarefas e decisões",
+    "Exportação PDF",
+    "Suporte prioritário",
+  ],
+  team: [
+    "Tudo do plano Pro",
+    "Uso sem limite de reuniões",
+    "Suporte prioritário avançado",
+  ],
+};
+
+const PLAN_CTA: Record<Plan, string> = {
+  free: "Plano atual",
+  pro: "Assinar Pro",
+  team: "Assinar Platinum",
+};
+
+const PLANS: PlanDef[] = APP_PLAN_IDS.map((planId) => ({
+  id: planId,
+  name: getPlanDisplayName(planId),
+  price: getPlanPriceLabel(planId),
+  period: "/mês",
+  features: [getPlanUsageFeature(planId), ...PLAN_EXTRA_FEATURES[planId]],
+  cta: PLAN_CTA[planId],
+  ...PLAN_STYLE[planId],
+}));
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 

@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/app";
+import {
+  APP_PLAN_IDS,
+  getPlanDisplayName,
+  getPlanPriceLabel,
+  getPlanUsageShortLabel,
+  isPlan,
+} from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
@@ -87,27 +94,13 @@ interface PaymentRedirectOptions {
   setStep: (value: OnboardingStep) => void;
 }
 
-const plans = [
-  {
-    id: "free",
-    name: "Free",
-    price: "R$0",
-    desc: "3 reuniões/mês",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "R$79/mês",
-    desc: "30 reuniões + WhatsApp",
-    popular: true,
-  },
-  {
-    id: "team",
-    name: "Equipe",
-    price: "R$49/usuário",
-    desc: "Reuniões ilimitadas",
-  },
-] satisfies readonly OnboardingPlan[];
+const plans = APP_PLAN_IDS.map((planId) => ({
+  id: planId,
+  name: getPlanDisplayName(planId),
+  price: `${getPlanPriceLabel(planId)}/mês`,
+  desc: getPlanUsageShortLabel(planId),
+  popular: planId === "pro",
+})) satisfies readonly OnboardingPlan[];
 
 const onboardingHighlights = [
   {
@@ -132,10 +125,6 @@ const successChecklist = [
   "Espere a IA processar (2-3 minutos)",
   "Receba o resumo no WhatsApp",
 ] as const;
-
-function isPlan(value: string | null): value is Plan {
-  return value === "free" || value === "pro" || value === "team";
-}
 
 function clearCurrentSearch(pathname: string) {
   window.history.replaceState({}, "", pathname);

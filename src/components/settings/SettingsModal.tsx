@@ -16,6 +16,7 @@ import {
   logoutCurrentUser,
   updateCurrentUser,
 } from "@/lib/user/current-user-client";
+import { getPlanTitle } from "@/lib/plans";
 import type { CurrentUser } from "@/lib/user/current-user-types";
 
 interface UserData {
@@ -46,12 +47,6 @@ function buildUserData(user: CurrentUser): UserData {
     meetingsUsed: user.meetingsThisMonth,
     monthlyLimit: user.monthlyLimit,
   };
-}
-
-function getPlanLabel(plan: CurrentUser["plan"]) {
-  if (plan === "pro") return "Plano Pro";
-  if (plan === "team") return "Plano Team";
-  return "Plano Gratuito";
 }
 
 export function SettingsModal({
@@ -161,7 +156,7 @@ export function SettingsModal({
       .map((value) => value[0])
       .join("")
       .toUpperCase() || "U";
-  const planLabel = getPlanLabel(data.plan);
+  const planLabel = getPlanTitle(data.plan);
   const monthlyLimit = data.monthlyLimit ?? 0;
   const hasLimit = monthlyLimit > 0;
   const pct = hasLimit

@@ -153,6 +153,14 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       return NextResponse.json({ error: "Erro ao registrar reunião no banco de dados." }, { status: 500 });
     }
 
+    const queueSendStartedAt = Date.now();
+    console.info("[meetings/process] queue send diagnostics:", {
+      meetingId: meeting.id,
+      userId: auth.user.id,
+      nowEpochMs: queueSendStartedAt,
+      nowIso: new Date(queueSendStartedAt).toISOString(),
+    });
+
     // ── Enqueue Inngest processing job ───────────────────────────────────────
     try {
       await inngest.send({

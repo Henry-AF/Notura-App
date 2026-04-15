@@ -88,6 +88,37 @@ describe("POST /api/meetings/process", () => {
     });
   });
 
+  it("logs queue diagnostics before sending the Inngest event", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(201);
+    expect(consoleInfo).toHaveBeenCalledWith(
+      "[meetings/process] queue send diagnostics:",
+      expect.objectContaining({
+        meetingId: "meeting-1",
+        userId: "user-1",
+        nowEpochMs: expect.any(Number),
+        nowIso: expect.any(String),
+      })
+    );
+  });
+
   it("blocks meeting creation when the monthly limit is reached", async () => {
     getBillingStatus.mockResolvedValue({
       billingAccount: { plan: "free" },

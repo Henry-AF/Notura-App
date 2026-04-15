@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { cn } from "@/lib/utils";
 
 export interface SidebarPlanWidgetProps {
   planName: string;
@@ -9,93 +10,57 @@ export interface SidebarPlanWidgetProps {
   onUpgradeClick?: () => void;
 }
 
-export function SidebarPlanWidget({ planName, used, total, onUpgradeClick }: SidebarPlanWidgetProps) {
-  const pct =
-    typeof total === "number" && total > 0
-      ? Math.min((used / total) * 100, 100)
-      : null;
+function getUsageLabel(used: number, total: number | null) {
+  if (typeof total !== "number" || total <= 0) {
+    return "Ilimitado";
+  }
+
+  return `${used}/${total}`;
+}
+
+export function SidebarPlanWidget({
+  planName,
+  used,
+  total,
+  onUpgradeClick,
+}: SidebarPlanWidgetProps) {
+  const hasLimit = typeof total === "number" && total > 0;
+  const progress = hasLimit ? Math.min((used / total) * 100, 100) : 100;
 
   return (
-    <div
-      style={{
-        background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
-        borderRadius: "10px",
-        padding: "14px",
-      }}
-    >
-      {/* Plan name */}
-      <p
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 500,
-          fontSize: "12px",
-          color: "rgb(var(--cn-ink2))",
-          marginBottom: "8px",
-        }}
-      >
-        {planName}
+    <section className="rounded-xl border border-notura-border/50 bg-notura-bg p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-notura-ink-secondary">
+          {planName}
+        </p>
+        <span className="text-[11px] font-medium text-notura-ink-secondary">
+          {getUsageLabel(used, total)}
+        </span>
+      </div>
+
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-notura-border/80">
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width] duration-300",
+            hasLimit ? "bg-notura-primary" : "bg-emerald-500"
+          )}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <p className="mt-2 text-[11px] text-notura-ink-secondary">
+        {hasLimit ? `${used} reuniões usadas neste mês.` : "Sem limite mensal."}
       </p>
 
-      {/* Progress bar */}
-      {pct !== null ? (
-        <div
-          style={{
-            height: 4,
-            background: "rgb(var(--cn-border))",
-            borderRadius: "999px",
-            overflow: "hidden",
-            marginBottom: "8px",
-          }}
+      {onUpgradeClick && hasLimit && (
+        <button
+          type="button"
+          onClick={onUpgradeClick}
+          className="mt-3 text-xs font-semibold text-notura-primary transition-colors hover:text-notura-ink"
         >
-          <div
-            style={{
-              width: `${pct}%`,
-              height: "100%",
-              background: "#6C5CE7",
-              borderRadius: "999px",
-              transition: "width 0.4s ease",
-            }}
-          />
-        </div>
-      ) : (
-        <p
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontSize: "11px",
-            color: "rgb(var(--cn-ink2))",
-            marginBottom: "8px",
-          }}
-        >
-          Sem limite mensal
-        </p>
+          Upgrade para ilimitado
+        </button>
       )}
-
-      {/* CTA */}
-      <button
-        type="button"
-        onClick={onUpgradeClick}
-        style={{
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: onUpgradeClick ? "pointer" : "default",
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 600,
-          fontSize: "12px",
-          color: "#A29BFE",
-          textDecoration: "none",
-          transition: "color 0.15s",
-        }}
-        onMouseEnter={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink))")
-        }
-        onMouseLeave={(e) =>
-          ((e.currentTarget as HTMLButtonElement).style.color = "#A29BFE")
-        }
-      >
-        Upgrade para ilimitado
-      </button>
-    </div>
+    </section>
   );
 }

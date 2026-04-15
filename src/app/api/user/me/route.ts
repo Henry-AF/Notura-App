@@ -1,57 +1,22 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/auth";
-import { getBillingStatus } from "@/lib/billing";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Plan } from "@/types/database";
+import { getCurrentUserForIdentity } from "@/lib/user/current-user";
 
-interface AuthenticatedUser {
-  id: string;
-  email: string | null;
-}
-
-function toUserName(name: string | null | undefined, email: string | null) {
-  if (name?.trim()) return name.trim();
-  if (email?.includes("@")) return email.split("@")[0] ?? "Usuário";
-  return "Usuário";
-}
-
-async function buildCurrentUserResponse(user: AuthenticatedUser) {
-  const supabase = createServiceRoleClient();
-  const [profileResult, billingStatus] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("name, company, whatsapp_number")
-      .eq("id", user.id)
-      .maybeSingle(),
-    getBillingStatus(user.id),
-  ]);
-
-  if (profileResult.error) {
-    throw new Error(profileResult.error.message);
-  }
-
+function buildCurrentUserIdentity(auth: {
+  user: { id: string; email?: string | null };
+}) {
   return {
-    user: {
-      id: user.id,
-      email: user.email ?? "",
-      name: toUserName(profileResult.data?.name, user.email),
-      company: profileResult.data?.company ?? "",
-      whatsappNumber: profileResult.data?.whatsapp_number ?? "",
-      plan: billingStatus.billingAccount.plan as Plan,
-      meetingsThisMonth: billingStatus.meetingsThisMonth,
-      monthlyLimit: billingStatus.monthlyLimit,
-    },
+    id: auth.user.id,
+    email: auth.user.email ?? null,
   };
 }
 
 export const GET = withAuth(async (_request, { auth }) => {
   try {
-    return NextResponse.json(
-      await buildCurrentUserResponse({
-        id: auth.user.id,
-        email: auth.user.email ?? null,
-      })
-    );
+    return NextResponse.json({
+      user: await getCurrentUserForIdentity(buildCurrentUserIdentity(auth)),
+    });
   } catch (error) {
     console.error("[user/me] GET failed:", error);
     return NextResponse.json(
@@ -112,12 +77,9 @@ export const PATCH = withAuth(async (request, { auth }) => {
       );
     }
 
-    return NextResponse.json(
-      await buildCurrentUserResponse({
-        id: auth.user.id,
-        email: auth.user.email ?? null,
-      })
-    );
+    return NextResponse.json({
+      user: await getCurrentUserForIdentity(buildCurrentUserIdentity(auth)),
+    });
   } catch (error) {
     console.error("[user/me] PATCH unexpected failure:", error);
     return NextResponse.json(

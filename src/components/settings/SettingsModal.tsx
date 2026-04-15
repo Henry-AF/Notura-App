@@ -1,20 +1,30 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, User, Bell, CreditCard, LogOut, ChevronRight, Pencil } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useThemeColors, useTheme } from "@/lib/theme-context";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import {
+  Bell,
+  ChevronRight,
+  CreditCard,
+  LogOut,
+  Pencil,
+  User,
+  X,
+} from "lucide-react";
+import { useTheme, useThemeColors } from "@/lib/theme-context";
+import {
+  logoutCurrentUser,
+  updateCurrentUser,
+} from "@/lib/user/current-user-client";
+import type { CurrentUser } from "@/lib/user/current-user-types";
 
 interface UserData {
   name: string;
   email: string;
   company: string;
-  plan: string;
+  plan: CurrentUser["plan"];
   meetingsUsed: number;
-  monthlyLimit: number;
+  monthlyLimit: number | null;
 }
 
 type Tab = "profile" | "preferences" | "plan";
@@ -27,20 +37,33 @@ interface Pref {
   enabled: boolean;
 }
 
-function resolveMonthlyLimit(plan: string | null | undefined): number {
-  if (plan === "team") return 999;
-  if (plan === "pro") return 30;
-  return 3;
+function buildUserData(user: CurrentUser): UserData {
+  return {
+    name: user.name,
+    email: user.email,
+    company: user.company,
+    plan: user.plan,
+    meetingsUsed: user.meetingsThisMonth,
+    monthlyLimit: user.monthlyLimit,
+  };
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function getPlanLabel(plan: CurrentUser["plan"]) {
+  if (plan === "pro") return "Plano Pro";
+  if (plan === "team") return "Plano Team";
+  return "Plano Gratuito";
+}
 
 export function SettingsModal({
+  currentUser,
   onClose,
   onUpgradeClick,
+  onUserChange,
 }: {
+  currentUser: CurrentUser;
   onClose: () => void;
   onUpgradeClick: () => void;
+  onUserChange?: (user: CurrentUser) => void;
 }) {
   const c = useThemeColors();
   const { isDark, setTheme } = useTheme();
@@ -48,93 +71,112 @@ export function SettingsModal({
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const [tab, setTab] = useState<Tab>("profile");
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<UserData>({
-    name: "",
-    email: "",
-    company: "",
-    plan: "free",
-    meetingsUsed: 0,
-    monthlyLimit: 3,
-  });
-  const [name, setName] = useState("");
-  const [company, setCompany] = useState("");
+  const [data, setData] = useState<UserData>(() => buildUserData(currentUser));
+  const [name, setName] = useState(currentUser.name);
+  const [company, setCompany] = useState(currentUser.company);
   const [prefs, setPrefs] = useState<Pref[]>([
-    { id: "whatsapp", icon: "💬", label: "Resumo via WhatsApp", description: "Receba resumos das reuniões no WhatsApp", enabled: true },
-    { id: "email", icon: "📧", label: "Notificações por e-mail", description: "Avisos sobre tarefas e prazos", enabled: false },
-    { id: "darkMode", icon: "🌙", label: "Modo escuro", description: "Usar tema escuro no painel", enabled: isDark },
+    {
+      id: "whatsapp",
+      icon: "💬",
+      label: "Resumo via WhatsApp",
+      description: "Receba resumos das reuniões no WhatsApp",
+      enabled: true,
+    },
+    {
+      id: "email",
+      icon: "📧",
+      label: "Notificações por e-mail",
+      description: "Avisos sobre tarefas e prazos",
+      enabled: false,
+    },
+    {
+      id: "darkMode",
+      icon: "🌙",
+      label: "Modo escuro",
+      description: "Usar tema escuro no painel",
+      enabled: isDark,
+    },
   ]);
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [profileRes, billingRes] = await Promise.all([
-        supabase.from("profiles").select("name, company").eq("id", user.id).single(),
-        supabase.from("billing_accounts").select("plan, meetings_this_month").eq("user_id", user.id).maybeSingle(),
-      ]);
-
-      const plan = billingRes.data?.plan ?? "free";
-
-      const loaded: UserData = {
-        name: profileRes.data?.name ?? "",
-        email: user.email ?? "",
-        company: profileRes.data?.company ?? "",
-        plan,
-        meetingsUsed: billingRes.data?.meetings_this_month ?? 0,
-        monthlyLimit: resolveMonthlyLimit(plan),
-      };
-      setData(loaded);
-      setName(loaded.name);
-      setCompany(loaded.company);
-      setLoading(false);
-    }
-    load();
-  }, []);
+    const nextData = buildUserData(currentUser);
+    setData(nextData);
+    setName(nextData.name);
+    setCompany(nextData.company);
+  }, [currentUser]);
 
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
     }
+
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
+  useEffect(() => {
+    setPrefs((previous) =>
+      previous.map((pref) =>
+        pref.id === "darkMode" ? { ...pref, enabled: isDark } : pref
+      )
+    );
+  }, [isDark]);
+
   async function handleSaveProfile() {
     setSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").update({ name: name.trim(), company: company.trim() }).eq("id", user.id);
-      setData((d) => ({ ...d, name: name.trim(), company: company.trim() }));
+
+    try {
+      const updatedUser = await updateCurrentUser({
+        name: name.trim(),
+        company: company.trim(),
+      });
+      const nextData = buildUserData(updatedUser);
+      setData(nextData);
+      setName(nextData.name);
+      setCompany(nextData.company);
+      onUserChange?.(updatedUser);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
+    try {
+      await logoutCurrentUser();
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("[settings-modal] logout failed", error);
+    }
   }
 
-  const initials = data.name
-    .split(" ")
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase() || "U";
+  const initials =
+    data.name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((value) => value[0])
+      .join("")
+      .toUpperCase() || "U";
+  const planLabel = getPlanLabel(data.plan);
+  const monthlyLimit = data.monthlyLimit ?? 0;
+  const hasLimit = monthlyLimit > 0;
+  const pct = hasLimit
+    ? Math.min(100, Math.round((data.meetingsUsed / monthlyLimit) * 100))
+    : 100;
+  const inputCls =
+    "w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors";
 
-  const planLabel = data.plan === "pro" ? "Plano Pro" : data.plan === "team" ? "Plano Team" : "Plano Gratuito";
-  const pct = data.monthlyLimit > 0 ? Math.min(100, Math.round((data.meetingsUsed / data.monthlyLimit) * 100)) : 0;
-
-  const inputCls = "w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors";
-
-  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "profile", label: "Perfil", icon: <User className="h-4 w-4" /> },
-    { id: "preferences", label: "Preferências", icon: <Bell className="h-4 w-4" /> },
+    {
+      id: "preferences",
+      label: "Preferências",
+      icon: <Bell className="h-4 w-4" />,
+    },
     { id: "plan", label: "Plano", icon: <CreditCard className="h-4 w-4" /> },
   ];
 
@@ -142,19 +184,25 @@ export function SettingsModal({
     <div
       ref={overlayRef}
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      onClick={(event) => {
+        if (event.target === overlayRef.current) {
+          onClose();
+        }
+      }}
     >
       <div
         className="relative flex w-full max-w-2xl overflow-hidden rounded-2xl shadow-2xl"
-        style={{ background: c.bg2, border: `1px solid ${c.border}`, maxHeight: "90vh" }}
+        style={{
+          background: c.bg2,
+          border: `1px solid ${c.border}`,
+          maxHeight: "90vh",
+        }}
       >
-        {/* Left panel — user info + tabs */}
         <div
           className="flex w-56 shrink-0 flex-col"
           style={{ background: c.card2, borderRight: `1px solid ${c.border}` }}
         >
-          {/* Avatar + name */}
-          <div className="px-5 pt-6 pb-5">
+          <div className="px-5 pb-5 pt-6">
             <div className="relative mx-auto mb-3 h-16 w-16">
               <div
                 className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
@@ -163,6 +211,7 @@ export function SettingsModal({
                 {initials}
               </div>
               <button
+                type="button"
                 className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full text-white"
                 style={{ background: "#6851FF" }}
               >
@@ -170,42 +219,44 @@ export function SettingsModal({
               </button>
             </div>
             <p className="text-center text-sm font-semibold" style={{ color: c.ink }}>
-              {data.name || "Usuário"}
+              {data.name}
             </p>
             <p className="mt-0.5 text-center text-xs" style={{ color: c.ink3 }}>
               {planLabel}
             </p>
           </div>
 
-          {/* Tabs */}
-          <nav className="flex-1 px-3 space-y-0.5">
-            {TABS.map((t) => (
+          <nav className="flex-1 space-y-0.5 px-3">
+            {tabs.map((item) => (
               <button
-                key={t.id}
+                key={item.id}
                 type="button"
-                onClick={() => setTab(t.id)}
+                onClick={() => setTab(item.id)}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
                 style={{
-                  background: tab === t.id ? "rgba(104,81,255,0.12)" : "transparent",
-                  color: tab === t.id ? "#6851FF" : c.ink2,
+                  background: tab === item.id ? "rgba(104,81,255,0.12)" : "transparent",
+                  color: tab === item.id ? "#6851FF" : c.ink2,
                 }}
               >
-                {t.icon}
-                {t.label}
-                {tab === t.id && <ChevronRight className="ml-auto h-3.5 w-3.5" />}
+                {item.icon}
+                {item.label}
+                {tab === item.id && <ChevronRight className="ml-auto h-3.5 w-3.5" />}
               </button>
             ))}
           </nav>
 
-          {/* Logout */}
           <div className="px-3 pb-5 pt-3">
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
               style={{ color: "#FF6B6B" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,107,107,0.1)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = "rgba(255,107,107,0.1)";
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = "transparent";
+              }}
             >
               <LogOut className="h-4 w-4" />
               Sair
@@ -213,19 +264,25 @@ export function SettingsModal({
           </div>
         </div>
 
-        {/* Right panel — content */}
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* Header */}
           <div
             className="flex items-center justify-between px-6 py-5"
             style={{ borderBottom: `1px solid ${c.border}` }}
           >
             <div>
               <h2 className="text-lg font-bold" style={{ color: c.ink }}>
-                {tab === "profile" ? "Dados pessoais" : tab === "preferences" ? "Preferências" : "Plano atual"}
+                {tab === "profile"
+                  ? "Dados pessoais"
+                  : tab === "preferences"
+                  ? "Preferências"
+                  : "Plano atual"}
               </h2>
-              <p className="text-xs mt-0.5" style={{ color: c.ink3 }}>
-                {tab === "profile" ? "Edite suas informações de perfil" : tab === "preferences" ? "Gerencie suas notificações e preferências" : "Seu plano e uso de reuniões"}
+              <p className="mt-0.5 text-xs" style={{ color: c.ink3 }}>
+                {tab === "profile"
+                  ? "Edite suas informações de perfil"
+                  : tab === "preferences"
+                  ? "Gerencie suas notificações e preferências"
+                  : "Seu plano e uso de reuniões"}
               </p>
             </div>
             <button
@@ -233,40 +290,45 @@ export function SettingsModal({
               onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
               style={{ color: c.ink3 }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = c.card2)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = c.card2;
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = "transparent";
+              }}
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Content */}
           <div className="flex-1 space-y-4 p-6">
-            {loading ? (
-              <div className="flex h-40 items-center justify-center">
-                <div
-                  className="h-8 w-8 animate-spin rounded-full border-2 border-notura-primary border-t-transparent"
-                />
-              </div>
-            ) : tab === "profile" ? (
+            {tab === "profile" ? (
               <>
-                {/* Name */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider" style={{ color: c.ink3 }}>
+                  <label
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider"
+                    style={{ color: c.ink3 }}
+                  >
                     Nome completo
                   </label>
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(event) => setName(event.target.value)}
                     className={inputCls}
-                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.ink }}
+                    style={{
+                      background: c.inputBg,
+                      borderColor: c.inputBorder,
+                      color: c.ink,
+                    }}
                   />
                 </div>
 
-                {/* Email */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider" style={{ color: c.ink3 }}>
+                  <label
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider"
+                    style={{ color: c.ink3 }}
+                  >
                     E-mail
                   </label>
                   <input
@@ -274,34 +336,55 @@ export function SettingsModal({
                     value={data.email}
                     disabled
                     className={inputCls}
-                    style={{ background: c.card2, borderColor: c.inputBorder, color: c.ink3, cursor: "not-allowed" }}
+                    style={{
+                      background: c.card2,
+                      borderColor: c.inputBorder,
+                      color: c.ink3,
+                      cursor: "not-allowed",
+                    }}
                   />
-                  <p className="mt-1 text-xs" style={{ color: c.ink3 }}>O e-mail não pode ser alterado.</p>
+                  <p className="mt-1 text-xs" style={{ color: c.ink3 }}>
+                    O e-mail não pode ser alterado.
+                  </p>
                 </div>
 
-                {/* Company */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider" style={{ color: c.ink3 }}>
+                  <label
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider"
+                    style={{ color: c.ink3 }}
+                  >
                     Empresa
                   </label>
                   <input
                     type="text"
                     value={company}
-                    onChange={(e) => setCompany(e.target.value)}
+                    onChange={(event) => setCompany(event.target.value)}
                     className={inputCls}
                     placeholder="Nome da sua empresa"
-                    style={{ background: c.inputBg, borderColor: c.inputBorder, color: c.ink }}
+                    style={{
+                      background: c.inputBg,
+                      borderColor: c.inputBorder,
+                      color: c.ink,
+                    }}
                   />
                 </div>
 
                 <button
                   type="button"
-                  onClick={handleSaveProfile}
+                  onClick={() => void handleSaveProfile()}
                   disabled={saving}
                   className="mt-2 w-full rounded-xl py-3 text-sm font-bold text-white transition-colors disabled:opacity-60"
                   style={{ background: "#6851FF" }}
-                  onMouseEnter={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.background = "#5740EE"; }}
-                  onMouseLeave={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.background = "#6851FF"; }}
+                  onMouseEnter={(event) => {
+                    if (!saving) {
+                      event.currentTarget.style.background = "#5740EE";
+                    }
+                  }}
+                  onMouseLeave={(event) => {
+                    if (!saving) {
+                      event.currentTarget.style.background = "#6851FF";
+                    }
+                  }}
                 >
                   {saving ? "Salvando..." : "Salvar alterações"}
                 </button>
@@ -321,26 +404,39 @@ export function SettingsModal({
                       {pref.icon}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium" style={{ color: c.ink }}>{pref.label}</p>
-                      <p className="text-xs" style={{ color: c.ink3 }}>{pref.description}</p>
+                      <p className="text-sm font-medium" style={{ color: c.ink }}>
+                        {pref.label}
+                      </p>
+                      <p className="text-xs" style={{ color: c.ink3 }}>
+                        {pref.description}
+                      </p>
                     </div>
-                    {/* Toggle */}
                     <button
                       type="button"
                       onClick={() => {
-                        setPrefs((ps) => ps.map((p) => {
-                          if (p.id !== pref.id) return p;
-                          const next = !p.enabled;
-                          if (p.id === "darkMode") setTheme(next ? "dark" : "light");
-                          return { ...p, enabled: next };
-                        }));
+                        setPrefs((previous) =>
+                          previous.map((item) => {
+                            if (item.id !== pref.id) {
+                              return item;
+                            }
+
+                            const nextEnabled = !item.enabled;
+                            if (item.id === "darkMode") {
+                              setTheme(nextEnabled ? "dark" : "light");
+                            }
+
+                            return { ...item, enabled: nextEnabled };
+                          })
+                        );
                       }}
                       className="relative h-5 w-9 shrink-0 rounded-full transition-colors"
                       style={{ background: pref.enabled ? "#6851FF" : c.border }}
                     >
                       <span
                         className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
-                        style={{ left: pref.enabled ? "calc(100% - 18px)" : "2px" }}
+                        style={{
+                          left: pref.enabled ? "calc(100% - 18px)" : "2px",
+                        }}
                       />
                     </button>
                   </div>
@@ -348,54 +444,83 @@ export function SettingsModal({
               </div>
             ) : (
               <>
-                {/* Plan info */}
                 <div
                   className="rounded-xl p-5"
-                  style={{ background: "rgba(104,81,255,0.08)", border: "1px solid rgba(104,81,255,0.2)" }}
+                  style={{
+                    background: "rgba(104,81,255,0.08)",
+                    border: "1px solid rgba(104,81,255,0.2)",
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#6851FF" }}>
+                      <p
+                        className="text-xs font-bold uppercase tracking-wider"
+                        style={{ color: "#6851FF" }}
+                      >
                         Plano atual
                       </p>
-                      <p className="mt-1 text-2xl font-bold" style={{ color: c.ink }}>{planLabel}</p>
+                      <p className="mt-1 text-2xl font-bold" style={{ color: c.ink }}>
+                        {planLabel}
+                      </p>
                     </div>
                     <div
                       className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
                       style={{ background: "rgba(104,81,255,0.15)" }}
                     >
-                      {data.plan === "pro" ? "⚡" : data.plan === "team" ? "👥" : "✨"}
+                      {data.plan === "pro"
+                        ? "⚡"
+                        : data.plan === "team"
+                        ? "👥"
+                        : "✨"}
                     </div>
                   </div>
                 </div>
 
-                {/* Usage */}
                 <div className="rounded-xl p-5" style={{ background: c.card2 }}>
                   <div className="flex items-center justify-between text-sm">
                     <span style={{ color: c.ink2 }}>Reuniões este mês</span>
-                    <span className="font-bold" style={{ color: c.ink }}>{data.meetingsUsed} / {data.monthlyLimit}</span>
+                    <span className="font-bold" style={{ color: c.ink }}>
+                      {hasLimit
+                        ? `${data.meetingsUsed} / ${monthlyLimit}`
+                        : "Ilimitado"}
+                    </span>
                   </div>
                   <div
                     className="mt-3 overflow-hidden rounded-full"
                     style={{ height: 6, background: c.border }}
                   >
                     <div
-                      style={{ width: `${pct}%`, height: "100%", background: "#6851FF", borderRadius: 999, transition: "width 0.6s" }}
+                      style={{
+                        width: `${pct}%`,
+                        height: "100%",
+                        background: "#6851FF",
+                        borderRadius: 999,
+                        transition: "width 0.6s",
+                      }}
                     />
                   </div>
                   <p className="mt-2 text-right text-xs" style={{ color: c.ink3 }}>
-                    {data.monthlyLimit - data.meetingsUsed} reuniões restantes
+                    {hasLimit
+                      ? `${Math.max(0, monthlyLimit - data.meetingsUsed)} reuniões restantes`
+                      : "Reuniões ilimitadas no plano atual"}
                   </p>
                 </div>
 
                 {data.plan === "free" && (
                   <button
                     type="button"
-                    onClick={() => { onClose(); onUpgradeClick(); }}
+                    onClick={() => {
+                      onClose();
+                      onUpgradeClick();
+                    }}
                     className="w-full rounded-xl py-3 text-sm font-bold text-white transition-colors"
                     style={{ background: "#6851FF" }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#5740EE")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#6851FF")}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.background = "#5740EE";
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.background = "#6851FF";
+                    }}
                   >
                     ⚡ Fazer upgrade para Pro
                   </button>

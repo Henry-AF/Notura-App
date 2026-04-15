@@ -174,10 +174,27 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     } catch (e) {
       console.error("[meetings/process] inngest send error:", e);
-      // Meeting is already created — return success so the client can poll status
+      const { error: markFailedError } = await supabase
+        .from("meetings")
+        .update({
+          status: "failed" as MeetingStatus,
+          error_message: "Falha ao enfileirar processamento da reunião.",
+        })
+        .eq("id", meeting.id);
+
+      if (markFailedError) {
+        console.error(
+          "[meetings/process] failed to mark meeting as failed after queue error:",
+          markFailedError
+        );
+      }
+
       return NextResponse.json(
-        { meetingId: meeting.id, status: "pending" as MeetingStatus, warning: "Fila de processamento indisponível." },
-        { status: 201 }
+        {
+          error:
+            "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
+        },
+        { status: 503 }
       );
     }
 

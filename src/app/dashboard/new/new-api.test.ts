@@ -93,4 +93,30 @@ describe("new meeting api client", () => {
     });
     expect(meetingId).toBe("meeting-1");
   });
+
+  it("surfaces a retryable processing error when queueing fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error:
+            "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
+        }),
+        { status: 503 }
+      )
+    );
+
+    const mod = await import("./new-api");
+
+    await expect(
+      mod.processUploadedMeeting({
+        clientName: "Acme",
+        meetingDate: "2026-04-14",
+        whatsappNumber: "5511999999999",
+        r2Key: "meetings/user-1/123/audio.mp3",
+        uploadToken: "signed-upload-token",
+      })
+    ).rejects.toThrow(
+      "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente."
+    );
+  });
 });

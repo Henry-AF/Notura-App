@@ -100,7 +100,10 @@ export async function processUploadedMeeting(
 
   if (!response.ok) {
     throw new Error(
-      normalizeError(body.error, "Erro ao processar reunião. Tente novamente.")
+      normalizeError(
+        body.error,
+        "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente."
+      )
     );
   }
 

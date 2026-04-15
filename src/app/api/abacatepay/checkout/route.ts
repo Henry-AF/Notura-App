@@ -4,7 +4,7 @@ import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   createAbacatePaySubscriptionCheckout,
-  getAbacatePayPendingExternalId,
+  getAbacatePayCheckoutExternalId,
   getAbacatePayProductId,
   isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
@@ -81,7 +81,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const subscription = await createAbacatePaySubscriptionCheckout({
       productId: getAbacatePayProductId(plan),
       customerId: ensuredCustomer.customerId,
-      externalId: getAbacatePayPendingExternalId(auth.user.id, plan),
+      externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
       returnUrl: returnUrl.toString(),
       completionUrl: completionUrl.toString(),
       metadata: {

@@ -2,14 +2,23 @@ import { NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import {
-  getAbacatePayPendingExternalId,
   getAbacatePaySubscriptionById,
   isAbacatePaySubscriptionPaid,
   isAbacatePayTimeoutError,
+  parseAbacatePayOnboardingExternalId,
 } from "@/lib/abacatepay";
 import { getOrCreateBillingAccount } from "@/lib/billing";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
+
+function readSubscriptionUserId(metadata: Record<string, unknown> | undefined): string | null {
+  if (!metadata) return null;
+
+  if (typeof metadata.userId === "string") return metadata.userId;
+  if (typeof metadata.user_id === "string") return metadata.user_id;
+
+  return null;
+}
 
 export const POST = withAuthRateLimit(
   RATE_LIMIT_POLICIES.abacatepayCheckoutVerify,
@@ -59,20 +68,30 @@ export const POST = withAuthRateLimit(
       );
     }
 
-    const expectedExternalId = getAbacatePayPendingExternalId(auth.user.id, pendingPlan);
-    if (subscription.externalId !== expectedExternalId) {
+    const externalId =
+      typeof subscription.externalId === "string"
+        ? subscription.externalId
+        : null;
+
+    const parsedExternalId = externalId
+      ? parseAbacatePayOnboardingExternalId(externalId)
+      : null;
+
+    if (
+      externalId &&
+      (!parsedExternalId ||
+        parsedExternalId.userId !== auth.user.id ||
+        parsedExternalId.plan !== pendingPlan)
+    ) {
       return NextResponse.json(
         { error: "Checkout nao pertence ao usuario autenticado." },
         { status: 403 }
       );
     }
 
-    const subscriptionUserId =
-      typeof subscription.metadata?.userId === "string"
-        ? subscription.metadata.userId
-        : null;
+    const subscriptionUserId = readSubscriptionUserId(subscription.metadata);
 
-    if (subscriptionUserId !== auth.user.id) {
+    if (subscriptionUserId && subscriptionUserId !== auth.user.id) {
       return NextResponse.json(
         { error: "Metadados do pagamento nao pertencem ao usuario autenticado." },
         { status: 403 }

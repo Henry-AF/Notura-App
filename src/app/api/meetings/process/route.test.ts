@@ -7,6 +7,8 @@ const inngestSend = vi.fn();
 const getBillingStatus = vi.fn();
 const syncMeetingsThisMonth = vi.fn();
 const meetingsInsert = vi.fn();
+const meetingsUpdate = vi.fn();
+const meetingsUpdateEq = vi.fn();
 const verifyUploadToken = vi.fn();
 const doesObjectExist = vi.fn();
 const getObjectMetadata = vi.fn();
@@ -54,9 +56,11 @@ function createMeetingInsertClient() {
   });
   const select = vi.fn().mockReturnValue({ single });
   meetingsInsert.mockImplementation(() => ({ select }));
+  meetingsUpdateEq.mockResolvedValue({ error: null });
+  meetingsUpdate.mockReturnValue({ eq: meetingsUpdateEq });
 
   return {
-    from: vi.fn().mockReturnValue({ insert: meetingsInsert }),
+    from: vi.fn().mockReturnValue({ insert: meetingsInsert, update: meetingsUpdate }),
   };
 }
 
@@ -186,7 +190,7 @@ describe("POST /api/meetings/process", () => {
     expect(syncMeetingsThisMonth).toHaveBeenCalledWith("user-1", 4);
   });
 
-  it("does not sync billing usage when the processing job could not be enqueued", async () => {
+  it("returns queue error and marks meeting as failed when enqueueing fails", async () => {
     inngestSend.mockRejectedValue(new Error("queue unavailable"));
 
     const mod = await import("./route");
@@ -205,13 +209,19 @@ describe("POST /api/meetings/process", () => {
       { params: {} } as never
     );
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
-      meetingId: "meeting-1",
-      status: "pending",
-      warning: "Fila de processamento indisponível.",
+      error:
+        "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
     });
     expect(syncMeetingsThisMonth).not.toHaveBeenCalled();
+    expect(meetingsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error_message: "Falha ao enfileirar processamento da reunião.",
+      })
+    );
+    expect(meetingsUpdateEq).toHaveBeenCalledWith("id", "meeting-1");
   });
 
   it("rejects invalid upload tokens", async () => {

@@ -12,8 +12,20 @@ import type { MeetingJSON } from "@/types/database";
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const MODEL_NAME = "gemini-3.1-flash-lite-preview";
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
+const LOCAL_MAX_ATTEMPTS = 2;
+const LOCAL_RETRY_BASE_DELAY_MS = 750;
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 410, 413, 422]);
+const RETRYABLE_MESSAGE_PATTERNS = [
+  /timeout/i,
+  /timed out/i,
+  /socket hang up/i,
+  /econnreset/i,
+  /eai_again/i,
+  /network/i,
+  /temporarily unavailable/i,
+  /rate limit/i,
+];
 const SUMMARY_SCHEMA_VERSION = "1.0";
 export const PROMPT_VERSION = "1.1.0";
 
@@ -168,17 +180,94 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
+function readStatusCandidate(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) {
+      return Math.trunc(parsed);
+    }
+  }
+
+  return null;
+}
+
+function extractStatusCodeFromMessage(message: string): number | null {
+  const bracketMatch = message.match(/\[(\d{3})\s+[^\]]+\]/);
+  if (bracketMatch) {
+    return Number(bracketMatch[1]);
+  }
+
+  const genericMatch = message.match(/\b([45]\d{2})\b/);
+  if (genericMatch) {
+    return Number(genericMatch[1]);
+  }
+
+  return null;
+}
+
+function extractStatusCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+
+  const record = error as Record<string, unknown>;
+  const direct = readStatusCandidate(record.status) ?? readStatusCandidate(record.statusCode);
+  if (direct !== null) return direct;
+
+  const response = record.response;
+  if (!response || typeof response !== "object") return null;
+
+  const responseRecord = response as Record<string, unknown>;
+  return readStatusCandidate(responseRecord.status) ?? readStatusCandidate(responseRecord.statusCode);
+}
+
+function shouldRetryGeminiError(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  const statusCode = extractStatusCode(error) ?? extractStatusCodeFromMessage(message);
+
+  if (statusCode !== null) {
+    if (NON_RETRYABLE_STATUS_CODES.has(statusCode)) return false;
+    if (RETRYABLE_STATUS_CODES.has(statusCode)) return true;
+    return statusCode >= 500;
+  }
+
+  return RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= LOCAL_MAX_ATTEMPTS; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (attempt < MAX_RETRIES) {
-        console.warn(`[gemini] Attempt ${attempt} failed — retrying in ${RETRY_DELAY_MS}ms...`);
-        await sleep(RETRY_DELAY_MS);
+      if (!shouldRetryGeminiError(err) || attempt >= LOCAL_MAX_ATTEMPTS) {
+        throw err;
       }
+
+      const delayMs = LOCAL_RETRY_BASE_DELAY_MS * attempt;
+      console.warn(
+        `[gemini] Attempt ${attempt} failed with retryable error — retrying in ${delayMs}ms...`
+      );
+      await sleep(delayMs);
     }
   }
   throw lastError;

@@ -7,6 +7,11 @@ const inngestSend = vi.fn();
 const getBillingStatus = vi.fn();
 const syncMeetingsThisMonth = vi.fn();
 const meetingsInsert = vi.fn();
+const meetingsSelect = vi.fn();
+const meetingsSelectEq = vi.fn();
+const meetingsSelectIn = vi.fn();
+const meetingsSelectOrder = vi.fn();
+const meetingsSelectMaybeSingle = vi.fn();
 const meetingsUpdate = vi.fn();
 const meetingsUpdateEq = vi.fn();
 const verifyUploadToken = vi.fn();
@@ -54,13 +59,32 @@ function createMeetingInsertClient() {
     data: { id: "meeting-1" },
     error: null,
   });
-  const select = vi.fn().mockReturnValue({ single });
-  meetingsInsert.mockImplementation(() => ({ select }));
+  const insertSelect = vi.fn().mockReturnValue({ single });
+  meetingsInsert.mockImplementation(() => ({ select: insertSelect }));
+  meetingsSelectMaybeSingle.mockResolvedValue({ data: null, error: null });
+  meetingsSelectOrder.mockReturnValue({ maybeSingle: meetingsSelectMaybeSingle });
+  meetingsSelectIn.mockReturnValue({ order: meetingsSelectOrder });
+  meetingsSelectEq.mockReturnValue({
+    eq: meetingsSelectEq,
+    in: meetingsSelectIn,
+    order: meetingsSelectOrder,
+    maybeSingle: meetingsSelectMaybeSingle,
+  });
+  meetingsSelect.mockReturnValue({
+    eq: meetingsSelectEq,
+    in: meetingsSelectIn,
+    order: meetingsSelectOrder,
+    maybeSingle: meetingsSelectMaybeSingle,
+  });
   meetingsUpdateEq.mockResolvedValue({ error: null });
   meetingsUpdate.mockReturnValue({ eq: meetingsUpdateEq });
 
   return {
-    from: vi.fn().mockReturnValue({ insert: meetingsInsert, update: meetingsUpdate }),
+    from: vi.fn().mockReturnValue({
+      select: meetingsSelect,
+      insert: meetingsInsert,
+      update: meetingsUpdate,
+    }),
   };
 }
 
@@ -121,6 +145,38 @@ describe("POST /api/meetings/process", () => {
         nowIso: expect.any(String),
       })
     );
+  });
+
+  it("returns the existing meeting and skips queue when the upload was already registered", async () => {
+    meetingsSelectMaybeSingle.mockResolvedValue({
+      data: { id: "meeting-existing", status: "pending" },
+      error: null,
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      meetingId: "meeting-existing",
+      status: "pending",
+    });
+    expect(meetingsInsert).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
+    expect(syncMeetingsThisMonth).not.toHaveBeenCalled();
   });
 
   it("blocks meeting creation when the monthly limit is reached", async () => {

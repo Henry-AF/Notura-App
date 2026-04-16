@@ -74,4 +74,48 @@ describe("recording page api client", () => {
     });
     expect(meetingId).toBe("meeting-1");
   });
+
+  it("deduplicates concurrent recording submissions", async () => {
+    initMeetingUpload.mockResolvedValue({
+      r2Key: "meetings/user-1/123/recording.mp4",
+      uploadUrl: "https://r2.example/upload",
+      uploadToken: "signed-upload-token",
+    });
+
+    let resolveUpload: (() => void) | null = null;
+    uploadFileToSignedUrl.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUpload = resolve;
+        })
+    );
+    processUploadedMeeting.mockResolvedValue("meeting-1");
+
+    const mod = await import("./recording-api");
+    const payload = {
+      clientName: "Acme",
+      whatsappNumber: "5511999999999",
+      recording: new Blob(["recording"], { type: "video/mp4" }),
+      recordedAt: new Date(2026, 3, 16, 14, 30, 0),
+    };
+
+    const firstSubmission = mod.submitRecordedMeeting(payload);
+    const secondSubmission = mod.submitRecordedMeeting(payload);
+
+    expect(initMeetingUpload).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(uploadFileToSignedUrl).toHaveBeenCalledTimes(1);
+    });
+
+    resolveUpload?.();
+
+    const [firstMeetingId, secondMeetingId] = await Promise.all([
+      firstSubmission,
+      secondSubmission,
+    ]);
+
+    expect(firstMeetingId).toBe("meeting-1");
+    expect(secondMeetingId).toBe("meeting-1");
+    expect(processUploadedMeeting).toHaveBeenCalledTimes(1);
+  });
 });

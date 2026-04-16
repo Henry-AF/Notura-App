@@ -17,6 +17,8 @@ export interface SubmitRecordedMeetingInput {
   onUploadProgress?: (pct: number) => void;
 }
 
+let inFlightSubmission: Promise<string> | null = null;
+
 function formatDateToYmd(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -51,29 +53,41 @@ export async function fetchRecordingDefaults(): Promise<RecordingDefaults> {
 export async function submitRecordedMeeting(
   input: SubmitRecordedMeetingInput
 ): Promise<string> {
-  const recordedAt = input.recordedAt ?? new Date();
-  const { file, fileName, contentType } = getRecordedFileMetadata(
-    input.recording,
-    recordedAt
-  );
-  const { r2Key, uploadUrl, uploadToken } = await initMeetingUpload({
-    fileName,
-    contentType,
-    fileSize: file.size,
-  });
+  if (inFlightSubmission) {
+    return await inFlightSubmission;
+  }
 
-  await uploadFileToSignedUrl(
-    uploadUrl,
-    file,
-    contentType,
-    input.onUploadProgress
-  );
+  inFlightSubmission = (async () => {
+    const recordedAt = input.recordedAt ?? new Date();
+    const { file, fileName, contentType } = getRecordedFileMetadata(
+      input.recording,
+      recordedAt
+    );
+    const { r2Key, uploadUrl, uploadToken } = await initMeetingUpload({
+      fileName,
+      contentType,
+      fileSize: file.size,
+    });
 
-  return await processUploadedMeeting({
-    clientName: input.clientName,
-    meetingDate: formatDateToYmd(recordedAt),
-    whatsappNumber: input.whatsappNumber,
-    r2Key,
-    uploadToken,
-  });
+    await uploadFileToSignedUrl(
+      uploadUrl,
+      file,
+      contentType,
+      input.onUploadProgress
+    );
+
+    return await processUploadedMeeting({
+      clientName: input.clientName,
+      meetingDate: formatDateToYmd(recordedAt),
+      whatsappNumber: input.whatsappNumber,
+      r2Key,
+      uploadToken,
+    });
+  })();
+
+  try {
+    return await inFlightSubmission;
+  } finally {
+    inFlightSubmission = null;
+  }
 }

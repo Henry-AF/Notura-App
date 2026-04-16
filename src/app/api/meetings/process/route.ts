@@ -73,6 +73,35 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       return NextResponse.json({ error: "Upload não autorizado para este arquivo." }, { status: 403 });
     }
 
+    const supabase = createServiceRoleClient();
+
+    const { data: existingMeeting, error: existingMeetingError } = await supabase
+      .from("meetings")
+      .select("id, status")
+      .eq("user_id", auth.user.id)
+      .eq("audio_r2_key", uploadToken.r2Key)
+      .in("status", ["pending", "processing", "completed"])
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    if (existingMeetingError) {
+      console.error("[meetings/process] existing meeting lookup error:", existingMeetingError);
+      return NextResponse.json(
+        { error: "Erro ao verificar reunião existente." },
+        { status: 500 }
+      );
+    }
+
+    if (existingMeeting) {
+      return NextResponse.json(
+        {
+          meetingId: existingMeeting.id,
+          status: existingMeeting.status as MeetingStatus,
+        },
+        { status: 200 }
+      );
+    }
+
     const { billingAccount, meetingsThisMonth, monthlyLimit } =
       await getBillingStatus(auth.user.id);
 
@@ -128,8 +157,6 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
         { status: 409 }
       );
     }
-
-    const supabase = createServiceRoleClient();
 
     // ── Insert meeting record ────────────────────────────────────────────────
     const { data: meeting, error: insertError } = await supabase

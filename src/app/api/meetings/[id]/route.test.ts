@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
+const deleteOwnedMeetingForAuth = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
   createServiceRoleClient,
+}));
+
+vi.mock("@/lib/meetings/delete", () => ({
+  deleteOwnedMeetingForAuth,
 }));
 
 function createServerClient(user: { id: string } | null) {
@@ -77,5 +82,73 @@ describe("PATCH /api/meetings/[id]", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "Acesso negado." });
+  });
+});
+
+describe("DELETE /api/meetings/[id]", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns success when the meeting deletion succeeds", async () => {
+    createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
+    createServiceRoleClient.mockReturnValue({});
+    deleteOwnedMeetingForAuth.mockResolvedValue({
+      success: true,
+      alreadyDeleted: false,
+    });
+
+    const mod = await import("./route");
+    const response = await mod.DELETE(
+      new Request("http://localhost", { method: "DELETE" }) as NextRequest,
+      { params: { id: "meeting-1" } }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+    expect(deleteOwnedMeetingForAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ id: "user-1" }),
+      }),
+      "meeting-1"
+    );
+  });
+
+  it("returns success when the meeting was already deleted", async () => {
+    createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
+    createServiceRoleClient.mockReturnValue({});
+    deleteOwnedMeetingForAuth.mockResolvedValue({
+      success: true,
+      alreadyDeleted: true,
+    });
+
+    const mod = await import("./route");
+    const response = await mod.DELETE(
+      new Request("http://localhost", { method: "DELETE" }) as NextRequest,
+      { params: { id: "meeting-1" } }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+  });
+
+  it("returns 500 when the deletion helper fails unexpectedly", async () => {
+    createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
+    createServiceRoleClient.mockReturnValue({});
+    deleteOwnedMeetingForAuth.mockRejectedValue(
+      new Error("Falha ao excluir reunião.")
+    );
+
+    const mod = await import("./route");
+    const response = await mod.DELETE(
+      new Request("http://localhost", { method: "DELETE" }) as NextRequest,
+      { params: { id: "meeting-1" } }
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Erro interno do servidor.",
+    });
   });
 });

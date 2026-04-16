@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, Share2, Pencil } from "lucide-react";
+import { Calendar, Share2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -57,6 +57,7 @@ export interface MeetingHeaderProps {
   participants: Array<{ name: string; avatarUrl?: string }>;
   onShare: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 }
 
 export function MeetingHeader({
@@ -67,6 +68,7 @@ export function MeetingHeader({
   participants,
   onShare,
   onEdit,
+  onDelete,
 }: MeetingHeaderProps) {
   return (
     <PageHeader
@@ -84,14 +86,36 @@ export function MeetingHeader({
       }
       descriptionClassName="max-w-none"
       actions={
-        <div className="flex shrink-0 items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onShare}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onShare}
+            className="w-full sm:w-auto"
+          >
             <Share2 className="h-4 w-4" />
             Compartilhar
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onEdit}
+            className="w-full sm:w-auto"
+          >
             <Pencil className="h-4 w-4" />
             Editar
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={onDelete}
+            className="w-full sm:w-auto"
+          >
+            <Trash2 className="h-4 w-4" />
+            Excluir
           </Button>
         </div>
       }

@@ -9,6 +9,7 @@ import {
   MeetingEditValidationError,
   updateOwnedMeetingForAuth,
 } from "@/lib/meetings/edit";
+import { deleteOwnedMeetingForAuth } from "@/lib/meetings/delete";
 
 export const GET = withAuth<{ id: string }, NextRequest>(async (
   _request: NextRequest,
@@ -68,6 +69,26 @@ export const PATCH = withAuth<{ id: string }, NextRequest>(async (
     }
 
     console.error("[meetings/[id]] Unexpected patch error:", error);
+    return NextResponse.json(
+      { error: "Erro interno do servidor." },
+      { status: 500 }
+    );
+  }
+});
+
+export const DELETE = withAuth<{ id: string }, NextRequest>(async (
+  _request: NextRequest,
+  { params, auth }
+) => {
+  try {
+    await deleteOwnedMeetingForAuth(auth, params.id);
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    if (error instanceof Response) {
+      return error;
+    }
+
+    console.error("[meetings/[id]] Unexpected delete error:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor." },
       { status: 500 }

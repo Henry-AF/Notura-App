@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  MeetingDeleteDialog,
   MeetingHeader,
   MeetingTabs,
   SmartSummaryCard,
@@ -23,6 +24,7 @@ import {
   deleteTaskById,
   updateTaskById,
 } from "@/app/dashboard/tasks/tasks-api";
+import { deleteMeetingById } from "./meeting-client-api";
 import type { MeetingDetailData } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
@@ -145,6 +147,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   >(() => buildInitialTaskColumnMap(meeting.tasks));
 
   const [activeTab, setActiveTab] = useState<MeetingTab>("summary");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
   const taskColumns = useMemo(
     () => buildMeetingTaskColumns(tasks, taskColumnById),
     [taskColumnById, tasks]
@@ -296,6 +300,29 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       show("Erro ao exportar. Tente novamente.", "error");
     }
   }, [id, show]);
+
+  const handleCopySummaryForDelete = useCallback(() => {
+    show("Resumo inteligente copiado para a area de transferencia.", "success");
+  }, [show]);
+
+  const handleDeleteMeeting = useCallback(async () => {
+    setIsDeletingMeeting(true);
+
+    try {
+      await deleteMeetingById(id);
+      show("Reuniao excluida com sucesso.", "success");
+      router.replace("/dashboard/meetings");
+      router.refresh();
+    } catch (error) {
+      show(
+        error instanceof Error ? error.message : "Erro ao excluir reuniao.",
+        "error"
+      );
+    } finally {
+      setIsDeletingMeeting(false);
+      setIsDeleteDialogOpen(false);
+    }
+  }, [id, router, show]);
 
   // ─── Main content per active tab ──────────────────────────────────────────
   function renderMainContent() {
@@ -572,6 +599,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           participants={participants}
           onShare={handleShare}
           onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
+          onDelete={() => setIsDeleteDialogOpen(true)}
         />
       </div>
 
@@ -604,6 +632,16 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           }}
         />
       )}
+
+      <MeetingDeleteDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        meetingName={clientName}
+        summary={summary}
+        isDeleting={isDeletingMeeting}
+        onCopySummary={handleCopySummaryForDelete}
+        onConfirmDelete={handleDeleteMeeting}
+      />
 
       {/* AI Insight Toast (fixed bottom-left in sidebar area) */}
       <AIInsightToast userInitials="HT" message={insightMessage} />

@@ -1,7 +1,8 @@
 export {
+  fetchMeetingIntakeDefaults,
   initMeetingUpload,
   processUploadedMeeting,
-} from "@/app/dashboard/new/new-api";
+} from "@/lib/meetings/meeting-intake-client";
 
 export function uploadFileToSignedUrl(
   uploadUrl: string,

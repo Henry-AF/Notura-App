@@ -11,7 +11,7 @@ import type { MeetingJSON } from "@/types/database";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-3.1-flash-lite";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 const SUMMARY_SCHEMA_VERSION = "1.0";

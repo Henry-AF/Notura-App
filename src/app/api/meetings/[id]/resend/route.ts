@@ -4,8 +4,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import type { WhatsAppStatus } from "@/types/database";
+import { sendMeetingSummaryTemplate } from "@/lib/whatsapp";
+import type { MeetingJSON, WhatsAppStatus } from "@/types/database";
 
 const MAX_RESENDS = 3;
 
@@ -20,7 +20,7 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
   try {
     const { data: meeting, error: meetingError } = await supabase
       .from("meetings")
-      .select("id, user_id, summary_whatsapp, whatsapp_number, whatsapp_status, summary_json")
+      .select("id, user_id, title, summary_whatsapp, whatsapp_number, whatsapp_status, summary_json")
       .eq("id", meetingId)
       .single();
 
@@ -60,10 +60,12 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
       );
     }
 
-    // ── Send WhatsApp message ────────────────────────────────────────────
-    const result = await sendWhatsAppMessage(
+    // ── Send WhatsApp template ───────────────────────────────────────────
+    const result = await sendMeetingSummaryTemplate(
       meeting.whatsapp_number,
-      meeting.summary_whatsapp
+      meeting.summary_json as Partial<MeetingJSON> | null,
+      meetingId,
+      meeting.title
     );
 
     // ── Update meeting record ────────────────────────────────────────────
@@ -78,11 +80,18 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
       .from("meetings")
       .update({
         whatsapp_status: newStatus,
+        error_message: result.success
+          ? null
+          : `WhatsApp template resend failed: ${result.error ?? "unknown error"}`,
         summary_json: updatedMetadata,
       })
       .eq("id", meetingId);
 
     if (!result.success) {
+      console.error(
+        `[meetings/resend] WhatsApp template resend failed for meeting ${meetingId}: ${result.error}`
+      );
+
       return NextResponse.json(
         {
           error: `Falha ao enviar WhatsApp: ${result.error ?? "erro desconhecido"}. Tente novamente em alguns minutos.`,

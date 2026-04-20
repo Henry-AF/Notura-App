@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { inngest } from "@/lib/inngest";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
-import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
+import { sendMeetingSummaryTemplate, alertOperator } from "@/lib/whatsapp";
 import {
   PROCESS_MEETING_CONCURRENCY,
   PROCESS_MEETING_RETRY_ATTEMPTS,
@@ -443,12 +443,22 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
       await step.run("send-whatsapp", async () => {
-        const result = await sendWhatsAppMessage(whatsappNumber, summaryWhatsapp);
+        const result = await sendMeetingSummaryTemplate(
+          whatsappNumber,
+          summaryJson,
+          meetingId,
+          summaryJson.meeting?.title
+        );
 
         const newStatus = result.success ? "sent" : "failed";
         await supabase
           .from("meetings")
-          .update({ whatsapp_status: newStatus })
+          .update({
+            whatsapp_status: newStatus,
+            error_message: result.success
+              ? null
+              : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+          })
           .eq("id", meetingId);
 
         if (!result.success) {

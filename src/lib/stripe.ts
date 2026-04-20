@@ -1,6 +1,8 @@
 import Stripe from "stripe";
 import type { Plan } from "@/types/database";
 
+export { getAppBaseUrl } from "@/lib/app-url";
+
 const STRIPE_PRICE_IDS: Partial<Record<Plan, string>> = {
   pro: process.env.STRIPE_PRO_PRICE_ID,
   team: process.env.STRIPE_TEAM_PRICE_ID,
@@ -26,10 +28,6 @@ export function getStripePriceId(plan: Plan): string {
   }
 
   return priceId;
-}
-
-export function getAppBaseUrl(fallbackOrigin?: string): string {
-  return process.env.NEXT_PUBLIC_APP_URL || fallbackOrigin || "http://localhost:3000";
 }
 
 export function isPaidCheckoutSession(session: Stripe.Checkout.Session): boolean {

@@ -49,12 +49,29 @@ function forbiddenResponse() {
   return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
 }
 
-export async function requireAuth(): Promise<RouteAuthContext> {
+function readBearerAccessToken(request: Request): string | null {
+  const authorization = request.headers.get("authorization");
+  if (!authorization) return null;
+
+  const parts = authorization.trim().split(/\s+/);
+  const [scheme, token] = parts;
+
+  if (parts.length !== 2 || scheme.toLowerCase() !== "bearer" || !token) {
+    throw unauthorizedResponse();
+  }
+
+  return token;
+}
+
+export async function requireAuth(request?: Request): Promise<RouteAuthContext> {
   const supabase = createServerSupabase();
+  const bearerAccessToken = request ? readBearerAccessToken(request) : null;
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser();
+  } = bearerAccessToken
+    ? await supabase.auth.getUser(bearerAccessToken)
+    : await supabase.auth.getUser();
 
   if (error || !user) {
     throw unauthorizedResponse();
@@ -103,7 +120,7 @@ export function withAuth<
     let userId: string | undefined;
 
     try {
-      const auth = await requireAuth();
+      const auth = await requireAuth(request);
       userId = auth.user.id;
       const response = await handler(request, { ...context, auth });
       withRequestIdHeader(response, requestId);

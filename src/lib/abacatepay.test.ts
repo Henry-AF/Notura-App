@@ -15,7 +15,7 @@ describe("abacatepay payment status", () => {
     ).toBe(true);
   });
 
-  it("treats ACTIVE subscription as paid for onboarding verification", () => {
+  it("treats ACTIVE subscription status as paid", () => {
     expect(
       isAbacatePaySubscriptionPaid({
         id: "sub-1",

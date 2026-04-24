@@ -127,6 +127,32 @@ describe("POST /api/abacatepay/checkout/verify", () => {
     });
   });
 
+  it("does not update the plan when the pending checkout is not paid", async () => {
+    isAbacatePaySubscriptionPaid.mockReturnValue(false);
+    getAbacatePaySubscriptionById.mockResolvedValue({
+      id: "checkout-1",
+      status: "PENDING",
+      customerId: "customer-1",
+      externalId: "onboarding:user-1:pro",
+      metadata: { userId: "user-1" },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/abacatepay/checkout/verify", {
+        method: "POST",
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "Pagamento ainda nao foi confirmado pelo AbacatePay.",
+    });
+    expect(adminClient.update).not.toHaveBeenCalled();
+  });
+
   it("rejects checkout ownership when externalId belongs to another user", async () => {
     getAbacatePaySubscriptionById.mockResolvedValue({
       id: "checkout-1",

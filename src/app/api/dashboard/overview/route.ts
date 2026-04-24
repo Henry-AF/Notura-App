@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/auth";
 import {
   DashboardOverviewLoadError,
-  getDashboardOverview,
+  getDashboardOverviewForIdentity,
 } from "@/lib/dashboard/overview";
 
-export const GET = withAuth(async () => {
+export const GET = withAuth(async (_request, { auth }) => {
   try {
-    const overview = await getDashboardOverview();
+    const overview = await getDashboardOverviewForIdentity({
+      id: auth.user.id,
+      email: auth.user.email ?? null,
+    });
     return NextResponse.json(overview);
   } catch (error) {
     if (error instanceof DashboardOverviewLoadError) {

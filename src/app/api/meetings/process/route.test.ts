@@ -5,7 +5,7 @@ const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
 const getBillingStatus = vi.fn();
-const syncMeetingsThisMonth = vi.fn();
+const incrementMeetingsThisMonth = vi.fn();
 const meetingsInsert = vi.fn();
 const meetingsSelect = vi.fn();
 const meetingsSelectEq = vi.fn();
@@ -31,7 +31,7 @@ vi.mock("@/lib/inngest", () => ({
 
 vi.mock("@/lib/billing", () => ({
   getBillingStatus,
-  syncMeetingsThisMonth,
+  incrementMeetingsThisMonth,
 }));
 
 vi.mock("@/lib/meetings/upload-token", () => ({
@@ -101,7 +101,7 @@ describe("POST /api/meetings/process", () => {
       meetingsThisMonth: 3,
       monthlyLimit: 30,
     });
-    syncMeetingsThisMonth.mockResolvedValue(undefined);
+    incrementMeetingsThisMonth.mockResolvedValue(4);
     verifyUploadToken.mockReturnValue({
       userId: "user-1",
       r2Key: "meetings/user-1/audio.mp3",
@@ -176,7 +176,7 @@ describe("POST /api/meetings/process", () => {
     });
     expect(meetingsInsert).not.toHaveBeenCalled();
     expect(inngestSend).not.toHaveBeenCalled();
-    expect(syncMeetingsThisMonth).not.toHaveBeenCalled();
+    expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
   });
 
   it("blocks meeting creation when the monthly limit is reached", async () => {
@@ -243,7 +243,7 @@ describe("POST /api/meetings/process", () => {
         }),
       })
     );
-    expect(syncMeetingsThisMonth).toHaveBeenCalledWith("user-1", 4);
+    expect(incrementMeetingsThisMonth).toHaveBeenCalledWith("user-1", 1);
   });
 
   it("returns queue error and marks meeting as failed when enqueueing fails", async () => {
@@ -270,7 +270,7 @@ describe("POST /api/meetings/process", () => {
       error:
         "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
     });
-    expect(syncMeetingsThisMonth).not.toHaveBeenCalled();
+    expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
     expect(meetingsUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "failed",

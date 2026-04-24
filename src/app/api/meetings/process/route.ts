@@ -3,7 +3,7 @@ import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest";
-import { getBillingStatus, syncMeetingsThisMonth } from "@/lib/billing";
+import { getBillingStatus, incrementMeetingsThisMonth } from "@/lib/billing";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import { verifyUploadToken } from "@/lib/meetings/upload-token";
 import {
@@ -226,7 +226,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     }
 
     try {
-      await syncMeetingsThisMonth(auth.user.id, meetingsThisMonth + 1);
+      await incrementMeetingsThisMonth(auth.user.id, 1);
     } catch (billingError) {
       console.error("[meetings/process] failed to sync billing usage:", billingError);
     }

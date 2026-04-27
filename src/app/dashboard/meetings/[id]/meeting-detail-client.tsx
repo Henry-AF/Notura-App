@@ -603,7 +603,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       </div>
 
       {/* Tabs */}
-      <div className="anim-in" style={{ animationDelay: "40ms" }}>
+      <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
         <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
       </div>
 

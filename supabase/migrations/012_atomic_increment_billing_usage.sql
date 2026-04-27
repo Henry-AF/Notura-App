@@ -7,18 +7,30 @@ create or replace function public.increment_billing_meetings_this_month(
   p_increment integer default 1
 )
 returns integer
-language sql
+language plpgsql
 volatile
+set search_path = public
 as $$
-  with upserted as (
-    insert into public.billing_accounts (user_id, meetings_this_month)
-    values (p_user_id, greatest(coalesce(p_increment, 0), 0))
-    on conflict (user_id)
-    do update set
-      meetings_this_month = greatest(0, public.billing_accounts.meetings_this_month + coalesce(p_increment, 0)),
-      updated_at = now()
-    returning meetings_this_month
-  )
-  select meetings_this_month
-  from upserted;
+declare
+  next_meetings_this_month integer;
+begin
+  if p_increment is null or p_increment < 1 then
+    raise exception 'Billing usage increment must be >= 1.' using errcode = '22023';
+  end if;
+
+  insert into public.billing_accounts (user_id, meetings_this_month)
+  values (p_user_id, p_increment)
+  on conflict (user_id)
+  do update set
+    meetings_this_month = public.billing_accounts.meetings_this_month + p_increment,
+    updated_at = now()
+  returning meetings_this_month into next_meetings_this_month;
+
+  return next_meetings_this_month;
+end;
 $$;
+
+revoke all on function public.increment_billing_meetings_this_month(uuid, integer) from public;
+revoke all on function public.increment_billing_meetings_this_month(uuid, integer) from anon;
+revoke all on function public.increment_billing_meetings_this_month(uuid, integer) from authenticated;
+grant execute on function public.increment_billing_meetings_this_month(uuid, integer) to service_role;

@@ -77,126 +77,120 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
   const avatarStyle = getAvatarStyle(meeting.clientName);
   const initial = meeting.clientName.trim()[0]?.toUpperCase() ?? "?";
 
+  const actionButton = (
+    <div
+      className="flex shrink-0 items-center justify-end"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {meeting.status === "processing" && (
+        <button
+          type="button"
+          title="Ver processo"
+          onClick={() => onViewProcessing(meeting.id)}
+          className="flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
+          style={{ background: "rgb(var(--cn-card2))", color: "#A29BFE" }}
+        >
+          <Sparkles style={{ width: 14, height: 14 }} />
+        </button>
+      )}
+      {meeting.status === "failed" && (
+        <button
+          type="button"
+          title="Reprocessar"
+          onClick={() => onRetry(meeting.id)}
+          className="flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
+          style={{ background: "rgba(255,107,107,0.1)", color: "#FF6B6B" }}
+        >
+          <RefreshCw style={{ width: 14, height: 14 }} />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => onClick(meeting.id)}
       onKeyDown={(e) => e.key === "Enter" && onClick(meeting.id)}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 120px 140px 60px",
-        padding: "14px 12px",
-        borderRadius: "8px",
-        alignItems: "center",
-        cursor: "pointer",
-        transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "rgb(var(--cn-card2))")}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
-      className="responsive-meeting-row"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3.5 transition-colors hover:bg-[rgb(var(--cn-card2))] sm:grid sm:grid-cols-[1fr_120px_140px_60px] sm:gap-2 sm:py-3"
     >
-      {/* Client + title */}
-      <div className="flex items-center gap-3 min-w-0">
+      {/* ── Mobile-only standalone avatar ──────────────────────────────── */}
+      <div
+        className="shrink-0 sm:hidden"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: "50%",
+          background: avatarStyle.bg,
+          color: avatarStyle.color,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "13px",
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+      >
+        {initial}
+      </div>
+
+      {/* ── Column 1: client + title ────────────────────────────────────── */}
+      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+        {/* Desktop avatar (inside column 1) */}
         <div
+          className="hidden shrink-0 sm:flex"
           style={{
             width: 34,
             height: 34,
             borderRadius: "50%",
             background: avatarStyle.bg,
             color: avatarStyle.color,
-            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: "13px",
             fontWeight: 700,
-            flexShrink: 0,
           }}
         >
           {initial}
         </div>
-        <div className="min-w-0">
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))" }}>
+
+        <div className="min-w-0 flex-1">
+          <p style={{ fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))" }}>
             {meeting.clientName}
           </p>
           <p
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontWeight: 400,
-              fontSize: "12px",
-              color: "rgb(var(--cn-muted))",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "200px",
-            }}
+            className="truncate"
+            style={{ fontSize: "12px", color: "rgb(var(--cn-muted))", maxWidth: "220px" }}
           >
             {meeting.title}
           </p>
         </div>
+
+        {/* Mobile-only: date + status below the name */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:hidden">
+          <span style={{ fontSize: "11px", color: "rgb(var(--cn-ink3))" }}>
+            {meeting.date}
+          </span>
+          <StatusBadge status={meeting.status} />
+        </div>
       </div>
 
-      {/* Date */}
+      {/* ── Column 2: date (desktop only) ──────────────────────────────── */}
       <p
-        className="meeting-date-col"
-        style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgb(var(--cn-ink2))" }}
+        className="hidden sm:block"
+        style={{ fontSize: "13px", color: "rgb(var(--cn-ink2))" }}
       >
         {meeting.date}
       </p>
 
-      {/* Status */}
-      <div className="meeting-status-col">
+      {/* ── Column 3: status (desktop only) ────────────────────────────── */}
+      <div className="hidden sm:block">
         <StatusBadge status={meeting.status} />
       </div>
 
-      {/* Actions */}
-      <div
-        className="meeting-action-col flex items-center justify-end"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {meeting.status === "processing" && (
-          <button
-            type="button"
-            title="Ver processo"
-            onClick={() => onViewProcessing(meeting.id)}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "8px",
-              background: "rgb(var(--cn-card2))",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#A29BFE",
-            }}
-          >
-            <Sparkles style={{ width: 14, height: 14 }} />
-          </button>
-        )}
-        {meeting.status === "failed" && (
-          <button
-            type="button"
-            title="Reprocessar"
-            onClick={() => onRetry(meeting.id)}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "8px",
-              background: "rgba(255,107,107,0.1)",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#FF6B6B",
-            }}
-          >
-            <RefreshCw style={{ width: 14, height: 14 }} />
-          </button>
-        )}
-      </div>
+      {/* ── Column 4: actions ──────────────────────────────────────────── */}
+      {actionButton}
     </div>
   );
 }
@@ -220,80 +214,46 @@ export function RecentMeetingsTable({
 }: RecentMeetingsTableProps) {
   return (
     <div
+      className="rounded-[14px] p-4 sm:p-5"
       style={{
         background: "rgb(var(--cn-card))",
         border: "1px solid rgb(var(--cn-border))",
-        borderRadius: "14px",
-        padding: "20px",
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "16px",
-        }}
-      >
+      <div className="mb-4 flex items-center justify-between">
         <p
-          style={{
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 700,
-            fontSize: "18px",
-            color: "rgb(var(--cn-ink))",
-          }}
+          className="font-display text-lg font-bold"
+          style={{ color: "rgb(var(--cn-ink))" }}
         >
           Reuniões Recentes
         </p>
         <button
           type="button"
           onClick={onViewAll}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 500,
-            fontSize: "13px",
-            color: "#6C5CE7",
-            padding: 0,
-            transition: "color 0.15s",
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#A29BFE")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#6C5CE7")}
+          className="text-[13px] font-medium transition-colors hover:opacity-70"
+          style={{ color: "#6C5CE7" }}
         >
           Ver tudo →
         </button>
       </div>
 
-      {/* Table header */}
+      {/* Column header — desktop only */}
       <div
-        className="hidden sm:grid"
+        className="hidden grid-cols-[1fr_120px_140px_60px] gap-2 border-b px-3 pb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] sm:grid"
         style={{
-          gridTemplateColumns: "1fr 120px 140px 60px",
-          padding: "0 12px 10px",
-          borderBottom: "1px solid rgb(var(--cn-border))",
+          borderColor: "rgb(var(--cn-border))",
+          color: "rgb(var(--cn-muted))",
         }}
       >
-        {["CLIENTE / TÍTULO", "DATA", "STATUS", "AÇÕES"].map((col) => (
-          <p
-            key={col}
-            style={{
-              fontSize: "10px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: "rgb(var(--cn-muted))",
-            }}
-          >
-            {col}
-          </p>
-        ))}
+        <p>Cliente / Título</p>
+        <p>Data</p>
+        <p>Status</p>
+        <p className="text-right">Ações</p>
       </div>
 
       {/* Rows */}
-      <div>
+      <div className="mt-1">
         {meetings.map((m) => (
           <MeetingRow
             key={m.id}

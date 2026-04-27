@@ -45,7 +45,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
-  { href: "/dashboard/contacts", label: "Contatos", icon: Users },
+  // { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
 
 function getPlanLabel(plan: CurrentUser["plan"]) {

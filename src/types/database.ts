@@ -41,11 +41,14 @@ export interface Database {
           user_id: string
           plan: string
           meetings_this_month: number
+          meetings_used: number
           stripe_customer_id: string | null
           abacatepay_customer_id: string | null
           abacatepay_customer_sync_started_at: string | null
           abacatepay_pending_checkout_id: string | null
           abacatepay_pending_plan: string | null
+          current_period_start: string | null
+          current_period_end: string | null
           created_at: string
           updated_at: string
         }
@@ -53,11 +56,14 @@ export interface Database {
           user_id: string
           plan?: string
           meetings_this_month?: number
+          meetings_used?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
           abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null
+          current_period_start?: string | null
+          current_period_end?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -65,11 +71,14 @@ export interface Database {
           user_id?: string
           plan?: string
           meetings_this_month?: number
+          meetings_used?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
           abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null
+          current_period_start?: string | null
+          current_period_end?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -332,6 +341,23 @@ export interface Database {
         Args: {
           p_user_id: string
           p_increment?: number
+        }
+        Returns: number
+      }
+      consume_meeting_quota: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: {
+          meetings_used: number
+          plan: string
+          current_period_start: string | null
+          current_period_end: string | null
+        }[]
+      }
+      refund_meeting_quota: {
+        Args: {
+          p_user_id: string
         }
         Returns: number
       }

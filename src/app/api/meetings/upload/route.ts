@@ -21,10 +21,14 @@ interface UploadInitPayload {
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsUpload,
   async (request: NextRequest, { auth }) => {
-    const { billingAccount, meetingsThisMonth, monthlyLimit } =
+    const { billingAccount, meetingsThisMonth, monthlyLimit, quotaStatus } =
       await getBillingStatus(auth.user.id);
 
-    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
+    if (quotaStatus && !quotaStatus.allowed) {
+      return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
+    }
+
+    if (!quotaStatus && monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
       return NextResponse.json(
         {
           error:

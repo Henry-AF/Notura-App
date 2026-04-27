@@ -7,6 +7,11 @@ import Stripe from "stripe";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  downgradeToFree,
+  getOrCreateBillingAccount,
+  resetSubscriptionPeriod,
+} from "@/lib/billing";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
@@ -76,21 +81,16 @@ export const POST = withPublicRateLimit<NextRequest>(
           );
         }
 
-        const { error } = await supabase
-          .from("billing_accounts")
-          .upsert({
-            user_id: userId,
+        await getOrCreateBillingAccount(userId, supabase);
+        await resetSubscriptionPeriod(
+          {
+            userId,
             plan,
-            stripe_customer_id:
-              existingBilling?.stripe_customer_id ?? stripeCustomerId,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-
-        if (error) {
-          throw new Error(`Failed to update billing account: ${error.message}`);
-        } else {
-          console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
-        }
+            stripeCustomerId: existingBilling?.stripe_customer_id ?? stripeCustomerId ?? undefined,
+          },
+          supabase
+        );
+        console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
         break;
       }
 
@@ -109,21 +109,8 @@ export const POST = withPublicRateLimit<NextRequest>(
 
         // Only reset on subscription renewal, not on first payment
         if (invoice.billing_reason === "subscription_cycle") {
-          const { error } = await supabase
-            .from("billing_accounts")
-            .update({
-              meetings_this_month: 0,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("stripe_customer_id", customerId);
-
-          if (error) {
-            throw new Error(
-              `Failed to reset meetings_this_month: ${error.message}`
-            );
-          } else {
-            console.log(`[stripe-webhook] Reset monthly meetings for customer ${customerId}`);
-          }
+          await resetSubscriptionPeriod({ stripeCustomerId: customerId }, supabase);
+          console.log(`[stripe-webhook] Reset meeting quota for customer ${customerId}`);
         }
         break;
       }
@@ -141,19 +128,8 @@ export const POST = withPublicRateLimit<NextRequest>(
           break;
         }
 
-        const { error } = await supabase
-          .from("billing_accounts")
-          .update({
-            plan: "free" as Plan,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("stripe_customer_id", customerId);
-
-        if (error) {
-          throw new Error(`Failed to downgrade billing account: ${error.message}`);
-        } else {
-          console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
-        }
+        await downgradeToFree({ stripeCustomerId: customerId }, supabase);
+        console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
         break;
       }
 

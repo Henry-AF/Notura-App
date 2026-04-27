@@ -214,12 +214,9 @@ function SettingsPageInner() {
       />
 
       {/* 2-col grid */}
-      <div className="mt-6 grid gap-4" style={{ gridTemplateColumns: "1fr" }}>
+      <div className="mt-6 grid gap-4">
         {/* Row 1 */}
-        <div
-          className="grid gap-4"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}
-        >
+        <div className="grid gap-4 sm:grid-cols-2">
           <div
             style={{ animation: "cardFadeIn 0.3s ease-out both", animationDelay: "0ms" }}
           >
@@ -246,10 +243,7 @@ function SettingsPageInner() {
         </div>
 
         {/* Row 2 */}
-        <div
-          className="grid gap-4"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}
-        >
+        <div className="grid gap-4 sm:grid-cols-2">
           <div
             style={{ animation: "cardFadeIn 0.3s ease-out both", animationDelay: "120ms" }}
           >

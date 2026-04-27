@@ -21,5 +21,3 @@ export { MeetingFilesCard } from "./MeetingFilesCard";
 export type { MeetingFile, MeetingFilesCardProps } from "./MeetingFilesCard";
 export { AIInsightToast } from "./AIInsightToast";
 export type { AIInsightToastProps } from "./AIInsightToast";
-export { AIFloatingButton } from "./AIFloatingButton";
-export type { AIFloatingButtonProps } from "./AIFloatingButton";

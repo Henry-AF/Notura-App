@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DashboardHeader,
@@ -8,14 +8,12 @@ import {
   RecentMeetingsTable,
   InsightCard,
   UpgradeCard,
-  TodayTasks,
 } from "@/components/dashboard";
-import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
+import type { MetricCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
 import { getPlanTitle } from "@/lib/plans";
 import type { DashboardOverviewData } from "./dashboard-types";
-import { updateTaskById } from "./tasks/tasks-api";
 
 export interface DashboardClientProps {
   initialOverview: DashboardOverviewData;
@@ -29,7 +27,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
     initialOverview.metrics
   );
   const [meetings, setMeetings] = useState<Meeting[]>(initialOverview.meetings);
-  const [tasks, setTasks] = useState<Task[]>(initialOverview.tasks);
 
   const handleRetry = useCallback(
     async (id: string) => {
@@ -48,60 +45,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
       }
     },
     [show]
-  );
-
-  const handleToggleTask = useCallback(
-    async (id: string) => {
-      const task = tasks.find((item) => item.id === id);
-      if (!task) return;
-
-      const newCompleted = !task.completed;
-      setTasks((previous) =>
-        previous.map((item) =>
-          item.id === id ? { ...item, completed: newCompleted, isNew: false } : item
-        )
-      );
-
-      setMetrics((previous) =>
-        previous.map((metric) =>
-          metric.label === "Tarefas abertas"
-            ? {
-                ...metric,
-                value: Math.max(0, (metric.value as number) + (newCompleted ? -1 : 1)),
-              }
-            : metric
-        )
-      );
-
-      try {
-        await updateTaskById(id, { status: newCompleted ? "completed" : "todo" });
-      } catch {
-        setTasks((previous) =>
-          previous.map((item) =>
-            item.id === id
-              ? { ...item, completed: task.completed, isNew: task.isNew }
-              : item
-          )
-        );
-        setMetrics((previous) =>
-          previous.map((metric) =>
-            metric.label === "Tarefas abertas"
-              ? {
-                  ...metric,
-                  value: Math.max(0, (metric.value as number) + (newCompleted ? 1 : -1)),
-                }
-              : metric
-          )
-        );
-        show("Erro ao atualizar tarefa.", "error");
-      }
-    },
-    [show, tasks]
-  );
-
-  const newCount = useMemo(
-    () => tasks.filter((task) => task.isNew && !task.completed).length,
-    [tasks]
   );
 
   useEffect(() => {
@@ -156,9 +99,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
               />
             </div>
           )}
-          <div className="animate-fade-in [animation-delay:200ms]">
-            <TodayTasks tasks={tasks} newCount={newCount} onToggle={handleToggleTask} />
-          </div>
         </div>
       </div>
     </PageShell>

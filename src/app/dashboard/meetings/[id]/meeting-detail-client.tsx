@@ -10,7 +10,6 @@ import {
   KeyDecisionCard,
   AlertPointCard,
   AIInsightToast,
-  AIFloatingButton,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
@@ -604,7 +603,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       </div>
 
       {/* Tabs */}
-      <div className="anim-in" style={{ animationDelay: "40ms" }}>
+      <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
         <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
       </div>
 
@@ -643,14 +642,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         onConfirmDelete={handleDeleteMeeting}
       />
 
-      {/* AI Insight Toast (fixed bottom-left in sidebar area) */}
-      <AIInsightToast userInitials="HT" message={insightMessage} />
-
-      {/* FAB */}
-      <AIFloatingButton
-        onClick={() => show("Assistente IA em breve.", "warning")}
-        tooltip="Assistente Notura"
-      />
+      {/* AI Insight Toast (fixed bottom-left on desktop, full-width on mobile) */}
+      <AIInsightToast message={insightMessage} />
 
       {/* Export button via a portal-like approach — rendered as fixed button
           top-right to supplement the existing topbar */}

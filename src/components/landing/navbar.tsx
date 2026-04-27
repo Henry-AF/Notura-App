@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { LogoFull } from "@/components/logo";
 
 export function Navbar() {
   return (
     <header className="fixed top-0 w-full z-50 bg-[#f8f9fc]/80 backdrop-blur-xl shadow-[0_10px_30px_rgba(124,58,237,0.08)]">
       <nav className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
-        <div className="text-2xl font-bold tracking-tighter text-[#191c1e]">Notura</div>
+        <Link href="/" aria-label="Notura">
+          <LogoFull iconSize={26} />
+        </Link>
         <div className="hidden md:flex gap-8 items-center">
           <a
             href="#funcionalidades"

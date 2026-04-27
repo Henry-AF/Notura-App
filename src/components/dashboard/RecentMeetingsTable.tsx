@@ -117,19 +117,15 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────────── */}
       <div
-        className="shrink-0 sm:hidden"
+        className="flex shrink-0 items-center justify-center sm:hidden"
         style={{
           width: 38,
           height: 38,
           borderRadius: "50%",
           background: avatarStyle.bg,
           color: avatarStyle.color,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           fontSize: "13px",
           fontWeight: 700,
-          flexShrink: 0,
         }}
       >
         {initial}

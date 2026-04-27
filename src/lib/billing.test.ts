@@ -181,6 +181,38 @@ describe("billing helpers", () => {
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
   });
 
+  it("clamps subscription period end when renewal starts at the end of a month", async () => {
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const from = vi.fn().mockReturnValue({ update });
+    createServiceRoleClient.mockReturnValue({ from });
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "pro",
+      now: new Date("2026-01-31T12:00:00.000Z"),
+    });
+    await mod.resetSubscriptionPeriod({
+      userId: "user-2",
+      plan: "pro",
+      now: new Date("2026-08-31T12:00:00.000Z"),
+    });
+
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        current_period_end: "2026-02-28T12:00:00.000Z",
+      })
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        current_period_end: "2026-09-30T12:00:00.000Z",
+      })
+    );
+  });
+
   it("does not reset customer renewals for accounts already downgraded to free", async () => {
     const updateEq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn().mockReturnValue({ eq: updateEq });

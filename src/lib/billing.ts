@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { addMonths } from "date-fns/addMonths";
 import { getPlanMonthlyLimit } from "@/lib/plans";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
@@ -65,10 +66,7 @@ function getMeetingQuotaLimit(plan: Plan): number {
 }
 
 function addOneMonth(date: Date): Date {
-  const next = new Date(date);
-  next.setUTCDate(1);
-  next.setUTCMonth(next.getUTCMonth() + 1);
-  return next;
+  return addMonths(date, 1);
 }
 
 function getMeetingsUsed(account: Partial<BillingAccount>): number {

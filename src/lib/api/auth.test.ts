@@ -9,12 +9,15 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
 }));
 
-function createServerClient(user: { id: string; email?: string | null } | null) {
+function createServerClient(
+  user: { id: string; email?: string | null } | null,
+  error: { message: string } | null = null
+) {
   return {
     auth: {
       getUser: vi.fn().mockResolvedValue({
         data: { user },
-        error: null,
+        error,
       }),
     },
   };
@@ -87,6 +90,63 @@ describe("route auth helper", () => {
       hasAdminClient: true,
       resourceId: "meeting-1",
     });
+  });
+
+  it("authenticates mobile requests with a Supabase Bearer access token", async () => {
+    const supabase = createServerClient({
+      id: "mobile-user",
+      email: "mobile@example.com",
+    });
+    createServerSupabase.mockReturnValue(supabase);
+
+    const supabaseAdmin = { from: vi.fn() } as never;
+    createServiceRoleClient.mockReturnValue(supabaseAdmin);
+
+    const mod = await import("./auth");
+    const handler = mod.withAuth(async (_request, { auth }) =>
+      NextResponse.json({
+        userId: auth.user.id,
+        email: auth.user.email,
+      })
+    );
+
+    const response = await handler(
+      new Request("http://localhost/api/user/me", {
+        headers: {
+          Authorization: "Bearer mobile-access-token",
+        },
+      }),
+      { params: {} }
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.auth.getUser).toHaveBeenCalledWith("mobile-access-token");
+    expect(await response.json()).toEqual({
+      userId: "mobile-user",
+      email: "mobile@example.com",
+    });
+  });
+
+  it("returns 401 when a Bearer token is rejected by Supabase", async () => {
+    const supabase = createServerClient(null, { message: "Invalid JWT" });
+    createServerSupabase.mockReturnValue(supabase);
+    createServiceRoleClient.mockReturnValue({});
+
+    const mod = await import("./auth");
+    const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));
+
+    const response = await handler(
+      new Request("http://localhost/api/user/me", {
+        headers: {
+          Authorization: "Bearer invalid-token",
+        },
+      }),
+      { params: {} }
+    );
+
+    expect(response.status).toBe(401);
+    expect(supabase.auth.getUser).toHaveBeenCalledWith("invalid-token");
+    expect(await response.json()).toEqual({ error: "Não autenticado." });
   });
 
   it("allows ownership when the user owns the resource", async () => {

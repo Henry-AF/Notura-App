@@ -46,7 +46,12 @@ export class DashboardOverviewLoadError extends Error {
   }
 }
 
-type DashboardUser = Awaited<ReturnType<typeof getAuthenticatedUser>>;
+export interface DashboardUserIdentity {
+  id: string;
+  email?: string | null;
+}
+
+type DashboardUser = DashboardUserIdentity;
 type DashboardOverviewQueryResults = Awaited<
   ReturnType<typeof fetchDashboardQueryResults>
 >;
@@ -250,8 +255,9 @@ function rethrowDashboardOverviewError(error: unknown): never {
   throw new DashboardOverviewLoadError();
 }
 
-export async function getDashboardOverview(): Promise<DashboardOverviewResponse> {
-  const user = await getAuthenticatedUser();
+export async function getDashboardOverviewForIdentity(
+  user: DashboardUserIdentity
+): Promise<DashboardOverviewResponse> {
   const startOfDay = getStartOfDayIso(new Date());
 
   try {
@@ -261,4 +267,12 @@ export async function getDashboardOverview(): Promise<DashboardOverviewResponse>
   } catch (error) {
     rethrowDashboardOverviewError(error);
   }
+}
+
+export async function getDashboardOverview(): Promise<DashboardOverviewResponse> {
+  const user = await getAuthenticatedUser();
+  return getDashboardOverviewForIdentity({
+    id: user.id,
+    email: user.email ?? null,
+  });
 }

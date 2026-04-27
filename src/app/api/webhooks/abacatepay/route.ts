@@ -22,8 +22,48 @@ interface AbacatePayWebhookEvent {
     status?: string;
     customerId?: string;
     customer?: { id?: string };
+    subscription?: {
+      id?: string;
+      externalId?: string;
+      status?: string;
+      customerId?: string;
+      metadata?: Record<string, unknown>;
+    };
+    payment?: {
+      id?: string;
+      externalId?: string;
+      status?: string;
+      customerId?: string;
+      metadata?: Record<string, unknown>;
+    };
+    checkout?: {
+      id?: string;
+      externalId?: string;
+      status?: string;
+      customerId?: string;
+      metadata?: Record<string, unknown>;
+    };
     metadata?: Record<string, unknown>;
   };
+}
+
+function readEventExternalId(data: AbacatePayWebhookEvent["data"]): string | undefined {
+  return (
+    data.externalId ??
+    data.payment?.externalId ??
+    data.checkout?.externalId ??
+    data.subscription?.externalId
+  );
+}
+
+function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | undefined {
+  return (
+    data.customerId ??
+    data.customer?.id ??
+    data.payment?.customerId ??
+    data.checkout?.customerId ??
+    data.subscription?.customerId
+  );
 }
 
 export const POST = withPublicRateLimit<NextRequest>(
@@ -43,7 +83,7 @@ export const POST = withPublicRateLimit<NextRequest>(
 
   const { event: eventType, data } = event;
 
-  if (eventType === "billing.paid") {
+  if (eventType === "billing.paid" || eventType === "subscription.completed") {
     return handleBillingPaid(data);
   }
 
@@ -62,21 +102,27 @@ export const POST = withPublicRateLimit<NextRequest>(
 async function handleBillingPaid(
   data: AbacatePayWebhookEvent["data"]
 ): Promise<NextResponse> {
-  const externalId = data.externalId;
+  const externalId = readEventExternalId(data);
   if (!externalId) return NextResponse.json({ received: true });
 
   const parsed = parseAbacatePayOnboardingExternalId(externalId);
   if (!parsed) return NextResponse.json({ received: true });
 
+  const customerId = readEventCustomerId(data);
+  const updatePayload: Record<string, unknown> = {
+    plan: parsed.plan,
+    abacatepay_pending_checkout_id: null,
+    abacatepay_pending_plan: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (customerId) {
+    updatePayload.abacatepay_customer_id = customerId;
+  }
+
   const supabase = createServiceRoleClient();
   const { error } = await supabase
     .from("billing_accounts")
-    .update({
-      plan: parsed.plan,
-      abacatepay_pending_checkout_id: null,
-      abacatepay_pending_plan: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("user_id", parsed.userId);
 
   if (error) {

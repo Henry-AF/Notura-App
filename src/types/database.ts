@@ -328,6 +328,13 @@ export interface Database {
         }
         Returns: number
       }
+      increment_billing_meetings_this_month: {
+        Args: {
+          p_user_id: string
+          p_increment?: number
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

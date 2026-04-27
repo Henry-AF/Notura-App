@@ -38,31 +38,11 @@ export async function getOrCreateBillingAccount(
   return created;
 }
 
-export async function countMeetingsThisMonth(userId: string): Promise<number> {
-  const supabase = createServiceRoleClient();
-  const now = new Date();
-  const monthStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-  ).toISOString();
-
-  const { count, error } = await supabase
-    .from("meetings")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .gte("created_at", monthStart);
-
-  if (error) {
-    throw new Error(`Failed to count monthly meetings: ${error.message}`);
-  }
-
-  return count ?? 0;
-}
-
 export async function syncMeetingsThisMonth(
   userId: string,
-  meetingsThisMonth: number
+  meetingsThisMonth: number,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<void> {
-  const supabase = createServiceRoleClient();
   const { error } = await supabase
     .from("billing_accounts")
     .update({
@@ -76,13 +56,46 @@ export async function syncMeetingsThisMonth(
   }
 }
 
+export async function incrementMeetingsThisMonth(
+  userId: string,
+  incrementBy: number = 1
+): Promise<number> {
+  if (!Number.isFinite(incrementBy) || incrementBy < 1) {
+    throw new Error("Billing usage increment must be >= 1.");
+  }
+
+  const supabase = createServiceRoleClient();
+  const safeIncrement = Math.trunc(incrementBy);
+
+  const { data, error } = await supabase.rpc(
+    "increment_billing_meetings_this_month",
+    {
+      p_user_id: userId,
+      p_increment: safeIncrement,
+    }
+  );
+
+  if (!error && typeof data === "number") {
+    return data;
+  }
+
+  // Backward compatible fallback while the rpc migration rolls out.
+  const account = await getOrCreateBillingAccount(userId, supabase);
+  const nextValue = Math.max(
+    0,
+    (account.meetings_this_month ?? 0) + safeIncrement
+  );
+  await syncMeetingsThisMonth(userId, nextValue, supabase);
+  return nextValue;
+}
+
 export async function getBillingStatus(userId: string): Promise<{
   billingAccount: BillingAccount;
   meetingsThisMonth: number;
   monthlyLimit: number | null;
 }> {
   const billingAccount = await getOrCreateBillingAccount(userId);
-  const meetingsThisMonth = await countMeetingsThisMonth(userId);
+  const meetingsThisMonth = Math.max(0, billingAccount.meetings_this_month ?? 0);
   const monthlyLimit = getMonthlyMeetingLimit(billingAccount.plan as Plan);
 
   return {

@@ -34,21 +34,20 @@ export class BillingQuotaError extends Error {
   }
 }
 
-interface BillingAccountLookup {
-  userId?: string;
-  stripeCustomerId?: string;
-  abacatepayCustomerId?: string;
-}
+type BillingAccountLookup =
+  | { userId: string }
+  | { stripeCustomerId: string }
+  | { abacatepayCustomerId: string };
 
-interface ResetSubscriptionPeriodParams extends BillingAccountLookup {
+type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   plan?: Exclude<Plan, "free">;
   now?: Date;
   clearAbacatePayPending?: boolean;
-}
+};
 
-interface DowngradeToFreeParams extends BillingAccountLookup {
+type DowngradeToFreeParams = BillingAccountLookup & {
   now?: Date;
-}
+};
 
 interface ConsumedQuotaRow {
   meetings_used: number;
@@ -98,14 +97,11 @@ function applyBillingAccountLookup<T extends { eq: (column: string, value: strin
   query: T,
   lookup: BillingAccountLookup
 ): T {
-  if (lookup.userId) return query.eq("user_id", lookup.userId);
-  if (lookup.stripeCustomerId) {
+  if ("userId" in lookup) return query.eq("user_id", lookup.userId);
+  if ("stripeCustomerId" in lookup) {
     return query.eq("stripe_customer_id", lookup.stripeCustomerId);
   }
-  if (lookup.abacatepayCustomerId) {
-    return query.eq("abacatepay_customer_id", lookup.abacatepayCustomerId);
-  }
-  throw new Error("Billing account lookup is required.");
+  return query.eq("abacatepay_customer_id", lookup.abacatepayCustomerId);
 }
 
 async function getBillingAccountByLookup(
@@ -273,10 +269,10 @@ export async function resetSubscriptionPeriod(
   if (params.plan) {
     updatePayload.plan = params.plan;
   }
-  if (params.stripeCustomerId) {
+  if ("stripeCustomerId" in params) {
     updatePayload.stripe_customer_id = params.stripeCustomerId;
   }
-  if (params.abacatepayCustomerId) {
+  if ("abacatepayCustomerId" in params) {
     updatePayload.abacatepay_customer_id = params.abacatepayCustomerId;
   }
   if (params.clearAbacatePayPending) {

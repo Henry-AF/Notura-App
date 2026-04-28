@@ -45,6 +45,19 @@ function createBillingClient(options?: {
   };
 }
 
+function assertBillingAccountLookupTypes() {
+  const resetSubscriptionPeriod =
+    null as unknown as typeof import("./billing").resetSubscriptionPeriod;
+  const downgradeToFree =
+    null as unknown as typeof import("./billing").downgradeToFree;
+
+  // @ts-expect-error Billing account lookup requires one account identifier.
+  resetSubscriptionPeriod({ now: new Date("2026-04-27T12:00:00.000Z") });
+
+  // @ts-expect-error Billing account lookup requires one account identifier.
+  downgradeToFree({ now: new Date("2026-04-27T12:00:00.000Z") });
+}
+
 describe("billing helpers", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -150,7 +163,7 @@ describe("billing helpers", () => {
     });
 
     const mod = await import("./billing");
-    const value = await mod.consumeMeetingQuota("user-1", client);
+    const value = await mod.consumeMeetingQuota("user-1", client as never);
 
     expect(value).toMatchObject({ meetingsUsed: 8, plan: "team" });
     expect(rpc).toHaveBeenCalledWith("consume_meeting_quota", {

@@ -309,6 +309,7 @@ export async function downgradeToFree(
 
 export async function getBillingStatus(userId: string): Promise<{
   billingAccount: BillingAccount;
+  meetingsThisMonth: number;
   meetingsUsed: number;
   monthlyLimit: number | null;
   quotaStatus: MeetingQuotaStatus;
@@ -320,6 +321,7 @@ export async function getBillingStatus(userId: string): Promise<{
 
   return {
     billingAccount,
+    meetingsThisMonth: meetingsUsed,
     meetingsUsed,
     monthlyLimit,
     quotaStatus,

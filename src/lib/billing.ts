@@ -3,6 +3,38 @@ import { getPlanMonthlyLimit } from "@/lib/plans";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
 
+export type MeetingQuotaBlockCode =
+  | "subscription_expired"
+  | "lifetime_quota_exceeded"
+  | "period_quota_exceeded";
+
+const QUOTA_ERROR_CODE_BY_SQLSTATE: Record<string, MeetingQuotaBlockCode> = {
+  BP001: "subscription_expired",
+  BP002: "lifetime_quota_exceeded",
+  BP003: "period_quota_exceeded",
+};
+
+interface SupabaseErrorCandidate {
+  code?: string | null;
+}
+
+export class MeetingQuotaError extends Error {
+  code: MeetingQuotaBlockCode;
+
+  constructor(code: MeetingQuotaBlockCode) {
+    super(code);
+    this.name = "MeetingQuotaError";
+    this.code = code;
+  }
+}
+
+export function resolveQuotaErrorCode(
+  error: SupabaseErrorCandidate | null | undefined
+): MeetingQuotaBlockCode | null {
+  if (typeof error?.code !== "string") return null;
+  return QUOTA_ERROR_CODE_BY_SQLSTATE[error.code] ?? null;
+}
+
 export function getMonthlyMeetingLimit(plan: Plan): number | null {
   return getPlanMonthlyLimit(plan);
 }
@@ -77,6 +109,11 @@ export async function incrementMeetingsThisMonth(
 
   if (!error && typeof data === "number") {
     return data;
+  }
+
+  const quotaErrorCode = resolveQuotaErrorCode(error);
+  if (quotaErrorCode) {
+    throw new MeetingQuotaError(quotaErrorCode);
   }
 
   // Backward compatible fallback while the rpc migration rolls out.

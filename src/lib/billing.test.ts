@@ -10,6 +10,7 @@ function createBillingClient(options?: {
   existingAccount?: Record<string, unknown> | null;
   createdAccount?: Record<string, unknown> | null;
   rpcValue?: number | null;
+  rpcError?: { code?: string; message: string } | null;
 }) {
   const maybeSingle = vi.fn().mockResolvedValue({
     data: options?.existingAccount ?? null,
@@ -31,8 +32,8 @@ function createBillingClient(options?: {
   });
 
   const rpc = vi.fn().mockResolvedValue({
-    data: options?.rpcValue ?? 1,
-    error: null,
+    data: options?.rpcError ? null : options?.rpcValue ?? 1,
+    error: options?.rpcError ?? null,
   });
 
   return {
@@ -78,5 +79,47 @@ describe("billing helpers", () => {
       p_user_id: "user-1",
       p_increment: 1,
     });
+  });
+
+  it("maps quota block errors from stable Postgres error codes", async () => {
+    const mod = await import("./billing");
+
+    expect(mod.resolveQuotaErrorCode({ code: "BP001", message: "localized" })).toBe(
+      "subscription_expired"
+    );
+    expect(mod.resolveQuotaErrorCode({ code: "BP002", message: "localized" })).toBe(
+      "lifetime_quota_exceeded"
+    );
+    expect(mod.resolveQuotaErrorCode({ code: "BP003", message: "localized" })).toBe(
+      "period_quota_exceeded"
+    );
+  });
+
+  it("does not infer quota block codes from provider error messages", async () => {
+    const mod = await import("./billing");
+
+    expect(
+      mod.resolveQuotaErrorCode({
+        code: "P0001",
+        message: "subscription_expired",
+      })
+    ).toBeNull();
+  });
+
+  it("throws quota block errors from rpc codes instead of falling back to local increment", async () => {
+    const { client, from } = createBillingClient({
+      rpcError: {
+        code: "BP001",
+        message: "translated or formatted provider message",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+
+    await expect(mod.incrementMeetingsThisMonth("user-1", 1)).rejects.toMatchObject({
+      code: "subscription_expired",
+    });
+    expect(from).not.toHaveBeenCalled();
   });
 });

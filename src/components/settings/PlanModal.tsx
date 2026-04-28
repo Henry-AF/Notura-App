@@ -17,6 +17,8 @@ interface PlanDef {
   id: Plan;
   name: string;
   price: string;
+  originalPrice?: string;
+  discountLabel?: string;
   period: string;
   badge?: string;
   badgeColor?: string;
@@ -84,10 +86,17 @@ const PLAN_CTA: Record<Plan, string> = {
   team: "Assinar Platinum",
 };
 
+const PLAN_ORIGINAL_PRICES: Partial<Record<Plan, { price: string; discount: string }>> = {
+  pro:  { price: "R$ 89,90", discount: "-33%" },
+  team: { price: "R$ 119,90", discount: "-33%" },
+};
+
 const PLANS: PlanDef[] = APP_PLAN_IDS.map((planId) => ({
   id: planId,
   name: getPlanDisplayName(planId),
   price: getPlanPriceLabel(planId),
+  originalPrice: PLAN_ORIGINAL_PRICES[planId]?.price,
+  discountLabel: PLAN_ORIGINAL_PRICES[planId]?.discount,
   period: "/mês",
   features: [getPlanUsageFeature(planId), ...PLAN_EXTRA_FEATURES[planId]],
   cta: PLAN_CTA[planId],
@@ -295,6 +304,32 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                   >
                     {plan.name}
                   </p>
+
+                  {/* Original (strikethrough) price + discount badge */}
+                  {plan.originalPrice && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span
+                        className="text-sm line-through"
+                        style={{ color: c.ink3 }}
+                      >
+                        {plan.originalPrice}
+                      </span>
+                      {plan.discountLabel && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                          style={{
+                            background: plan.highlight
+                              ? "rgba(104,81,255,0.15)"
+                              : "rgba(233,30,140,0.12)",
+                            color: plan.highlight ? "#6851FF" : "#E91E8C",
+                          }}
+                        >
+                          {plan.discountLabel}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-1 flex items-end gap-1">
                     <span
                       className="font-display text-3xl font-bold"

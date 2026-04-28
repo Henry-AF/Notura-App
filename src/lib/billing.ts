@@ -252,39 +252,6 @@ export async function refundMeetingQuota(
   }
 }
 
-export async function incrementMeetingsThisMonth(
-  userId: string,
-  incrementBy: number = 1
-): Promise<number> {
-  if (!Number.isFinite(incrementBy) || incrementBy < 1) {
-    throw new Error("Billing usage increment must be >= 1.");
-  }
-
-  const supabase = createServiceRoleClient();
-  const safeIncrement = Math.trunc(incrementBy);
-
-  const { data, error } = await supabase.rpc(
-    "increment_billing_meetings_this_month",
-    {
-      p_user_id: userId,
-      p_increment: safeIncrement,
-    }
-  );
-
-  if (!error && typeof data === "number") {
-    return data;
-  }
-
-  // Backward compatible fallback while the rpc migration rolls out.
-  const account = await getOrCreateBillingAccount(userId, supabase);
-  const nextValue = Math.max(
-    0,
-    (account.meetings_this_month ?? 0) + safeIncrement
-  );
-  await syncMeetingsThisMonth(userId, nextValue, supabase);
-  return nextValue;
-}
-
 export async function resetSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   supabase: SupabaseClient<Database> = createServiceRoleClient()

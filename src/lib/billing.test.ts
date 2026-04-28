@@ -136,6 +136,12 @@ describe("billing helpers", () => {
     });
   });
 
+  it("does not expose the removed monthly increment helper", async () => {
+    const mod = await import("./billing");
+
+    expect("incrementMeetingsThisMonth" in mod).toBe(false);
+  });
+
   it("refunds meeting quota atomically via rpc helper", async () => {
     const { client, from, rpc } = createBillingClient({
       existingAccount: {

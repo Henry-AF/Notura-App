@@ -1,10 +1,8 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/webhooks/abacatepay — Handle AbacatePay webhook events
-//
-// Webhook URL to register in AbacatePay dashboard:
-//   https://<your-domain>/api/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>
-// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/webhooks/abacatepay
+// Register the webhook URL without query params and send the shared secret in
+// the x-abacatepay-secret header.
 
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
@@ -48,6 +46,14 @@ interface AbacatePayWebhookEvent {
   };
 }
 
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 function readEventExternalId(data: AbacatePayWebhookEvent["data"]): string | undefined {
   return (
     data.externalId ??
@@ -70,8 +76,8 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayWebhook,
   async (request: NextRequest): Promise<NextResponse> => {
-  const secret = request.nextUrl.searchParams.get("webhookSecret");
-  if (!WEBHOOK_SECRET || secret !== WEBHOOK_SECRET) {
+  const incomingSecret = request.headers.get("x-abacatepay-secret") ?? "";
+  if (!WEBHOOK_SECRET || !safeEqual(incomingSecret, WEBHOOK_SECRET)) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -110,17 +116,16 @@ async function handleBillingPaid(
   if (!parsed) return NextResponse.json({ received: true });
 
   const customerId = readEventCustomerId(data);
+  const params = {
+    userId: parsed.userId,
+    plan: parsed.plan,
+    clearAbacatePayPending: true,
+    ...(customerId ? { abacatepayCustomerId: customerId } : {}),
+  };
+
   const supabase = createServiceRoleClient();
   try {
-    await resetSubscriptionPeriod(
-      {
-        userId: parsed.userId,
-        plan: parsed.plan,
-        abacatepayCustomerId: customerId,
-        clearAbacatePayPending: true,
-      },
-      supabase
-    );
+    await resetSubscriptionPeriod(params, supabase);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     console.error("[webhook-abacatepay] billing.paid update failed:", message);
@@ -171,18 +176,33 @@ async function handleSubscriptionCanceled(
 async function handleSubscriptionRenewed(
   data: AbacatePayWebhookEvent["data"]
 ): Promise<NextResponse> {
+  const externalId = readEventExternalId(data);
+  const parsed = externalId
+    ? parseAbacatePayOnboardingExternalId(externalId)
+    : null;
   const customerId = readEventCustomerId(data);
-  if (!customerId) return NextResponse.json({ received: true });
+  if (!customerId && !parsed) return NextResponse.json({ received: true });
 
   const supabase = createServiceRoleClient();
+  const params = parsed
+    ? {
+        userId: parsed.userId,
+        plan: parsed.plan,
+        clearAbacatePayPending: true,
+        ...(customerId ? { abacatepayCustomerId: customerId } : {}),
+      }
+    : { abacatepayCustomerId: customerId as string };
+
   try {
-    await resetSubscriptionPeriod({ abacatepayCustomerId: customerId }, supabase);
+    await resetSubscriptionPeriod(params, supabase);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     console.error("[webhook-abacatepay] subscription.renewed update failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  console.log(`[webhook-abacatepay] subscription.renewed customerId=${customerId}`);
+  console.log(
+    `[webhook-abacatepay] subscription.renewed customerId=${customerId ?? "unknown"}`
+  );
   return NextResponse.json({ received: true });
 }

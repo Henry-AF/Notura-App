@@ -107,6 +107,13 @@ export interface CheckoutResponseBody {
   alreadyActive?: boolean;
 }
 
+export function createSettingsCheckoutPayload(plan: "pro" | "team") {
+  return {
+    plan,
+    source: "settings" as const,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
@@ -137,7 +144,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
       let res = await fetch("/api/abacatepay/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify(createSettingsCheckoutPayload(plan)),
       });
 
       // If AbacatePay not configured, try Stripe

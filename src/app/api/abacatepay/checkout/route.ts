@@ -17,10 +17,15 @@ import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
   plan?: Plan;
+  source?: "onboarding" | "settings";
 }
 
 function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
+}
+
+function getCheckoutReturnPath(source: CreateCheckoutBody["source"]): string {
+  return source === "settings" ? "/dashboard/settings" : "/onboarding";
 }
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
@@ -35,6 +40,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     userIdForLog = auth.user.id;
     const plan = body.plan;
+    const source = body.source === "settings" ? "settings" : "onboarding";
     planForLog = plan ?? null;
 
     if (!plan || !isPaidPlan(plan)) {
@@ -70,13 +76,16 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     const origin = new URL(request.url).origin;
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
-    const returnUrl = new URL("/onboarding", appBaseUrl);
+    const returnPath = getCheckoutReturnPath(source);
+    const returnUrl = new URL(returnPath, appBaseUrl);
     returnUrl.searchParams.set("payment", "canceled");
     returnUrl.searchParams.set("plan", plan);
+    returnUrl.searchParams.set("provider", "abacatepay");
 
-    const completionUrl = new URL("/onboarding", appBaseUrl);
+    const completionUrl = new URL(returnPath, appBaseUrl);
     completionUrl.searchParams.set("payment", "success");
     completionUrl.searchParams.set("plan", plan);
+    completionUrl.searchParams.set("provider", "abacatepay");
 
     const subscription = await createAbacatePaySubscriptionCheckout({
       productId: getAbacatePayProductId(plan),
@@ -87,7 +96,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       metadata: {
         userId: auth.user.id,
         plan,
-        origin: "onboarding",
+        origin: source,
       },
     });
 

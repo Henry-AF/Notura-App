@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ProfileCard,
   SubscriptionCard,
@@ -18,6 +18,7 @@ import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
   fetchCurrentUser,
   updateCurrentUser,
+  verifySettingsPayment,
   type CurrentUser,
 } from "./settings-api";
 
@@ -40,10 +41,16 @@ function notifyUserUpdated() {
   window.dispatchEvent(new Event("notura:user-updated"));
 }
 
+function clearPaymentSearch(pathname: string) {
+  window.history.replaceState(null, "", pathname);
+}
+
 // ─── Inner page ───────────────────────────────────────────────────────────────
 
 function SettingsPageInner() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { show } = useToast();
   const { theme, toggleTheme } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -116,6 +123,53 @@ function SettingsPageInner() {
   useEffect(() => {
     void loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const provider = searchParams.get("provider");
+
+    if (provider !== "abacatepay") return;
+
+    if (payment === "canceled") {
+      show("Pagamento cancelado.", "warning");
+      clearPaymentSearch(pathname);
+      return;
+    }
+
+    if (payment !== "success") return;
+
+    let cancelled = false;
+
+    async function verifyPayment() {
+      setLoading(true);
+
+      try {
+        await verifySettingsPayment();
+        const user = await fetchCurrentUser();
+
+        if (!cancelled) {
+          applyUser(user);
+          notifyUserUpdated();
+          show("Plano atualizado com sucesso!", "success");
+        }
+      } catch {
+        if (!cancelled) {
+          show("Pagamento recebido, mas não foi possível confirmar o plano.", "error");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          clearPaymentSearch(pathname);
+        }
+      }
+    }
+
+    void verifyPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyUser, pathname, searchParams, show]);
 
   // Sync dark_mode pref with actual theme
   useEffect(() => {

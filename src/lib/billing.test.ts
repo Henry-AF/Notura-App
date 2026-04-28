@@ -136,6 +136,29 @@ describe("billing helpers", () => {
     });
   });
 
+  it("accepts an injected Supabase client when consuming meeting quota", async () => {
+    const { client, rpc } = createBillingClient({
+      rpcValue: {
+        meetings_used: 8,
+        plan: "team",
+        current_period_start: "2026-04-27T12:00:00.000Z",
+        current_period_end: "2026-05-27T12:00:00.000Z",
+      },
+    });
+    createServiceRoleClient.mockImplementation(() => {
+      throw new Error("service role client should not be created");
+    });
+
+    const mod = await import("./billing");
+    const value = await mod.consumeMeetingQuota("user-1", client);
+
+    expect(value).toMatchObject({ meetingsUsed: 8, plan: "team" });
+    expect(rpc).toHaveBeenCalledWith("consume_meeting_quota", {
+      p_user_id: "user-1",
+    });
+    expect(createServiceRoleClient).not.toHaveBeenCalled();
+  });
+
   it("does not expose the removed monthly increment helper", async () => {
     const mod = await import("./billing");
 

@@ -212,13 +212,15 @@ export function getMeetingQuotaStatus(
   return { allowed: true, code: null, meetingsUsed, quotaLimit };
 }
 
-export async function consumeMeetingQuota(userId: string): Promise<{
+export async function consumeMeetingQuota(
+  userId: string,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
+): Promise<{
   meetingsUsed: number;
   plan: Plan;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
 }> {
-  const supabase = createServiceRoleClient();
   const { data, error } = await supabase.rpc("consume_meeting_quota", {
     p_user_id: userId,
   });

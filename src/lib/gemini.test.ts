@@ -90,3 +90,65 @@ describe("generateMeetingSummary retry policy", () => {
     expect(generateContentMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("generateMeetingSummary dynamic summary length", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    generateContentMock.mockResolvedValue(createValidGeminiResponse());
+  });
+
+  it("uses the default WhatsApp summary word limit when duration is unknown", async () => {
+    const mod = await import("./gemini");
+    await mod.generateMeetingSummary("transcript");
+
+    expect(generateContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('Limite de tamanho do "summary_whatsapp": até 400 palavras.')
+    );
+    expect(generateContentMock).toHaveBeenCalledWith(
+      expect.stringContaining("Duração da reunião: não informada.")
+    );
+  });
+
+  it.each([
+    [30 * 60, 150],
+    [60 * 60, 300],
+    [90 * 60, 500],
+    [108 * 60, 700],
+  ])(
+    "uses a %i second duration to set a %i word WhatsApp summary limit",
+    async (durationSeconds, expectedWordLimit) => {
+      const mod = await import("./gemini");
+      await mod.generateMeetingSummary("transcript", durationSeconds);
+
+      expect(generateContentMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Limite de tamanho do "summary_whatsapp": até ${expectedWordLimit} palavras.`
+        )
+      );
+    }
+  );
+});
+
+describe("generateMeetingSummary summary parity", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    generateContentMock.mockResolvedValue(createValidGeminiResponse());
+  });
+
+  it("instructs Gemini to keep summary_whatsapp and summary_json factually equivalent", async () => {
+    const mod = await import("./gemini");
+    await mod.generateMeetingSummary("transcript", 6480);
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemInstruction: expect.stringContaining(
+          "devem conter as mesmas informações factuais"
+        ),
+      })
+    );
+  });
+});

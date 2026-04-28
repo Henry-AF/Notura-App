@@ -205,7 +205,7 @@ export const processMeeting = inngest.createFunction(
       }
 
       // ── Step 2: Transcribe audio ───────────────────────────────────────
-      const transcript = await step.run("transcribe", async () => {
+      const { transcript, durationSeconds } = await step.run("transcribe", async () => {
         // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
         // NOTE: Webhook alternative — swap transcribe() for submit() and pass
         //   webhook_url + webhook_auth_header_name/value, then save the returned
@@ -305,7 +305,10 @@ export const processMeeting = inngest.createFunction(
           );
         }
 
-        return formattedTranscript;
+        return {
+          transcript: formattedTranscript,
+          durationSeconds: durationSecs,
+        };
       });
 
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
@@ -313,7 +316,7 @@ export const processMeeting = inngest.createFunction(
         "summarize-meeting",
         async () => {
           try {
-            return await generateMeetingSummary(transcript);
+            return await generateMeetingSummary(transcript, durationSeconds);
           } catch (error) {
             throw toProviderQueueError("gemini", error);
           }

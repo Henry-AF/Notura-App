@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -162,12 +162,6 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
       return matchesQuery && matchesStatus;
     });
   }, [meetings, search, statusFilter]);
-
-  useEffect(() => {
-    meetings.slice(0, 12).forEach((meeting) => {
-      void router.prefetch(`/dashboard/meetings/${meeting.id}`);
-    });
-  }, [meetings, router]);
 
   return (
     <PageShell>

@@ -48,12 +48,13 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   );
 
   useEffect(() => {
-    void router.prefetch("/dashboard/new");
-    void router.prefetch("/dashboard/meetings");
-    meetings.slice(0, 8).forEach((meeting) => {
-      void router.prefetch(`/dashboard/meetings/${meeting.id}`);
-    });
-  }, [meetings, router]);
+    const prefetchSafely = (href: string) => {
+      router.prefetch(href);
+    };
+
+    prefetchSafely("/dashboard/new");
+    prefetchSafely("/dashboard/meetings");
+  }, [router]);
 
   return (
     <PageShell>

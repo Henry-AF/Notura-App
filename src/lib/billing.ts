@@ -288,6 +288,7 @@ export async function resetSubscriptionPeriod(
   }
 }
 
+// Se o usuário fazer o downgrade, ele não recebe a quota do plano free
 export async function downgradeToFree(
   params: DowngradeToFreeParams,
   supabase: SupabaseClient<Database> = createServiceRoleClient()

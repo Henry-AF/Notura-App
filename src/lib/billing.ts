@@ -5,35 +5,55 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
 
 export type MeetingQuotaBlockCode =
-  | "subscription_expired"
   | "lifetime_quota_exceeded"
-  | "period_quota_exceeded";
+  | "period_quota_exceeded"
+  | "subscription_expired";
 
-const QUOTA_ERROR_CODE_BY_SQLSTATE: Record<string, MeetingQuotaBlockCode> = {
-  BP001: "subscription_expired",
-  BP002: "lifetime_quota_exceeded",
-  BP003: "period_quota_exceeded",
-};
+export type MeetingQuotaStatus =
+  | {
+      allowed: true;
+      code: null;
+      meetingsUsed: number;
+      quotaLimit: number;
+    }
+  | {
+      allowed: false;
+      code: MeetingQuotaBlockCode;
+      message: string;
+      meetingsUsed: number;
+      quotaLimit: number;
+    };
 
-interface SupabaseErrorCandidate {
-  code?: string | null;
-}
-
-export class MeetingQuotaError extends Error {
-  code: MeetingQuotaBlockCode;
-
-  constructor(code: MeetingQuotaBlockCode) {
-    super(code);
-    this.name = "MeetingQuotaError";
-    this.code = code;
+export class BillingQuotaError extends Error {
+  constructor(
+    public readonly code: MeetingQuotaBlockCode,
+    message: string
+  ) {
+    super(message);
+    this.name = "BillingQuotaError";
   }
 }
 
-export function resolveQuotaErrorCode(
-  error: SupabaseErrorCandidate | null | undefined
-): MeetingQuotaBlockCode | null {
-  if (typeof error?.code !== "string") return null;
-  return QUOTA_ERROR_CODE_BY_SQLSTATE[error.code] ?? null;
+type BillingAccountLookup =
+  | { userId: string }
+  | { stripeCustomerId: string }
+  | { abacatepayCustomerId: string };
+
+type ResetSubscriptionPeriodParams = BillingAccountLookup & {
+  plan?: Exclude<Plan, "free">;
+  now?: Date;
+  clearAbacatePayPending?: boolean;
+};
+
+type DowngradeToFreeParams = BillingAccountLookup & {
+  now?: Date;
+};
+
+interface ConsumedQuotaRow {
+  meetings_used: number;
+  plan: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
 }
 
 export function getMonthlyMeetingLimit(plan: Plan): number | null {

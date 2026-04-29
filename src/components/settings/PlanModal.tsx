@@ -18,6 +18,8 @@ interface PlanDef {
   id: Plan;
   name: string;
   price: string;
+  originalPrice?: string;
+  discountLabel?: string;
   period: string;
   badge?: string;
   badgeColor?: string;
@@ -85,10 +87,17 @@ const PLAN_CTA: Record<Plan, string> = {
   team: "Assinar Platinum",
 };
 
+const PLAN_ORIGINAL_PRICES: Partial<Record<Plan, { price: string; discount: string }>> = {
+  pro:  { price: "R$ 89,90", discount: "-33%" },
+  team: { price: "R$ 119,90", discount: "-33%" },
+};
+
 const PLANS: PlanDef[] = APP_PLAN_IDS.map((planId) => ({
   id: planId,
   name: getPlanDisplayName(planId),
   price: getPlanPriceLabel(planId),
+  originalPrice: PLAN_ORIGINAL_PRICES[planId]?.price,
+  discountLabel: PLAN_ORIGINAL_PRICES[planId]?.discount,
   period: "/mês",
   features: [getPlanUsageFeature(planId), ...PLAN_EXTRA_FEATURES[planId]],
   cta: PLAN_CTA[planId],
@@ -231,28 +240,32 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center sm:p-4"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
       <div
         ref={panelRef}
-        className="relative w-full max-w-3xl rounded-2xl"
+        className="plan-modal-panel relative w-full rounded-t-3xl sm:max-w-3xl sm:rounded-2xl"
         style={{
           background: c.card,
           border: `1px solid ${c.border}`,
-          maxHeight: "90vh",
+          maxHeight: "90dvh",
           overflowY: "auto",
-          animation: "planModalIn 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Escolher plano"
       >
+        {/* Mobile drag handle */}
+        <div
+          className="mx-auto mb-1 mt-3 h-1 w-10 shrink-0 rounded-full sm:hidden"
+          style={{ background: c.border }}
+        />
         {/* Header */}
         <div
-          className="sticky top-0 z-10 flex items-center justify-between p-6"
+          className="sticky top-0 z-10 flex items-center justify-between p-4 sm:p-6"
           style={{
             background: c.card,
             borderBottom: `1px solid ${c.border}`,
@@ -285,7 +298,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         </div>
 
         {/* Plan cards */}
-        <div className="grid gap-4 p-6 sm:grid-cols-3">
+        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-6 pt-4 sm:grid sm:grid-cols-3 sm:overflow-x-visible sm:snap-none sm:px-6 sm:pb-6 sm:pt-6">
           {PLANS.map((plan) => {
             const isCurrentPlan =
               currentPlan === plan.id ||
@@ -304,7 +317,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
             return (
               <div
                 key={plan.id}
-                className="relative flex flex-col rounded-2xl p-5"
+                className="relative flex w-[82vw] shrink-0 snap-center flex-col rounded-2xl p-5 sm:w-auto"
                 style={{
                   background: plan.highlight ? "rgba(104,81,255,0.07)" : c.card2,
                   border: plan.highlight
@@ -346,6 +359,32 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                   >
                     {plan.name}
                   </p>
+
+                  {/* Original (strikethrough) price + discount badge */}
+                  {plan.originalPrice && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span
+                        className="text-sm line-through"
+                        style={{ color: c.ink3 }}
+                      >
+                        {plan.originalPrice}
+                      </span>
+                      {plan.discountLabel && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                          style={{
+                            background: plan.highlight
+                              ? "rgba(104,81,255,0.15)"
+                              : "rgba(233,30,140,0.12)",
+                            color: plan.highlight ? "#6851FF" : "#E91E8C",
+                          }}
+                        >
+                          {plan.discountLabel}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-1 flex items-end gap-1">
                     <span
                       className="font-display text-3xl font-bold"
@@ -438,7 +477,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         {/* Error message */}
         {error && (
           <div
-            className="mx-6 mb-6 rounded-xl px-4 py-3 text-sm"
+            className="mx-4 mb-4 rounded-xl px-4 py-3 text-sm sm:mx-6 sm:mb-6"
             style={{
               background: "rgba(255,107,107,0.1)",
               border: "1px solid rgba(255,107,107,0.25)",
@@ -450,15 +489,27 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         )}
 
         {/* Footer note */}
-        <p className="px-6 pb-6 text-center text-xs" style={{ color: c.ink3 }}>
+        <p className="px-4 pb-4 pt-1 text-center text-xs sm:px-6 sm:pb-6" style={{ color: c.ink3 }}>
           Pagamento seguro · Cancele a qualquer momento · Sem taxas ocultas
         </p>
       </div>
 
       <style>{`
+        @keyframes planModalSlideUp {
+          from { opacity: 0; transform: translateY(100%); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
         @keyframes planModalIn {
           from { opacity: 0; transform: scale(0.95) translateY(10px); }
           to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+        .plan-modal-panel {
+          animation: planModalSlideUp 0.3s cubic-bezier(0.3, 0, 0.1, 1);
+        }
+        @media (min-width: 640px) {
+          .plan-modal-panel {
+            animation: planModalIn 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          }
         }
       `}</style>
     </div>

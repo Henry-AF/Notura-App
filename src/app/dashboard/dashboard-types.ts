@@ -1,4 +1,4 @@
-import type { MetricCardProps, Meeting, Task } from "@/components/dashboard";
+import type { MetricCardProps, Meeting } from "@/components/dashboard";
 import type { Plan } from "@/types/database";
 
 export interface DashboardOverviewData {
@@ -7,7 +7,6 @@ export interface DashboardOverviewData {
   meetingsThisMonth: number;
   monthlyLimit: number | null;
   meetings: Meeting[];
-  tasks: Task[];
   metrics: MetricCardProps[];
   todayCount: number;
 }

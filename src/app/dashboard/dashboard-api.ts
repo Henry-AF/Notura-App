@@ -24,21 +24,12 @@ export function mapDashboardOverview(
     status: normalizeDashboardMeetingStatus(meeting.status),
   }));
 
-  const tasks = response.openTasks.map((task) => ({
-    id: task.id,
-    text: task.text,
-    completed: task.completed,
-    isNew:
-      new Date(task.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000),
-  }));
-
   return {
     userName: response.userName,
     plan: response.plan,
     meetingsThisMonth: response.meetingsThisMonth,
     monthlyLimit: response.monthlyLimit,
     meetings,
-    tasks,
     metrics: [
       {
         icon: "🎥",

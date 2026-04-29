@@ -180,7 +180,7 @@ export function SettingsModal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center"
       onClick={(event) => {
         if (event.target === overlayRef.current) {
           onClose();
@@ -188,15 +188,71 @@ export function SettingsModal({
       }}
     >
       <div
-        className="relative flex w-full max-w-2xl overflow-hidden rounded-2xl shadow-2xl"
+        className="settings-modal-panel relative flex w-full flex-col overflow-hidden rounded-t-[28px] shadow-2xl sm:max-w-2xl sm:flex-row sm:rounded-2xl"
         style={{
           background: c.bg2,
           border: `1px solid ${c.border}`,
-          maxHeight: "90vh",
+          maxHeight: "90dvh",
         }}
       >
+        {/* ── Mobile: drag handle ───────────────────────────────────── */}
         <div
-          className="flex w-56 shrink-0 flex-col"
+          className="mx-auto mb-1 mt-3 h-1 w-10 shrink-0 rounded-full sm:hidden"
+          style={{ background: c.border }}
+        />
+
+        {/* ── Mobile: compact header (avatar + name + close) ─────────── */}
+        <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-1 sm:hidden">
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+            style={{ background: "linear-gradient(135deg, #3B2A7A, #7C3AED)" }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold" style={{ color: c.ink }}>
+              {data.name}
+            </p>
+            <p className="text-xs" style={{ color: c.ink3 }}>
+              {planLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ color: c.ink3 }}
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* ── Mobile: horizontal tab pills ──────────────────────────── */}
+        <div
+          className="flex shrink-0 gap-1 border-t px-2 pb-2 pt-2 sm:hidden"
+          style={{ borderColor: c.border }}
+        >
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors"
+              style={{
+                background: tab === item.id ? "rgba(104,81,255,0.12)" : "transparent",
+                color: tab === item.id ? "#6851FF" : c.ink2,
+              }}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Desktop: sidebar ──────────────────────────────────────── */}
+        <div
+          className="hidden w-56 shrink-0 flex-col sm:flex"
           style={{ background: c.card2, borderRight: `1px solid ${c.border}` }}
         >
           <div className="px-5 pb-5 pt-6">
@@ -261,9 +317,11 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col overflow-y-auto">
+        {/* ── Content area ──────────────────────────────────────────── */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* Desktop-only content header */}
           <div
-            className="flex items-center justify-between px-6 py-5"
+            className="hidden shrink-0 items-center justify-between px-6 py-5 sm:flex"
             style={{ borderBottom: `1px solid ${c.border}` }}
           >
             <div>
@@ -298,7 +356,7 @@ export function SettingsModal({
             </button>
           </div>
 
-          <div className="flex-1 space-y-4 p-6">
+          <div className="flex-1 space-y-4 p-4 sm:p-6">
             {tab === "profile" ? (
               <>
                 <div>
@@ -525,8 +583,43 @@ export function SettingsModal({
               </>
             )}
           </div>
+
+          {/* Mobile-only logout at the bottom of the sheet */}
+          <div
+            className="shrink-0 border-t p-3 sm:hidden"
+            style={{ borderColor: c.border }}
+          >
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium"
+              style={{ color: "#FF6B6B", background: "rgba(255,107,107,0.06)" }}
+            >
+              <LogOut className="h-4 w-4" />
+              Sair da conta
+            </button>
+          </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes settingsModalSlideUp {
+          from { opacity: 0; transform: translateY(100%); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes settingsModalScaleIn {
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .settings-modal-panel {
+          animation: settingsModalSlideUp 0.3s cubic-bezier(0.3, 0, 0.1, 1);
+        }
+        @media (min-width: 640px) {
+          .settings-modal-panel {
+            animation: settingsModalScaleIn 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -27,7 +27,8 @@ const RETRYABLE_MESSAGE_PATTERNS = [
   /rate limit/i,
 ];
 const SUMMARY_SCHEMA_VERSION = "1.0";
-export const PROMPT_VERSION = "1.1.0";
+export const PROMPT_VERSION = "1.2.0";
+const DEFAULT_SUMMARY_WHATSAPP_WORD_LIMIT = 400;
 
 type UnprocessableTranscriptPayload = {
   error: "UNPROCESSABLE_TRANSCRIPT";
@@ -63,7 +64,10 @@ Sua tarefa é analisar a transcrição UMA única vez e retornar, no mesmo objet
 5. Se a transcrição tiver ruído, fala sobreposta, erros de transcrição ou gírias regionais, interprete o contexto e não copie trechos ininteligíveis.
 6. Corrija capitalização de nomes e padronize pelo nome mais usado na reunião.
 7. Datas com formato claro devem usar ISO 8601 no "summary_json". Datas imprecisas podem ser descritivas.
-8. Se a transcrição estiver vazia, corrompida ou ininteligível, retorne EXATAMENTE este objeto:
+8. "summary_whatsapp" e "summary_json" devem conter as mesmas informações factuais. Toda decisão, tarefa, item em aberto, participante, próxima reunião e contexto relevante presente em um deve aparecer no outro.
+9. Use "summary_json" como fonte estruturada para templates e automações, e "summary_whatsapp" como a versão textual legível dos mesmos dados.
+10. Se houver mais itens do que cabem no limite de palavras do "summary_whatsapp", compacte a redação, mas não remova fatos que existam no "summary_json".
+11. Se a transcrição estiver vazia, corrompida ou ininteligível, retorne EXATAMENTE este objeto:
 {
   "summary_whatsapp": "⚠️ Não foi possível processar esta transcrição. O áudio pode estar corrompido ou inaudível.",
   "summary_json": {
@@ -74,7 +78,7 @@ Sua tarefa é analisar a transcrição UMA única vez e retornar, no mesmo objet
 
 ═══ REGRAS PARA "summary_whatsapp" ═══
 
-1. Mantenha o texto conciso, com no máximo 300 palavras.
+1. Mantenha o texto conciso e respeite o limite de palavras informado junto da transcrição.
 2. NÃO use markdown. Sem asteriscos duplos (**), sem hashtags (#), sem backticks (\`).
 3. Use apenas texto plano e o bullet "•".
 4. Use *texto* (um asterisco) apenas para nomes de pessoas em tarefas, pois o WhatsApp renderiza como itálico.
@@ -294,10 +298,53 @@ function isUnprocessableTranscriptPayload(
   );
 }
 
+function resolveSummaryWhatsappWordLimit(durationSeconds?: number | null): number {
+  if (
+    typeof durationSeconds !== "number" ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    return DEFAULT_SUMMARY_WHATSAPP_WORD_LIMIT;
+  }
+
+  const durationMinutes = durationSeconds / 60;
+  if (durationMinutes <= 30) return 150;
+  if (durationMinutes <= 60) return 300;
+  if (durationMinutes <= 90) return 500;
+  return 700;
+}
+
+function formatDurationForPrompt(durationSeconds?: number | null): string {
+  if (
+    typeof durationSeconds !== "number" ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    return "Duração da reunião: não informada.";
+  }
+
+  return `Duração da reunião: ${Math.round(durationSeconds / 60)} minutos.`;
+}
+
+function buildMeetingSummaryPrompt(
+  transcript: string,
+  durationSeconds?: number | null
+): string {
+  const wordLimit = resolveSummaryWhatsappWordLimit(durationSeconds);
+
+  return [
+    formatDurationForPrompt(durationSeconds),
+    `Limite de tamanho do "summary_whatsapp": até ${wordLimit} palavras.`,
+    "",
+    `Transcrição da reunião:\n\n${transcript}`,
+  ].join("\n");
+}
+
 // ── Função pública ────────────────────────────────────────────────────────────
 
 export async function generateMeetingSummary(
-  transcript: string
+  transcript: string,
+  durationSeconds?: number | null
 ): Promise<MeetingSummaryResult> {
   return withRetry(async () => {
     const genAI = getGeminiClient();
@@ -307,7 +354,7 @@ export async function generateMeetingSummary(
     });
 
     const result = await model.generateContent(
-      `Transcrição da reunião:\n\n${transcript}`
+      buildMeetingSummaryPrompt(transcript, durationSeconds)
     );
     const text = result.response.text();
 

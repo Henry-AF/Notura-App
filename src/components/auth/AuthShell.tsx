@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { Sparkles } from "lucide-react";
 import { PageHeader, type PageHeaderBreadcrumb } from "@/components/ui/app";
 import { Card, CardContent } from "@/components/ui/card";
+import { LogoFull } from "@/components/logo";
 
 interface AuthShellProps {
   breadcrumbs?: PageHeaderBreadcrumb[];
@@ -28,9 +28,8 @@ export function AuthShell({
   return (
     <main className="relative min-h-screen bg-background px-4 py-6 md:px-6 md:py-8">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between pb-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-foreground">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <span className="font-display text-xl font-bold">Notura</span>
+        <Link href="/" className="inline-flex items-center">
+          <LogoFull iconSize={24} />
         </Link>
       </div>
 

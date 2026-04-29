@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -43,6 +43,38 @@ function MeetingRow({
   onViewProcessing: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
+  const actionButton = (
+    <div
+      className="flex shrink-0 items-center justify-end"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {meeting.status === "processing" ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 rounded-md p-0 text-primary"
+          onClick={() => onViewProcessing(meeting.id)}
+          aria-label="Ver processamento"
+        >
+          <Sparkles className="h-4 w-4" />
+        </Button>
+      ) : null}
+      {meeting.status === "failed" ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 rounded-md p-0 text-destructive"
+          onClick={() => onRetry(meeting.id)}
+          aria-label="Reprocessar reunião"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      ) : null}
+    </div>
+  );
+
   return (
     <article
       role="button"
@@ -51,50 +83,42 @@ function MeetingRow({
       onKeyDown={(event) => {
         if (event.key === "Enter") onOpen(meeting.id);
       }}
-      className="grid cursor-pointer grid-cols-[1fr_120px_140px_70px] items-center gap-2 rounded-lg px-3 py-3 transition-colors hover:bg-accent/40"
+      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-3.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_70px] sm:gap-2 sm:py-3"
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="h-8 w-8 shrink-0">
+      {/* ── Mobile-only standalone avatar ──────────────────────────── */}
+      <Avatar className="h-9 w-9 shrink-0 sm:hidden">
+        <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
+      </Avatar>
+
+      {/* ── Column 1: client + title ────────────────────────────────── */}
+      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+        {/* Desktop avatar (inside column 1) */}
+        <Avatar className="hidden h-8 w-8 shrink-0 sm:flex">
           <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
         </Avatar>
-        <div className="min-w-0">
+
+        <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">{meeting.clientName}</p>
           <p className="truncate text-xs text-muted-foreground">{meeting.title}</p>
         </div>
+
+        {/* Mobile-only: date + status below the name */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:hidden">
+          <span className="text-[11px] text-muted-foreground">{meeting.date}</span>
+          <MeetingStatusBadge status={meeting.status} />
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">{meeting.date}</p>
-      <MeetingStatusBadge status={meeting.status} />
+      {/* ── Column 2: date (desktop only) ──────────────────────────── */}
+      <p className="hidden text-xs text-muted-foreground sm:block">{meeting.date}</p>
 
-      <div
-        className="flex items-center justify-end"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {meeting.status === "processing" ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 rounded-md p-0 text-primary"
-            onClick={() => onViewProcessing(meeting.id)}
-            aria-label="Ver processamento"
-          >
-            <Sparkles className="h-4 w-4" />
-          </Button>
-        ) : null}
-        {meeting.status === "failed" ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 rounded-md p-0 text-destructive"
-            onClick={() => onRetry(meeting.id)}
-            aria-label="Reprocessar reunião"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        ) : null}
+      {/* ── Column 3: status (desktop only) ────────────────────────── */}
+      <div className="hidden sm:block">
+        <MeetingStatusBadge status={meeting.status} />
       </div>
+
+      {/* ── Column 4: actions ──────────────────────────────────────── */}
+      {actionButton}
     </article>
   );
 }
@@ -138,12 +162,6 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
       return matchesQuery && matchesStatus;
     });
   }, [meetings, search, statusFilter]);
-
-  useEffect(() => {
-    meetings.slice(0, 12).forEach((meeting) => {
-      void router.prefetch(`/dashboard/meetings/${meeting.id}`);
-    });
-  }, [meetings, router]);
 
   return (
     <PageShell>
@@ -198,7 +216,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
       />
 
       <SectionCard className="rounded-xl">
-        <div className="grid grid-cols-[1fr_120px_140px_70px] gap-2 border-b px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+        <div className="hidden grid-cols-[1fr_120px_140px_70px] gap-2 border-b px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
           <p>Cliente / Titulo</p>
           <p>Data</p>
           <p>Status</p>

@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { inngest } from "@/lib/inngest";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
-import { sendWhatsAppMessage, alertOperator } from "@/lib/whatsapp";
+import { sendMeetingSummaryTemplate, alertOperator } from "@/lib/whatsapp";
 import {
   PROCESS_MEETING_CONCURRENCY,
   PROCESS_MEETING_RETRY_ATTEMPTS,
@@ -205,7 +205,7 @@ export const processMeeting = inngest.createFunction(
       }
 
       // ── Step 2: Transcribe audio ───────────────────────────────────────
-      const transcript = await step.run("transcribe", async () => {
+      const { transcript, durationSeconds } = await step.run("transcribe", async () => {
         // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
         // NOTE: Webhook alternative — swap transcribe() for submit() and pass
         //   webhook_url + webhook_auth_header_name/value, then save the returned
@@ -305,7 +305,10 @@ export const processMeeting = inngest.createFunction(
           );
         }
 
-        return formattedTranscript;
+        return {
+          transcript: formattedTranscript,
+          durationSeconds: durationSecs,
+        };
       });
 
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
@@ -313,7 +316,7 @@ export const processMeeting = inngest.createFunction(
         "summarize-meeting",
         async () => {
           try {
-            return await generateMeetingSummary(transcript);
+            return await generateMeetingSummary(transcript, durationSeconds);
           } catch (error) {
             throw toProviderQueueError("gemini", error);
           }
@@ -443,12 +446,22 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
       await step.run("send-whatsapp", async () => {
-        const result = await sendWhatsAppMessage(whatsappNumber, summaryWhatsapp);
+        const result = await sendMeetingSummaryTemplate(
+          whatsappNumber,
+          summaryJson,
+          meetingId,
+          summaryJson.meeting?.title
+        );
 
         const newStatus = result.success ? "sent" : "failed";
         await supabase
           .from("meetings")
-          .update({ whatsapp_status: newStatus })
+          .update({
+            whatsapp_status: newStatus,
+            error_message: result.success
+              ? null
+              : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+          })
           .eq("id", meetingId);
 
         if (!result.success) {

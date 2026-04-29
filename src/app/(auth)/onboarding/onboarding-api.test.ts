@@ -10,16 +10,20 @@ describe("onboarding api client", () => {
     vi.restoreAllMocks();
   });
 
-  it("treats accepted customer prewarm responses as ready", async () => {
+  it("does not treat accepted in-progress customer prewarm responses as ready", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(null, { status: 202 })
     );
 
     const result = await ensureAbacatepayCustomer();
 
-    expect(result).toBe(true);
+    expect(result).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "onboarding" }),
     });
   });
 

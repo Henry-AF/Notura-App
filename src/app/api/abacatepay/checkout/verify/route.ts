@@ -7,7 +7,7 @@ import {
   isAbacatePayTimeoutError,
   parseAbacatePayOnboardingExternalId,
 } from "@/lib/abacatepay";
-import { getOrCreateBillingAccount } from "@/lib/billing";
+import { getOrCreateBillingAccount, resetSubscriptionPeriod } from "@/lib/billing";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
@@ -105,21 +105,21 @@ export const POST = withAuthRateLimit(
       );
     }
 
-    const { error: updateError } = await db
-      .from("billing_accounts")
-      .update({
-        plan: pendingPlan,
-        abacatepay_customer_id:
-          subscription.customerId ?? billingAccount.abacatepay_customer_id,
-        abacatepay_pending_checkout_id: null,
-        abacatepay_pending_plan: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", auth.user.id);
-
-    if (updateError) {
+    try {
+      await resetSubscriptionPeriod(
+        {
+          userId: auth.user.id,
+          plan: pendingPlan,
+          abacatepayCustomerId:
+            subscription.customerId ?? billingAccount.abacatepay_customer_id ?? undefined,
+          clearAbacatePayPending: true,
+        },
+        db
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
       return NextResponse.json(
-        { error: `Nao foi possivel atualizar seu plano: ${updateError.message}` },
+        { error: `Nao foi possivel atualizar seu plano: ${message}` },
         { status: 500 }
       );
     }

@@ -49,9 +49,20 @@ describe("POST /api/meetings/upload", () => {
     getPresignedUploadUrl.mockResolvedValue("https://r2.example/upload");
     signUploadToken.mockReturnValue("signed-upload-token");
     getBillingStatus.mockResolvedValue({
-      billingAccount: { plan: "pro" },
+      billingAccount: {
+        plan: "pro",
+        meetings_used: 0,
+        current_period_end: "2026-05-27T12:00:00.000Z",
+      },
       meetingsThisMonth: 0,
+      meetingsUsed: 0,
       monthlyLimit: 30,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 0,
+        quotaLimit: 30,
+      },
     });
   });
 
@@ -115,11 +126,20 @@ describe("POST /api/meetings/upload", () => {
     expect(getPresignedUploadUrl).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when the monthly plan limit is reached", async () => {
+  it("returns 403 when the free lifetime quota is reached", async () => {
     getBillingStatus.mockResolvedValue({
-      billingAccount: { plan: "free" },
+      billingAccount: { plan: "free", meetings_used: 3 },
       meetingsThisMonth: 3,
+      meetingsUsed: 3,
       monthlyLimit: 3,
+      quotaStatus: {
+        allowed: false,
+        code: "lifetime_quota_exceeded",
+        message:
+          "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.",
+        meetingsUsed: 3,
+        quotaLimit: 3,
+      },
     });
 
     const mod = await import("./route");
@@ -139,7 +159,48 @@ describe("POST /api/meetings/upload", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
       error:
-        "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões.",
+        "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.",
+    });
+    expect(getPresignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when a paid subscription period is expired", async () => {
+    getBillingStatus.mockResolvedValue({
+      billingAccount: {
+        plan: "pro",
+        meetings_used: 12,
+        current_period_end: "2026-04-01T00:00:00.000Z",
+      },
+      meetingsThisMonth: 12,
+      meetingsUsed: 12,
+      monthlyLimit: 30,
+      quotaStatus: {
+        allowed: false,
+        code: "subscription_expired",
+        message:
+          "Sua assinatura expirou. Renove o plano para processar novas reuniões.",
+        meetingsUsed: 12,
+        quotaLimit: 30,
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fileName: "audio.mp3",
+          contentType: "audio/mpeg",
+          fileSize: 1024,
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "Sua assinatura expirou. Renove o plano para processar novas reuniões.",
     });
     expect(getPresignedUploadUrl).not.toHaveBeenCalled();
   });

@@ -78,7 +78,14 @@ describe("critical API routes rate limiting", () => {
     getBillingStatus.mockResolvedValue({
       billingAccount: { plan: "pro" },
       meetingsThisMonth: 0,
+      meetingsUsed: 0,
       monthlyLimit: 100,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 0,
+        quotaLimit: 100,
+      },
     });
     syncMeetingsThisMonth.mockResolvedValue(undefined);
 
@@ -186,16 +193,14 @@ describe("critical API routes rate limiting", () => {
       {
         routePath: "./webhooks/abacatepay/route",
         buildRequest: () =>
-          new NextRequest(
-            "http://localhost/api/webhooks/abacatepay?webhookSecret=wrong",
-            {
-              method: "POST",
-              headers: {
-                "x-forwarded-for": "203.0.113.10",
-              },
-              body: JSON.stringify({ event: "noop" }),
-            }
-          ),
+          new NextRequest("http://localhost/api/webhooks/abacatepay", {
+            method: "POST",
+            headers: {
+              "x-abacatepay-secret": "wrong",
+              "x-forwarded-for": "203.0.113.10",
+            },
+            body: JSON.stringify({ event: "noop" }),
+          }),
       },
       {
         routePath: "./webhooks/assemblyai/route",

@@ -1,7 +1,7 @@
 import type { BillingAccount, Plan } from "@/types/database";
 
 const ABACATEPAY_API_BASE_URL = (
-  process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v1"
+  process.env.ABACATEPAY_API_BASE_URL || "https://api.abacatepay.com/v2"
 ).trim();
 const ABACATEPAY_API_KEY = process.env.ABACATEPAY_API_KEY;
 export const ABACATEPAY_REQUEST_TIMEOUT_MS = 5000;

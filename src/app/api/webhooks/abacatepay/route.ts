@@ -1,15 +1,14 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/webhooks/abacatepay — Handle AbacatePay webhook events
-//
-// Webhook URL to register in AbacatePay dashboard:
-//   https://<your-domain>/api/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>
-// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/webhooks/abacatepay
+// Register the webhook URL without query params and send the shared secret in
+// the x-abacatepay-secret header.
 
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { parseAbacatePayOnboardingExternalId } from "@/lib/abacatepay";
+import { downgradeToFree, resetSubscriptionPeriod } from "@/lib/billing";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
 
@@ -47,6 +46,14 @@ interface AbacatePayWebhookEvent {
   };
 }
 
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 function readEventExternalId(data: AbacatePayWebhookEvent["data"]): string | undefined {
   return (
     data.externalId ??
@@ -69,8 +76,8 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayWebhook,
   async (request: NextRequest): Promise<NextResponse> => {
-  const secret = request.nextUrl.searchParams.get("webhookSecret");
-  if (!WEBHOOK_SECRET || secret !== WEBHOOK_SECRET) {
+  const incomingSecret = request.headers.get("x-abacatepay-secret") ?? "";
+  if (!WEBHOOK_SECRET || !safeEqual(incomingSecret, WEBHOOK_SECRET)) {
     return new NextResponse(null, { status: 401 });
   }
 
@@ -109,25 +116,20 @@ async function handleBillingPaid(
   if (!parsed) return NextResponse.json({ received: true });
 
   const customerId = readEventCustomerId(data);
-  const updatePayload: Record<string, unknown> = {
+  const params = {
+    userId: parsed.userId,
     plan: parsed.plan,
-    abacatepay_pending_checkout_id: null,
-    abacatepay_pending_plan: null,
-    updated_at: new Date().toISOString(),
+    clearAbacatePayPending: true,
+    ...(customerId ? { abacatepayCustomerId: customerId } : {}),
   };
-  if (customerId) {
-    updatePayload.abacatepay_customer_id = customerId;
-  }
 
   const supabase = createServiceRoleClient();
-  const { error } = await supabase
-    .from("billing_accounts")
-    .update(updatePayload)
-    .eq("user_id", parsed.userId);
-
-  if (error) {
-    console.error("[webhook-abacatepay] billing.paid update failed:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await resetSubscriptionPeriod(params, supabase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    console.error("[webhook-abacatepay] billing.paid update failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   console.log(`[webhook-abacatepay] billing.paid userId=${parsed.userId} plan=${parsed.plan}`);
@@ -138,19 +140,16 @@ async function handleSubscriptionCanceled(
   data: AbacatePayWebhookEvent["data"]
 ): Promise<NextResponse> {
   const supabase = createServiceRoleClient();
-  const nowIso = new Date().toISOString();
 
   if (data.externalId) {
     const parsed = parseAbacatePayOnboardingExternalId(data.externalId);
     if (parsed) {
-      const { error } = await supabase
-        .from("billing_accounts")
-        .update({ plan: "free", updated_at: nowIso })
-        .eq("user_id", parsed.userId);
-
-      if (error) {
-        console.error("[webhook-abacatepay] subscription.canceled by userId failed:", error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      try {
+        await downgradeToFree({ userId: parsed.userId }, supabase);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown error";
+        console.error("[webhook-abacatepay] subscription.canceled by userId failed:", message);
+        return NextResponse.json({ error: message }, { status: 500 });
       }
 
       console.log(`[webhook-abacatepay] subscription.canceled userId=${parsed.userId}`);
@@ -158,16 +157,14 @@ async function handleSubscriptionCanceled(
     }
   }
 
-  const customerId = data.customerId ?? data.customer?.id;
+  const customerId = readEventCustomerId(data);
   if (customerId) {
-    const { error } = await supabase
-      .from("billing_accounts")
-      .update({ plan: "free", updated_at: nowIso })
-      .eq("abacatepay_customer_id", customerId);
-
-    if (error) {
-      console.error("[webhook-abacatepay] subscription.canceled by customerId failed:", error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    try {
+      await downgradeToFree({ abacatepayCustomerId: customerId }, supabase);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.error("[webhook-abacatepay] subscription.canceled by customerId failed:", message);
+      return NextResponse.json({ error: message }, { status: 500 });
     }
 
     console.log(`[webhook-abacatepay] subscription.canceled customerId=${customerId}`);
@@ -179,23 +176,33 @@ async function handleSubscriptionCanceled(
 async function handleSubscriptionRenewed(
   data: AbacatePayWebhookEvent["data"]
 ): Promise<NextResponse> {
-  const customerId = data.customerId ?? data.customer?.id;
-  if (!customerId) return NextResponse.json({ received: true });
+  const externalId = readEventExternalId(data);
+  const parsed = externalId
+    ? parseAbacatePayOnboardingExternalId(externalId)
+    : null;
+  const customerId = readEventCustomerId(data);
+  if (!customerId && !parsed) return NextResponse.json({ received: true });
 
   const supabase = createServiceRoleClient();
-  const { error } = await supabase
-    .from("billing_accounts")
-    .update({
-      meetings_this_month: 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("abacatepay_customer_id", customerId);
+  const params = parsed
+    ? {
+        userId: parsed.userId,
+        plan: parsed.plan,
+        clearAbacatePayPending: true,
+        ...(customerId ? { abacatepayCustomerId: customerId } : {}),
+      }
+    : { abacatepayCustomerId: customerId as string };
 
-  if (error) {
-    console.error("[webhook-abacatepay] subscription.renewed update failed:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await resetSubscriptionPeriod(params, supabase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    console.error("[webhook-abacatepay] subscription.renewed update failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  console.log(`[webhook-abacatepay] subscription.renewed customerId=${customerId}`);
+  console.log(
+    `[webhook-abacatepay] subscription.renewed customerId=${customerId ?? "unknown"}`
+  );
   return NextResponse.json({ received: true });
 }

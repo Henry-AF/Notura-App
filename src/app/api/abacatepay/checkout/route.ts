@@ -10,17 +10,36 @@ import {
 } from "@/lib/abacatepay";
 import {
   AbacatePayCustomerNotReadyError,
-  ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
+import { withBillingSpan } from "@/lib/billing-observability";
 import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
   plan?: Plan;
+  source?: "onboarding" | "settings";
 }
 
 function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
+}
+
+type AbacatePayCustomerContext = Awaited<
+  ReturnType<typeof loadAbacatePayCustomerContext>
+>;
+
+function getCheckoutReturnPath(source: CreateCheckoutBody["source"]): string {
+  return source === "settings" ? "/dashboard/settings" : "/onboarding";
+}
+
+function resolveCheckoutCustomerId(
+  customerContext: AbacatePayCustomerContext
+): string {
+  if (customerContext.billingAccount.abacatepay_customer_id) {
+    return customerContext.billingAccount.abacatepay_customer_id;
+  }
+
+  throw new AbacatePayCustomerNotReadyError();
 }
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
@@ -35,6 +54,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     userIdForLog = auth.user.id;
     const plan = body.plan;
+    const source = body.source === "settings" ? "settings" : "onboarding";
     planForLog = plan ?? null;
 
     if (!plan || !isPaidPlan(plan)) {
@@ -44,7 +64,11 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const customerContext = await loadAbacatePayCustomerContext(db, auth.user.id);
+    const customerContext = await loadAbacatePayCustomerContext(
+      db,
+      auth.user.id,
+      source
+    );
     if (customerContext.billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
@@ -52,44 +76,50 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     }
 
-    const ensuredCustomer = await ensureAbacatePayCustomer(
-      db,
-      {
-        id: auth.user.id,
-        email: auth.user.email ?? null,
-      },
-      customerContext,
-      {
-        waitForFreshLock: true,
-      }
+    const hadCustomerIdAtStart = Boolean(
+      customerContext.billingAccount.abacatepay_customer_id
     );
-
-    if (!ensuredCustomer.customerId) {
-      throw new AbacatePayCustomerNotReadyError();
-    }
+    const waitedForFreshLock = false;
+    const customerId = resolveCheckoutCustomerId(customerContext);
 
     const origin = new URL(request.url).origin;
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
-    const returnUrl = new URL("/onboarding", appBaseUrl);
+    const returnPath = getCheckoutReturnPath(source);
+    const returnUrl = new URL(returnPath, appBaseUrl);
     returnUrl.searchParams.set("payment", "canceled");
     returnUrl.searchParams.set("plan", plan);
+    returnUrl.searchParams.set("provider", "abacatepay");
 
-    const completionUrl = new URL("/onboarding", appBaseUrl);
+    const completionUrl = new URL(returnPath, appBaseUrl);
     completionUrl.searchParams.set("payment", "success");
     completionUrl.searchParams.set("plan", plan);
+    completionUrl.searchParams.set("provider", "abacatepay");
 
-    const subscription = await createAbacatePaySubscriptionCheckout({
-      productId: getAbacatePayProductId(plan),
-      customerId: ensuredCustomer.customerId,
-      externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
-      returnUrl: returnUrl.toString(),
-      completionUrl: completionUrl.toString(),
-      metadata: {
-        userId: auth.user.id,
-        plan,
-        origin: "onboarding",
+    const subscription = await withBillingSpan(
+      {
+        name: "billing.abacatepay.create_subscription_checkout",
+        op: "http.client",
+        attributes: {
+          "billing.dependency": "abacatepay",
+          "billing.flow": source,
+          hadCustomerIdAtStart,
+          waitedForFreshLock,
+        },
       },
-    });
+      () =>
+        createAbacatePaySubscriptionCheckout({
+          productId: getAbacatePayProductId(plan),
+          customerId,
+          externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
+          returnUrl: returnUrl.toString(),
+          completionUrl: completionUrl.toString(),
+          metadata: {
+            userId: auth.user.id,
+            plan,
+            origin: source,
+          },
+        })
+    );
 
     if (!subscription.id || !subscription.url) {
       return NextResponse.json(
@@ -98,15 +128,28 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const { error: billingUpdateError } = await db
-      .from("billing_accounts")
-      .update({
-        abacatepay_customer_id: ensuredCustomer.customerId,
-        abacatepay_pending_checkout_id: subscription.id,
-        abacatepay_pending_plan: plan,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", auth.user.id);
+    const { error: billingUpdateError } = await withBillingSpan(
+      {
+        name: "billing.abacatepay.update_billing_accounts",
+        op: "db",
+        attributes: {
+          "billing.flow": source,
+          "billing.operation": "checkout_pending_update",
+          hadCustomerIdAtStart,
+          waitedForFreshLock,
+        },
+      },
+      () =>
+        db
+          .from("billing_accounts")
+          .update({
+            abacatepay_customer_id: customerId,
+            abacatepay_pending_checkout_id: subscription.id,
+            abacatepay_pending_plan: plan,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", auth.user.id)
+    );
 
     if (billingUpdateError) {
       return NextResponse.json(
@@ -127,12 +170,12 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[abacatepay-checkout] Failed to create checkout session:", message);
-
     if (error instanceof AbacatePayCustomerNotReadyError) {
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
+
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[abacatepay-checkout] Failed to create checkout session:", message);
 
     return NextResponse.json(
       {

@@ -8,6 +8,7 @@ import {
   getPlanMonthlyLimit,
   getPlanPriceLabel,
 } from "@/lib/plans";
+import { prewarmAbacatePayCustomer } from "@/lib/abacatepay-customer-client";
 import { useThemeColors } from "@/lib/theme-context";
 import type { Plan } from "@/types/database";
 
@@ -116,13 +117,59 @@ export interface CheckoutResponseBody {
   alreadyActive?: boolean;
 }
 
+export function createSettingsCheckoutPayload(plan: "pro" | "team") {
+  return {
+    plan,
+    source: "settings" as const,
+  };
+}
+
+export function isSettingsCheckoutDisabled(input: {
+  currentPlan: string;
+  isLoading: boolean;
+  planId: Plan;
+  prewarmReady: boolean;
+}): boolean {
+  const isFree = input.planId === "free";
+  const isCurrentPlan =
+    input.currentPlan === input.planId ||
+    (input.currentPlan.toLowerCase().includes(input.planId) && !isFree);
+
+  return isFree || isCurrentPlan || input.isLoading || !input.prewarmReady;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
   const c = useThemeColors();
   const [loading, setLoading] = useState<"pro" | "team" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [prewarmReady, setPrewarmReady] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimeout: number | null = null;
+
+    async function runPrewarm() {
+      const ready = await prewarmAbacatePayCustomer("settings").catch(() => false);
+      if (cancelled) return;
+
+      setPrewarmReady(ready);
+      if (!ready) {
+        retryTimeout = window.setTimeout(runPrewarm, 1500);
+      }
+    }
+
+    void runPrewarm();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeout !== null) {
+        window.clearTimeout(retryTimeout);
+      }
+    };
+  }, []);
 
   // Escape key
   useEffect(() => {
@@ -146,7 +193,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
       let res = await fetch("/api/abacatepay/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify(createSettingsCheckoutPayload(plan)),
       });
 
       // If AbacatePay not configured, try Stripe
@@ -258,6 +305,14 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
               (currentPlan.toLowerCase().includes(plan.id) && plan.id !== "free");
             const isLoading = loading === plan.id;
             const isFree = plan.id === "free";
+            const isPreparingCustomer =
+              !prewarmReady && !isFree && !isCurrentPlan;
+            const isDisabled = isSettingsCheckoutDisabled({
+              currentPlan,
+              isLoading,
+              planId: plan.id,
+              prewarmReady,
+            });
 
             return (
               <div
@@ -370,10 +425,11 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                 {/* CTA */}
                 <button
                   type="button"
-                  disabled={isFree || isCurrentPlan || isLoading}
+                  disabled={isDisabled}
                   onClick={() =>
                     !isFree &&
                     !isCurrentPlan &&
+                    prewarmReady &&
                     handleSelectPlan(plan.id as "pro" | "team")
                   }
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold transition-all active:scale-[0.97] disabled:cursor-not-allowed"
@@ -397,7 +453,12 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                         }
                   }
                 >
-                  {isLoading ? (
+                  {isPreparingCustomer ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Preparando...
+                    </>
+                  ) : isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : isCurrentPlan ? (
                     <>

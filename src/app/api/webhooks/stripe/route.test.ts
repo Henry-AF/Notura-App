@@ -1,0 +1,157 @@
+import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const createServiceRoleClient = vi.fn();
+const constructEvent = vi.fn();
+
+vi.mock("stripe", () => ({
+  default: vi.fn().mockImplementation(() => ({
+    webhooks: {
+      constructEvent,
+    },
+  })),
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createServiceRoleClient,
+}));
+
+function createAdminClient() {
+  const updateEq = vi.fn().mockResolvedValue({ error: null });
+  const update = vi.fn().mockReturnValue({ eq: updateEq });
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: { stripe_customer_id: null },
+    error: null,
+  });
+  const selectEq = vi.fn().mockReturnValue({ maybeSingle });
+  const select = vi.fn().mockReturnValue({ eq: selectEq });
+  const upsert = vi.fn().mockResolvedValue({ error: null });
+  const from = vi.fn().mockReturnValue({ select, update, upsert });
+
+  return {
+    from,
+    update,
+    updateEq,
+    upsert,
+  };
+}
+
+describe("POST /api/webhooks/stripe", () => {
+  const originalSecretKey = process.env.STRIPE_SECRET_KEY;
+  const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.STRIPE_SECRET_KEY = "sk_test";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    createServiceRoleClient.mockReturnValue(createAdminClient());
+  });
+
+  afterEach(() => {
+    process.env.STRIPE_SECRET_KEY = originalSecretKey;
+    process.env.STRIPE_WEBHOOK_SECRET = originalWebhookSecret;
+  });
+
+  it("resets quota period on checkout completion", async () => {
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { user_id: "user-1", plan: "team" },
+          customer: "cus-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: "team",
+        meetings_used: 0,
+        current_period_start: expect.any(String),
+        current_period_end: expect.any(String),
+        stripe_customer_id: "cus-1",
+      })
+    );
+    expect(adminClient.updateEq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("resets quota period on paid subscription renewal invoices", async () => {
+    constructEvent.mockReturnValue({
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          customer: "cus-1",
+          billing_reason: "subscription_cycle",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meetings_used: 0,
+        current_period_start: expect.any(String),
+        current_period_end: expect.any(String),
+      })
+    );
+    expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+
+  it("downgrades deleted subscriptions without resetting consumed usage", async () => {
+    constructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: {
+        object: {
+          customer: "cus-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        meetings_used: expect.anything(),
+      })
+    );
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: "free",
+        current_period_start: null,
+        current_period_end: null,
+      })
+    );
+    expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+});

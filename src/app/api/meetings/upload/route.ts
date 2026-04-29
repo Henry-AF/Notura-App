@@ -21,19 +21,10 @@ interface UploadInitPayload {
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsUpload,
   async (request: NextRequest, { auth }) => {
-    const { billingAccount, meetingsThisMonth, monthlyLimit } =
-      await getBillingStatus(auth.user.id);
+    const { quotaStatus } = await getBillingStatus(auth.user.id);
 
-    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
-      return NextResponse.json(
-        {
-          error:
-            billingAccount.plan === "free"
-              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
-              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
-        },
-        { status: 403 }
-      );
+    if (!quotaStatus.allowed) {
+      return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
     }
 
     let body: UploadInitPayload;

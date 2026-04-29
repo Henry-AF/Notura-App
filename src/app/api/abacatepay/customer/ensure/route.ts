@@ -2,27 +2,53 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/auth";
 import { isAbacatePayTimeoutError } from "@/lib/abacatepay";
 import {
+  type AbacatePayBillingSource,
   AbacatePayCustomerNotReadyError,
   ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export const POST = withAuth(async (_request, { auth }) => {
+interface EnsureCustomerBody {
+  source?: unknown;
+}
+
+function normalizePrewarmSource(source: unknown): AbacatePayBillingSource {
+  if (source === "onboarding" || source === "settings") {
+    return source;
+  }
+
+  return "unknown";
+}
+
+async function readPrewarmSource(request: Request): Promise<AbacatePayBillingSource> {
+  try {
+    const body = (await request.json()) as EnsureCustomerBody;
+    return normalizePrewarmSource(body.source);
+  } catch {
+    return "unknown";
+  }
+}
+
+export const POST = withAuth(async (request, { auth }) => {
   let userIdForLog = "anonymous";
 
   try {
     const db = createServiceRoleClient();
     userIdForLog = auth.user.id;
+    const source = await readPrewarmSource(request);
 
-    const context = await loadAbacatePayCustomerContext(db, auth.user.id);
+    const context = await loadAbacatePayCustomerContext(db, auth.user.id, source);
     const result = await ensureAbacatePayCustomer(
       db,
       {
         id: auth.user.id,
         email: auth.user.email ?? null,
       },
-      context
+      context,
+      {
+        source,
+      }
     );
 
     if (result.status === "in_progress") {

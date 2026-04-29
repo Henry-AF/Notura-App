@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const getOrCreateBillingAccount = vi.fn();
+const resetSubscriptionPeriod = vi.fn();
 const getAbacatePaySubscriptionById = vi.fn();
 const isAbacatePaySubscriptionPaid = vi.fn();
 const isAbacatePayTimeoutError = vi.fn();
@@ -16,6 +17,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/billing", () => ({
   getOrCreateBillingAccount,
+  resetSubscriptionPeriod,
 }));
 
 vi.mock("@/lib/abacatepay", () => ({
@@ -77,6 +79,7 @@ describe("POST /api/abacatepay/checkout/verify", () => {
     });
     isAbacatePaySubscriptionPaid.mockReturnValue(true);
     isAbacatePayTimeoutError.mockReturnValue(false);
+    resetSubscriptionPeriod.mockResolvedValue(undefined);
   });
 
   it("accepts checkout ownership when externalId has provider suffix", async () => {
@@ -101,6 +104,15 @@ describe("POST /api/abacatepay/checkout/verify", () => {
       success: true,
       plan: "pro",
     });
+    expect(resetSubscriptionPeriod).toHaveBeenCalledWith(
+      {
+        userId: "user-1",
+        plan: "pro",
+        abacatepayCustomerId: "customer-1",
+        clearAbacatePayPending: true,
+      },
+      createServiceRoleClient.mock.results[0]?.value
+    );
   });
 
   it("accepts checkout ownership when user id is sent as metadata.user_id", async () => {

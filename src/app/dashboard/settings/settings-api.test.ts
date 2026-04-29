@@ -77,4 +77,39 @@ describe("settings api client", () => {
     });
     expect(user.name).toBe("Ana Clara");
   });
+
+  it("verifies an AbacatePay settings checkout through the checkout verify endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, plan: "team" }), {
+        status: 200,
+      })
+    );
+
+    const mod = await import("./settings-api");
+    await mod.verifySettingsPayment();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/checkout/verify", {
+      method: "POST",
+    });
+  });
+
+  it("prewarms the AbacatePay customer through the settings api helper", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, customerId: "customer-1" }), {
+        status: 200,
+      })
+    );
+
+    const mod = await import("./settings-api");
+    const result = await mod.prewarmAbacatePayCustomer();
+
+    expect(result).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "settings" }),
+    });
+  });
 });

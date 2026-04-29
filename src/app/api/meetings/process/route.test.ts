@@ -5,6 +5,8 @@ const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
 const getBillingStatus = vi.fn();
+const consumeMeetingQuota = vi.fn();
+const refundMeetingQuota = vi.fn();
 const incrementMeetingsThisMonth = vi.fn();
 const meetingsInsert = vi.fn();
 const meetingsSelect = vi.fn();
@@ -31,6 +33,8 @@ vi.mock("@/lib/inngest", () => ({
 
 vi.mock("@/lib/billing", () => ({
   getBillingStatus,
+  consumeMeetingQuota,
+  refundMeetingQuota,
   incrementMeetingsThisMonth,
 }));
 
@@ -97,10 +101,23 @@ describe("POST /api/meetings/process", () => {
     createServiceRoleClient.mockReturnValue(createMeetingInsertClient());
     inngestSend.mockResolvedValue(undefined);
     getBillingStatus.mockResolvedValue({
-      billingAccount: { plan: "pro" },
+      billingAccount: {
+        plan: "pro",
+        meetings_used: 3,
+        current_period_end: "2026-05-27T12:00:00.000Z",
+      },
       meetingsThisMonth: 3,
+      meetingsUsed: 3,
       monthlyLimit: 30,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 3,
+        quotaLimit: 30,
+      },
     });
+    consumeMeetingQuota.mockResolvedValue({ meetingsUsed: 4, plan: "pro" });
+    refundMeetingQuota.mockResolvedValue(undefined);
     incrementMeetingsThisMonth.mockResolvedValue(4);
     verifyUploadToken.mockReturnValue({
       userId: "user-1",
@@ -176,14 +193,23 @@ describe("POST /api/meetings/process", () => {
     });
     expect(meetingsInsert).not.toHaveBeenCalled();
     expect(inngestSend).not.toHaveBeenCalled();
-    expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
+    expect(consumeMeetingQuota).not.toHaveBeenCalled();
   });
 
-  it("blocks meeting creation when the monthly limit is reached", async () => {
+  it("blocks free meeting creation when the lifetime limit is reached", async () => {
     getBillingStatus.mockResolvedValue({
-      billingAccount: { plan: "free" },
+      billingAccount: { plan: "free", meetings_used: 3 },
       meetingsThisMonth: 3,
+      meetingsUsed: 3,
       monthlyLimit: 3,
+      quotaStatus: {
+        allowed: false,
+        code: "lifetime_quota_exceeded",
+        message:
+          "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.",
+        meetingsUsed: 3,
+        quotaLimit: 3,
+      },
     });
 
     const mod = await import("./route");
@@ -205,13 +231,58 @@ describe("POST /api/meetings/process", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
       error:
-        "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões.",
+        "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.",
     });
     expect(meetingsInsert).not.toHaveBeenCalled();
     expect(inngestSend).not.toHaveBeenCalled();
   });
 
-  it("normalizes whatsapp and syncs billing usage after successful creation", async () => {
+  it("blocks paid meeting creation when the subscription period expired", async () => {
+    getBillingStatus.mockResolvedValue({
+      billingAccount: {
+        plan: "pro",
+        meetings_used: 12,
+        current_period_end: "2026-04-01T00:00:00.000Z",
+      },
+      meetingsThisMonth: 12,
+      meetingsUsed: 12,
+      monthlyLimit: 30,
+      quotaStatus: {
+        allowed: false,
+        code: "subscription_expired",
+        message:
+          "Sua assinatura expirou. Renove o plano para processar novas reuniões.",
+        meetingsUsed: 12,
+        quotaLimit: 30,
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "Sua assinatura expirou. Renove o plano para processar novas reuniões.",
+    });
+    expect(meetingsInsert).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
+    expect(consumeMeetingQuota).not.toHaveBeenCalled();
+  });
+
+  it("normalizes whatsapp and consumes billing quota after successful creation", async () => {
     const mod = await import("./route");
     const response = await mod.POST(
       new Request("http://localhost/api/meetings/process", {
@@ -243,7 +314,9 @@ describe("POST /api/meetings/process", () => {
         }),
       })
     );
-    expect(incrementMeetingsThisMonth).toHaveBeenCalledWith("user-1", 1);
+    expect(consumeMeetingQuota).toHaveBeenCalledWith("user-1");
+    expect(refundMeetingQuota).not.toHaveBeenCalled();
+    expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
   });
 
   it("returns queue error and marks meeting as failed when enqueueing fails", async () => {
@@ -270,6 +343,8 @@ describe("POST /api/meetings/process", () => {
       error:
         "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
     });
+    expect(consumeMeetingQuota).toHaveBeenCalledWith("user-1");
+    expect(refundMeetingQuota).toHaveBeenCalledWith("user-1");
     expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
     expect(meetingsUpdate).toHaveBeenCalledWith(
       expect.objectContaining({

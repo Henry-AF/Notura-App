@@ -37,8 +37,8 @@ const PLAN_CATALOG: Record<AppPlanId, PlanCatalogEntry> = {
     displayName: "Platinum",
     title: "Plano Platinum",
     priceInCents: 7990,
-    monthlyLimit: null,
-    usageShortLabel: "Ilimitado",
+    monthlyLimit: 100,
+    usageShortLabel: "Até 100 reuniões",
   },
 };
 

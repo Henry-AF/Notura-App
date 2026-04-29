@@ -3,7 +3,12 @@ import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest";
-import { getBillingStatus, incrementMeetingsThisMonth } from "@/lib/billing";
+import {
+  BillingQuotaError,
+  consumeMeetingQuota,
+  getBillingStatus,
+  refundMeetingQuota,
+} from "@/lib/billing";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import { verifyUploadToken } from "@/lib/meetings/upload-token";
 import {
@@ -102,19 +107,10 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const { billingAccount, meetingsThisMonth, monthlyLimit } =
-      await getBillingStatus(auth.user.id);
+    const { quotaStatus } = await getBillingStatus(auth.user.id);
 
-    if (monthlyLimit !== null && meetingsThisMonth >= monthlyLimit) {
-      return NextResponse.json(
-        {
-          error:
-            billingAccount.plan === "free"
-              ? "Você atingiu o limite do plano Free. Faça upgrade para processar mais reuniões."
-              : `Você atingiu o limite mensal do seu plano (${monthlyLimit} reuniões).`,
-        },
-        { status: 403 }
-      );
+    if (!quotaStatus.allowed) {
+      return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
     }
 
     const uploadMetadata = await getObjectMetadata(uploadToken.r2Key);
@@ -158,7 +154,33 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
+    let quotaConsumed = false;
+    async function refundConsumedQuota() {
+      if (!quotaConsumed) return;
+
+      try {
+        await refundMeetingQuota(auth.user.id);
+      } catch (refundError) {
+        console.error("[meetings/process] failed to refund billing usage:", refundError);
+      }
+    }
+
     // ── Insert meeting record ────────────────────────────────────────────────
+    try {
+      await consumeMeetingQuota(auth.user.id);
+      quotaConsumed = true;
+    } catch (billingError) {
+      if (billingError instanceof BillingQuotaError) {
+        return NextResponse.json({ error: billingError.message }, { status: 403 });
+      }
+
+      console.error("[meetings/process] failed to consume billing usage:", billingError);
+      return NextResponse.json(
+        { error: "Erro ao validar sua quota de reuniões." },
+        { status: 500 }
+      );
+    }
+
     const { data: meeting, error: insertError } = await supabase
       .from("meetings")
       .insert({
@@ -177,6 +199,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     if (insertError || !meeting) {
       console.error("[meetings/process] insert error:", insertError);
+      await refundConsumedQuota();
       return NextResponse.json({ error: "Erro ao registrar reunião no banco de dados." }, { status: 500 });
     }
 
@@ -201,6 +224,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     } catch (e) {
       console.error("[meetings/process] inngest send error:", e);
+      await refundConsumedQuota();
       const { error: markFailedError } = await supabase
         .from("meetings")
         .update({
@@ -223,12 +247,6 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
         },
         { status: 503 }
       );
-    }
-
-    try {
-      await incrementMeetingsThisMonth(auth.user.id, 1);
-    } catch (billingError) {
-      console.error("[meetings/process] failed to sync billing usage:", billingError);
     }
 
     return NextResponse.json(

@@ -35,6 +35,7 @@ import {
   startOnboardingCheckout,
   verifyOnboardingPayment,
 } from "./onboarding-api";
+import { isOnboardingCheckoutBlocked } from "./onboarding-checkout-state";
 
 type OnboardingStep = 1 | 2 | 3;
 
@@ -69,6 +70,7 @@ interface PlanStepProps {
   error: string | null;
   loading: boolean;
   paymentVerifying: boolean;
+  prewarmReady: boolean;
   selectedPlan: Plan;
   onPlanChange: (plan: Plan) => void;
   onContinue: () => void;
@@ -327,6 +329,7 @@ function PlanStep({
   error,
   loading,
   paymentVerifying,
+  prewarmReady,
   selectedPlan,
   onPlanChange,
   onContinue,
@@ -339,6 +342,8 @@ function PlanStep({
         : "Redirecionando para pagamento..."
       : selectedPlan === "free"
         ? "Continuar"
+        : !prewarmReady
+          ? "Preparando checkout..."
         : "Ir para pagamento";
 
   return (
@@ -371,7 +376,12 @@ function PlanStep({
         <Button
           className="w-full rounded-full"
           onClick={onContinue}
-          disabled={loading || paymentVerifying}
+          disabled={isOnboardingCheckoutBlocked({
+            loading,
+            paymentVerifying,
+            prewarmReady,
+            selectedPlan,
+          })}
         >
           {buttonLabel}
           <ArrowRight className="ml-1 h-4 w-4" />
@@ -486,45 +496,48 @@ function usePaymentRedirect({
   ]);
 }
 
-function useCheckoutPrewarm(step: OnboardingStep) {
+function useCheckoutPrewarm(step: OnboardingStep): boolean {
+  const [prewarmReady, setPrewarmReady] = useState(false);
   const currentStepRef = useRef(step);
-  const prewarmStartedRef = useRef(false);
-  const prewarmRetriedRef = useRef(false);
   const retryTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     currentStepRef.current = step;
+    if (step !== 2) {
+      setPrewarmReady(false);
+    }
   }, [step]);
 
   useEffect(() => {
-    if (step !== 2 || prewarmStartedRef.current) {
+    if (step !== 2) {
       return;
     }
 
-    prewarmStartedRef.current = true;
     let cancelled = false;
 
-    async function runPrewarm(isRetry: boolean) {
+    async function runPrewarm() {
       try {
         const ready = await ensureAbacatepayCustomer();
         if (ready) {
+          if (!cancelled) {
+            setPrewarmReady(true);
+          }
           return;
         }
       } catch {
-        // Retry once below if the customer prewarm is temporarily unavailable.
+        // Retry below if the customer prewarm is temporarily unavailable.
       }
 
-      if (!isRetry && !cancelled && !prewarmRetriedRef.current) {
-        prewarmRetriedRef.current = true;
+      if (!cancelled) {
         retryTimeoutRef.current = window.setTimeout(() => {
           if (currentStepRef.current === 2) {
-            void runPrewarm(true);
+            void runPrewarm();
           }
         }, 2000);
       }
     }
 
-    void runPrewarm(false);
+    void runPrewarm();
 
     return () => {
       cancelled = true;
@@ -534,6 +547,8 @@ function useCheckoutPrewarm(step: OnboardingStep) {
       }
     };
   }, [step]);
+
+  return prewarmReady;
 }
 
 function OnboardingFallback() {
@@ -566,7 +581,7 @@ function OnboardingPageContent() {
     setSelectedPlan,
     setStep,
   });
-  useCheckoutPrewarm(step);
+  const prewarmReady = useCheckoutPrewarm(step);
 
   async function handleSavePhone() {
     setLoading(true);
@@ -644,6 +659,7 @@ function OnboardingPageContent() {
             error={error}
             loading={loading}
             paymentVerifying={paymentVerifying}
+            prewarmReady={prewarmReady}
             selectedPlan={selectedPlan}
             onPlanChange={setSelectedPlan}
             onContinue={handleSelectPlan}

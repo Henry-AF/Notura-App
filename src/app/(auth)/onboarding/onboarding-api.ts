@@ -1,4 +1,5 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
+import { prewarmAbacatePayCustomer } from "@/lib/abacatepay-customer-client";
 import type { Plan } from "@/types/database";
 
 interface StartCheckoutResponse {
@@ -17,11 +18,7 @@ export interface OnboardingCheckoutResult {
 }
 
 export async function ensureAbacatepayCustomer(): Promise<boolean> {
-  const response = await fetch("/api/abacatepay/customer/ensure", {
-    method: "POST",
-  });
-
-  return response.ok || response.status === 202;
+  return prewarmAbacatePayCustomer();
 }
 
 export async function startOnboardingCheckout(

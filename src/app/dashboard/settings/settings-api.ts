@@ -1,4 +1,8 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
+export {
+  prewarmAbacatePayCustomer,
+  prewarmAbacatePayCustomerInBackground,
+} from "@/lib/abacatepay-customer-client";
 
 export {
   fetchCurrentUser,

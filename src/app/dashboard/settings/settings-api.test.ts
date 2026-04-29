@@ -92,4 +92,20 @@ describe("settings api client", () => {
       method: "POST",
     });
   });
+
+  it("prewarms the AbacatePay customer through the settings api helper", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, customerId: "customer-1" }), {
+        status: 200,
+      })
+    );
+
+    const mod = await import("./settings-api");
+    const result = await mod.prewarmAbacatePayCustomer();
+
+    expect(result).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
+      method: "POST",
+    });
+  });
 });

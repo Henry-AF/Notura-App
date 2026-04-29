@@ -16,6 +16,7 @@ import {
   logoutCurrentUser,
   updateCurrentUser,
 } from "@/lib/user/current-user-client";
+import { prewarmAbacatePayCustomerInBackground } from "@/lib/abacatepay-customer-client";
 import { getPlanTitle } from "@/lib/plans";
 import type { CurrentUser } from "@/lib/user/current-user-types";
 
@@ -133,6 +134,7 @@ export function SettingsModal({
       setName(nextData.name);
       setCompany(nextData.company);
       onUserChange?.(updatedUser);
+      prewarmAbacatePayCustomerInBackground();
     } finally {
       setSaving(false);
     }

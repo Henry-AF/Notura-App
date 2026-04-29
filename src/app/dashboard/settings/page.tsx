@@ -17,6 +17,7 @@ import { useTheme } from "@/lib/theme-context";
 import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
   fetchCurrentUser,
+  prewarmAbacatePayCustomerInBackground,
   updateCurrentUser,
   verifySettingsPayment,
   type CurrentUser,
@@ -125,6 +126,10 @@ function SettingsPageInner() {
   }, [loadUser]);
 
   useEffect(() => {
+    prewarmAbacatePayCustomerInBackground();
+  }, []);
+
+  useEffect(() => {
     const payment = searchParams.get("payment");
     const provider = searchParams.get("provider");
 
@@ -187,6 +192,7 @@ function SettingsPageInner() {
         });
         applyUser(user);
         notifyUserUpdated();
+        prewarmAbacatePayCustomerInBackground();
         show("Perfil atualizado.", "success");
       } catch {
         show("Erro ao salvar perfil.", "error");
@@ -219,6 +225,7 @@ function SettingsPageInner() {
           const user = await updateCurrentUser({ whatsappNumber: phone });
           applyUser(user);
           notifyUserUpdated();
+          prewarmAbacatePayCustomerInBackground();
         } catch {
           show("Erro ao conectar WhatsApp.", "error");
           return;

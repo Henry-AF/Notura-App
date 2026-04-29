@@ -22,7 +22,11 @@ vi.mock("@/lib/abacatepay", () => ({
 }));
 
 vi.mock("@/lib/abacatepay-customer", () => ({
-  AbacatePayCustomerNotReadyError: class AbacatePayCustomerNotReadyError extends Error {},
+  AbacatePayCustomerNotReadyError: class AbacatePayCustomerNotReadyError extends Error {
+    constructor() {
+      super("Estamos preparando seu checkout. Tente novamente em alguns segundos.");
+    }
+  },
   ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 }));
@@ -65,6 +69,7 @@ describe("POST /api/abacatepay/checkout", () => {
     loadAbacatePayCustomerContext.mockResolvedValue({
       billingAccount: {
         plan: "pro",
+        abacatepay_customer_id: "customer-1",
       },
     });
     ensureAbacatePayCustomer.mockResolvedValue({
@@ -112,5 +117,62 @@ describe("POST /api/abacatepay/checkout", () => {
         }),
       })
     );
+  });
+
+  it("uses an existing AbacatePay customer without ensuring during checkout", async () => {
+    loadAbacatePayCustomerContext.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "pro",
+        abacatepay_customer_id: "customer-ready",
+      },
+    });
+    const mod = await import("./route");
+
+    const response = await mod.POST(
+      new Request("http://localhost/api/abacatepay/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          plan: "team",
+          source: "settings",
+        }),
+      }) as never,
+      { params: {} }
+    );
+
+    expect(response.status).toBe(200);
+    expect(ensureAbacatePayCustomer).not.toHaveBeenCalled();
+    expect(createAbacatePaySubscriptionCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: "customer-ready",
+      })
+    );
+  });
+
+  it("fails fast without starting checkout when no AbacatePay customer exists", async () => {
+    loadAbacatePayCustomerContext.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "pro",
+        abacatepay_customer_id: null,
+      },
+    });
+    const mod = await import("./route");
+
+    const response = await mod.POST(
+      new Request("http://localhost/api/abacatepay/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          plan: "team",
+          source: "settings",
+        }),
+      }) as never,
+      { params: {} }
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Estamos preparando seu checkout. Tente novamente em alguns segundos.",
+    });
+    expect(ensureAbacatePayCustomer).not.toHaveBeenCalled();
+    expect(createAbacatePaySubscriptionCheckout).not.toHaveBeenCalled();
   });
 });

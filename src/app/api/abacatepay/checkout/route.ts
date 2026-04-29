@@ -10,7 +10,6 @@ import {
 } from "@/lib/abacatepay";
 import {
   AbacatePayCustomerNotReadyError,
-  ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
 import type { Plan } from "@/types/database";
@@ -24,8 +23,22 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
   return plan === "pro" || plan === "team";
 }
 
+type AbacatePayCustomerContext = Awaited<
+  ReturnType<typeof loadAbacatePayCustomerContext>
+>;
+
 function getCheckoutReturnPath(source: CreateCheckoutBody["source"]): string {
   return source === "settings" ? "/dashboard/settings" : "/onboarding";
+}
+
+function resolveCheckoutCustomerId(
+  customerContext: AbacatePayCustomerContext
+): string {
+  if (customerContext.billingAccount.abacatepay_customer_id) {
+    return customerContext.billingAccount.abacatepay_customer_id;
+  }
+
+  throw new AbacatePayCustomerNotReadyError();
 }
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
@@ -58,21 +71,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     }
 
-    const ensuredCustomer = await ensureAbacatePayCustomer(
-      db,
-      {
-        id: auth.user.id,
-        email: auth.user.email ?? null,
-      },
-      customerContext,
-      {
-        waitForFreshLock: true,
-      }
-    );
-
-    if (!ensuredCustomer.customerId) {
-      throw new AbacatePayCustomerNotReadyError();
-    }
+    const customerId = resolveCheckoutCustomerId(customerContext);
 
     const origin = new URL(request.url).origin;
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
@@ -89,7 +88,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     const subscription = await createAbacatePaySubscriptionCheckout({
       productId: getAbacatePayProductId(plan),
-      customerId: ensuredCustomer.customerId,
+      customerId,
       externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
       returnUrl: returnUrl.toString(),
       completionUrl: completionUrl.toString(),
@@ -110,7 +109,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const { error: billingUpdateError } = await db
       .from("billing_accounts")
       .update({
-        abacatepay_customer_id: ensuredCustomer.customerId,
+        abacatepay_customer_id: customerId,
         abacatepay_pending_checkout_id: subscription.id,
         abacatepay_pending_plan: plan,
         updated_at: new Date().toISOString(),
@@ -136,12 +135,12 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[abacatepay-checkout] Failed to create checkout session:", message);
-
     if (error instanceof AbacatePayCustomerNotReadyError) {
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
+
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[abacatepay-checkout] Failed to create checkout session:", message);
 
     return NextResponse.json(
       {

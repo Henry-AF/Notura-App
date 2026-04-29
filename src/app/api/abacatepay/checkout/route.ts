@@ -12,6 +12,7 @@ import {
   AbacatePayCustomerNotReadyError,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
+import { withBillingSpan } from "@/lib/billing-observability";
 import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
@@ -63,7 +64,11 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const customerContext = await loadAbacatePayCustomerContext(db, auth.user.id);
+    const customerContext = await loadAbacatePayCustomerContext(
+      db,
+      auth.user.id,
+      source
+    );
     if (customerContext.billingAccount.plan === plan) {
       return NextResponse.json({
         alreadyActive: true,
@@ -71,6 +76,10 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     }
 
+    const hadCustomerIdAtStart = Boolean(
+      customerContext.billingAccount.abacatepay_customer_id
+    );
+    const waitedForFreshLock = false;
     const customerId = resolveCheckoutCustomerId(customerContext);
 
     const origin = new URL(request.url).origin;
@@ -86,18 +95,31 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     completionUrl.searchParams.set("plan", plan);
     completionUrl.searchParams.set("provider", "abacatepay");
 
-    const subscription = await createAbacatePaySubscriptionCheckout({
-      productId: getAbacatePayProductId(plan),
-      customerId,
-      externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
-      returnUrl: returnUrl.toString(),
-      completionUrl: completionUrl.toString(),
-      metadata: {
-        userId: auth.user.id,
-        plan,
-        origin: source,
+    const subscription = await withBillingSpan(
+      {
+        name: "billing.abacatepay.create_subscription_checkout",
+        op: "http.client",
+        attributes: {
+          "billing.dependency": "abacatepay",
+          "billing.flow": source,
+          hadCustomerIdAtStart,
+          waitedForFreshLock,
+        },
       },
-    });
+      () =>
+        createAbacatePaySubscriptionCheckout({
+          productId: getAbacatePayProductId(plan),
+          customerId,
+          externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
+          returnUrl: returnUrl.toString(),
+          completionUrl: completionUrl.toString(),
+          metadata: {
+            userId: auth.user.id,
+            plan,
+            origin: source,
+          },
+        })
+    );
 
     if (!subscription.id || !subscription.url) {
       return NextResponse.json(
@@ -106,15 +128,28 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    const { error: billingUpdateError } = await db
-      .from("billing_accounts")
-      .update({
-        abacatepay_customer_id: customerId,
-        abacatepay_pending_checkout_id: subscription.id,
-        abacatepay_pending_plan: plan,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", auth.user.id);
+    const { error: billingUpdateError } = await withBillingSpan(
+      {
+        name: "billing.abacatepay.update_billing_accounts",
+        op: "db",
+        attributes: {
+          "billing.flow": source,
+          "billing.operation": "checkout_pending_update",
+          hadCustomerIdAtStart,
+          waitedForFreshLock,
+        },
+      },
+      () =>
+        db
+          .from("billing_accounts")
+          .update({
+            abacatepay_customer_id: customerId,
+            abacatepay_pending_checkout_id: subscription.id,
+            abacatepay_pending_plan: plan,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", auth.user.id)
+    );
 
     if (billingUpdateError) {
       return NextResponse.json(

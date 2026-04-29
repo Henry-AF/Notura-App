@@ -134,7 +134,7 @@ export function SettingsModal({
       setName(nextData.name);
       setCompany(nextData.company);
       onUserChange?.(updatedUser);
-      prewarmAbacatePayCustomerInBackground();
+      prewarmAbacatePayCustomerInBackground("settings");
     } finally {
       setSaving(false);
     }

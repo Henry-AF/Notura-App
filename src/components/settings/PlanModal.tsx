@@ -143,7 +143,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
     let retryTimeout: number | null = null;
 
     async function runPrewarm() {
-      const ready = await prewarmAbacatePayCustomer().catch(() => false);
+      const ready = await prewarmAbacatePayCustomer("settings").catch(() => false);
       if (cancelled) return;
 
       setPrewarmReady(ready);

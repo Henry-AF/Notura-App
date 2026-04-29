@@ -18,7 +18,7 @@ export interface OnboardingCheckoutResult {
 }
 
 export async function ensureAbacatepayCustomer(): Promise<boolean> {
-  return prewarmAbacatePayCustomer();
+  return prewarmAbacatePayCustomer("onboarding");
 }
 
 export async function startOnboardingCheckout(

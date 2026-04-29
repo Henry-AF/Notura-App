@@ -4,6 +4,11 @@ import {
   getAbacatePayCustomerPhone,
   isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
+import {
+  setBillingSpanAttribute,
+  withBillingSpan,
+  type BillingSpan,
+} from "@/lib/billing-observability";
 import { getOrCreateBillingAccount } from "@/lib/billing";
 import type { BillingAccount, Database, Profile } from "@/types/database";
 
@@ -21,6 +26,8 @@ export interface AbacatePayCustomerContext {
   profile: Pick<Profile, "name" | "whatsapp_number"> | null;
 }
 
+export type AbacatePayBillingSource = "onboarding" | "settings" | "unknown";
+
 interface BillingCustomerState {
   abacatepay_customer_id: string | null;
   abacatepay_customer_sync_started_at: string | null;
@@ -29,11 +36,18 @@ interface BillingCustomerState {
 interface EnsureAbacatePayCustomerOptions {
   waitForFreshLock?: boolean;
   maxWaitMs?: number;
+  source?: AbacatePayBillingSource;
 }
 
 interface EnsureAbacatePayCustomerResult {
   status: "ready" | "in_progress";
   customerId?: string;
+}
+
+interface EnsureCustomerTraceContext {
+  source: AbacatePayBillingSource;
+  hadCustomerIdAtStart: boolean;
+  waitedForFreshLock: boolean;
 }
 
 export class AbacatePayCustomerNotReadyError extends Error {
@@ -45,25 +59,38 @@ export class AbacatePayCustomerNotReadyError extends Error {
 
 export async function loadAbacatePayCustomerContext(
   supabase: SupabaseClient<Database>,
-  userId: string
+  userId: string,
+  source: AbacatePayBillingSource = "unknown"
 ): Promise<AbacatePayCustomerContext> {
-  const [billingAccount, profileResult] = await Promise.all([
-    getOrCreateBillingAccount(userId, supabase),
-    supabase
-      .from("profiles")
-      .select("name, whatsapp_number")
-      .eq("id", userId)
-      .maybeSingle(),
-  ]);
+  return withBillingSpan(
+    {
+      name: "billing.abacatepay.load_customer_context",
+      op: "db",
+      attributes: {
+        "billing.flow": source,
+        "billing.operation": "loadAbacatePayCustomerContext",
+      },
+    },
+    async () => {
+      const [billingAccount, profileResult] = await Promise.all([
+        getOrCreateBillingAccount(userId, supabase),
+        supabase
+          .from("profiles")
+          .select("name, whatsapp_number")
+          .eq("id", userId)
+          .maybeSingle(),
+      ]);
 
-  if (profileResult.error) {
-    throw new Error("Nao foi possivel carregar seu perfil para o checkout.");
-  }
+      if (profileResult.error) {
+        throw new Error("Nao foi possivel carregar seu perfil para o checkout.");
+      }
 
-  return {
-    billingAccount,
-    profile: profileResult.data ?? null,
-  };
+      return {
+        billingAccount,
+        profile: profileResult.data ?? null,
+      };
+    }
+  );
 }
 
 function hasFreshCustomerSyncLock(startedAt: string | null): boolean {
@@ -210,11 +237,92 @@ async function waitForCustomerSync(
   return null;
 }
 
+function markWaitedForFreshLock(
+  traceContext: EnsureCustomerTraceContext,
+  span: BillingSpan
+): void {
+  traceContext.waitedForFreshLock = true;
+  setBillingSpanAttribute(span, "waitedForFreshLock", true);
+}
+
+function getEnsureSpanAttributes(traceContext: EnsureCustomerTraceContext) {
+  return {
+    "billing.flow": traceContext.source,
+    hadCustomerIdAtStart: traceContext.hadCustomerIdAtStart,
+    waitedForFreshLock: traceContext.waitedForFreshLock,
+  };
+}
+
+async function createCustomerWithSpan(
+  user: AbacatePayAuthenticatedUser,
+  email: string,
+  context: AbacatePayCustomerContext,
+  traceContext: EnsureCustomerTraceContext
+) {
+  const customerPhone = getAbacatePayCustomerPhone(
+    context.billingAccount,
+    context.profile?.whatsapp_number || null
+  );
+
+  return withBillingSpan(
+    {
+      name: "billing.abacatepay.create_customer",
+      op: "http.client",
+      attributes: {
+        ...getEnsureSpanAttributes(traceContext),
+        "billing.dependency": "abacatepay",
+      },
+    },
+    () =>
+      createAbacatePayCustomer({
+        email,
+        name: context.profile?.name || undefined,
+        cellphone: customerPhone,
+        metadata: {
+          userId: user.id,
+          origin: traceContext.source,
+        },
+      })
+  );
+}
+
 export async function ensureAbacatePayCustomer(
   supabase: SupabaseClient<Database>,
   user: AbacatePayAuthenticatedUser,
   context: AbacatePayCustomerContext,
   options: EnsureAbacatePayCustomerOptions = {}
+): Promise<EnsureAbacatePayCustomerResult> {
+  const traceContext: EnsureCustomerTraceContext = {
+    source: options.source ?? "unknown",
+    hadCustomerIdAtStart: Boolean(context.billingAccount.abacatepay_customer_id),
+    waitedForFreshLock: false,
+  };
+
+  return withBillingSpan(
+    {
+      name: "billing.abacatepay.ensure_customer",
+      op: "billing",
+      attributes: getEnsureSpanAttributes(traceContext),
+    },
+    (span) =>
+      ensureAbacatePayCustomerCore(
+        supabase,
+        user,
+        context,
+        options,
+        traceContext,
+        span
+      )
+  );
+}
+
+async function ensureAbacatePayCustomerCore(
+  supabase: SupabaseClient<Database>,
+  user: AbacatePayAuthenticatedUser,
+  context: AbacatePayCustomerContext,
+  options: EnsureAbacatePayCustomerOptions,
+  traceContext: EnsureCustomerTraceContext,
+  span: BillingSpan
 ): Promise<EnsureAbacatePayCustomerResult> {
   if (context.billingAccount.abacatepay_customer_id) {
     return {
@@ -243,19 +351,8 @@ export async function ensureAbacatePayCustomer(
       return { status: "in_progress" };
     }
 
-    const readyCustomerId = await waitForCustomerSync(
-      supabase,
-      user.id,
-      maxWaitMs
-    );
-    if (!readyCustomerId) {
-      throw new AbacatePayCustomerNotReadyError();
-    }
-
-    return {
-      status: "ready",
-      customerId: readyCustomerId,
-    };
+    markWaitedForFreshLock(traceContext, span);
+    return waitForReadyCustomer(supabase, user.id, maxWaitMs);
   }
 
   const claimedLock = await claimCustomerSyncLock(supabase, user.id);
@@ -264,40 +361,57 @@ export async function ensureAbacatePayCustomer(
       return { status: "in_progress" };
     }
 
-    const readyCustomerId = await waitForCustomerSync(
-      supabase,
-      user.id,
-      maxWaitMs
-    );
-    if (!readyCustomerId) {
-      throw new AbacatePayCustomerNotReadyError();
-    }
-
-    return {
-      status: "ready",
-      customerId: readyCustomerId,
-    };
+    markWaitedForFreshLock(traceContext, span);
+    return waitForReadyCustomer(supabase, user.id, maxWaitMs);
   }
 
+  return createAndSaveCustomer(supabase, user, user.email, context, traceContext);
+}
+
+async function waitForReadyCustomer(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  maxWaitMs: number
+): Promise<EnsureAbacatePayCustomerResult> {
+  const readyCustomerId = await waitForCustomerSync(supabase, userId, maxWaitMs);
+  if (!readyCustomerId) {
+    throw new AbacatePayCustomerNotReadyError();
+  }
+
+  return {
+    status: "ready",
+    customerId: readyCustomerId,
+  };
+}
+
+async function createAndSaveCustomer(
+  supabase: SupabaseClient<Database>,
+  user: AbacatePayAuthenticatedUser,
+  email: string,
+  context: AbacatePayCustomerContext,
+  traceContext: EnsureCustomerTraceContext
+): Promise<EnsureAbacatePayCustomerResult> {
   let createdCustomerId: string | null = null;
 
   try {
-    const customerPhone = getAbacatePayCustomerPhone(
-      context.billingAccount,
-      context.profile?.whatsapp_number || null
+    const customer = await createCustomerWithSpan(
+      user,
+      email,
+      context,
+      traceContext
     );
-    const customer = await createAbacatePayCustomer({
-      email: user.email,
-      name: context.profile?.name || undefined,
-      cellphone: customerPhone,
-      metadata: {
-        userId: user.id,
-        origin: "onboarding",
-      },
-    });
-
     createdCustomerId = customer.id;
-    await saveCustomerId(supabase, user.id, customer.id);
+    await withBillingSpan(
+      {
+        name: "billing.abacatepay.update_billing_accounts",
+        op: "db",
+        attributes: {
+          ...getEnsureSpanAttributes(traceContext),
+          "billing.operation": "save_customer_id",
+        },
+      },
+      () => saveCustomerId(supabase, user.id, customer.id)
+    );
 
     return {
       status: "ready",

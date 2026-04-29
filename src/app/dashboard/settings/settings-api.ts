@@ -1,7 +1,7 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
-export {
-  prewarmAbacatePayCustomer,
-  prewarmAbacatePayCustomerInBackground,
+import {
+  prewarmAbacatePayCustomer as prewarmAbacatePayCustomerRequest,
+  prewarmAbacatePayCustomerInBackground as prewarmAbacatePayCustomerRequestInBackground,
 } from "@/lib/abacatepay-customer-client";
 
 export {
@@ -15,6 +15,14 @@ export type {
 
 interface VerifySettingsPaymentResponse {
   error?: string;
+}
+
+export function prewarmAbacatePayCustomer(): Promise<boolean> {
+  return prewarmAbacatePayCustomerRequest("settings");
+}
+
+export function prewarmAbacatePayCustomerInBackground(): void {
+  prewarmAbacatePayCustomerRequestInBackground("settings");
 }
 
 export async function verifySettingsPayment(): Promise<void> {

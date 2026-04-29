@@ -8,6 +8,9 @@ const getAbacatePayProductId = vi.fn();
 const isAbacatePayTimeoutError = vi.fn();
 const ensureAbacatePayCustomer = vi.fn();
 const loadAbacatePayCustomerContext = vi.fn();
+const withBillingSpan = vi.fn((_options, callback) => {
+  return callback({ setAttribute: vi.fn() });
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -29,6 +32,10 @@ vi.mock("@/lib/abacatepay-customer", () => ({
   },
   ensureAbacatePayCustomer,
   loadAbacatePayCustomerContext,
+}));
+
+vi.mock("@/lib/billing-observability", () => ({
+  withBillingSpan,
 }));
 
 function createServerClient() {
@@ -116,6 +123,31 @@ describe("POST /api/abacatepay/checkout", () => {
           userId: "user-1",
         }),
       })
+    );
+    expect(withBillingSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "billing.abacatepay.create_subscription_checkout",
+        op: "http.client",
+        attributes: expect.objectContaining({
+          "billing.dependency": "abacatepay",
+          "billing.flow": "settings",
+          hadCustomerIdAtStart: true,
+          waitedForFreshLock: false,
+        }),
+      }),
+      expect.any(Function)
+    );
+    expect(withBillingSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "billing.abacatepay.update_billing_accounts",
+        op: "db",
+        attributes: expect.objectContaining({
+          "billing.flow": "settings",
+          hadCustomerIdAtStart: true,
+          waitedForFreshLock: false,
+        }),
+      }),
+      expect.any(Function)
     );
   });
 

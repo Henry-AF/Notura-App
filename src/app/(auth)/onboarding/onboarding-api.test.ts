@@ -20,6 +20,10 @@ describe("onboarding api client", () => {
     expect(result).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "onboarding" }),
     });
   });
 

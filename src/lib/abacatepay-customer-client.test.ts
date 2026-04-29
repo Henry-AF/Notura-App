@@ -13,11 +13,15 @@ describe("abacatepay customer client", () => {
     );
 
     const mod = await import("./abacatepay-customer-client");
-    const result = await mod.prewarmAbacatePayCustomer();
+    const result = await mod.prewarmAbacatePayCustomer("settings");
 
     expect(result).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "settings" }),
     });
   });
 
@@ -29,11 +33,15 @@ describe("abacatepay customer client", () => {
     );
 
     const mod = await import("./abacatepay-customer-client");
-    const result = await mod.prewarmAbacatePayCustomer();
+    const result = await mod.prewarmAbacatePayCustomer("onboarding");
 
     expect(result).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "onboarding" }),
     });
   });
 });

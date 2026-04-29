@@ -324,10 +324,10 @@ describe("billing helpers", () => {
     ).toBeNull();
   });
 
-  it("throws quota block errors from rpc codes instead of falling back to local increment", async () => {
+  it("throws quota block errors from rpc codes without guessing a plan limit", async () => {
     const { client, from } = createBillingClient({
       rpcError: {
-        code: "BP001",
+        code: "BP003",
         message: "translated or formatted provider message",
       },
     });
@@ -335,8 +335,9 @@ describe("billing helpers", () => {
 
     const mod = await import("./billing");
 
-    await expect(mod.incrementMeetingsThisMonth("user-1", 1)).rejects.toMatchObject({
-      code: "subscription_expired",
+    await expect(mod.consumeMeetingQuota("user-1")).rejects.toMatchObject({
+      code: "period_quota_exceeded",
+      message: "Você atingiu o limite de reuniões do período atual do seu plano.",
     });
     expect(from).not.toHaveBeenCalled();
   });

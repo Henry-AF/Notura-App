@@ -26,6 +26,17 @@ set
 from historical_usage
 where public.billing_accounts.user_id = historical_usage.user_id;
 
+update public.billing_accounts
+set
+  current_period_start = coalesce(current_period_start, now()),
+  current_period_end = coalesce(current_period_end, now() + interval '1 month'),
+  updated_at = now()
+where public.billing_accounts.plan <> 'free'
+  and (
+    current_period_start is null
+    or current_period_end is null
+  );
+
 create or replace function public.consume_meeting_quota(p_user_id uuid)
 returns table (
   meetings_used integer,
@@ -75,15 +86,15 @@ begin
   if account.plan <> 'free' and (
     account.current_period_end is null or account.current_period_end <= now()
   ) then
-    raise exception 'subscription_expired' using errcode = 'P0001';
+    raise exception 'subscription_expired' using errcode = 'BP001';
   end if;
 
   if account.meetings_used >= quota_limit then
     if account.plan = 'free' then
-      raise exception 'lifetime_quota_exceeded' using errcode = 'P0001';
+      raise exception 'lifetime_quota_exceeded' using errcode = 'BP002';
     end if;
 
-    raise exception 'period_quota_exceeded' using errcode = 'P0001';
+    raise exception 'period_quota_exceeded' using errcode = 'BP003';
   end if;
 
   update public.billing_accounts

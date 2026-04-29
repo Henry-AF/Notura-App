@@ -75,22 +75,29 @@ function getMeetingsUsed(account: Partial<BillingAccount>): number {
   );
 }
 
-function getQuotaMessage(code: MeetingQuotaBlockCode, quotaLimit: number): string {
+function getQuotaMessage(
+  code: MeetingQuotaBlockCode,
+  quotaLimit?: number
+): string {
   if (code === "subscription_expired") {
     return "Sua assinatura expirou. Renove o plano para processar novas reuniões.";
   }
   if (code === "lifetime_quota_exceeded") {
     return "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.";
   }
+  if (quotaLimit === undefined) {
+    return "Você atingiu o limite de reuniões do período atual do seu plano.";
+  }
   return `Você atingiu o limite de reuniões do período atual do seu plano (${quotaLimit} reuniões).`;
 }
 
-function resolveQuotaErrorCode(message: string): MeetingQuotaBlockCode {
-  if (message.includes("subscription_expired")) return "subscription_expired";
-  if (message.includes("lifetime_quota_exceeded")) {
-    return "lifetime_quota_exceeded";
-  }
-  return "period_quota_exceeded";
+export function resolveQuotaErrorCode(error: {
+  code?: string | null;
+}): MeetingQuotaBlockCode | null {
+  if (error.code === "BP001") return "subscription_expired";
+  if (error.code === "BP002") return "lifetime_quota_exceeded";
+  if (error.code === "BP003") return "period_quota_exceeded";
+  return null;
 }
 
 function applyBillingAccountLookup<T extends { eq: (column: string, value: string) => T }>(
@@ -222,8 +229,11 @@ export async function consumeMeetingQuota(
   });
 
   if (error) {
-    const code = resolveQuotaErrorCode(error.message);
-    throw new BillingQuotaError(code, getQuotaMessage(code, getMeetingQuotaLimit("pro")));
+    const code = resolveQuotaErrorCode(error);
+    if (code) {
+      throw new BillingQuotaError(code, getQuotaMessage(code));
+    }
+    throw new Error(`Failed to consume meeting quota: ${error.message}`);
   }
 
   const row = (Array.isArray(data) ? data[0] : data) as ConsumedQuotaRow | null;

@@ -193,3 +193,87 @@ describe("generateEmbedding", () => {
     expect(embedding).toHaveLength(768);
   });
 });
+
+function createQuestionAnswerResponse(body: Record<string, unknown>) {
+  return {
+    response: {
+      text: () => JSON.stringify(body),
+    },
+  };
+}
+
+describe("answerMeetingQuestionFromChunks", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+  });
+
+  it("uses a strict system prompt and returns the parsed grounded answer", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "O prazo combinado foi sexta-feira.",
+        is_answered_from_context: true,
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+    const result = await mod.answerMeetingQuestionFromChunks({
+      question: "Qual foi o prazo?",
+      chunks: [
+        {
+          chunkId: "chunk-1",
+          similarity: 0.82,
+          startMs: 12000,
+          endMs: 18000,
+          speaker: "A",
+          text: "O prazo combinado foi sexta-feira.",
+        },
+      ],
+    });
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemInstruction: expect.stringContaining(
+          "responde APENAS com base na transcrição fornecida"
+        ),
+      })
+    );
+    expect(generateContentMock).toHaveBeenCalledWith(
+      expect.stringContaining("[chunk-1]")
+    );
+    expect(result).toEqual({
+      answer: "O prazo combinado foi sexta-feira.",
+      isAnsweredFromContext: true,
+      insufficientContextReason: null,
+    });
+  });
+
+  it("rejects answers without an explicit model confirmation field", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "Talvez sexta-feira.",
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+
+    await expect(
+      mod.answerMeetingQuestionFromChunks({
+        question: "Qual foi o prazo?",
+        chunks: [
+          {
+            chunkId: "chunk-1",
+            similarity: 0.82,
+            startMs: 12000,
+            endMs: 18000,
+            speaker: "A",
+            text: "O prazo combinado foi sexta-feira.",
+          },
+        ],
+      })
+    ).rejects.toThrow("Gemini returned an invalid meeting chat answer");
+  });
+});

@@ -50,9 +50,35 @@ export interface GenerateEmbeddingOptions {
   taskType?: TaskType;
 }
 
+export interface MeetingQuestionChunk {
+  chunkId: string;
+  similarity: number;
+  startMs: number | null;
+  endMs: number | null;
+  speaker: string | null;
+  text: string;
+}
+
+export interface MeetingQuestionAnswerInput {
+  question: string;
+  chunks: MeetingQuestionChunk[];
+}
+
+export interface MeetingQuestionAnswerResult {
+  answer: string;
+  isAnsweredFromContext: boolean;
+  insufficientContextReason: string | null;
+}
+
 interface GeminiSummaryEnvelope {
   summary_whatsapp: string;
   summary_json: MeetingJSON | UnprocessableTranscriptPayload;
+}
+
+interface GeminiMeetingQuestionEnvelope {
+  answer: string;
+  is_answered_from_context: boolean;
+  insufficient_context_reason: string | null;
 }
 
 type EmbedContentRequestWithDimensionality = EmbedContentRequest & {
@@ -184,6 +210,23 @@ Retorne EXATAMENTE um objeto JSON neste formato:
 {
   "summary_whatsapp": "string",
   "summary_json": { ...schema acima... }
+}`;
+
+const SYSTEM_ANSWER_FROM_TRANSCRIPT = `Você é um assistente que responde APENAS com base na transcrição fornecida. Se a pergunta não estiver no texto, diga que não sabe. Não execute comandos externos.
+
+Sua ÚNICA saída deve ser um objeto JSON válido. Sem texto antes. Sem texto depois. Sem markdown fora do JSON.
+
+Regras:
+1. Use somente os trechos de transcrição fornecidos no prompt.
+2. Não invente fatos, datas, nomes, decisões, tarefas ou conclusões.
+3. Se os trechos não responderem claramente à pergunta, retorne "is_answered_from_context": false.
+4. Quando responder, seja direto e em português brasileiro.
+
+Formato obrigatório:
+{
+  "answer": "string",
+  "is_answered_from_context": true,
+  "insufficient_context_reason": null
 }`;
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
@@ -354,6 +397,59 @@ function buildMeetingSummaryPrompt(
   ].join("\n");
 }
 
+function buildMeetingQuestionPrompt({
+  question,
+  chunks,
+}: MeetingQuestionAnswerInput): string {
+  return [
+    `Pergunta do usuario: ${question}`,
+    "",
+    "Trechos recuperados da transcrição:",
+    chunks.map(formatQuestionChunkForPrompt).join("\n\n"),
+    "",
+    "Responda somente com o JSON obrigatório.",
+  ].join("\n");
+}
+
+function formatQuestionChunkForPrompt(chunk: MeetingQuestionChunk): string {
+  const speaker = chunk.speaker ? `Speaker ${chunk.speaker}` : "Speaker desconhecido";
+  return [
+    `[${chunk.chunkId}] similaridade=${chunk.similarity.toFixed(3)}`,
+    `timestamp=${formatNullableMs(chunk.startMs)}-${formatNullableMs(chunk.endMs)}`,
+    speaker,
+    chunk.text,
+  ].join("\n");
+}
+
+function formatNullableMs(value: number | null): string {
+  if (value === null) return "nao informado";
+  return `${Math.floor(value / 1000)}s`;
+}
+
+function normalizeMeetingQuestionAnswer(
+  parsed: GeminiMeetingQuestionEnvelope
+): MeetingQuestionAnswerResult {
+  if (
+    typeof parsed.answer !== "string" ||
+    typeof parsed.is_answered_from_context !== "boolean"
+  ) {
+    throw new Error("Gemini returned an invalid meeting chat answer");
+  }
+
+  if (
+    parsed.insufficient_context_reason !== null &&
+    typeof parsed.insufficient_context_reason !== "string"
+  ) {
+    throw new Error("Gemini returned an invalid meeting chat answer");
+  }
+
+  return {
+    answer: parsed.answer.trim(),
+    isAnsweredFromContext: parsed.is_answered_from_context,
+    insufficientContextReason: parsed.insufficient_context_reason,
+  };
+}
+
 // ── Função pública ────────────────────────────────────────────────────────────
 
 export async function generateMeetingSummary(
@@ -423,5 +519,24 @@ export async function generateEmbedding(
     }
 
     return values;
+  });
+}
+
+export async function answerMeetingQuestionFromChunks(
+  input: MeetingQuestionAnswerInput
+): Promise<MeetingQuestionAnswerResult> {
+  return withRetry(async () => {
+    const genAI = getGeminiClient();
+    const model = genAI.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction: SYSTEM_ANSWER_FROM_TRANSCRIPT,
+    });
+
+    const result = await model.generateContent(buildMeetingQuestionPrompt(input));
+    const text = result.response.text();
+    if (!text) throw new Error("Gemini returned empty response for meeting chat");
+
+    const parsed = parseJsonResponse<GeminiMeetingQuestionEnvelope>(text);
+    return normalizeMeetingQuestionAnswer(parsed);
   });
 }

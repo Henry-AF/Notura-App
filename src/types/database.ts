@@ -326,6 +326,112 @@ export interface Database {
           }
         ]
       }
+      meeting_transcript_chunks: {
+        Row: {
+          id: string
+          meeting_id: string
+          user_id: string
+          chunk_index: number
+          text: string
+          speaker: string | null
+          start_ms: number | null
+          end_ms: number | null
+          metadata: Json
+          embedding: number[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          user_id: string
+          chunk_index: number
+          text: string
+          speaker?: string | null
+          start_ms?: number | null
+          end_ms?: number | null
+          metadata?: Json
+          embedding: number[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          user_id?: string
+          chunk_index?: number
+          text?: string
+          speaker?: string | null
+          start_ms?: number | null
+          end_ms?: number | null
+          metadata?: Json
+          embedding?: number[]
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_transcript_chunks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_chats: {
+        Row: {
+          id: string
+          meeting_id: string
+          user_id: string
+          question: string
+          question_embedding: number[] | null
+          answer: string | null
+          status: "processing" | "completed" | "failed"
+          fallback_reason: string | null
+          model_confirmed: boolean | null
+          sources: Json
+          error_message: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          user_id: string
+          question: string
+          question_embedding?: number[] | null
+          answer?: string | null
+          status?: "processing" | "completed" | "failed"
+          fallback_reason?: string | null
+          model_confirmed?: boolean | null
+          sources?: Json
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          user_id?: string
+          question?: string
+          question_embedding?: number[] | null
+          answer?: string | null
+          status?: "processing" | "completed" | "failed"
+          fallback_reason?: string | null
+          model_confirmed?: boolean | null
+          sources?: Json
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chats_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -361,6 +467,26 @@ export interface Database {
         }
         Returns: number
       }
+      match_meeting_transcript_chunks: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_query_embedding: number[]
+          p_limit?: number
+          p_similarity_threshold?: number
+        }
+        Returns: {
+          id: string
+          meeting_id: string
+          chunk_index: number
+          text: string
+          speaker: string | null
+          start_ms: number | null
+          end_ms: number | null
+          metadata: Json
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -385,6 +511,9 @@ export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["Row"]
+export type MeetingTranscriptChunk =
+  Database["public"]["Tables"]["meeting_transcript_chunks"]["Row"]
+export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

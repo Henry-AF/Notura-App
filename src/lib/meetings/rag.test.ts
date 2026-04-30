@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Database } from "../../types/database";
 import {
   buildTranscriptChunksFromFormattedTranscript,
   buildTranscriptChunksFromUtterances,
+  ensureMeetingChunksIndexed,
+  indexMeetingTranscriptChunks,
+  matchMeetingTranscriptChunks,
+  toChatSources,
   validateMeetingChatQuestion,
 } from "./rag";
 
@@ -117,5 +121,158 @@ describe("buildTranscriptChunksFromFormattedTranscript", () => {
       speakers: ["A", "B"],
       utteranceCount: 2,
     });
+  });
+});
+
+function createEmbedding(seed: number): number[] {
+  return Array.from({ length: 768 }, () => seed);
+}
+
+function createChunkPersistenceClient() {
+  const deleteEq = vi.fn().mockResolvedValue({ error: null });
+  const deleteRows = vi.fn(() => ({ eq: deleteEq }));
+  const insert = vi.fn().mockResolvedValue({ error: null });
+  const from = vi.fn(() => ({ delete: deleteRows, insert }));
+
+  return { supabase: { from }, deleteEq, insert };
+}
+
+describe("indexMeetingTranscriptChunks", () => {
+  it("replaces meeting chunks and stores one embedding per chunk", async () => {
+    const { supabase, deleteEq, insert } = createChunkPersistenceClient();
+    const embedText = vi.fn().mockResolvedValue(createEmbedding(0.5));
+
+    await indexMeetingTranscriptChunks({
+      supabase: supabase as never,
+      meetingId: "meeting-1",
+      userId: "user-1",
+      transcript: "fallback transcript",
+      utterances: [
+        { speaker: "A", text: "Primeira fala", start: 0, end: 1000 },
+        { speaker: "A", text: "Segunda fala", start: 1000, end: 2000 },
+      ],
+      embedText,
+    });
+
+    expect(deleteEq).toHaveBeenCalledWith("meeting_id", "meeting-1");
+    expect(embedText).toHaveBeenCalledWith("Primeira fala\nSegunda fala");
+    expect(insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        chunk_index: 0,
+        text: "Primeira fala\nSegunda fala",
+        speaker: "A",
+        start_ms: 0,
+        end_ms: 2000,
+        embedding: createEmbedding(0.5),
+      }),
+    ]);
+  });
+});
+
+function createExistingChunksClient(data: unknown[]) {
+  const order = vi.fn().mockResolvedValue({ data, error: null });
+  const eq = vi.fn(() => ({ order }));
+  const select = vi.fn(() => ({ eq }));
+  const from = vi.fn(() => ({ select }));
+
+  return { supabase: { from }, order };
+}
+
+describe("ensureMeetingChunksIndexed", () => {
+  it("returns existing chunks without embedding when a meeting is already indexed", async () => {
+    const existing = [
+      {
+        id: "chunk-1",
+        meeting_id: "meeting-1",
+        chunk_index: 0,
+        text: "Trecho",
+        speaker: "A",
+        start_ms: 0,
+        end_ms: 1000,
+        metadata: {},
+        similarity: 0.9,
+      },
+    ];
+    const { supabase } = createExistingChunksClient(existing);
+    const embedText = vi.fn();
+
+    const chunks = await ensureMeetingChunksIndexed({
+      supabase: supabase as never,
+      meeting: {
+        id: "meeting-1",
+        user_id: "user-1",
+        transcript: "Transcricao antiga",
+      },
+      embedText,
+    });
+
+    expect(chunks).toEqual(existing);
+    expect(embedText).not.toHaveBeenCalled();
+  });
+});
+
+describe("matchMeetingTranscriptChunks", () => {
+  it("calls the scoped vector RPC with default limit and threshold", async () => {
+    const data = [
+      {
+        id: "chunk-1",
+        meeting_id: "meeting-1",
+        chunk_index: 0,
+        text: "Trecho",
+        speaker: "A",
+        start_ms: 0,
+        end_ms: 1000,
+        metadata: {},
+        similarity: 0.84,
+      },
+    ];
+    const rpc = vi.fn().mockResolvedValue({ data, error: null });
+
+    const result = await matchMeetingTranscriptChunks({
+      supabase: { rpc } as never,
+      userId: "user-1",
+      meetingId: "meeting-1",
+      queryEmbedding: createEmbedding(0.25),
+    });
+
+    expect(rpc).toHaveBeenCalledWith("match_meeting_transcript_chunks", {
+      p_user_id: "user-1",
+      p_meeting_id: "meeting-1",
+      p_query_embedding: createEmbedding(0.25),
+      p_limit: 5,
+      p_similarity_threshold: 0.6,
+    });
+    expect(result).toEqual(data);
+  });
+});
+
+describe("toChatSources", () => {
+  it("maps matched chunks to persisted chat sources", () => {
+    expect(
+      toChatSources([
+        {
+          id: "chunk-1",
+          meeting_id: "meeting-1",
+          chunk_index: 0,
+          text: "Trecho usado",
+          speaker: "A",
+          start_ms: 1000,
+          end_ms: 2000,
+          metadata: {},
+          similarity: 0.82,
+        },
+      ])
+    ).toEqual([
+      {
+        chunkId: "chunk-1",
+        similarity: 0.82,
+        startMs: 1000,
+        endMs: 2000,
+        speaker: "A",
+        text: "Trecho usado",
+      },
+    ]);
   });
 });

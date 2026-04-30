@@ -1,6 +1,17 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json, MeetingTranscriptChunk } from "@/types/database";
+
 export const MAX_CHAT_QUESTION_CHARS = 500;
 export const MAX_CHAT_QUESTION_SENTENCES = 3;
 export const TRANSCRIPT_CHUNK_TARGET_TOKENS = 400;
+export const CHAT_RETRIEVAL_LIMIT = 5;
+export const CHAT_SIMILARITY_THRESHOLD = 0.6;
+
+type SupabaseAdminClient = SupabaseClient<Database>;
+type ChunkInsert =
+  Database["public"]["Tables"]["meeting_transcript_chunks"]["Insert"];
+export type MatchedTranscriptChunk =
+  Database["public"]["Functions"]["match_meeting_transcript_chunks"]["Returns"][number];
 
 export type MeetingChatFallbackReason =
   | "question_too_long"
@@ -40,6 +51,41 @@ export interface TranscriptChunk {
       endMs: number | null;
     }>;
   };
+}
+
+export interface ChatSource {
+  chunkId: string;
+  similarity: number;
+  startMs: number | null;
+  endMs: number | null;
+  speaker: string | null;
+  text: string;
+}
+
+interface IndexMeetingTranscriptChunksInput {
+  supabase: SupabaseAdminClient;
+  meetingId: string;
+  userId: string;
+  transcript: string;
+  utterances?: TranscriptUtteranceInput[] | null;
+  embedText: (text: string) => Promise<number[]>;
+}
+
+interface EnsureMeetingChunksIndexedInput {
+  supabase: SupabaseAdminClient;
+  meeting: {
+    id: string;
+    user_id: string;
+    transcript: string | null;
+  };
+  embedText: (text: string) => Promise<number[]>;
+}
+
+interface MatchMeetingTranscriptChunksInput {
+  supabase: SupabaseAdminClient;
+  userId: string;
+  meetingId: string;
+  queryEmbedding: number[];
 }
 
 interface NormalizedUtterance {
@@ -99,6 +145,78 @@ export function buildTranscriptChunksFromFormattedTranscript(
   const trimmed = transcript.trim();
   if (!trimmed) return [];
   return buildTranscriptChunksFromUtterances([{ text: trimmed }]);
+}
+
+export async function indexMeetingTranscriptChunks({
+  supabase,
+  meetingId,
+  userId,
+  transcript,
+  utterances,
+  embedText,
+}: IndexMeetingTranscriptChunksInput): Promise<TranscriptChunk[]> {
+  const chunks = buildChunksForIndexing(transcript, utterances);
+  await deleteMeetingChunks(supabase, meetingId);
+
+  if (chunks.length === 0) return chunks;
+
+  const rows = await buildChunkInsertRows(chunks, meetingId, userId, embedText);
+  const { error } = await supabase.from("meeting_transcript_chunks").insert(rows);
+  if (error) throw new Error(`Failed to insert transcript chunks: ${error.message}`);
+
+  return chunks;
+}
+
+export async function ensureMeetingChunksIndexed({
+  supabase,
+  meeting,
+  embedText,
+}: EnsureMeetingChunksIndexedInput): Promise<MeetingTranscriptChunk[]> {
+  const existing = await fetchMeetingChunks(supabase, meeting.id);
+  if (existing.length > 0) return existing;
+
+  if (!meeting.transcript) {
+    throw new MeetingChatValidationError("no_transcript");
+  }
+
+  await indexMeetingTranscriptChunks({
+    supabase,
+    meetingId: meeting.id,
+    userId: meeting.user_id,
+    transcript: meeting.transcript,
+    embedText,
+  });
+
+  return fetchMeetingChunks(supabase, meeting.id);
+}
+
+export async function matchMeetingTranscriptChunks({
+  supabase,
+  userId,
+  meetingId,
+  queryEmbedding,
+}: MatchMeetingTranscriptChunksInput): Promise<MatchedTranscriptChunk[]> {
+  const { data, error } = await supabase.rpc("match_meeting_transcript_chunks", {
+    p_user_id: userId,
+    p_meeting_id: meetingId,
+    p_query_embedding: queryEmbedding,
+    p_limit: CHAT_RETRIEVAL_LIMIT,
+    p_similarity_threshold: CHAT_SIMILARITY_THRESHOLD,
+  });
+
+  if (error) throw new Error(`Failed to match transcript chunks: ${error.message}`);
+  return data ?? [];
+}
+
+export function toChatSources(chunks: MatchedTranscriptChunk[]): ChatSource[] {
+  return chunks.map((chunk) => ({
+    chunkId: chunk.id,
+    similarity: chunk.similarity,
+    startMs: chunk.start_ms,
+    endMs: chunk.end_ms,
+    speaker: chunk.speaker,
+    text: chunk.text,
+  }));
 }
 
 function normalizeUtterance(input: TranscriptUtteranceInput): NormalizedUtterance {
@@ -192,4 +310,62 @@ function parseFormattedTranscriptLine(line: string): NormalizedUtterance | null 
     startMs,
     endMs: startMs,
   };
+}
+
+function buildChunksForIndexing(
+  transcript: string,
+  utterances: TranscriptUtteranceInput[] | null | undefined
+): TranscriptChunk[] {
+  if (utterances && utterances.length > 0) {
+    return buildTranscriptChunksFromUtterances(utterances);
+  }
+
+  return buildTranscriptChunksFromFormattedTranscript(transcript);
+}
+
+async function deleteMeetingChunks(
+  supabase: SupabaseAdminClient,
+  meetingId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("meeting_transcript_chunks")
+    .delete()
+    .eq("meeting_id", meetingId);
+
+  if (error) throw new Error(`Failed to delete transcript chunks: ${error.message}`);
+}
+
+async function buildChunkInsertRows(
+  chunks: TranscriptChunk[],
+  meetingId: string,
+  userId: string,
+  embedText: (text: string) => Promise<number[]>
+): Promise<ChunkInsert[]> {
+  return Promise.all(
+    chunks.map(async (chunk) => ({
+      meeting_id: meetingId,
+      user_id: userId,
+      chunk_index: chunk.chunkIndex,
+      text: chunk.text,
+      speaker: chunk.speaker,
+      start_ms: chunk.startMs,
+      end_ms: chunk.endMs,
+      metadata: chunk.metadata as unknown as Json,
+      embedding: await embedText(chunk.text),
+    }))
+  );
+}
+
+async function fetchMeetingChunks(
+  supabase: SupabaseAdminClient,
+  meetingId: string
+): Promise<MeetingTranscriptChunk[]> {
+  const { data, error } = await supabase
+    .from("meeting_transcript_chunks")
+    .select("*")
+    .eq("meeting_id", meetingId)
+    .order("chunk_index", { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch transcript chunks: ${error.message}`);
+  return data ?? [];
 }

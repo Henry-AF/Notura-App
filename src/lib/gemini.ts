@@ -6,12 +6,18 @@
 //   - generateMeetingSummary(transcript) → { summaryWhatsapp, summaryJson }
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  TaskType,
+  type EmbedContentRequest,
+} from "@google/generative-ai";
 import type { MeetingJSON } from "@/types/database";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const MODEL_NAME = "gemini-3.1-flash-lite-preview";
+const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
+const EMBEDDING_OUTPUT_DIMENSIONS = 768;
 const LOCAL_MAX_ATTEMPTS = 2;
 const LOCAL_RETRY_BASE_DELAY_MS = 750;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
@@ -40,10 +46,18 @@ export interface MeetingSummaryResult {
   summaryJson: MeetingJSON;
 }
 
+export interface GenerateEmbeddingOptions {
+  taskType?: TaskType;
+}
+
 interface GeminiSummaryEnvelope {
   summary_whatsapp: string;
   summary_json: MeetingJSON | UnprocessableTranscriptPayload;
 }
+
+type EmbedContentRequestWithDimensionality = EmbedContentRequest & {
+  outputDimensionality: number;
+};
 
 // ── Prompt do sistema ────────────────────────────────────────────────────────
 
@@ -382,5 +396,32 @@ export async function generateMeetingSummary(
       summaryWhatsapp: parsed.summary_whatsapp,
       summaryJson: parsed.summary_json,
     };
+  });
+}
+
+export async function generateEmbedding(
+  text: string,
+  options: GenerateEmbeddingOptions = {}
+): Promise<number[]> {
+  return withRetry(async () => {
+    const genAI = getGeminiClient();
+    const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
+    const request: EmbedContentRequestWithDimensionality = {
+      content: {
+        role: "user",
+        parts: [{ text }],
+      },
+      taskType: options.taskType ?? TaskType.RETRIEVAL_DOCUMENT,
+      outputDimensionality: EMBEDDING_OUTPUT_DIMENSIONS,
+    };
+
+    const result = await model.embedContent(request);
+    const values = result.embedding.values;
+
+    if (values.length !== EMBEDDING_OUTPUT_DIMENSIONS) {
+      throw new Error("Gemini returned an embedding with unexpected dimensions");
+    }
+
+    return values;
   });
 }

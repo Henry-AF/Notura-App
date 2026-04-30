@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const embedContentMock = vi.fn();
 const generateContentMock = vi.fn();
 const getGenerativeModelMock = vi.fn();
 const GoogleGenerativeAIMock = vi.fn();
@@ -10,11 +11,16 @@ vi.mock("@google/generative-ai", () => {
   }));
 
   getGenerativeModelMock.mockImplementation(() => ({
+    embedContent: embedContentMock,
     generateContent: generateContentMock,
   }));
 
   return {
     GoogleGenerativeAI: GoogleGenerativeAIMock,
+    TaskType: {
+      RETRIEVAL_DOCUMENT: "RETRIEVAL_DOCUMENT",
+      RETRIEVAL_QUERY: "RETRIEVAL_QUERY",
+    },
   };
 });
 
@@ -49,6 +55,14 @@ function createValidGeminiResponse() {
             },
           },
         }),
+    },
+  };
+}
+
+function createEmbeddingResponse() {
+  return {
+    embedding: {
+      values: Array.from({ length: 768 }, () => 0.25),
     },
   };
 }
@@ -150,5 +164,32 @@ describe("generateMeetingSummary summary parity", () => {
         ),
       })
     );
+  });
+});
+
+describe("generateEmbedding", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    embedContentMock.mockResolvedValue(createEmbeddingResponse());
+  });
+
+  it("requests a 768-dimensional Gemini embedding using MRL", async () => {
+    const mod = await import("./gemini");
+    const embedding = await mod.generateEmbedding("Texto para busca");
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith({
+      model: "gemini-embedding-001",
+    });
+    expect(embedContentMock).toHaveBeenCalledWith({
+      content: {
+        role: "user",
+        parts: [{ text: "Texto para busca" }],
+      },
+      taskType: "RETRIEVAL_DOCUMENT",
+      outputDimensionality: 768,
+    });
+    expect(embedding).toHaveLength(768);
   });
 });

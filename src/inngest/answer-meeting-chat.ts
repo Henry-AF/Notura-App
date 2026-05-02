@@ -42,6 +42,7 @@ interface ChatMeetingContext {
 }
 
 type SupabaseAdminClient = ReturnType<typeof createServiceRoleClient>;
+type MeetingChatAiMetricPayload = ReturnType<typeof buildMeetingChatAiMetric>;
 
 interface MeetingChatAiMetricState {
   question: string;
@@ -237,6 +238,7 @@ async function recordMeetingChatAiMetric({
       totalDurationMs: Date.now() - startedAt,
     });
 
+    logMeetingChatAiMetric(requestId, metric);
     await insertMeetingChatAiMetric(supabase, metric);
   } catch (error) {
     logStructured("warn", {
@@ -249,6 +251,49 @@ async function recordMeetingChatAiMetric({
       errorMessage: getErrorMessage(error),
     });
   }
+}
+
+function logMeetingChatAiMetric(
+  requestId: string,
+  metric: MeetingChatAiMetricPayload
+): void {
+  const level = resolveMetricLogLevel(metric);
+  logStructured(level, {
+    event: resolveMetricEvent(metric),
+    requestId,
+    userId: metric.user_id,
+    route: "inngest/answer-meeting-chat",
+    durationMs: metric.total_duration_ms,
+    status: metric.status,
+    chatId: metric.chat_id,
+    meetingId: metric.meeting_id,
+    fallbackReason: metric.fallback_reason,
+    embeddingModel: metric.embedding_model,
+    answerModel: metric.answer_model,
+    retrievedChunksCount: metric.retrieved_chunks_count ?? 0,
+    maxSimilarity: metric.max_similarity ?? null,
+    avgSimilarity: metric.avg_similarity ?? null,
+    questionTokensEstimated: metric.question_tokens_estimated ?? 0,
+    contextTokensEstimated: metric.context_tokens_estimated ?? 0,
+    answerTokensEstimated: metric.answer_tokens_estimated ?? 0,
+    embeddingDurationMs: metric.embedding_duration_ms ?? null,
+    retrievalDurationMs: metric.retrieval_duration_ms ?? null,
+    generationDurationMs: metric.generation_duration_ms ?? null,
+    estimatedCostUsd: metric.estimated_cost_usd ?? 0,
+  });
+}
+
+function resolveMetricLogLevel(
+  metric: MeetingChatAiMetricPayload
+): "info" | "warn" | "error" {
+  if (metric.status === "failed") return "error";
+  return metric.fallback_reason ? "warn" : "info";
+}
+
+function resolveMetricEvent(metric: MeetingChatAiMetricPayload): string {
+  if (metric.status === "failed") return "meeting.chat.answer.failed";
+  if (metric.fallback_reason) return "meeting.chat.answer.fallback";
+  return "meeting.chat.answer.completed";
 }
 
 async function refundProviderErrorQuota({

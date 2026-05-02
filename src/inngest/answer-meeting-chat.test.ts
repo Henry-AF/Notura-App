@@ -217,6 +217,31 @@ describe("answerMeetingChat", () => {
         estimated_cost_usd: expect.any(Number),
       })
     );
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({
+        event: "meeting.chat.answer.completed",
+        requestId: "event-1",
+        userId: "user-1",
+        route: "inngest/answer-meeting-chat",
+        status: "completed",
+        chatId: "chat-1",
+        meetingId: "meeting-1",
+        fallbackReason: null,
+        embeddingModel: "gemini-embedding-001",
+        answerModel: "gemini-3.1-flash-lite-preview",
+        retrievedChunksCount: 1,
+        maxSimilarity: 0.82,
+        avgSimilarity: 0.82,
+        questionTokensEstimated: 4,
+        contextTokensEstimated: 4,
+        answerTokensEstimated: 4,
+        embeddingDurationMs: expect.any(Number),
+        retrievalDurationMs: expect.any(Number),
+        generationDurationMs: expect.any(Number),
+        estimatedCostUsd: expect.any(Number),
+      })
+    );
   });
 
   it("saves low_similarity fallback when no chunks are returned", async () => {
@@ -255,6 +280,23 @@ describe("answerMeetingChat", () => {
         generation_duration_ms: null,
         total_duration_ms: expect.any(Number),
         estimated_cost_usd: expect.any(Number),
+      })
+    );
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      "warn",
+      expect.objectContaining({
+        event: "meeting.chat.answer.fallback",
+        requestId: "event-1",
+        userId: "user-1",
+        route: "inngest/answer-meeting-chat",
+        status: "completed",
+        chatId: "chat-1",
+        meetingId: "meeting-1",
+        fallbackReason: "low_similarity",
+        retrievedChunksCount: 0,
+        maxSimilarity: null,
+        avgSimilarity: null,
+        generationDurationMs: null,
       })
     );
   });
@@ -343,5 +385,20 @@ describe("answerMeetingChat", () => {
       p_ai_feature: "meeting_chat",
       p_reason: "provider_error",
     });
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      "error",
+      expect.objectContaining({
+        event: "meeting.chat.answer.failed",
+        requestId: "event-1",
+        userId: "user-1",
+        route: "inngest/answer-meeting-chat",
+        status: "failed",
+        chatId: "chat-1",
+        meetingId: "meeting-1",
+        fallbackReason: "provider_error",
+        retrievedChunksCount: 0,
+        generationDurationMs: null,
+      })
+    );
   });
 });

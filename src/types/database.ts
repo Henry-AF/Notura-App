@@ -432,6 +432,72 @@ export interface Database {
           }
         ]
       }
+      meeting_chat_outbox: {
+        Row: {
+          id: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          event_name: string
+          payload: Json
+          status: "pending" | "processing" | "sent" | "dead"
+          attempts: number
+          next_attempt_at: string
+          last_attempt_at: string | null
+          sent_at: string | null
+          last_error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          event_name?: string
+          payload: Json
+          status?: "pending" | "processing" | "sent" | "dead"
+          attempts?: number
+          next_attempt_at?: string
+          last_attempt_at?: string | null
+          sent_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          meeting_id?: string
+          user_id?: string
+          event_name?: string
+          payload?: Json
+          status?: "pending" | "processing" | "sent" | "dead"
+          attempts?: number
+          next_attempt_at?: string
+          last_attempt_at?: string | null
+          sent_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chat_outbox_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_chat_outbox_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -485,6 +551,17 @@ export interface Database {
           end_ms: number | null
           metadata: Json
           similarity: number
+        }[]
+      }
+      create_meeting_chat_with_outbox: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_question: string
+        }
+        Returns: {
+          chat_id: string
+          status: "processing"
         }[]
       }
     }

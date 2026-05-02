@@ -5,11 +5,14 @@ import {
   MeetingChatValidationError,
   validateMeetingChatQuestion,
 } from "@/lib/meetings/rag";
+import { createTraceId, getErrorMessage, logStructured } from "@/lib/observability";
 
 export const POST = withAuth<{ id: string }, NextRequest>(async (
   request: NextRequest,
   { params, auth }
 ) => {
+  const startedAt = Date.now();
+  const requestId = createTraceId();
   const supabase = auth.supabaseAdmin;
   await requireOwnership(supabase, "meetings", params.id, auth.user.id);
 
@@ -49,14 +52,11 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
   }
 
   const { data: chat, error: chatError } = await supabase
-    .from("meeting_chats")
-    .insert({
-      meeting_id: params.id,
-      user_id: auth.user.id,
-      question,
-      status: "processing",
+    .rpc("create_meeting_chat_with_outbox", {
+      p_user_id: auth.user.id,
+      p_meeting_id: params.id,
+      p_question: question,
     })
-    .select("id, status")
     .single();
 
   if (chatError || !chat) {
@@ -66,17 +66,28 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
     );
   }
 
-  await inngest.send({
-    name: "meeting/chat.answer",
-    data: {
-      chatId: chat.id,
-      meetingId: params.id,
+  try {
+    await inngest.send({
+      name: "meeting/chat.outbox.dispatch",
+      data: {
+        meetingId: params.id,
+        userId: auth.user.id,
+      },
+    });
+  } catch (error) {
+    logStructured("warn", {
+      event: "meeting.chat.outbox.dispatch_kick_failed",
+      requestId,
       userId: auth.user.id,
-    },
-  });
+      route: `/api/meetings/${params.id}/chats`,
+      durationMs: Date.now() - startedAt,
+      status: 202,
+      errorMessage: getErrorMessage(error),
+    });
+  }
 
   return NextResponse.json(
-    { chatId: chat.id, status: chat.status },
+    { chatId: chat.chat_id, status: chat.status },
     { status: 202 }
   );
 });

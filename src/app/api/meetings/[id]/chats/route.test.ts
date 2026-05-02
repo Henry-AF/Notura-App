@@ -45,16 +45,14 @@ function createAdminClient(options?: {
     data: { id: "meeting-1", status: meetingStatus, transcript },
     error: null,
   });
-  const insertSingle = vi.fn().mockResolvedValue({
-    data: { id: "chat-1", status: "processing" },
+  const rpcSingle = vi.fn().mockResolvedValue({
+    data: { chat_id: "chat-1", status: "processing" },
     error: null,
   });
-  const insert = vi.fn(() => ({
-    select: vi.fn(() => ({ single: insertSingle })),
+  const rpc = vi.fn(() => ({
+    single: rpcSingle,
   }));
   const from = vi.fn((table: string) => {
-    if (table === "meeting_chats") return { insert };
-
     return {
       select: vi.fn((columns: string) => ({
         eq: vi.fn(() =>
@@ -64,7 +62,7 @@ function createAdminClient(options?: {
     };
   });
 
-  return { from, insert };
+  return { from, rpc };
 }
 
 function createRequest(question: string) {
@@ -121,7 +119,7 @@ describe("POST /api/meetings/[id]/chats", () => {
     expect(await response.json()).toEqual({ error: "meeting_not_ready" });
   });
 
-  it("creates a processing chat and enqueues the answer job", async () => {
+  it("creates a processing chat with an outbox row and kicks the dispatcher", async () => {
     const admin = createAdminClient();
     createServiceRoleClient.mockReturnValue(admin);
 
@@ -135,19 +133,39 @@ describe("POST /api/meetings/[id]/chats", () => {
       chatId: "chat-1",
       status: "processing",
     });
-    expect(admin.insert).toHaveBeenCalledWith({
-      meeting_id: "meeting-1",
-      user_id: "user-1",
-      question: "Qual foi o prazo?",
-      status: "processing",
+    expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_meeting_id: "meeting-1",
+      p_question: "Qual foi o prazo?",
+      p_user_id: "user-1",
     });
     expect(inngestSend).toHaveBeenCalledWith({
-      name: "meeting/chat.answer",
+      name: "meeting/chat.outbox.dispatch",
       data: {
-        chatId: "chat-1",
         meetingId: "meeting-1",
         userId: "user-1",
       },
+    });
+  });
+
+  it("still returns 202 when the dispatcher kick fails after the outbox commit", async () => {
+    const admin = createAdminClient();
+    createServiceRoleClient.mockReturnValue(admin);
+    inngestSend.mockRejectedValue(new Error("Inngest unavailable"));
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      chatId: "chat-1",
+      status: "processing",
+    });
+    expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_meeting_id: "meeting-1",
+      p_question: "Qual foi o prazo?",
+      p_user_id: "user-1",
     });
   });
 });

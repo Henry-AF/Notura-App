@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   answerMeetingChat: { id: "answer-meeting-chat" },
+  dispatchMeetingChatOutbox: { id: "dispatch-meeting-chat-outbox" },
   handleProcessMeetingFailure: { id: "process-meeting-failure" },
   processMeeting: { id: "process-meeting" },
   serve: vi.fn(() => ({
@@ -26,6 +27,10 @@ vi.mock("@/inngest/process-meeting", () => ({
 
 vi.mock("@/inngest/answer-meeting-chat", () => ({
   answerMeetingChat: mocks.answerMeetingChat,
+}));
+
+vi.mock("@/inngest/meeting-chat-outbox", () => ({
+  dispatchMeetingChatOutbox: mocks.dispatchMeetingChatOutbox,
 }));
 
 vi.mock("@/lib/observability", () => ({
@@ -53,6 +58,7 @@ describe("/api/inngest route", () => {
           mocks.processMeeting,
           mocks.handleProcessMeetingFailure,
           mocks.answerMeetingChat,
+          mocks.dispatchMeetingChatOutbox,
         ]),
       })
     );

@@ -110,6 +110,27 @@ async function markOutboxFailedAttempt(
   return status;
 }
 
+async function markChatFailedForDeadOutbox(
+  supabase: SupabaseAdminClient,
+  chatId: string,
+  message: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("meeting_chats")
+    .update({
+      status: "failed",
+      fallback_reason: "provider_error",
+      model_confirmed: false,
+      sources: [],
+      error_message: message,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", chatId)
+    .eq("status", "processing");
+
+  if (error) throw new Error(`Failed to mark meeting chat failed: ${error.message}`);
+}
+
 async function dispatchOutboxRow(
   supabase: SupabaseAdminClient,
   row: MeetingChatOutboxRow,
@@ -131,6 +152,8 @@ async function dispatchOutboxRow(
     const status = await markOutboxFailedAttempt(supabase, claimed, message);
 
     if (status === "dead") {
+      await markChatFailedForDeadOutbox(supabase, claimed.chat_id, message);
+
       captureObservedError(error, {
         event: "meeting.chat.outbox.dead",
         requestId,

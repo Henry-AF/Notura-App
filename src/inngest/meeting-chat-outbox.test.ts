@@ -58,6 +58,7 @@ function createOutboxRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
 
 function createSupabaseMock(rows: OutboxRow[]) {
   const updates: unknown[] = [];
+  const chatUpdates: unknown[] = [];
   const selectLimit = vi.fn().mockResolvedValue({ data: rows, error: null });
   const claimMaybeSingle = vi.fn().mockImplementation(() => {
     const nextAttempts = rows[0].attempts + 1;
@@ -67,6 +68,10 @@ function createSupabaseMock(rows: OutboxRow[]) {
     });
   });
   const finalEq = vi.fn().mockResolvedValue({ error: null });
+  const chatUpdateQuery = {
+    eq: vi.fn(),
+  };
+  chatUpdateQuery.eq.mockReturnValue(chatUpdateQuery);
   const update = vi.fn((payload: unknown) => {
     updates.push(payload);
     return {
@@ -80,7 +85,7 @@ function createSupabaseMock(rows: OutboxRow[]) {
     };
   });
 
-  const from = vi.fn(() => ({
+  const from = vi.fn((table: string) => ({
     select: vi.fn(() => ({
       in: vi.fn(() => ({
         lte: vi.fn(() => ({
@@ -89,6 +94,11 @@ function createSupabaseMock(rows: OutboxRow[]) {
       })),
     })),
     update: vi.fn((payload: unknown) => {
+      if (table === "meeting_chats") {
+        chatUpdates.push(payload);
+        return chatUpdateQuery;
+      }
+
       if (
         payload &&
         typeof payload === "object" &&
@@ -103,7 +113,7 @@ function createSupabaseMock(rows: OutboxRow[]) {
     }),
   }));
 
-  return { from, updates };
+  return { from, updates, chatUpdates, chatUpdateQuery };
 }
 
 async function runDispatcher() {
@@ -180,5 +190,25 @@ describe("dispatchMeetingChatOutbox", () => {
       })
     );
     expect(mocks.captureObservedError).toHaveBeenCalled();
+  });
+
+  it("marks the related processing chat as failed when the outbox becomes dead", async () => {
+    const supabase = createSupabaseMock([createOutboxRow({ attempts: 3 })]);
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.inngestSend.mockRejectedValue(new Error("Inngest unavailable"));
+
+    await runDispatcher();
+
+    expect(supabase.chatUpdates).toContainEqual(
+      expect.objectContaining({
+        status: "failed",
+        fallback_reason: "provider_error",
+        model_confirmed: false,
+        error_message: "Inngest unavailable",
+        sources: [],
+      })
+    );
+    expect(supabase.chatUpdateQuery.eq).toHaveBeenCalledWith("id", "chat-1");
+    expect(supabase.chatUpdateQuery.eq).toHaveBeenCalledWith("status", "processing");
   });
 });

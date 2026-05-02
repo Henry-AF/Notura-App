@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const AI_MEETING_CHAT_DAILY_QUOTA_FEATURE = "meeting_chat";
+const AI_MEETING_CHAT_DAILY_QUOTA_LIMIT = 10;
+
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
@@ -31,6 +34,7 @@ function createAdminClient(options?: {
   ownsMeeting?: boolean;
   meetingStatus?: string;
   transcript?: string | null;
+  chatRpcError?: { code?: string; message: string };
 }) {
   const ownsMeeting = options?.ownsMeeting ?? true;
   const meetingStatus = options?.meetingStatus ?? "completed";
@@ -46,8 +50,10 @@ function createAdminClient(options?: {
     error: null,
   });
   const rpcSingle = vi.fn().mockResolvedValue({
-    data: { chat_id: "chat-1", status: "processing" },
-    error: null,
+    data: options?.chatRpcError
+      ? null
+      : { chat_id: "chat-1", status: "processing" },
+    error: options?.chatRpcError ?? null,
   });
   const rpc = vi.fn(() => ({
     single: rpcSingle,
@@ -134,6 +140,8 @@ describe("POST /api/meetings/[id]/chats", () => {
       status: "processing",
     });
     expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_ai_daily_quota_limit: AI_MEETING_CHAT_DAILY_QUOTA_LIMIT,
+      p_ai_feature: AI_MEETING_CHAT_DAILY_QUOTA_FEATURE,
       p_meeting_id: "meeting-1",
       p_question: "Qual foi o prazo?",
       p_user_id: "user-1",
@@ -144,6 +152,28 @@ describe("POST /api/meetings/[id]/chats", () => {
         meetingId: "meeting-1",
         userId: "user-1",
       },
+    });
+  });
+
+  it("returns 403 when the daily AI chat quota is exhausted", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        chatRpcError: {
+          code: "AI001",
+          message: "ai_chat_daily_quota_exceeded",
+        },
+      })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "ai_chat_daily_quota_exceeded",
+      quotaLimit: 10,
     });
   });
 
@@ -163,9 +193,35 @@ describe("POST /api/meetings/[id]/chats", () => {
       status: "processing",
     });
     expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_ai_daily_quota_limit: AI_MEETING_CHAT_DAILY_QUOTA_LIMIT,
+      p_ai_feature: AI_MEETING_CHAT_DAILY_QUOTA_FEATURE,
       p_meeting_id: "meeting-1",
       p_question: "Qual foi o prazo?",
       p_user_id: "user-1",
     });
+  });
+
+  it("rate limits chat creation to two requests per minute per user", async () => {
+    createServiceRoleClient.mockReturnValue(createAdminClient());
+
+    const mod = await import("./route");
+    await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+    await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Muitas requisições. Tente novamente em instantes.",
+      code: "rate_limited",
+    });
+    expect(response.headers.get("x-ratelimit-limit")).toBe("2");
+    expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
+    expect(response.headers.get("retry-after")).toBeTruthy();
   });
 });

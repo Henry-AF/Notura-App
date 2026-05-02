@@ -63,6 +63,17 @@ create table if not exists meeting_chat_outbox (
   unique (chat_id)
 );
 
+create table if not exists ai_usage_daily (
+  user_id uuid not null references auth.users on delete cascade,
+  usage_date date not null,
+  feature text not null,
+  used_count integer not null default 0 check (used_count >= 0),
+  quota_limit integer not null check (quota_limit > 0),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (user_id, usage_date, feature)
+);
+
 create index if not exists idx_meeting_transcript_chunks_meeting_id
   on meeting_transcript_chunks(meeting_id);
 
@@ -93,13 +104,18 @@ create index if not exists idx_meeting_chat_outbox_status_next_attempt_at
 create index if not exists idx_meeting_chat_outbox_chat_id
   on meeting_chat_outbox(chat_id);
 
+create index if not exists idx_ai_usage_daily_feature_usage_date
+  on ai_usage_daily(feature, usage_date);
+
 alter table meeting_transcript_chunks enable row level security;
 alter table meeting_chats enable row level security;
 alter table meeting_chat_outbox enable row level security;
+alter table ai_usage_daily enable row level security;
 
 drop policy if exists "meeting_transcript_chunks_own" on meeting_transcript_chunks;
 drop policy if exists "meeting_chats_own" on meeting_chats;
 drop policy if exists "meeting_chat_outbox_own" on meeting_chat_outbox;
+drop policy if exists "ai_usage_daily_own" on ai_usage_daily;
 
 revoke all on table meeting_transcript_chunks from authenticated;
 revoke all on table meeting_transcript_chunks from anon;
@@ -113,18 +129,33 @@ revoke all on table meeting_chat_outbox from authenticated;
 revoke all on table meeting_chat_outbox from anon;
 revoke all on table meeting_chat_outbox from public;
 
+revoke all on table ai_usage_daily from authenticated;
+revoke all on table ai_usage_daily from anon;
+revoke all on table ai_usage_daily from public;
+
 grant all on table meeting_transcript_chunks to service_role;
 grant all on table meeting_chats to service_role;
 grant all on table meeting_chat_outbox to service_role;
+grant all on table ai_usage_daily to service_role;
+
+drop function if exists create_meeting_chat_with_outbox(
+  uuid,
+  uuid,
+  text
+);
 
 create or replace function create_meeting_chat_with_outbox(
   p_user_id uuid,
   p_meeting_id uuid,
-  p_question text
+  p_question text,
+  p_ai_feature text default 'meeting_chat',
+  p_ai_daily_quota_limit integer default 10
 )
 returns table (
   chat_id uuid,
-  status text
+  status text,
+  ai_daily_quota_used integer,
+  ai_daily_quota_limit integer
 )
 language plpgsql
 security definer
@@ -133,7 +164,57 @@ as $$
 declare
   v_chat_id uuid;
   v_status text;
+  v_usage_date date := current_date;
+  v_ai_daily_quota_used integer;
+  v_ai_daily_quota_limit integer;
 begin
+  p_ai_feature := nullif(btrim(p_ai_feature), '');
+
+  if p_ai_feature is null then
+    raise exception 'p_ai_feature must not be blank';
+  end if;
+
+  if p_ai_daily_quota_limit is null or p_ai_daily_quota_limit <= 0 then
+    raise exception 'p_ai_daily_quota_limit must be positive';
+  end if;
+
+  insert into public.ai_usage_daily as usage (
+    user_id,
+    usage_date,
+    feature,
+    used_count,
+    quota_limit
+  )
+  values (
+    p_user_id,
+    v_usage_date,
+    p_ai_feature,
+    0,
+    p_ai_daily_quota_limit
+  )
+  on conflict (user_id, usage_date, feature) do update
+    set
+      quota_limit = excluded.quota_limit,
+      updated_at = now();
+
+  update public.ai_usage_daily
+    set
+      used_count = public.ai_usage_daily.used_count + 1,
+      quota_limit = p_ai_daily_quota_limit,
+      updated_at = now()
+  where user_id = p_user_id
+    and usage_date = v_usage_date
+    and feature = p_ai_feature
+    and used_count < p_ai_daily_quota_limit
+  returning
+    used_count,
+    quota_limit
+  into v_ai_daily_quota_used, v_ai_daily_quota_limit;
+
+  if v_ai_daily_quota_used is null then
+    raise exception 'ai_chat_daily_quota_exceeded' using errcode = 'AI001';
+  end if;
+
   insert into public.meeting_chats as c (
     meeting_id,
     user_id,
@@ -169,32 +250,44 @@ begin
     'pending'
   );
 
-  return query select v_chat_id, v_status;
+  return query select
+    v_chat_id,
+    v_status,
+    v_ai_daily_quota_used,
+    v_ai_daily_quota_limit;
 end;
 $$;
 
 revoke execute on function create_meeting_chat_with_outbox(
   uuid,
   uuid,
-  text
+  text,
+  text,
+  integer
 ) from authenticated;
 
 revoke execute on function create_meeting_chat_with_outbox(
   uuid,
   uuid,
-  text
+  text,
+  text,
+  integer
 ) from anon;
 
 revoke execute on function create_meeting_chat_with_outbox(
   uuid,
   uuid,
-  text
+  text,
+  text,
+  integer
 ) from public;
 
 grant execute on function create_meeting_chat_with_outbox(
   uuid,
   uuid,
-  text
+  text,
+  text,
+  integer
 ) to service_role;
 
 create or replace function upsert_meeting_transcript_chunks_with_lock(

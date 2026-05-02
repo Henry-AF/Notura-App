@@ -11,6 +11,11 @@ export const RATE_LIMIT_POLICIES = {
     limit: 20,
     windowMs: 60_000,
   },
+  meetingAiChatCreate: {
+    bucket: "api:meetings/[id]/chats",
+    limit: 2,
+    windowMs: 60_000,
+  },
   assemblyAiToken: {
     bucket: "api:assemblyai/token",
     limit: 30,

@@ -507,6 +507,36 @@ export interface Database {
           }
         ]
       }
+      ai_usage_daily: {
+        Row: {
+          user_id: string
+          usage_date: string
+          feature: string
+          used_count: number
+          quota_limit: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          usage_date: string
+          feature: string
+          used_count?: number
+          quota_limit: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          usage_date?: string
+          feature?: string
+          used_count?: number
+          quota_limit?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -581,10 +611,14 @@ export interface Database {
           p_user_id: string
           p_meeting_id: string
           p_question: string
+          p_ai_feature?: string
+          p_ai_daily_quota_limit?: number
         }
         Returns: {
           chat_id: string
           status: "processing"
+          ai_daily_quota_used: number
+          ai_daily_quota_limit: number
         }[]
       }
     }

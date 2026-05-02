@@ -140,6 +140,7 @@ describe("answerMeetingChat", () => {
     mocks.answerMeetingQuestionFromChunks.mockResolvedValue({
       answer: "O prazo foi sexta.",
       isAnsweredFromContext: true,
+      citedChunkIds: ["chunk-1"],
       insufficientContextReason: null,
     });
   });
@@ -206,6 +207,7 @@ describe("answerMeetingChat", () => {
     mocks.answerMeetingQuestionFromChunks.mockResolvedValue({
       answer: "Nao sei.",
       isAnsweredFromContext: false,
+      citedChunkIds: [],
       insufficientContextReason: "A transcricao nao confirma.",
     });
 
@@ -216,6 +218,33 @@ describe("answerMeetingChat", () => {
         status: "completed",
         fallback_reason: "not_confirmed_by_model",
         model_confirmed: false,
+      })
+    );
+  });
+
+  it("saves not_confirmed_by_model fallback when Gemini cites no retrieved chunks", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.answerMeetingQuestionFromChunks.mockResolvedValue({
+      answer: "O prazo foi sexta.",
+      isAnsweredFromContext: true,
+      citedChunkIds: ["chunk-fora-do-contexto"],
+      insufficientContextReason: null,
+    });
+
+    await runJob();
+
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "completed",
+        fallback_reason: "not_confirmed_by_model",
+        model_confirmed: false,
+      })
+    );
+    expect(supabase.updates).not.toContainEqual(
+      expect.objectContaining({
+        status: "completed",
+        model_confirmed: true,
       })
     );
   });

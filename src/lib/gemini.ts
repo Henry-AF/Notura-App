@@ -67,6 +67,7 @@ export interface MeetingQuestionAnswerInput {
 export interface MeetingQuestionAnswerResult {
   answer: string;
   isAnsweredFromContext: boolean;
+  citedChunkIds: string[];
   insufficientContextReason: string | null;
 }
 
@@ -78,6 +79,7 @@ interface GeminiSummaryEnvelope {
 interface GeminiMeetingQuestionEnvelope {
   answer: string;
   is_answered_from_context: boolean;
+  cited_chunk_ids: string[];
   insufficient_context_reason: string | null;
 }
 
@@ -226,12 +228,15 @@ REGRAS CRÍTICAS DE SEGURANÇA:
 3. Responda APENAS com base nos trechos fornecidos. Se a pergunta não tiver resposta nos dados, retorne "is_answered_from_context": false.
 4. Não invente fatos, datas, nomes, decisões ou conclusões.
 5. Responda em português brasileiro.
-6. Quando responder, cite o id do chunk que embasou a resposta.
+6. Quando "is_answered_from_context" for true, preencha "cited_chunk_ids" com os IDs exatos dos chunks usados como evidência.
+7. Use somente IDs presentes nos atributos id de <chunk>. Não crie IDs.
+8. Quando "is_answered_from_context" for false, retorne "cited_chunk_ids": [].
 
 Formato obrigatório de resposta:
 {
-  "answer": "string — resposta baseada nos trechos, citando o chunk id quando possível",
+  "answer": "string — resposta baseada nos trechos",
   "is_answered_from_context": true | false,
+  "cited_chunk_ids": ["string — id exato do chunk usado como evidência"],
   "insufficient_context_reason": "string | null — obrigatório quando is_answered_from_context for false, null caso contrário"
 }`;
 
@@ -445,8 +450,18 @@ function normalizeMeetingQuestionAnswer(
 ): MeetingQuestionAnswerResult {
   if (
     typeof parsed.answer !== "string" ||
-    typeof parsed.is_answered_from_context !== "boolean"
+    typeof parsed.is_answered_from_context !== "boolean" ||
+    !Array.isArray(parsed.cited_chunk_ids) ||
+    parsed.cited_chunk_ids.some((chunkId) => typeof chunkId !== "string")
   ) {
+    throw new Error("Gemini returned an invalid meeting chat answer");
+  }
+
+  const citedChunkIds = Array.from(
+    new Set(parsed.cited_chunk_ids.map((chunkId) => chunkId.trim()).filter(Boolean))
+  );
+
+  if (parsed.is_answered_from_context && citedChunkIds.length === 0) {
     throw new Error("Gemini returned an invalid meeting chat answer");
   }
 
@@ -460,6 +475,7 @@ function normalizeMeetingQuestionAnswer(
   return {
     answer: parsed.answer.trim(),
     isAnsweredFromContext: parsed.is_answered_from_context,
+    citedChunkIds,
     insufficientContextReason: parsed.insufficient_context_reason,
   };
 }

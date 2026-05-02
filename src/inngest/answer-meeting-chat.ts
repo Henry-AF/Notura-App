@@ -155,6 +155,29 @@ async function saveProviderFailure(
   });
 }
 
+function selectCitedSources(
+  sources: ChatSource[],
+  citedChunkIds: string[]
+): ChatSource[] | null {
+  const uniqueCitedChunkIds = Array.from(
+    new Set(citedChunkIds.map((chunkId) => chunkId.trim()).filter(Boolean))
+  );
+  if (uniqueCitedChunkIds.length === 0) return null;
+
+  const sourcesByChunkId = new Map(
+    sources.map((source) => [source.chunkId, source])
+  );
+  const citedSources: ChatSource[] = [];
+
+  for (const chunkId of uniqueCitedChunkIds) {
+    const source = sourcesByChunkId.get(chunkId);
+    if (!source) return null;
+    citedSources.push(source);
+  }
+
+  return citedSources;
+}
+
 export const answerMeetingChat = inngest.createFunction(
   {
     id: "answer-meeting-chat",
@@ -224,7 +247,29 @@ export const answerMeetingChat = inngest.createFunction(
         };
       }
 
-      await saveConfirmedAnswer(supabase, chat.id, answer.answer, queryEmbedding, sources);
+      const citedSources = selectCitedSources(sources, answer.citedChunkIds);
+      if (!citedSources) {
+        await saveFallback(
+          supabase,
+          chat.id,
+          "not_confirmed_by_model",
+          queryEmbedding,
+          sources
+        );
+        return {
+          chatId: chat.id,
+          status: "completed",
+          fallback: "not_confirmed_by_model",
+        };
+      }
+
+      await saveConfirmedAnswer(
+        supabase,
+        chat.id,
+        answer.answer,
+        queryEmbedding,
+        citedSources
+      );
 
       logStructured("info", {
         event: "inngest.job.completed",

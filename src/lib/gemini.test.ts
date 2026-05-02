@@ -214,6 +214,7 @@ describe("answerMeetingQuestionFromChunks", () => {
       createQuestionAnswerResponse({
         answer: "O prazo combinado foi sexta-feira.",
         is_answered_from_context: true,
+        cited_chunk_ids: ["chunk-1"],
         insufficient_context_reason: null,
       })
     );
@@ -236,24 +237,54 @@ describe("answerMeetingQuestionFromChunks", () => {
     expect(getGenerativeModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         systemInstruction: expect.stringContaining(
-          "responde APENAS com base na transcrição fornecida"
+          "cited_chunk_ids"
         ),
       })
     );
     expect(generateContentMock).toHaveBeenCalledWith(
-      expect.stringContaining("[chunk-1]")
+      expect.stringContaining('id="chunk-1"')
     );
     expect(result).toEqual({
       answer: "O prazo combinado foi sexta-feira.",
       isAnsweredFromContext: true,
+      citedChunkIds: ["chunk-1"],
       insufficientContextReason: null,
     });
+  });
+
+  it("rejects confirmed answers without structured cited chunk ids", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "O prazo combinado foi sexta-feira.",
+        is_answered_from_context: true,
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+
+    await expect(
+      mod.answerMeetingQuestionFromChunks({
+        question: "Qual foi o prazo?",
+        chunks: [
+          {
+            chunkId: "chunk-1",
+            similarity: 0.82,
+            startMs: 12000,
+            endMs: 18000,
+            speaker: "A",
+            text: "O prazo combinado foi sexta-feira.",
+          },
+        ],
+      })
+    ).rejects.toThrow("Gemini returned an invalid meeting chat answer");
   });
 
   it("rejects answers without an explicit model confirmation field", async () => {
     generateContentMock.mockResolvedValue(
       createQuestionAnswerResponse({
         answer: "Talvez sexta-feira.",
+        cited_chunk_ids: [],
         insufficient_context_reason: null,
       })
     );

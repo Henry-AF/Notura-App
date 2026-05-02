@@ -54,6 +54,9 @@ create index if not exists idx_meeting_chats_user_id
 alter table meeting_transcript_chunks enable row level security;
 alter table meeting_chats enable row level security;
 
+drop policy if exists "meeting_transcript_chunks_own" on meeting_transcript_chunks;
+drop policy if exists "meeting_chats_own" on meeting_chats;
+
 create policy "meeting_transcript_chunks_own" on meeting_transcript_chunks
   for all
   using (auth.uid() = user_id)
@@ -105,10 +108,34 @@ as $$
   limit least(greatest(p_limit, 0), 5);
 $$;
 
+revoke execute on function match_meeting_transcript_chunks(
+  uuid,
+  uuid,
+  vector,
+  integer,
+  double precision
+) from authenticated;
+
+revoke execute on function match_meeting_transcript_chunks(
+  uuid,
+  uuid,
+  vector,
+  integer,
+  double precision
+) from anon;
+
+revoke execute on function match_meeting_transcript_chunks(
+  uuid,
+  uuid,
+  vector,
+  integer,
+  double precision
+) from public;
+
 grant execute on function match_meeting_transcript_chunks(
   uuid,
   uuid,
-  vector(768),
+  vector,
   integer,
   double precision
-) to authenticated;
+) to service_role;

@@ -10,6 +10,8 @@ export const CHAT_SIMILARITY_THRESHOLD = 0.6;
 type SupabaseAdminClient = SupabaseClient<Database>;
 type ChunkInsert =
   Database["public"]["Tables"]["meeting_transcript_chunks"]["Insert"];
+type ChunkUpsertPayload =
+  Database["public"]["Functions"]["upsert_meeting_transcript_chunks_with_lock"]["Args"]["p_chunks"];
 export type MatchedTranscriptChunk =
   Database["public"]["Functions"]["match_meeting_transcript_chunks"]["Returns"][number];
 
@@ -156,19 +158,12 @@ export async function indexMeetingTranscriptChunks({
   embedText,
 }: IndexMeetingTranscriptChunksInput): Promise<TranscriptChunk[]> {
   const chunks = buildChunksForIndexing(transcript, utterances);
+  const rows =
+    chunks.length > 0
+      ? await buildChunkInsertRows(chunks, meetingId, userId, embedText)
+      : [];
 
-  if (chunks.length === 0) {
-    await deleteStaleMeetingChunks(supabase, meetingId, 0);
-    return chunks;
-  }
-
-  const rows = await buildChunkInsertRows(chunks, meetingId, userId, embedText);
-  const { error } = await supabase
-    .from("meeting_transcript_chunks")
-    .upsert(rows, { onConflict: "meeting_id,chunk_index" });
-  if (error) throw new Error(`Failed to upsert transcript chunks: ${error.message}`);
-
-  await deleteStaleMeetingChunks(supabase, meetingId, chunks.length);
+  await upsertMeetingChunksWithAdvisoryLock(supabase, meetingId, userId, rows);
 
   return chunks;
 }
@@ -329,18 +324,25 @@ function buildChunksForIndexing(
   return buildTranscriptChunksFromFormattedTranscript(transcript);
 }
 
-async function deleteStaleMeetingChunks(
+async function upsertMeetingChunksWithAdvisoryLock(
   supabase: SupabaseAdminClient,
   meetingId: string,
-  firstStaleChunkIndex: number
+  userId: string,
+  rows: ChunkInsert[]
 ): Promise<void> {
-  const { error } = await supabase
-    .from("meeting_transcript_chunks")
-    .delete()
-    .eq("meeting_id", meetingId)
-    .gte("chunk_index", firstStaleChunkIndex);
+  const chunks = rows.map(({ meeting_id: _meetingId, user_id: _userId, ...row }) => row);
+  const { error } = await supabase.rpc(
+    "upsert_meeting_transcript_chunks_with_lock",
+    {
+      p_meeting_id: meetingId,
+      p_user_id: userId,
+      p_chunks: chunks as ChunkUpsertPayload,
+    }
+  );
 
-  if (error) throw new Error(`Failed to delete stale transcript chunks: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to upsert transcript chunks with advisory lock: ${error.message}`);
+  }
 }
 
 async function buildChunkInsertRows(

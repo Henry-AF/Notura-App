@@ -180,6 +180,87 @@ grant execute on function create_meeting_chat_with_outbox(
   text
 ) to service_role;
 
+create or replace function upsert_meeting_transcript_chunks_with_lock(
+  p_user_id uuid,
+  p_meeting_id uuid,
+  p_chunks jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  p_chunks := coalesce(p_chunks, '[]'::jsonb);
+
+  if jsonb_typeof(p_chunks) <> 'array' then
+    raise exception 'p_chunks must be a JSON array';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_meeting_id::text, 0));
+
+  insert into public.meeting_transcript_chunks (
+    meeting_id,
+    user_id,
+    chunk_index,
+    text,
+    speaker,
+    start_ms,
+    end_ms,
+    metadata,
+    embedding
+  )
+  select
+    p_meeting_id,
+    p_user_id,
+    (chunk->>'chunk_index')::integer,
+    chunk->>'text',
+    nullif(chunk->>'speaker', ''),
+    (chunk->>'start_ms')::integer,
+    (chunk->>'end_ms')::integer,
+    coalesce(chunk->'metadata', '{}'::jsonb),
+    ((chunk->'embedding')::text)::vector(768)
+  from jsonb_array_elements(p_chunks) as chunk
+  on conflict (meeting_id, chunk_index) do update
+    set
+      user_id = excluded.user_id,
+      text = excluded.text,
+      speaker = excluded.speaker,
+      start_ms = excluded.start_ms,
+      end_ms = excluded.end_ms,
+      metadata = excluded.metadata,
+      embedding = excluded.embedding;
+
+  delete from public.meeting_transcript_chunks
+  where meeting_id = p_meeting_id
+    and chunk_index >= jsonb_array_length(p_chunks);
+end;
+$$;
+
+revoke execute on function upsert_meeting_transcript_chunks_with_lock(
+  uuid,
+  uuid,
+  jsonb
+) from authenticated;
+
+revoke execute on function upsert_meeting_transcript_chunks_with_lock(
+  uuid,
+  uuid,
+  jsonb
+) from anon;
+
+revoke execute on function upsert_meeting_transcript_chunks_with_lock(
+  uuid,
+  uuid,
+  jsonb
+) from public;
+
+grant execute on function upsert_meeting_transcript_chunks_with_lock(
+  uuid,
+  uuid,
+  jsonb
+) to service_role;
+
 create or replace function match_meeting_transcript_chunks(
   p_user_id uuid,
   p_meeting_id uuid,

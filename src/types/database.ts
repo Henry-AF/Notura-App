@@ -553,6 +553,14 @@ export interface Database {
           similarity: number
         }[]
       }
+      upsert_meeting_transcript_chunks_with_lock: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_chunks: Json
+        }
+        Returns: undefined
+      }
       create_meeting_chat_with_outbox: {
         Args: {
           p_user_id: string

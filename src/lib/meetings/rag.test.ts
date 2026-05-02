@@ -129,19 +129,15 @@ function createEmbedding(seed: number): number[] {
 }
 
 function createChunkPersistenceClient() {
-  const staleDeleteGte = vi.fn().mockResolvedValue({ error: null });
-  const staleDeleteEq = vi.fn(() => ({ gte: staleDeleteGte }));
-  const deleteRows = vi.fn(() => ({ eq: staleDeleteEq }));
-  const upsert = vi.fn().mockResolvedValue({ error: null });
-  const from = vi.fn(() => ({ delete: deleteRows, upsert }));
+  const rpc = vi.fn().mockResolvedValue({ error: null });
+  const from = vi.fn();
 
-  return { supabase: { from }, deleteRows, staleDeleteEq, staleDeleteGte, upsert };
+  return { supabase: { from, rpc }, from, rpc };
 }
 
 describe("indexMeetingTranscriptChunks", () => {
-  it("upserts meeting chunks by meeting and chunk index without deleting first", async () => {
-    const { supabase, deleteRows, staleDeleteEq, staleDeleteGte, upsert } =
-      createChunkPersistenceClient();
+  it("persists chunks through the advisory-locked upsert RPC", async () => {
+    const { supabase, from, rpc } = createChunkPersistenceClient();
     const embedText = vi.fn().mockResolvedValue(createEmbedding(0.5));
 
     await indexMeetingTranscriptChunks({
@@ -156,15 +152,13 @@ describe("indexMeetingTranscriptChunks", () => {
       embedText,
     });
 
-    expect(deleteRows).toHaveBeenCalledTimes(1);
-    expect(staleDeleteEq).toHaveBeenCalledWith("meeting_id", "meeting-1");
-    expect(staleDeleteGte).toHaveBeenCalledWith("chunk_index", 1);
+    expect(from).not.toHaveBeenCalled();
     expect(embedText).toHaveBeenCalledWith("Primeira fala\nSegunda fala");
-    expect(upsert).toHaveBeenCalledWith(
-      [
+    expect(rpc).toHaveBeenCalledWith("upsert_meeting_transcript_chunks_with_lock", {
+      p_meeting_id: "meeting-1",
+      p_user_id: "user-1",
+      p_chunks: [
         expect.objectContaining({
-          meeting_id: "meeting-1",
-          user_id: "user-1",
           chunk_index: 0,
           text: "Primeira fala\nSegunda fala",
           speaker: "A",
@@ -173,8 +167,7 @@ describe("indexMeetingTranscriptChunks", () => {
           embedding: createEmbedding(0.5),
         }),
       ],
-      { onConflict: "meeting_id,chunk_index" }
-    );
+    });
   });
 });
 

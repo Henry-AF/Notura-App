@@ -13,8 +13,17 @@ create table if not exists meeting_transcript_chunks (
   end_ms integer,
   metadata jsonb not null default '{}'::jsonb,
   embedding vector(768) not null,
+  embedding_model text not null default 'gemini-embedding-001',
+  embedding_dimensions integer not null default 768,
+  chunking_version text not null default 'utterance-merge-v1-400',
   created_at timestamptz default now(),
-  unique (meeting_id, chunk_index)
+  unique (
+    meeting_id,
+    embedding_model,
+    embedding_dimensions,
+    chunking_version,
+    chunk_index
+  )
 );
 
 create table if not exists meeting_chats (
@@ -63,6 +72,14 @@ create index if not exists idx_meeting_transcript_chunks_user_id
 create index if not exists idx_meeting_transcript_chunks_embedding_hnsw
   on meeting_transcript_chunks
   using hnsw (embedding vector_cosine_ops);
+
+create index if not exists idx_meeting_transcript_chunks_index_version
+  on meeting_transcript_chunks(
+    meeting_id,
+    embedding_model,
+    embedding_dimensions,
+    chunking_version
+  );
 
 create index if not exists idx_meeting_chats_meeting_id_created_at
   on meeting_chats(meeting_id, created_at desc);
@@ -183,7 +200,10 @@ grant execute on function create_meeting_chat_with_outbox(
 create or replace function upsert_meeting_transcript_chunks_with_lock(
   p_user_id uuid,
   p_meeting_id uuid,
-  p_chunks jsonb
+  p_chunks jsonb,
+  p_embedding_model text default 'gemini-embedding-001',
+  p_embedding_dimensions integer default 768,
+  p_chunking_version text default 'utterance-merge-v1-400'
 )
 returns void
 language plpgsql
@@ -192,9 +212,23 @@ set search_path = public
 as $$
 begin
   p_chunks := coalesce(p_chunks, '[]'::jsonb);
+  p_embedding_model := nullif(btrim(p_embedding_model), '');
+  p_chunking_version := nullif(btrim(p_chunking_version), '');
 
   if jsonb_typeof(p_chunks) <> 'array' then
     raise exception 'p_chunks must be a JSON array';
+  end if;
+
+  if p_embedding_model is null then
+    raise exception 'p_embedding_model must not be blank';
+  end if;
+
+  if p_embedding_dimensions is null or p_embedding_dimensions <= 0 then
+    raise exception 'p_embedding_dimensions must be positive';
+  end if;
+
+  if p_chunking_version is null then
+    raise exception 'p_chunking_version must not be blank';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended(p_meeting_id::text, 0));
@@ -208,7 +242,10 @@ begin
     start_ms,
     end_ms,
     metadata,
-    embedding
+    embedding,
+    embedding_model,
+    embedding_dimensions,
+    chunking_version
   )
   select
     p_meeting_id,
@@ -219,9 +256,18 @@ begin
     (chunk->>'start_ms')::integer,
     (chunk->>'end_ms')::integer,
     coalesce(chunk->'metadata', '{}'::jsonb),
-    ((chunk->'embedding')::text)::vector(768)
+    ((chunk->'embedding')::text)::vector(768),
+    p_embedding_model,
+    p_embedding_dimensions,
+    p_chunking_version
   from jsonb_array_elements(p_chunks) as chunk
-  on conflict (meeting_id, chunk_index) do update
+  on conflict (
+    meeting_id,
+    embedding_model,
+    embedding_dimensions,
+    chunking_version,
+    chunk_index
+  ) do update
     set
       user_id = excluded.user_id,
       text = excluded.text,
@@ -229,10 +275,17 @@ begin
       start_ms = excluded.start_ms,
       end_ms = excluded.end_ms,
       metadata = excluded.metadata,
-      embedding = excluded.embedding;
+      embedding = excluded.embedding,
+      embedding_model = excluded.embedding_model,
+      embedding_dimensions = excluded.embedding_dimensions,
+      chunking_version = excluded.chunking_version;
 
   delete from public.meeting_transcript_chunks
   where meeting_id = p_meeting_id
+    and user_id = p_user_id
+    and embedding_model = p_embedding_model
+    and embedding_dimensions = p_embedding_dimensions
+    and chunking_version = p_chunking_version
     and chunk_index >= jsonb_array_length(p_chunks);
 end;
 $$;
@@ -240,25 +293,37 @@ $$;
 revoke execute on function upsert_meeting_transcript_chunks_with_lock(
   uuid,
   uuid,
-  jsonb
+  jsonb,
+  text,
+  integer,
+  text
 ) from authenticated;
 
 revoke execute on function upsert_meeting_transcript_chunks_with_lock(
   uuid,
   uuid,
-  jsonb
+  jsonb,
+  text,
+  integer,
+  text
 ) from anon;
 
 revoke execute on function upsert_meeting_transcript_chunks_with_lock(
   uuid,
   uuid,
-  jsonb
+  jsonb,
+  text,
+  integer,
+  text
 ) from public;
 
 grant execute on function upsert_meeting_transcript_chunks_with_lock(
   uuid,
   uuid,
-  jsonb
+  jsonb,
+  text,
+  integer,
+  text
 ) to service_role;
 
 create or replace function match_meeting_transcript_chunks(
@@ -266,7 +331,10 @@ create or replace function match_meeting_transcript_chunks(
   p_meeting_id uuid,
   p_query_embedding vector(768),
   p_limit integer default 5,
-  p_similarity_threshold double precision default 0.6
+  p_similarity_threshold double precision default 0.6,
+  p_embedding_model text default 'gemini-embedding-001',
+  p_embedding_dimensions integer default 768,
+  p_chunking_version text default 'utterance-merge-v1-400'
 )
 returns table (
   id uuid,
@@ -297,6 +365,9 @@ as $$
   from public.meeting_transcript_chunks c
   where c.user_id = p_user_id
     and c.meeting_id = p_meeting_id
+    and c.embedding_model = p_embedding_model
+    and c.embedding_dimensions = p_embedding_dimensions
+    and c.chunking_version = p_chunking_version
     and 1 - (c.embedding <=> p_query_embedding) >= p_similarity_threshold
   order by c.embedding <=> p_query_embedding
   limit least(greatest(p_limit, 0), 5);
@@ -307,7 +378,10 @@ revoke execute on function match_meeting_transcript_chunks(
   uuid,
   vector,
   integer,
-  double precision
+  double precision,
+  text,
+  integer,
+  text
 ) from authenticated;
 
 revoke execute on function match_meeting_transcript_chunks(
@@ -315,7 +389,10 @@ revoke execute on function match_meeting_transcript_chunks(
   uuid,
   vector,
   integer,
-  double precision
+  double precision,
+  text,
+  integer,
+  text
 ) from anon;
 
 revoke execute on function match_meeting_transcript_chunks(
@@ -323,7 +400,10 @@ revoke execute on function match_meeting_transcript_chunks(
   uuid,
   vector,
   integer,
-  double precision
+  double precision,
+  text,
+  integer,
+  text
 ) from public;
 
 grant execute on function match_meeting_transcript_chunks(
@@ -331,5 +411,8 @@ grant execute on function match_meeting_transcript_chunks(
   uuid,
   vector,
   integer,
-  double precision
+  double precision,
+  text,
+  integer,
+  text
 ) to service_role;

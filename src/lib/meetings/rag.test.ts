@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "../../types/database";
 import {
+  ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS,
+  ACTIVE_TRANSCRIPT_EMBEDDING_MODEL,
   buildTranscriptChunksFromFormattedTranscript,
   buildTranscriptChunksFromUtterances,
   ensureMeetingChunksIndexed,
   indexMeetingTranscriptChunks,
   matchMeetingTranscriptChunks,
   toChatSources,
+  TRANSCRIPT_CHUNKING_VERSION,
   validateMeetingChatQuestion,
 } from "./rag";
 
@@ -25,11 +28,23 @@ describe("meeting RAG database types", () => {
     const _chunkId: ChunkRow["id"] = "chunk-1";
     const _chatId: ChatRow["id"] = "chat-1";
     const _limit: MatchArgs["p_limit"] = 5;
+    const _embeddingModel: ChunkRow["embedding_model"] =
+      ACTIVE_TRANSCRIPT_EMBEDDING_MODEL;
+    const _embeddingDimensions: ChunkRow["embedding_dimensions"] =
+      ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS;
+    const _chunkingVersion: ChunkRow["chunking_version"] =
+      TRANSCRIPT_CHUNKING_VERSION;
+    const _matchEmbeddingModel: MatchArgs["p_embedding_model"] =
+      ACTIVE_TRANSCRIPT_EMBEDDING_MODEL;
 
     expect(tableNames).toEqual(["meeting_transcript_chunks", "meeting_chats"]);
     expect(_chunkId).toBe("chunk-1");
     expect(_chatId).toBe("chat-1");
     expect(_limit).toBe(5);
+    expect(_embeddingModel).toBe("gemini-embedding-001");
+    expect(_embeddingDimensions).toBe(768);
+    expect(_chunkingVersion).toBe("utterance-merge-v1-400");
+    expect(_matchEmbeddingModel).toBe("gemini-embedding-001");
   });
 });
 
@@ -157,6 +172,9 @@ describe("indexMeetingTranscriptChunks", () => {
     expect(rpc).toHaveBeenCalledWith("upsert_meeting_transcript_chunks_with_lock", {
       p_meeting_id: "meeting-1",
       p_user_id: "user-1",
+      p_embedding_model: ACTIVE_TRANSCRIPT_EMBEDDING_MODEL,
+      p_embedding_dimensions: ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS,
+      p_chunking_version: TRANSCRIPT_CHUNKING_VERSION,
       p_chunks: [
         expect.objectContaining({
           chunk_index: 0,
@@ -173,11 +191,15 @@ describe("indexMeetingTranscriptChunks", () => {
 
 function createExistingChunksClient(data: unknown[]) {
   const order = vi.fn().mockResolvedValue({ data, error: null });
-  const eq = vi.fn(() => ({ order }));
-  const select = vi.fn(() => ({ eq }));
+  const query = {
+    eq: vi.fn(),
+    order,
+  };
+  query.eq.mockReturnValue(query);
+  const select = vi.fn(() => query);
   const from = vi.fn(() => ({ select }));
 
-  return { supabase: { from }, order };
+  return { supabase: { from }, eq: query.eq, order };
 }
 
 describe("ensureMeetingChunksIndexed", () => {
@@ -195,7 +217,7 @@ describe("ensureMeetingChunksIndexed", () => {
         similarity: 0.9,
       },
     ];
-    const { supabase } = createExistingChunksClient(existing);
+    const { supabase, eq } = createExistingChunksClient(existing);
     const embedText = vi.fn();
 
     const chunks = await ensureMeetingChunksIndexed({
@@ -210,6 +232,16 @@ describe("ensureMeetingChunksIndexed", () => {
 
     expect(chunks).toEqual(existing);
     expect(embedText).not.toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith("meeting_id", "meeting-1");
+    expect(eq).toHaveBeenCalledWith(
+      "embedding_model",
+      ACTIVE_TRANSCRIPT_EMBEDDING_MODEL
+    );
+    expect(eq).toHaveBeenCalledWith(
+      "embedding_dimensions",
+      ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS
+    );
+    expect(eq).toHaveBeenCalledWith("chunking_version", TRANSCRIPT_CHUNKING_VERSION);
   });
 });
 
@@ -243,6 +275,9 @@ describe("matchMeetingTranscriptChunks", () => {
       p_query_embedding: createEmbedding(0.25),
       p_limit: 5,
       p_similarity_threshold: 0.6,
+      p_embedding_model: ACTIVE_TRANSCRIPT_EMBEDDING_MODEL,
+      p_embedding_dimensions: ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS,
+      p_chunking_version: TRANSCRIPT_CHUNKING_VERSION,
     });
     expect(result).toEqual(data);
   });

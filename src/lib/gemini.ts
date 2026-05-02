@@ -16,8 +16,8 @@ import type { MeetingJSON } from "@/types/database";
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const MODEL_NAME = "gemini-3.1-flash-lite-preview";
-const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
-const EMBEDDING_OUTPUT_DIMENSIONS = 768;
+export const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
+export const EMBEDDING_OUTPUT_DIMENSIONS = 768;
 const LOCAL_MAX_ATTEMPTS = 2;
 const LOCAL_RETRY_BASE_DELAY_MS = 750;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);

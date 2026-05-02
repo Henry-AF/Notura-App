@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  EMBEDDING_MODEL_NAME,
+  EMBEDDING_OUTPUT_DIMENSIONS,
+} from "@/lib/gemini";
 import type { Database, Json, MeetingTranscriptChunk } from "@/types/database";
 
 export const MAX_CHAT_QUESTION_CHARS = 500;
@@ -6,6 +10,9 @@ export const MAX_CHAT_QUESTION_SENTENCES = 3;
 export const TRANSCRIPT_CHUNK_TARGET_TOKENS = 400;
 export const CHAT_RETRIEVAL_LIMIT = 5;
 export const CHAT_SIMILARITY_THRESHOLD = 0.6;
+export const ACTIVE_TRANSCRIPT_EMBEDDING_MODEL = EMBEDDING_MODEL_NAME;
+export const ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS = EMBEDDING_OUTPUT_DIMENSIONS;
+export const TRANSCRIPT_CHUNKING_VERSION = "utterance-merge-v1-400";
 
 type SupabaseAdminClient = SupabaseClient<Database>;
 type ChunkInsert =
@@ -203,6 +210,9 @@ export async function matchMeetingTranscriptChunks({
     p_query_embedding: queryEmbedding,
     p_limit: CHAT_RETRIEVAL_LIMIT,
     p_similarity_threshold: CHAT_SIMILARITY_THRESHOLD,
+    p_embedding_model: ACTIVE_TRANSCRIPT_EMBEDDING_MODEL,
+    p_embedding_dimensions: ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS,
+    p_chunking_version: TRANSCRIPT_CHUNKING_VERSION,
   });
 
   if (error) throw new Error(`Failed to match transcript chunks: ${error.message}`);
@@ -336,6 +346,9 @@ async function upsertMeetingChunksWithAdvisoryLock(
     {
       p_meeting_id: meetingId,
       p_user_id: userId,
+      p_embedding_model: ACTIVE_TRANSCRIPT_EMBEDDING_MODEL,
+      p_embedding_dimensions: ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS,
+      p_chunking_version: TRANSCRIPT_CHUNKING_VERSION,
       p_chunks: chunks as ChunkUpsertPayload,
     }
   );
@@ -374,6 +387,9 @@ async function fetchMeetingChunks(
     .from("meeting_transcript_chunks")
     .select("*")
     .eq("meeting_id", meetingId)
+    .eq("embedding_model", ACTIVE_TRANSCRIPT_EMBEDDING_MODEL)
+    .eq("embedding_dimensions", ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS)
+    .eq("chunking_version", TRANSCRIPT_CHUNKING_VERSION)
     .order("chunk_index", { ascending: true });
 
   if (error) throw new Error(`Failed to fetch transcript chunks: ${error.message}`);

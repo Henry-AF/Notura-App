@@ -338,6 +338,9 @@ export interface Database {
           end_ms: number | null
           metadata: Json
           embedding: number[]
+          embedding_model: string
+          embedding_dimensions: number
+          chunking_version: string
           created_at: string
         }
         Insert: {
@@ -351,6 +354,9 @@ export interface Database {
           end_ms?: number | null
           metadata?: Json
           embedding: number[]
+          embedding_model?: string
+          embedding_dimensions?: number
+          chunking_version?: string
           created_at?: string
         }
         Update: {
@@ -364,6 +370,9 @@ export interface Database {
           end_ms?: number | null
           metadata?: Json
           embedding?: number[]
+          embedding_model?: string
+          embedding_dimensions?: number
+          chunking_version?: string
           created_at?: string
         }
         Relationships: [
@@ -540,6 +549,9 @@ export interface Database {
           p_query_embedding: number[]
           p_limit?: number
           p_similarity_threshold?: number
+          p_embedding_model?: string
+          p_embedding_dimensions?: number
+          p_chunking_version?: string
         }
         Returns: {
           id: string
@@ -558,6 +570,9 @@ export interface Database {
           p_user_id: string
           p_meeting_id: string
           p_chunks: Json
+          p_embedding_model?: string
+          p_embedding_dimensions?: number
+          p_chunking_version?: string
         }
         Returns: undefined
       }

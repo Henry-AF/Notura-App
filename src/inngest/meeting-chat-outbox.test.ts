@@ -57,6 +57,7 @@ function createOutboxRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
 }
 
 function createSupabaseMock(rows: OutboxRow[]) {
+  const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
   const updates: unknown[] = [];
   const chatUpdates: unknown[] = [];
   const selectLimit = vi.fn().mockResolvedValue({ data: rows, error: null });
@@ -113,7 +114,7 @@ function createSupabaseMock(rows: OutboxRow[]) {
     }),
   }));
 
-  return { from, updates, chatUpdates, chatUpdateQuery };
+  return { from, rpc, updates, chatUpdates, chatUpdateQuery };
 }
 
 async function runDispatcher() {
@@ -210,5 +211,11 @@ describe("dispatchMeetingChatOutbox", () => {
     );
     expect(supabase.chatUpdateQuery.eq).toHaveBeenCalledWith("id", "chat-1");
     expect(supabase.chatUpdateQuery.eq).toHaveBeenCalledWith("status", "processing");
+    expect(supabase.rpc).toHaveBeenCalledWith("refund_meeting_chat_ai_usage", {
+      p_user_id: "user-1",
+      p_chat_id: "chat-1",
+      p_ai_feature: "meeting_chat",
+      p_reason: "provider_error",
+    });
   });
 });

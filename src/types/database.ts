@@ -621,6 +621,44 @@ export interface Database {
         }
         Relationships: []
       }
+      ai_usage_refunds: {
+        Row: {
+          id: string
+          chat_id: string
+          user_id: string
+          usage_date: string
+          feature: string
+          reason: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          user_id: string
+          usage_date: string
+          feature: string
+          reason: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          user_id?: string
+          usage_date?: string
+          feature?: string
+          reason?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_refunds_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -704,6 +742,15 @@ export interface Database {
           ai_daily_quota_used: number
           ai_daily_quota_limit: number
         }[]
+      }
+      refund_meeting_chat_ai_usage: {
+        Args: {
+          p_user_id: string
+          p_chat_id: string
+          p_ai_feature?: string
+          p_reason?: string
+        }
+        Returns: boolean
       }
     }
     Enums: {

@@ -54,6 +54,7 @@ function createEmbedding(): number[] {
 
 function createSupabaseMock(options?: { transcript?: string | null }) {
   const inserts: Record<string, unknown[]> = {};
+  const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
   const updates: unknown[] = [];
   const chatSingle = vi.fn().mockResolvedValue({
     data: {
@@ -93,7 +94,7 @@ function createSupabaseMock(options?: { transcript?: string | null }) {
     update,
   }));
 
-  return { from, inserts, updates };
+  return { from, inserts, rpc, updates };
 }
 
 async function runJob() {
@@ -336,5 +337,11 @@ describe("answerMeetingChat", () => {
         error_message: "Gemini unavailable",
       })
     );
+    expect(supabase.rpc).toHaveBeenCalledWith("refund_meeting_chat_ai_usage", {
+      p_user_id: "user-1",
+      p_chat_id: "chat-1",
+      p_ai_feature: "meeting_chat",
+      p_reason: "provider_error",
+    });
   });
 });

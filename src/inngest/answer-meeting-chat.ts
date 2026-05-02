@@ -9,6 +9,7 @@ import {
   buildMeetingChatAiMetric,
   insertMeetingChatAiMetric,
 } from "@/lib/ai/meeting-chat-metrics";
+import { refundMeetingChatAiQuota } from "@/lib/ai/usage-limits";
 import {
   ensureMeetingChunksIndexed,
   matchMeetingTranscriptChunks,
@@ -250,6 +251,38 @@ async function recordMeetingChatAiMetric({
   }
 }
 
+async function refundProviderErrorQuota({
+  supabase,
+  requestId,
+  startedAt,
+  userId,
+  chatId,
+}: {
+  supabase: SupabaseAdminClient;
+  requestId: string;
+  startedAt: number;
+  userId: string;
+  chatId: string;
+}): Promise<void> {
+  try {
+    await refundMeetingChatAiQuota(supabase, {
+      userId,
+      chatId,
+      reason: "provider_error",
+    });
+  } catch (error) {
+    logStructured("warn", {
+      event: "meeting.chat.ai_quota_refund_failed",
+      requestId,
+      userId,
+      route: "inngest/answer-meeting-chat",
+      durationMs: Date.now() - startedAt,
+      status: "refund_failed",
+      errorMessage: getErrorMessage(error),
+    });
+  }
+}
+
 function selectCitedSources(
   sources: ChatSource[],
   citedChunkIds: string[]
@@ -469,6 +502,13 @@ export const answerMeetingChat = inngest.createFunction(
     } catch (error) {
       const message = getErrorMessage(error);
       await saveProviderFailure(supabase, data.chatId, message);
+      await refundProviderErrorQuota({
+        supabase,
+        requestId,
+        startedAt,
+        userId: data.userId,
+        chatId: data.chatId,
+      });
       await recordMeetingChatAiMetric({
         supabase,
         requestId,

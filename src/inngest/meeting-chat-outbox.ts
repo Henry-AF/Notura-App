@@ -1,4 +1,5 @@
 import { inngest } from "@/lib/inngest";
+import { refundMeetingChatAiQuota } from "@/lib/ai/usage-limits";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   captureObservedError,
@@ -131,6 +132,31 @@ async function markChatFailedForDeadOutbox(
   if (error) throw new Error(`Failed to mark meeting chat failed: ${error.message}`);
 }
 
+async function refundProviderErrorQuota(
+  supabase: SupabaseAdminClient,
+  row: MeetingChatOutboxRow,
+  requestId: string,
+  startedAt: number
+): Promise<void> {
+  try {
+    await refundMeetingChatAiQuota(supabase, {
+      userId: row.user_id,
+      chatId: row.chat_id,
+      reason: "provider_error",
+    });
+  } catch (error) {
+    logStructured("warn", {
+      event: "meeting.chat.ai_quota_refund_failed",
+      requestId,
+      userId: row.user_id,
+      route: "inngest/meeting-chat-outbox",
+      durationMs: Date.now() - startedAt,
+      status: "refund_failed",
+      errorMessage: getErrorMessage(error),
+    });
+  }
+}
+
 async function dispatchOutboxRow(
   supabase: SupabaseAdminClient,
   row: MeetingChatOutboxRow,
@@ -153,6 +179,7 @@ async function dispatchOutboxRow(
 
     if (status === "dead") {
       await markChatFailedForDeadOutbox(supabase, claimed.chat_id, message);
+      await refundProviderErrorQuota(supabase, claimed, requestId, startedAt);
 
       captureObservedError(error, {
         event: "meeting.chat.outbox.dead",

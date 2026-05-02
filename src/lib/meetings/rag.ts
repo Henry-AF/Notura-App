@@ -156,13 +156,19 @@ export async function indexMeetingTranscriptChunks({
   embedText,
 }: IndexMeetingTranscriptChunksInput): Promise<TranscriptChunk[]> {
   const chunks = buildChunksForIndexing(transcript, utterances);
-  await deleteMeetingChunks(supabase, meetingId);
 
-  if (chunks.length === 0) return chunks;
+  if (chunks.length === 0) {
+    await deleteStaleMeetingChunks(supabase, meetingId, 0);
+    return chunks;
+  }
 
   const rows = await buildChunkInsertRows(chunks, meetingId, userId, embedText);
-  const { error } = await supabase.from("meeting_transcript_chunks").insert(rows);
-  if (error) throw new Error(`Failed to insert transcript chunks: ${error.message}`);
+  const { error } = await supabase
+    .from("meeting_transcript_chunks")
+    .upsert(rows, { onConflict: "meeting_id,chunk_index" });
+  if (error) throw new Error(`Failed to upsert transcript chunks: ${error.message}`);
+
+  await deleteStaleMeetingChunks(supabase, meetingId, chunks.length);
 
   return chunks;
 }
@@ -323,16 +329,18 @@ function buildChunksForIndexing(
   return buildTranscriptChunksFromFormattedTranscript(transcript);
 }
 
-async function deleteMeetingChunks(
+async function deleteStaleMeetingChunks(
   supabase: SupabaseAdminClient,
-  meetingId: string
+  meetingId: string,
+  firstStaleChunkIndex: number
 ): Promise<void> {
   const { error } = await supabase
     .from("meeting_transcript_chunks")
     .delete()
-    .eq("meeting_id", meetingId);
+    .eq("meeting_id", meetingId)
+    .gte("chunk_index", firstStaleChunkIndex);
 
-  if (error) throw new Error(`Failed to delete transcript chunks: ${error.message}`);
+  if (error) throw new Error(`Failed to delete stale transcript chunks: ${error.message}`);
 }
 
 async function buildChunkInsertRows(

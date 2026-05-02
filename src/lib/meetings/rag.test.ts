@@ -129,17 +129,19 @@ function createEmbedding(seed: number): number[] {
 }
 
 function createChunkPersistenceClient() {
-  const deleteEq = vi.fn().mockResolvedValue({ error: null });
-  const deleteRows = vi.fn(() => ({ eq: deleteEq }));
-  const insert = vi.fn().mockResolvedValue({ error: null });
-  const from = vi.fn(() => ({ delete: deleteRows, insert }));
+  const staleDeleteGte = vi.fn().mockResolvedValue({ error: null });
+  const staleDeleteEq = vi.fn(() => ({ gte: staleDeleteGte }));
+  const deleteRows = vi.fn(() => ({ eq: staleDeleteEq }));
+  const upsert = vi.fn().mockResolvedValue({ error: null });
+  const from = vi.fn(() => ({ delete: deleteRows, upsert }));
 
-  return { supabase: { from }, deleteEq, insert };
+  return { supabase: { from }, deleteRows, staleDeleteEq, staleDeleteGte, upsert };
 }
 
 describe("indexMeetingTranscriptChunks", () => {
-  it("replaces meeting chunks and stores one embedding per chunk", async () => {
-    const { supabase, deleteEq, insert } = createChunkPersistenceClient();
+  it("upserts meeting chunks by meeting and chunk index without deleting first", async () => {
+    const { supabase, deleteRows, staleDeleteEq, staleDeleteGte, upsert } =
+      createChunkPersistenceClient();
     const embedText = vi.fn().mockResolvedValue(createEmbedding(0.5));
 
     await indexMeetingTranscriptChunks({
@@ -154,20 +156,25 @@ describe("indexMeetingTranscriptChunks", () => {
       embedText,
     });
 
-    expect(deleteEq).toHaveBeenCalledWith("meeting_id", "meeting-1");
+    expect(deleteRows).toHaveBeenCalledTimes(1);
+    expect(staleDeleteEq).toHaveBeenCalledWith("meeting_id", "meeting-1");
+    expect(staleDeleteGte).toHaveBeenCalledWith("chunk_index", 1);
     expect(embedText).toHaveBeenCalledWith("Primeira fala\nSegunda fala");
-    expect(insert).toHaveBeenCalledWith([
-      expect.objectContaining({
-        meeting_id: "meeting-1",
-        user_id: "user-1",
-        chunk_index: 0,
-        text: "Primeira fala\nSegunda fala",
-        speaker: "A",
-        start_ms: 0,
-        end_ms: 2000,
-        embedding: createEmbedding(0.5),
-      }),
-    ]);
+    expect(upsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          meeting_id: "meeting-1",
+          user_id: "user-1",
+          chunk_index: 0,
+          text: "Primeira fala\nSegunda fala",
+          speaker: "A",
+          start_ms: 0,
+          end_ms: 2000,
+          embedding: createEmbedding(0.5),
+        }),
+      ],
+      { onConflict: "meeting_id,chunk_index" }
+    );
   });
 });
 

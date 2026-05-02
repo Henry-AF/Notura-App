@@ -57,15 +57,16 @@ alter table meeting_chats enable row level security;
 drop policy if exists "meeting_transcript_chunks_own" on meeting_transcript_chunks;
 drop policy if exists "meeting_chats_own" on meeting_chats;
 
-create policy "meeting_transcript_chunks_own" on meeting_transcript_chunks
-  for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+revoke all on table meeting_transcript_chunks from authenticated;
+revoke all on table meeting_transcript_chunks from anon;
+revoke all on table meeting_transcript_chunks from public;
 
-create policy "meeting_chats_own" on meeting_chats
-  for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+revoke all on table meeting_chats from authenticated;
+revoke all on table meeting_chats from anon;
+revoke all on table meeting_chats from public;
+
+grant all on table meeting_transcript_chunks to service_role;
+grant all on table meeting_chats to service_role;
 
 create or replace function match_meeting_transcript_chunks(
   p_user_id uuid,

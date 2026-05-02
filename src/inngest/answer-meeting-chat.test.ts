@@ -24,10 +24,17 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/gemini", () => ({
   answerMeetingQuestionFromChunks: mocks.answerMeetingQuestionFromChunks,
+  EMBEDDING_MODEL_NAME: "gemini-embedding-001",
+  GEMINI_TEXT_MODEL_NAME: "gemini-3.1-flash-lite-preview",
   generateEmbedding: mocks.generateEmbedding,
 }));
 
 vi.mock("@/lib/meetings/rag", () => ({
+  estimateTokenCount: (text: string) => {
+    const normalized = text.trim();
+    if (!normalized) return 0;
+    return normalized.split(/\s+/).length;
+  },
   ensureMeetingChunksIndexed: mocks.ensureMeetingChunksIndexed,
   matchMeetingTranscriptChunks: mocks.matchMeetingTranscriptChunks,
   toChatSources: mocks.toChatSources,
@@ -46,6 +53,7 @@ function createEmbedding(): number[] {
 }
 
 function createSupabaseMock(options?: { transcript?: string | null }) {
+  const inserts: Record<string, unknown[]> = {};
   const updates: unknown[] = [];
   const chatSingle = vi.fn().mockResolvedValue({
     data: {
@@ -78,10 +86,14 @@ function createSupabaseMock(options?: { transcript?: string | null }) {
         single: table === "meeting_chats" ? chatSingle : meetingSingle,
       })),
     })),
+    insert: vi.fn((payload: unknown) => {
+      inserts[table] = [...(inserts[table] ?? []), payload];
+      return Promise.resolve({ error: null });
+    }),
     update,
   }));
 
-  return { from, updates };
+  return { from, inserts, updates };
 }
 
 async function runJob() {
@@ -182,12 +194,35 @@ describe("answerMeetingChat", () => {
         ],
       })
     );
+    expect(supabase.inserts.meeting_chat_ai_metrics ?? []).toContainEqual(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        status: "completed",
+        fallback_reason: null,
+        embedding_model: "gemini-embedding-001",
+        answer_model: "gemini-3.1-flash-lite-preview",
+        retrieved_chunks_count: 1,
+        max_similarity: 0.82,
+        avg_similarity: 0.82,
+        question_tokens_estimated: 4,
+        context_tokens_estimated: 4,
+        answer_tokens_estimated: 4,
+        embedding_duration_ms: expect.any(Number),
+        retrieval_duration_ms: expect.any(Number),
+        generation_duration_ms: expect.any(Number),
+        total_duration_ms: expect.any(Number),
+        estimated_cost_usd: expect.any(Number),
+      })
+    );
   });
 
   it("saves low_similarity fallback when no chunks are returned", async () => {
     const supabase = createSupabaseMock();
     mocks.createServiceRoleClient.mockReturnValue(supabase);
     mocks.matchMeetingTranscriptChunks.mockResolvedValue([]);
+    mocks.toChatSources.mockReturnValue([]);
 
     await runJob();
 
@@ -199,6 +234,28 @@ describe("answerMeetingChat", () => {
       })
     );
     expect(mocks.answerMeetingQuestionFromChunks).not.toHaveBeenCalled();
+    expect(supabase.inserts.meeting_chat_ai_metrics ?? []).toContainEqual(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        status: "completed",
+        fallback_reason: "low_similarity",
+        embedding_model: "gemini-embedding-001",
+        answer_model: "gemini-3.1-flash-lite-preview",
+        retrieved_chunks_count: 0,
+        max_similarity: null,
+        avg_similarity: null,
+        question_tokens_estimated: 4,
+        context_tokens_estimated: 0,
+        answer_tokens_estimated: 0,
+        embedding_duration_ms: expect.any(Number),
+        retrieval_duration_ms: expect.any(Number),
+        generation_duration_ms: null,
+        total_duration_ms: expect.any(Number),
+        estimated_cost_usd: expect.any(Number),
+      })
+    );
   });
 
   it("saves not_confirmed_by_model fallback when Gemini refuses the context", async () => {

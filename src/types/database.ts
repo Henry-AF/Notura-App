@@ -507,6 +507,90 @@ export interface Database {
           }
         ]
       }
+      meeting_chat_ai_metrics: {
+        Row: {
+          id: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          status: "completed" | "failed"
+          fallback_reason: string | null
+          embedding_model: string
+          answer_model: string
+          retrieved_chunks_count: number
+          max_similarity: number | null
+          avg_similarity: number | null
+          question_tokens_estimated: number
+          context_tokens_estimated: number
+          answer_tokens_estimated: number
+          embedding_duration_ms: number | null
+          retrieval_duration_ms: number | null
+          generation_duration_ms: number | null
+          total_duration_ms: number
+          estimated_cost_usd: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          status: "completed" | "failed"
+          fallback_reason?: string | null
+          embedding_model: string
+          answer_model: string
+          retrieved_chunks_count?: number
+          max_similarity?: number | null
+          avg_similarity?: number | null
+          question_tokens_estimated?: number
+          context_tokens_estimated?: number
+          answer_tokens_estimated?: number
+          embedding_duration_ms?: number | null
+          retrieval_duration_ms?: number | null
+          generation_duration_ms?: number | null
+          total_duration_ms: number
+          estimated_cost_usd?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          meeting_id?: string
+          user_id?: string
+          status?: "completed" | "failed"
+          fallback_reason?: string | null
+          embedding_model?: string
+          answer_model?: string
+          retrieved_chunks_count?: number
+          max_similarity?: number | null
+          avg_similarity?: number | null
+          question_tokens_estimated?: number
+          context_tokens_estimated?: number
+          answer_tokens_estimated?: number
+          embedding_duration_ms?: number | null
+          retrieval_duration_ms?: number | null
+          generation_duration_ms?: number | null
+          total_duration_ms?: number
+          estimated_cost_usd?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chat_ai_metrics_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_chat_ai_metrics_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       ai_usage_daily: {
         Row: {
           user_id: string
@@ -648,6 +732,8 @@ export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["R
 export type MeetingTranscriptChunk =
   Database["public"]["Tables"]["meeting_transcript_chunks"]["Row"]
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
+export type MeetingChatAiMetric =
+  Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

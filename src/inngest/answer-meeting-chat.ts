@@ -6,6 +6,10 @@ import {
   generateEmbedding,
 } from "@/lib/gemini";
 import {
+  buildMeetingChatAiMetric,
+  insertMeetingChatAiMetric,
+} from "@/lib/ai/meeting-chat-metrics";
+import {
   ensureMeetingChunksIndexed,
   matchMeetingTranscriptChunks,
   toChatSources,
@@ -37,6 +41,29 @@ interface ChatMeetingContext {
 }
 
 type SupabaseAdminClient = ReturnType<typeof createServiceRoleClient>;
+
+interface MeetingChatAiMetricState {
+  question: string;
+  sources: ChatSource[];
+  answerText: string | null;
+  questionEmbeddingGenerated: boolean;
+  generationAttempted: boolean;
+  embeddingDurationMs: number | null;
+  retrievalDurationMs: number | null;
+  generationDurationMs: number | null;
+}
+
+interface RecordMeetingChatAiMetricInput {
+  supabase: SupabaseAdminClient;
+  requestId: string;
+  startedAt: number;
+  chatId: string;
+  meetingId: string;
+  userId: string;
+  status: "completed" | "failed";
+  fallbackReason: MeetingChatFallbackReason | null;
+  state: MeetingChatAiMetricState;
+}
 
 function resolveInngestRequestId(eventId: unknown): string {
   if (typeof eventId !== "string") return createTraceId();
@@ -155,6 +182,74 @@ async function saveProviderFailure(
   });
 }
 
+function createMetricState(): MeetingChatAiMetricState {
+  return {
+    question: "",
+    sources: [],
+    answerText: null,
+    questionEmbeddingGenerated: false,
+    generationAttempted: false,
+    embeddingDurationMs: null,
+    retrievalDurationMs: null,
+    generationDurationMs: null,
+  };
+}
+
+async function measureDuration<T>(
+  setDurationMs: (durationMs: number) => void,
+  run: () => Promise<T>
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await run();
+  } finally {
+    setDurationMs(Date.now() - startedAt);
+  }
+}
+
+async function recordMeetingChatAiMetric({
+  supabase,
+  requestId,
+  startedAt,
+  chatId,
+  meetingId,
+  userId,
+  status,
+  fallbackReason,
+  state,
+}: RecordMeetingChatAiMetricInput): Promise<void> {
+  try {
+    const metric = buildMeetingChatAiMetric({
+      chatId,
+      meetingId,
+      userId,
+      question: state.question,
+      status,
+      fallbackReason,
+      sources: state.sources,
+      answerText: state.answerText,
+      questionEmbeddingGenerated: state.questionEmbeddingGenerated,
+      generationAttempted: state.generationAttempted,
+      embeddingDurationMs: state.embeddingDurationMs,
+      retrievalDurationMs: state.retrievalDurationMs,
+      generationDurationMs: state.generationDurationMs,
+      totalDurationMs: Date.now() - startedAt,
+    });
+
+    await insertMeetingChatAiMetric(supabase, metric);
+  } catch (error) {
+    logStructured("warn", {
+      event: "meeting.chat.ai_metrics.insert_failed",
+      requestId,
+      userId,
+      route: "inngest/answer-meeting-chat",
+      durationMs: Date.now() - startedAt,
+      status: "metrics_failed",
+      errorMessage: getErrorMessage(error),
+    });
+  }
+}
+
 function selectCitedSources(
   sources: ChatSource[],
   citedChunkIds: string[]
@@ -189,19 +284,43 @@ export const answerMeetingChat = inngest.createFunction(
     const requestId = resolveInngestRequestId((event as { id?: unknown }).id);
     const supabase = createServiceRoleClient();
     const data = parseMeetingChatAnswerEventData(event.data);
+    const metricState = createMetricState();
 
     try {
       const { chat, meeting } = await step.run("load-chat-meeting", () =>
         loadChatMeetingContext(supabase, data)
       );
+      metricState.question = chat.question;
 
       if (!meeting.transcript) {
         await saveFallback(supabase, chat.id, "no_transcript", null);
+        await recordMeetingChatAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+          userId: chat.user_id,
+          status: "completed",
+          fallbackReason: "no_transcript",
+          state: metricState,
+        });
         return { chatId: chat.id, status: "completed", fallback: "no_transcript" };
       }
 
       if (meeting.status !== "completed") {
         await saveFallback(supabase, chat.id, "meeting_not_ready", null);
+        await recordMeetingChatAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+          userId: chat.user_id,
+          status: "completed",
+          fallbackReason: "meeting_not_ready",
+          state: metricState,
+        });
         return { chatId: chat.id, status: "completed", fallback: "meeting_not_ready" };
       }
 
@@ -209,28 +328,61 @@ export const answerMeetingChat = inngest.createFunction(
         ensureMeetingChunksIndexed({ supabase, meeting, embedText: generateEmbedding })
       );
 
-      const queryEmbedding = await step.run("embed-question", () =>
-        generateEmbedding(chat.question, { taskType: TaskType.RETRIEVAL_QUERY })
+      const queryEmbedding = await measureDuration(
+        (durationMs) => {
+          metricState.embeddingDurationMs = durationMs;
+        },
+        () =>
+          step.run("embed-question", () =>
+            generateEmbedding(chat.question, { taskType: TaskType.RETRIEVAL_QUERY })
+          )
       );
+      metricState.questionEmbeddingGenerated = true;
 
-      const matches = await step.run("match-transcript-chunks", () =>
-        matchMeetingTranscriptChunks({
-          supabase,
-          userId: chat.user_id,
-          meetingId: chat.meeting_id,
-          queryEmbedding,
-        })
+      const matches = await measureDuration(
+        (durationMs) => {
+          metricState.retrievalDurationMs = durationMs;
+        },
+        () =>
+          step.run("match-transcript-chunks", () =>
+            matchMeetingTranscriptChunks({
+              supabase,
+              userId: chat.user_id,
+              meetingId: chat.meeting_id,
+              queryEmbedding,
+            })
+          )
       );
+      metricState.sources = toChatSources(matches);
 
       if (matches.length === 0) {
         await saveFallback(supabase, chat.id, "low_similarity", queryEmbedding);
+        await recordMeetingChatAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+          userId: chat.user_id,
+          status: "completed",
+          fallbackReason: "low_similarity",
+          state: metricState,
+        });
         return { chatId: chat.id, status: "completed", fallback: "low_similarity" };
       }
 
-      const sources = toChatSources(matches);
-      const answer = await step.run("answer-from-chunks", () =>
-        answerMeetingQuestionFromChunks({ question: chat.question, chunks: sources })
+      const sources = metricState.sources;
+      metricState.generationAttempted = true;
+      const answer = await measureDuration(
+        (durationMs) => {
+          metricState.generationDurationMs = durationMs;
+        },
+        () =>
+          step.run("answer-from-chunks", () =>
+            answerMeetingQuestionFromChunks({ question: chat.question, chunks: sources })
+          )
       );
+      metricState.answerText = answer.answer;
 
       if (!answer.isAnsweredFromContext) {
         await saveFallback(
@@ -240,6 +392,17 @@ export const answerMeetingChat = inngest.createFunction(
           queryEmbedding,
           sources
         );
+        await recordMeetingChatAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+          userId: chat.user_id,
+          status: "completed",
+          fallbackReason: "not_confirmed_by_model",
+          state: metricState,
+        });
         return {
           chatId: chat.id,
           status: "completed",
@@ -256,6 +419,17 @@ export const answerMeetingChat = inngest.createFunction(
           queryEmbedding,
           sources
         );
+        await recordMeetingChatAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+          userId: chat.user_id,
+          status: "completed",
+          fallbackReason: "not_confirmed_by_model",
+          state: metricState,
+        });
         return {
           chatId: chat.id,
           status: "completed",
@@ -270,6 +444,17 @@ export const answerMeetingChat = inngest.createFunction(
         queryEmbedding,
         citedSources
       );
+      await recordMeetingChatAiMetric({
+        supabase,
+        requestId,
+        startedAt,
+        chatId: chat.id,
+        meetingId: chat.meeting_id,
+        userId: chat.user_id,
+        status: "completed",
+        fallbackReason: null,
+        state: metricState,
+      });
 
       logStructured("info", {
         event: "inngest.job.completed",
@@ -284,6 +469,17 @@ export const answerMeetingChat = inngest.createFunction(
     } catch (error) {
       const message = getErrorMessage(error);
       await saveProviderFailure(supabase, data.chatId, message);
+      await recordMeetingChatAiMetric({
+        supabase,
+        requestId,
+        startedAt,
+        chatId: data.chatId,
+        meetingId: data.meetingId,
+        userId: data.userId,
+        status: "failed",
+        fallbackReason: "provider_error",
+        state: metricState,
+      });
 
       captureObservedError(error, {
         event: "inngest.job.failed",

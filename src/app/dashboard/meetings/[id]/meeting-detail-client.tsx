@@ -10,6 +10,7 @@ import {
   KeyDecisionCard,
   AlertPointCard,
   AIInsightToast,
+  MeetingChatSheet,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
@@ -644,6 +645,9 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
       {/* AI Insight Toast (fixed bottom-left on desktop, full-width on mobile) */}
       <AIInsightToast message={insightMessage} />
+
+      {/* AI RAG chat side sheet — only for completed meetings */}
+      {meetingStatus === "completed" && <MeetingChatSheet meetingId={id} />}
 
       {/* Export button via a portal-like approach — rendered as fixed button
           top-right to supplement the existing topbar */}

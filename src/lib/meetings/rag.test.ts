@@ -137,6 +137,20 @@ describe("buildTranscriptChunksFromFormattedTranscript", () => {
       utteranceCount: 2,
     });
   });
+
+  it("parses stored transcript lines after 99 minutes", () => {
+    const chunks = buildTranscriptChunksFromFormattedTranscript(
+      "[100:05] Speaker A: Trecho perto do fim da reuniao."
+    );
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({
+      speaker: "A",
+      startMs: 6005000,
+      endMs: 6005000,
+    });
+    expect(chunks[0].text).toBe("Trecho perto do fim da reuniao.");
+  });
 });
 
 function createEmbedding(seed: number): number[] {

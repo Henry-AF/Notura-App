@@ -370,6 +370,20 @@ export const answerMeetingChat = inngest.createFunction(
       );
       metricState.question = chat.question;
 
+      if (chat.status !== "processing") {
+        logStructured("info", {
+          event: "meeting.chat.answer.skipped",
+          requestId,
+          userId: chat.user_id,
+          route: "inngest/answer-meeting-chat",
+          durationMs: Date.now() - startedAt,
+          status: chat.status,
+          chatId: chat.id,
+          meetingId: chat.meeting_id,
+        });
+        return { chatId: chat.id, status: chat.status, skipped: true };
+      }
+
       if (!meeting.transcript) {
         await saveFallback(supabase, chat.id, "no_transcript", null);
         await recordMeetingChatAiMetric({

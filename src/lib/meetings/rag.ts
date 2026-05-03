@@ -311,7 +311,7 @@ function uniqueSpeakers(group: NormalizedUtterance[]): string[] {
 function parseFormattedTranscriptLine(line: string): NormalizedUtterance | null {
   const match = line
     .trim()
-    .match(/^\[(\d{2}):(\d{2})\]\s+Speaker\s+([^:]+):\s*(.+)$/i);
+    .match(/^\[(\d+):(\d{2})\]\s+Speaker\s+([^:]+):\s*(.+)$/i);
   if (!match) return null;
 
   const startMs = (Number(match[1]) * 60 + Number(match[2])) * 1000;

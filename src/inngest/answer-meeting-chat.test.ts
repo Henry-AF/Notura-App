@@ -52,7 +52,10 @@ function createEmbedding(): number[] {
   return Array.from({ length: 768 }, () => 0.25);
 }
 
-function createSupabaseMock(options?: { transcript?: string | null }) {
+function createSupabaseMock(options?: {
+  chatStatus?: "processing" | "completed" | "failed";
+  transcript?: string | null;
+}) {
   const inserts: Record<string, unknown[]> = {};
   const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
   const updates: unknown[] = [];
@@ -62,7 +65,7 @@ function createSupabaseMock(options?: { transcript?: string | null }) {
       meeting_id: "meeting-1",
       user_id: "user-1",
       question: "Qual foi o prazo?",
-      status: "processing",
+      status: options?.chatStatus ?? "processing",
     },
     error: null,
   });
@@ -240,6 +243,32 @@ describe("answerMeetingChat", () => {
         retrievalDurationMs: expect.any(Number),
         generationDurationMs: expect.any(Number),
         estimatedCostUsd: expect.any(Number),
+      })
+    );
+  });
+
+  it("skips chats that were already finalized by an earlier event", async () => {
+    const supabase = createSupabaseMock({ chatStatus: "completed" });
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+
+    await runJob();
+
+    expect(mocks.ensureMeetingChunksIndexed).not.toHaveBeenCalled();
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled();
+    expect(mocks.matchMeetingTranscriptChunks).not.toHaveBeenCalled();
+    expect(mocks.answerMeetingQuestionFromChunks).not.toHaveBeenCalled();
+    expect(supabase.updates).toEqual([]);
+    expect(supabase.inserts.meeting_chat_ai_metrics ?? []).toEqual([]);
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({
+        event: "meeting.chat.answer.skipped",
+        requestId: "event-1",
+        userId: "user-1",
+        route: "inngest/answer-meeting-chat",
+        status: "completed",
+        chatId: "chat-1",
+        meetingId: "meeting-1",
       })
     );
   });

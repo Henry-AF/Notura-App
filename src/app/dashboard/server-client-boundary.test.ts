@@ -25,6 +25,10 @@ describe("dashboard server/client boundaries", () => {
         "src/app/dashboard/meetings/[id]/edit/meeting-edit-client.tsx",
         /from\s+["']\.\/meeting-edit-api["']/,
       ],
+      [
+        "src/app/dashboard/ai-chats/ai-chats-client.tsx",
+        /from\s+["']\.\/ai-chats-api["']/,
+      ],
     ];
 
     for (const [relativePath, importPattern] of assertions) {

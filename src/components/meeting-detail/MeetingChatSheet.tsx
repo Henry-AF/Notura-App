@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Send, Sparkles, X } from "lucide-react";
+import { AppSideSheet } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import {
   createMeetingChat,
@@ -213,16 +214,6 @@ export function MeetingChatSheet({ meetingId }: MeetingChatSheetProps) {
     }
   }, [open]);
 
-  // Trap Escape key to close sheet
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
   const handleSubmit = useCallback(async () => {
     const trimmed = question.trim();
     if (!trimmed || processing || isOverLimit) return;
@@ -271,51 +262,75 @@ export function MeetingChatSheet({ meetingId }: MeetingChatSheetProps) {
         <Sparkles style={{ width: 22, height: 22 }} />
       </button>
 
-      {/* Backdrop */}
-      <div
-        aria-hidden="true"
-        onClick={() => setOpen(false)}
-        className={cn(
-          "fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300",
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        )}
-      />
-
-      {/* Sheet panel */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Chat de análise com IA"
-        className={cn(
-          "fixed right-0 top-0 z-50 flex h-full w-[420px] max-w-[100vw] flex-col bg-popover shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
-          open ? "translate-x-0" : "translate-x-full"
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+      <AppSideSheet
+        open={open}
+        onOpenChange={setOpen}
+        ariaLabel="Chat de análise com IA"
+        header={
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Notura AI</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Pergunte sobre esta reunião
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Notura AI</p>
-              <p className="text-[11px] text-muted-foreground">
-                Pergunte sobre esta reunião
+
+            <button
+              type="button"
+              aria-label="Fechar"
+              onClick={() => setOpen(false)}
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        }
+        footer={
+          <div className="border-t border-border px-4 py-3">
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={processing}
+                placeholder="Quais prazos foram combinados?"
+                rows={3}
+                className={cn(
+                  "w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                  isOverLimit ? "border-destructive" : "border-input"
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={!question.trim() || processing || isOverLimit}
+                aria-label="Enviar pergunta"
+                className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="mt-1.5 flex items-center justify-between px-1">
+              <p
+                className={cn(
+                  "text-[10px]",
+                  isOverLimit ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                Máx. 3 frases · {question.length}/{MAX_CHARS} chars
               </p>
+              <p className="text-[10px] text-muted-foreground">Enter para enviar</p>
             </div>
           </div>
-
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={() => setOpen(false)}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Chat history */}
+        }
+      >
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {entries.length === 0 ? (
             <EmptyState />
@@ -328,47 +343,7 @@ export function MeetingChatSheet({ meetingId }: MeetingChatSheetProps) {
           )}
           <div ref={bottomRef} />
         </div>
-
-        {/* Input area */}
-        <div className="border-t border-border px-4 py-3">
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={processing}
-              placeholder="Quais prazos foram combinados?"
-              rows={3}
-              className={cn(
-                "w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-                isOverLimit ? "border-destructive" : "border-input"
-              )}
-            />
-            <button
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={!question.trim() || processing || isOverLimit}
-              aria-label="Enviar pergunta"
-              className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <div className="mt-1.5 flex items-center justify-between px-1">
-            <p
-              className={cn(
-                "text-[10px]",
-                isOverLimit ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              Máx. 3 frases · {question.length}/{MAX_CHARS} chars
-            </p>
-            <p className="text-[10px] text-muted-foreground">Enter para enviar</p>
-          </div>
-        </div>
-      </div>
+      </AppSideSheet>
     </>
   );
 }

@@ -201,6 +201,36 @@ describe("indexMeetingTranscriptChunks", () => {
       ],
     });
   });
+
+  it("limits concurrent embedding requests while building chunk rows", async () => {
+    const { supabase } = createChunkPersistenceClient();
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    const embedText = vi.fn(async () => {
+      inFlight += 1;
+      maxConcurrent = Math.max(maxConcurrent, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return createEmbedding(0.25);
+    });
+
+    await indexMeetingTranscriptChunks({
+      supabase: supabase as never,
+      meetingId: "meeting-1",
+      userId: "user-1",
+      transcript: "fallback transcript",
+      utterances: Array.from({ length: 5 }, (_, index) => ({
+        speaker: "A",
+        text: repeatedWords(401),
+        start: index * 1000,
+        end: (index + 1) * 1000,
+      })),
+      embedText,
+    });
+
+    expect(embedText).toHaveBeenCalledTimes(5);
+    expect(maxConcurrent).toBeLessThanOrEqual(2);
+  });
 });
 
 function createExistingChunksClient(data: unknown[]) {

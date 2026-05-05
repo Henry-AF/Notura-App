@@ -13,6 +13,7 @@ export const CHAT_SIMILARITY_THRESHOLD = 0.6;
 export const ACTIVE_TRANSCRIPT_EMBEDDING_MODEL = EMBEDDING_MODEL_NAME;
 export const ACTIVE_TRANSCRIPT_EMBEDDING_DIMENSIONS = EMBEDDING_OUTPUT_DIMENSIONS;
 export const TRANSCRIPT_CHUNKING_VERSION = "utterance-merge-v1-400";
+const TRANSCRIPT_EMBEDDING_CONCURRENCY_LIMIT = 2;
 
 type SupabaseAdminClient = SupabaseClient<Database>;
 type ChunkInsert =
@@ -364,19 +365,36 @@ async function buildChunkInsertRows(
   userId: string,
   embedText: (text: string) => Promise<number[]>
 ): Promise<ChunkInsert[]> {
-  return Promise.all(
-    chunks.map(async (chunk) => ({
-      meeting_id: meetingId,
-      user_id: userId,
-      chunk_index: chunk.chunkIndex,
-      text: chunk.text,
-      speaker: chunk.speaker,
-      start_ms: chunk.startMs,
-      end_ms: chunk.endMs,
-      metadata: chunk.metadata as unknown as Json,
-      embedding: await embedText(chunk.text),
-    }))
+  const rows = new Array<ChunkInsert>(chunks.length);
+  let nextIndex = 0;
+
+  async function buildNextRows(): Promise<void> {
+    while (nextIndex < chunks.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const chunk = chunks[index];
+      rows[index] = {
+        meeting_id: meetingId,
+        user_id: userId,
+        chunk_index: chunk.chunkIndex,
+        text: chunk.text,
+        speaker: chunk.speaker,
+        start_ms: chunk.startMs,
+        end_ms: chunk.endMs,
+        metadata: chunk.metadata as unknown as Json,
+        embedding: await embedText(chunk.text),
+      };
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(TRANSCRIPT_EMBEDDING_CONCURRENCY_LIMIT, chunks.length) },
+      () => buildNextRows()
+    )
   );
+
+  return rows;
 }
 
 async function fetchMeetingChunks(

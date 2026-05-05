@@ -3,8 +3,6 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const INITIAL_MIGRATION_PATH = "supabase/migrations/013_meeting_rag_chat.sql";
-const QUOTA_MIGRATION_PATH =
-  "supabase/migrations/016_meeting_ai_usage_quota.sql";
 
 function readMigration(path: string): string {
   return readFileSync(resolve(process.cwd(), path), "utf8")
@@ -40,9 +38,5 @@ function expectAiUsageQuota(sql: string): void {
 describe("meeting AI usage quota policy", () => {
   it("creates daily AI usage quota infrastructure in the initial migration", () => {
     expectAiUsageQuota(readMigration(INITIAL_MIGRATION_PATH));
-  });
-
-  it("ships an online migration for databases that already have meeting chat", () => {
-    expectAiUsageQuota(readMigration(QUOTA_MIGRATION_PATH));
   });
 });

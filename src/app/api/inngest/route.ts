@@ -6,6 +6,8 @@ import { serve } from "inngest/next";
 import type { NextRequest } from "next/server";
 import { inngest } from "@/lib/inngest";
 import { processMeeting, handleProcessMeetingFailure } from "@/inngest/process-meeting";
+import { answerMeetingChat } from "@/inngest/answer-meeting-chat";
+import { dispatchMeetingChatOutbox } from "@/inngest/meeting-chat-outbox";
 import {
   captureObservedError,
   createRequestId,
@@ -80,7 +82,12 @@ function withInngestRouteObservability(handler: InngestRouteHandler): InngestRou
 
 const handler = serve({
   client: inngest,
-  functions: [processMeeting, handleProcessMeetingFailure],
+  functions: [
+    processMeeting,
+    handleProcessMeetingFailure,
+    answerMeetingChat,
+    dispatchMeetingChatOutbox,
+  ],
 });
 
 export const GET = withInngestRouteObservability(handler.GET);

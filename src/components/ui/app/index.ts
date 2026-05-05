@@ -8,4 +8,5 @@ export type { PageHeaderBreadcrumb } from "./page-header";
 export { PageShell } from "./page-shell";
 export { RouteLoading } from "./route-loading";
 export { SectionCard } from "./section-card";
+export { AppSideSheet } from "./side-sheet";
 export { StatusBadge } from "./status-badge";

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  Bot,
   ChevronDown,
   LayoutGrid,
   LogOut,
@@ -45,6 +46,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
+  { href: "/dashboard/ai-chats", label: "Chats", icon: Bot },
   // { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
 

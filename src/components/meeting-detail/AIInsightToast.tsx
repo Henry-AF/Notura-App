@@ -13,7 +13,7 @@ export function AIInsightToast({ message }: AIInsightToastProps) {
   if (!message) return null;
 
   return (
-    <div className="fixed bottom-7 right-7 z-40 flex flex-col items-end gap-2">
+    <div className="fixed bottom-[5.5rem] right-7 z-40 flex flex-col items-end gap-2">
       {/* Insight panel — slides up from the FAB */}
       <div
         className="w-64 rounded-xl border border-primary/30 bg-popover/95 p-3 shadow-lg backdrop-blur-sm"

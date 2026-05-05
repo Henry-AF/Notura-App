@@ -1,0 +1,227 @@
+import type { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const AI_MEETING_CHAT_DAILY_QUOTA_FEATURE = "meeting_chat";
+const AI_MEETING_CHAT_DAILY_QUOTA_LIMIT = 10;
+
+const createServerSupabase = vi.fn();
+const createServiceRoleClient = vi.fn();
+const inngestSend = vi.fn();
+
+vi.mock("@/lib/supabase/server", () => ({
+  createServerSupabase,
+  createServiceRoleClient,
+}));
+
+vi.mock("@/lib/inngest", () => ({
+  inngest: {
+    send: inngestSend,
+  },
+}));
+
+function createServerClient() {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: "user-1" } },
+        error: null,
+      }),
+    },
+  };
+}
+
+function createAdminClient(options?: {
+  ownsMeeting?: boolean;
+  meetingStatus?: string;
+  transcript?: string | null;
+  chatRpcError?: { code?: string; message: string };
+}) {
+  const ownsMeeting = options?.ownsMeeting ?? true;
+  const meetingStatus = options?.meetingStatus ?? "completed";
+  const transcript =
+    options && "transcript" in options ? options.transcript : "Transcricao salva";
+
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: ownsMeeting ? { id: "meeting-1", user_id: "user-1" } : null,
+    error: null,
+  });
+  const meetingSingle = vi.fn().mockResolvedValue({
+    data: { id: "meeting-1", status: meetingStatus, transcript },
+    error: null,
+  });
+  const rpcSingle = vi.fn().mockResolvedValue({
+    data: options?.chatRpcError
+      ? null
+      : { chat_id: "chat-1", status: "processing" },
+    error: options?.chatRpcError ?? null,
+  });
+  const rpc = vi.fn(() => ({
+    single: rpcSingle,
+  }));
+  const from = vi.fn((table: string) => {
+    return {
+      select: vi.fn((columns: string) => ({
+        eq: vi.fn(() =>
+          columns === "id, user_id" ? { maybeSingle } : { single: meetingSingle }
+        ),
+      })),
+    };
+  });
+
+  return { from, rpc };
+}
+
+function createRequest(question: string) {
+  return new Request("http://localhost/api/meetings/meeting-1/chats", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  }) as NextRequest;
+}
+
+describe("POST /api/meetings/[id]/chats", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    createServerSupabase.mockReturnValue(createServerClient());
+    inngestSend.mockResolvedValue(undefined);
+  });
+
+  it("returns 403 when the meeting does not belong to the user", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({ ownsMeeting: false })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects long questions", async () => {
+    createServiceRoleClient.mockReturnValue(createAdminClient());
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("a".repeat(501)), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "question_too_long" });
+  });
+
+  it("rejects meetings that are not completed", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({ meetingStatus: "processing" })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "meeting_not_ready" });
+  });
+
+  it("creates a processing chat with an outbox row and kicks the dispatcher", async () => {
+    const admin = createAdminClient();
+    createServiceRoleClient.mockReturnValue(admin);
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      chatId: "chat-1",
+      status: "processing",
+    });
+    expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_ai_daily_quota_limit: AI_MEETING_CHAT_DAILY_QUOTA_LIMIT,
+      p_ai_feature: AI_MEETING_CHAT_DAILY_QUOTA_FEATURE,
+      p_meeting_id: "meeting-1",
+      p_question: "Qual foi o prazo?",
+      p_user_id: "user-1",
+    });
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "meeting/chat.outbox.dispatch",
+      data: {
+        meetingId: "meeting-1",
+        userId: "user-1",
+      },
+    });
+  });
+
+  it("returns 403 when the daily AI chat quota is exhausted", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        chatRpcError: {
+          code: "AI001",
+          message: "ai_chat_daily_quota_exceeded",
+        },
+      })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: "ai_chat_daily_quota_exceeded",
+      quotaLimit: 10,
+    });
+  });
+
+  it("still returns 202 when the dispatcher kick fails after the outbox commit", async () => {
+    const admin = createAdminClient();
+    createServiceRoleClient.mockReturnValue(admin);
+    inngestSend.mockRejectedValue(new Error("Inngest unavailable"));
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      chatId: "chat-1",
+      status: "processing",
+    });
+    expect(admin.rpc).toHaveBeenCalledWith("create_meeting_chat_with_outbox", {
+      p_ai_daily_quota_limit: AI_MEETING_CHAT_DAILY_QUOTA_LIMIT,
+      p_ai_feature: AI_MEETING_CHAT_DAILY_QUOTA_FEATURE,
+      p_meeting_id: "meeting-1",
+      p_question: "Qual foi o prazo?",
+      p_user_id: "user-1",
+    });
+  });
+
+  it("rate limits chat creation to two requests per minute per user", async () => {
+    createServiceRoleClient.mockReturnValue(createAdminClient());
+
+    const mod = await import("./route");
+    await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+    await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Muitas requisições. Tente novamente em instantes.",
+      code: "rate_limited",
+    });
+    expect(response.headers.get("x-ratelimit-limit")).toBe("2");
+    expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
+    expect(response.headers.get("retry-after")).toBeTruthy();
+  });
+});

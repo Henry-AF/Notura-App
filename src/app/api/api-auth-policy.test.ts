@@ -18,10 +18,15 @@ const PRIVATE_ROUTES_REQUIRING_WITH_AUTH = [
   "src/app/api/meetings/process/route.ts",
   "src/app/api/meetings/upload/route.ts",
   "src/app/api/meetings/[id]/route.ts",
+  "src/app/api/meetings/[id]/chats/route.ts",
+  "src/app/api/meetings/[id]/chats/[chatId]/route.ts",
   "src/app/api/meetings/[id]/status/route.ts",
   "src/app/api/meetings/[id]/retry/route.ts",
   "src/app/api/meetings/[id]/resend/route.ts",
+  "src/app/api/meetings/[id]/chats/route.ts",
+  "src/app/api/meetings/[id]/chats/[chatId]/route.ts",
   "src/app/api/meetings/[id]/export/route.ts",
+  "src/app/api/meeting-chats/[chatId]/route.ts",
 ];
 
 const ID_ROUTES_REQUIRING_OWNERSHIP = [
@@ -30,6 +35,7 @@ const ID_ROUTES_REQUIRING_OWNERSHIP = [
   "src/app/api/meetings/[id]/retry/route.ts",
   "src/app/api/meetings/[id]/resend/route.ts",
   "src/app/api/meetings/[id]/export/route.ts",
+  "src/app/api/meeting-chats/[chatId]/route.ts",
 ];
 
 const PUBLIC_ROUTES = [

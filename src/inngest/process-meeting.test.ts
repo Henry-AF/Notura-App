@@ -6,8 +6,10 @@ const mocks = vi.hoisted(() => ({
   createFunction: vi.fn(),
   createServiceRoleClient: vi.fn(),
   deleteAudio: vi.fn(),
+  generateEmbedding: vi.fn(),
   generateMeetingSummary: vi.fn(),
   getPresignedDownloadUrl: vi.fn(),
+  indexMeetingTranscriptChunks: vi.fn(),
   logStructured: vi.fn(),
   sendMeetingSummaryTemplate: vi.fn(),
   transcribe: vi.fn(),
@@ -34,8 +36,13 @@ vi.mock("@/lib/whatsapp", () => ({
 }));
 
 vi.mock("@/lib/gemini", () => ({
+  generateEmbedding: mocks.generateEmbedding,
   generateMeetingSummary: mocks.generateMeetingSummary,
   PROMPT_VERSION: "1.1.0",
+}));
+
+vi.mock("@/lib/meetings/rag", () => ({
+  indexMeetingTranscriptChunks: mocks.indexMeetingTranscriptChunks,
 }));
 
 vi.mock("@/lib/observability", () => ({
@@ -119,6 +126,8 @@ describe("processMeeting", () => {
       summaryWhatsapp: "Resumo pronto",
       summaryJson: createSummaryJson(),
     });
+    mocks.generateEmbedding.mockResolvedValue(Array.from({ length: 768 }, () => 0.1));
+    mocks.indexMeetingTranscriptChunks.mockResolvedValue([]);
     mocks.transcribe.mockResolvedValue({
       id: "assembly-1",
       status: "completed",
@@ -158,5 +167,41 @@ describe("processMeeting", () => {
       "[00:00] Speaker A: Transcricao completa",
       6480
     );
+  });
+
+  it("indexes transcript chunks from AssemblyAI utterances after transcription", async () => {
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(mocks.indexMeetingTranscriptChunks).toHaveBeenCalledWith({
+      supabase: expect.any(Object),
+      meetingId: "meeting-1",
+      userId: "user-1",
+      transcript: "[00:00] Speaker A: Transcricao completa",
+      utterances: [
+        {
+          start: 0,
+          speaker: "A",
+          text: "Transcricao completa",
+        },
+      ],
+      embedText: mocks.generateEmbedding,
+    });
   });
 });

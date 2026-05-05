@@ -30,11 +30,22 @@ describe("design-system primitives", () => {
     const card = read("src/components/ui/card.tsx");
     const input = read("src/components/ui/input.tsx");
     const badge = read("src/components/ui/badge.tsx");
+    const dropdown = read("src/components/ui/dropdown-menu.tsx");
 
     expect(card).toContain("bg-card");
     expect(card).toContain("text-card-foreground");
     expect(input).toContain("bg-background");
     expect(input).toContain("border-input");
     expect(badge).toContain("bg-muted");
+    expect(dropdown).toContain("bg-popover");
+    expect(dropdown).toContain("text-popover-foreground");
+    expect(dropdown).not.toContain("bg-white");
+  });
+
+  it("uses pointer cursors for interactive dropdown items", () => {
+    const dropdown = read("src/components/ui/dropdown-menu.tsx");
+
+    expect(dropdown).toContain("cursor-pointer");
+    expect(dropdown).not.toContain("cursor-default");
   });
 });

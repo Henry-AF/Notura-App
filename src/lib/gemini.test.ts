@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const embedContentMock = vi.fn();
 const generateContentMock = vi.fn();
 const getGenerativeModelMock = vi.fn();
 const GoogleGenerativeAIMock = vi.fn();
@@ -10,11 +11,16 @@ vi.mock("@google/generative-ai", () => {
   }));
 
   getGenerativeModelMock.mockImplementation(() => ({
+    embedContent: embedContentMock,
     generateContent: generateContentMock,
   }));
 
   return {
     GoogleGenerativeAI: GoogleGenerativeAIMock,
+    TaskType: {
+      RETRIEVAL_DOCUMENT: "RETRIEVAL_DOCUMENT",
+      RETRIEVAL_QUERY: "RETRIEVAL_QUERY",
+    },
   };
 });
 
@@ -49,6 +55,14 @@ function createValidGeminiResponse() {
             },
           },
         }),
+    },
+  };
+}
+
+function createEmbeddingResponse() {
+  return {
+    embedding: {
+      values: Array.from({ length: 768 }, () => 0.25),
     },
   };
 }
@@ -150,5 +164,147 @@ describe("generateMeetingSummary summary parity", () => {
         ),
       })
     );
+  });
+});
+
+describe("generateEmbedding", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    embedContentMock.mockResolvedValue(createEmbeddingResponse());
+  });
+
+  it("requests a 768-dimensional Gemini embedding using MRL", async () => {
+    const mod = await import("./gemini");
+    const embedding = await mod.generateEmbedding("Texto para busca");
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith({
+      model: "gemini-embedding-001",
+    });
+    expect(embedContentMock).toHaveBeenCalledWith({
+      content: {
+        role: "user",
+        parts: [{ text: "Texto para busca" }],
+      },
+      taskType: "RETRIEVAL_DOCUMENT",
+      outputDimensionality: 768,
+    });
+    expect(embedding).toHaveLength(768);
+  });
+});
+
+function createQuestionAnswerResponse(body: Record<string, unknown>) {
+  return {
+    response: {
+      text: () => JSON.stringify(body),
+    },
+  };
+}
+
+describe("answerMeetingQuestionFromChunks", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+  });
+
+  it("uses a strict system prompt and returns the parsed grounded answer", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "O prazo combinado foi sexta-feira.",
+        is_answered_from_context: true,
+        cited_chunk_ids: ["chunk-1"],
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+    const result = await mod.answerMeetingQuestionFromChunks({
+      question: "Qual foi o prazo?",
+      chunks: [
+        {
+          chunkId: "chunk-1",
+          similarity: 0.82,
+          startMs: 12000,
+          endMs: 18000,
+          speaker: "A",
+          text: "O prazo combinado foi sexta-feira.",
+        },
+      ],
+    });
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemInstruction: expect.stringContaining(
+          "cited_chunk_ids"
+        ),
+      })
+    );
+    expect(generateContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('id="chunk-1"')
+    );
+    expect(result).toEqual({
+      answer: "O prazo combinado foi sexta-feira.",
+      isAnsweredFromContext: true,
+      citedChunkIds: ["chunk-1"],
+      insufficientContextReason: null,
+    });
+  });
+
+  it("rejects confirmed answers without structured cited chunk ids", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "O prazo combinado foi sexta-feira.",
+        is_answered_from_context: true,
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+
+    await expect(
+      mod.answerMeetingQuestionFromChunks({
+        question: "Qual foi o prazo?",
+        chunks: [
+          {
+            chunkId: "chunk-1",
+            similarity: 0.82,
+            startMs: 12000,
+            endMs: 18000,
+            speaker: "A",
+            text: "O prazo combinado foi sexta-feira.",
+          },
+        ],
+      })
+    ).rejects.toThrow("Gemini returned an invalid meeting chat answer");
+  });
+
+  it("rejects answers without an explicit model confirmation field", async () => {
+    generateContentMock.mockResolvedValue(
+      createQuestionAnswerResponse({
+        answer: "Talvez sexta-feira.",
+        cited_chunk_ids: [],
+        insufficient_context_reason: null,
+      })
+    );
+
+    const mod = await import("./gemini");
+
+    await expect(
+      mod.answerMeetingQuestionFromChunks({
+        question: "Qual foi o prazo?",
+        chunks: [
+          {
+            chunkId: "chunk-1",
+            similarity: 0.82,
+            startMs: 12000,
+            endMs: 18000,
+            speaker: "A",
+            text: "O prazo combinado foi sexta-feira.",
+          },
+        ],
+      })
+    ).rejects.toThrow("Gemini returned an invalid meeting chat answer");
   });
 });

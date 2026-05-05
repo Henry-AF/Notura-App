@@ -326,6 +326,339 @@ export interface Database {
           }
         ]
       }
+      meeting_transcript_chunks: {
+        Row: {
+          id: string
+          meeting_id: string
+          user_id: string
+          chunk_index: number
+          text: string
+          speaker: string | null
+          start_ms: number | null
+          end_ms: number | null
+          metadata: Json
+          embedding: number[]
+          embedding_model: string
+          embedding_dimensions: number
+          chunking_version: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          user_id: string
+          chunk_index: number
+          text: string
+          speaker?: string | null
+          start_ms?: number | null
+          end_ms?: number | null
+          metadata?: Json
+          embedding: number[]
+          embedding_model?: string
+          embedding_dimensions?: number
+          chunking_version?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          user_id?: string
+          chunk_index?: number
+          text?: string
+          speaker?: string | null
+          start_ms?: number | null
+          end_ms?: number | null
+          metadata?: Json
+          embedding?: number[]
+          embedding_model?: string
+          embedding_dimensions?: number
+          chunking_version?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_transcript_chunks_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_chats: {
+        Row: {
+          id: string
+          meeting_id: string
+          user_id: string
+          question: string
+          question_embedding: number[] | null
+          answer: string | null
+          status: "processing" | "completed" | "failed"
+          fallback_reason: string | null
+          model_confirmed: boolean | null
+          sources: Json
+          error_message: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          user_id: string
+          question: string
+          question_embedding?: number[] | null
+          answer?: string | null
+          status?: "processing" | "completed" | "failed"
+          fallback_reason?: string | null
+          model_confirmed?: boolean | null
+          sources?: Json
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          user_id?: string
+          question?: string
+          question_embedding?: number[] | null
+          answer?: string | null
+          status?: "processing" | "completed" | "failed"
+          fallback_reason?: string | null
+          model_confirmed?: boolean | null
+          sources?: Json
+          error_message?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chats_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_chat_outbox: {
+        Row: {
+          id: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          event_name: string
+          payload: Json
+          status: "pending" | "processing" | "sent" | "dead"
+          attempts: number
+          next_attempt_at: string
+          last_attempt_at: string | null
+          sent_at: string | null
+          last_error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          event_name?: string
+          payload: Json
+          status?: "pending" | "processing" | "sent" | "dead"
+          attempts?: number
+          next_attempt_at?: string
+          last_attempt_at?: string | null
+          sent_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          meeting_id?: string
+          user_id?: string
+          event_name?: string
+          payload?: Json
+          status?: "pending" | "processing" | "sent" | "dead"
+          attempts?: number
+          next_attempt_at?: string
+          last_attempt_at?: string | null
+          sent_at?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chat_outbox_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_chat_outbox_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_chat_ai_metrics: {
+        Row: {
+          id: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          status: "completed" | "failed"
+          fallback_reason: string | null
+          embedding_model: string
+          answer_model: string
+          retrieved_chunks_count: number
+          max_similarity: number | null
+          avg_similarity: number | null
+          question_tokens_estimated: number
+          context_tokens_estimated: number
+          answer_tokens_estimated: number
+          embedding_duration_ms: number | null
+          retrieval_duration_ms: number | null
+          generation_duration_ms: number | null
+          total_duration_ms: number
+          estimated_cost_usd: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          meeting_id: string
+          user_id: string
+          status: "completed" | "failed"
+          fallback_reason?: string | null
+          embedding_model: string
+          answer_model: string
+          retrieved_chunks_count?: number
+          max_similarity?: number | null
+          avg_similarity?: number | null
+          question_tokens_estimated?: number
+          context_tokens_estimated?: number
+          answer_tokens_estimated?: number
+          embedding_duration_ms?: number | null
+          retrieval_duration_ms?: number | null
+          generation_duration_ms?: number | null
+          total_duration_ms: number
+          estimated_cost_usd?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          meeting_id?: string
+          user_id?: string
+          status?: "completed" | "failed"
+          fallback_reason?: string | null
+          embedding_model?: string
+          answer_model?: string
+          retrieved_chunks_count?: number
+          max_similarity?: number | null
+          avg_similarity?: number | null
+          question_tokens_estimated?: number
+          context_tokens_estimated?: number
+          answer_tokens_estimated?: number
+          embedding_duration_ms?: number | null
+          retrieval_duration_ms?: number | null
+          generation_duration_ms?: number | null
+          total_duration_ms?: number
+          estimated_cost_usd?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_chat_ai_metrics_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_chat_ai_metrics_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ai_usage_daily: {
+        Row: {
+          user_id: string
+          usage_date: string
+          feature: string
+          used_count: number
+          quota_limit: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          usage_date: string
+          feature: string
+          used_count?: number
+          quota_limit: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          usage_date?: string
+          feature?: string
+          used_count?: number
+          quota_limit?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_usage_refunds: {
+        Row: {
+          id: string
+          chat_id: string
+          user_id: string
+          usage_date: string
+          feature: string
+          reason: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          user_id: string
+          usage_date: string
+          feature: string
+          reason: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          user_id?: string
+          usage_date?: string
+          feature?: string
+          reason?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_refunds_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_chats"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -361,6 +694,64 @@ export interface Database {
         }
         Returns: number
       }
+      match_meeting_transcript_chunks: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_query_embedding: number[]
+          p_limit?: number
+          p_similarity_threshold?: number
+          p_embedding_model?: string
+          p_embedding_dimensions?: number
+          p_chunking_version?: string
+        }
+        Returns: {
+          id: string
+          meeting_id: string
+          chunk_index: number
+          text: string
+          speaker: string | null
+          start_ms: number | null
+          end_ms: number | null
+          metadata: Json
+          similarity: number
+        }[]
+      }
+      upsert_meeting_transcript_chunks_with_lock: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_chunks: Json
+          p_embedding_model?: string
+          p_embedding_dimensions?: number
+          p_chunking_version?: string
+        }
+        Returns: undefined
+      }
+      create_meeting_chat_with_outbox: {
+        Args: {
+          p_user_id: string
+          p_meeting_id: string
+          p_question: string
+          p_ai_feature?: string
+          p_ai_daily_quota_limit?: number
+        }
+        Returns: {
+          chat_id: string
+          status: "processing"
+          ai_daily_quota_used: number
+          ai_daily_quota_limit: number
+        }[]
+      }
+      refund_meeting_chat_ai_usage: {
+        Args: {
+          p_user_id: string
+          p_chat_id: string
+          p_ai_feature?: string
+          p_reason?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -385,6 +776,11 @@ export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["Row"]
+export type MeetingTranscriptChunk =
+  Database["public"]["Tables"]["meeting_transcript_chunks"]["Row"]
+export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
+export type MeetingChatAiMetric =
+  Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

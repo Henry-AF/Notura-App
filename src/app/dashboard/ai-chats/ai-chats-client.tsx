@@ -404,7 +404,7 @@ function ChatSheetBody({ chat }: { chat: AiChatItem }) {
                 if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
               }}
               onMouseLeave={(e) => {
-                if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = feedback === "up" ? "#10B981" : "#9CA3AF";
+                if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
               }}
             >
               <ThumbsUp style={{ width: 16, height: 16 }} />

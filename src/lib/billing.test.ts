@@ -33,8 +33,9 @@ function createBillingClient(options?: {
   const insertSelect = vi.fn().mockReturnValue({ single });
   const insert = vi.fn().mockReturnValue({ select: insertSelect });
 
-  const updateEq = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn().mockReturnValue({ eq: updateEq });
+  const updateQuery = { eq: vi.fn() };
+  updateQuery.eq.mockReturnValue(updateQuery);
+  const update = vi.fn().mockReturnValue(updateQuery);
 
   const from = vi.fn().mockReturnValue({
     select,
@@ -54,7 +55,7 @@ function createBillingClient(options?: {
     rpc,
     selectEq,
     update,
-    updateEq,
+    updateEq: updateQuery.eq,
   };
 }
 

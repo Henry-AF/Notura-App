@@ -8,7 +8,13 @@ import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { parseAbacatePayOnboardingExternalId } from "@/lib/abacatepay";
-import { downgradeToFree, resetSubscriptionPeriod } from "@/lib/billing";
+import {
+  downgradeToFree,
+  getBillingRenewalContext,
+  resetSubscriptionPeriod,
+} from "@/lib/billing";
+import { inngest } from "@/lib/inngest";
+import type { Plan } from "@/types/database";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
 const WEBHOOK_PUBLIC_KEY = process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY;
@@ -20,6 +26,10 @@ interface AbacatePayWebhookEvent {
     id?: string;
     externalId?: string;
     status?: string;
+    currentPeriodEnd?: string;
+    current_period_end?: string;
+    previousPeriodEnd?: string;
+    previous_period_end?: string;
     customerId?: string;
     customer?: { id?: string };
     subscription?: {
@@ -27,6 +37,10 @@ interface AbacatePayWebhookEvent {
       externalId?: string;
       status?: string;
       customerId?: string;
+      currentPeriodEnd?: string;
+      current_period_end?: string;
+      previousPeriodEnd?: string;
+      previous_period_end?: string;
       metadata?: Record<string, unknown>;
     };
     payment?: {
@@ -34,6 +48,10 @@ interface AbacatePayWebhookEvent {
       externalId?: string;
       status?: string;
       customerId?: string;
+      currentPeriodEnd?: string;
+      current_period_end?: string;
+      previousPeriodEnd?: string;
+      previous_period_end?: string;
       metadata?: Record<string, unknown>;
     };
     checkout?: {
@@ -41,6 +59,10 @@ interface AbacatePayWebhookEvent {
       externalId?: string;
       status?: string;
       customerId?: string;
+      currentPeriodEnd?: string;
+      current_period_end?: string;
+      previousPeriodEnd?: string;
+      previous_period_end?: string;
       metadata?: Record<string, unknown>;
     };
     metadata?: Record<string, unknown>;
@@ -87,6 +109,74 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
     data.checkout?.customerId ??
     data.subscription?.customerId
   );
+}
+
+type PeriodEndSource = {
+  currentPeriodEnd?: string;
+  current_period_end?: string;
+  previousPeriodEnd?: string;
+  previous_period_end?: string;
+  metadata?: Record<string, unknown>;
+};
+
+interface ResolvedRenewalContext {
+  userId: string;
+  plan: Exclude<Plan, "free">;
+  currentPeriodEnd: string;
+  customerId?: string;
+}
+
+type ParsedOnboardingExternalId = NonNullable<
+  ReturnType<typeof parseAbacatePayOnboardingExternalId>
+>;
+
+function readMetadataString(
+  metadata: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readPeriodEnd(source: PeriodEndSource | undefined): string | undefined {
+  if (!source) return undefined;
+
+  return (
+    source.currentPeriodEnd ??
+    source.current_period_end ??
+    source.previousPeriodEnd ??
+    source.previous_period_end ??
+    readMetadataString(source.metadata, "currentPeriodEnd") ??
+    readMetadataString(source.metadata, "current_period_end") ??
+    readMetadataString(source.metadata, "previousPeriodEnd") ??
+    readMetadataString(source.metadata, "previous_period_end")
+  );
+}
+
+function readEventCurrentPeriodEnd(
+  data: AbacatePayWebhookEvent["data"]
+): string | undefined {
+  return (
+    readPeriodEnd(data) ??
+    readPeriodEnd(data.subscription) ??
+    readPeriodEnd(data.payment) ??
+    readPeriodEnd(data.checkout)
+  );
+}
+
+function isFuturePeriodEnd(value: string): boolean {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+}
+
+function resolveUsablePeriodEnd(
+  eventPeriodEnd: string | undefined,
+  fallbackPeriodEnd: string | null | undefined
+): string | null {
+  const currentPeriodEnd = eventPeriodEnd ?? fallbackPeriodEnd ?? null;
+  if (!currentPeriodEnd) return null;
+  if (!eventPeriodEnd && isFuturePeriodEnd(currentPeriodEnd)) return null;
+  return currentPeriodEnd;
 }
 
 export const POST = withPublicRateLimit<NextRequest>(
@@ -198,37 +288,97 @@ async function handleSubscriptionCanceled(
   return NextResponse.json({ received: true });
 }
 
-async function handleSubscriptionRenewed(
-  data: AbacatePayWebhookEvent["data"]
-): Promise<NextResponse> {
+async function resolveParsedRenewalContext(
+  parsed: ParsedOnboardingExternalId,
+  eventPeriodEnd: string | undefined,
+  customerId: string | undefined,
+  supabase: ReturnType<typeof createServiceRoleClient>
+): Promise<ResolvedRenewalContext | null> {
+  const context = await getBillingRenewalContext({ userId: parsed.userId }, supabase);
+  const currentPeriodEnd = resolveUsablePeriodEnd(
+    eventPeriodEnd,
+    context?.currentPeriodEnd
+  );
+  if (!currentPeriodEnd) return null;
+
+  return {
+    userId: parsed.userId,
+    plan: parsed.plan,
+    currentPeriodEnd,
+    ...(customerId ? { customerId } : {}),
+  };
+}
+
+async function resolveCustomerRenewalContext(
+  customerId: string,
+  eventPeriodEnd: string | undefined,
+  supabase: ReturnType<typeof createServiceRoleClient>
+): Promise<ResolvedRenewalContext | null> {
+  const context = await getBillingRenewalContext(
+    { abacatepayCustomerId: customerId },
+    supabase
+  );
+  if (!context) return null;
+
+  const currentPeriodEnd = resolveUsablePeriodEnd(
+    eventPeriodEnd,
+    context.currentPeriodEnd
+  );
+  if (!currentPeriodEnd) return null;
+
+  return {
+    userId: context.userId,
+    plan: context.plan,
+    currentPeriodEnd,
+    customerId,
+  };
+}
+
+async function resolveRenewalContext(
+  data: AbacatePayWebhookEvent["data"],
+  supabase: ReturnType<typeof createServiceRoleClient>
+): Promise<ResolvedRenewalContext | null> {
+  const eventPeriodEnd = readEventCurrentPeriodEnd(data);
+  const customerId = readEventCustomerId(data);
   const externalId = readEventExternalId(data);
   const parsed = externalId
     ? parseAbacatePayOnboardingExternalId(externalId)
     : null;
-  const customerId = readEventCustomerId(data);
-  if (!customerId && !parsed) return NextResponse.json({ received: true });
 
+  if (parsed) {
+    return resolveParsedRenewalContext(parsed, eventPeriodEnd, customerId, supabase);
+  }
+
+  if (!customerId) return null;
+  return resolveCustomerRenewalContext(customerId, eventPeriodEnd, supabase);
+}
+
+async function handleSubscriptionRenewed(
+  data: AbacatePayWebhookEvent["data"]
+): Promise<NextResponse> {
   const supabase = createServiceRoleClient();
-  const params = parsed
-    ? {
-        userId: parsed.userId,
-        plan: parsed.plan,
-        clearAbacatePayPending: true,
-        ...(data.subscription?.id ? { abacatepaySubscriptionId: data.subscription.id } : {}),
-        ...(customerId ? { abacatepayCustomerId: customerId } : {}),
-      }
-    : { abacatepayCustomerId: customerId as string };
 
   try {
-    await resetSubscriptionPeriod(params, supabase);
+    const renewal = await resolveRenewalContext(data, supabase);
+    if (!renewal) return NextResponse.json({ received: true });
+
+    const eventId = `renewal-confirmed:${renewal.userId}:${renewal.currentPeriodEnd}`;
+    await inngest.send({
+      id: eventId,
+      name: "billing/abacatepay.renewal-confirmed",
+      data: {
+        userId: renewal.userId,
+        plan: renewal.plan,
+        currentPeriodEnd: renewal.currentPeriodEnd,
+        ...(renewal.customerId ? { customerId: renewal.customerId } : {}),
+      },
+    });
+    console.log(`[webhook-abacatepay] subscription.renewed eventId=${eventId}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    console.error("[webhook-abacatepay] subscription.renewed update failed:", message);
+    console.error("[webhook-abacatepay] subscription.renewed enqueue failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  console.log(
-    `[webhook-abacatepay] subscription.renewed customerId=${customerId ?? "unknown"}`
-  );
   return NextResponse.json({ received: true });
 }

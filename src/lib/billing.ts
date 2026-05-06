@@ -65,6 +65,12 @@ export interface AbacatePayAutoRenewStatus {
   renewalStatus: string;
 }
 
+export interface BillingRenewalContext {
+  userId: string;
+  plan: Exclude<Plan, "free">;
+  currentPeriodEnd: string | null;
+}
+
 export function getMonthlyMeetingLimit(plan: Plan): number | null {
   return getPlanMonthlyLimit(plan);
 }
@@ -153,18 +159,23 @@ function resolveSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   account: BillingAccount | null,
   now: Date
-): { start: Date; end: Date } | null {
+): { start: Date; end: Date; guardCurrentPeriodEnd: boolean } | null {
   const explicitPreviousPeriodEnd = parseBillingDate(params.previousPeriodEnd);
   if (explicitPreviousPeriodEnd) {
     return {
       start: explicitPreviousPeriodEnd,
       end: addOneMonth(explicitPreviousPeriodEnd),
+      guardCurrentPeriodEnd: true,
     };
   }
 
   const currentPeriodEnd = parseBillingDate(account?.current_period_end);
   if (currentPeriodEnd && currentPeriodEnd.getTime() <= now.getTime()) {
-    return { start: currentPeriodEnd, end: addOneMonth(currentPeriodEnd) };
+    return {
+      start: currentPeriodEnd,
+      end: addOneMonth(currentPeriodEnd),
+      guardCurrentPeriodEnd: true,
+    };
   }
 
   if (
@@ -176,7 +187,7 @@ function resolveSubscriptionPeriod(
     return null;
   }
 
-  return { start: now, end: addOneMonth(now) };
+  return { start: now, end: addOneMonth(now), guardCurrentPeriodEnd: false };
 }
 
 function buildSubscriptionResetPayload(
@@ -220,6 +231,20 @@ async function scheduleAbacatePayRenewal(
   });
 }
 
+export async function getBillingRenewalContext(
+  lookup: BillingAccountLookup,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
+): Promise<BillingRenewalContext | null> {
+  const account = await getBillingAccountByLookup(lookup, supabase);
+  if (!account || account.plan === "free") return null;
+
+  return {
+    userId: account.user_id,
+    plan: account.plan as Exclude<Plan, "free">,
+    currentPeriodEnd: account.current_period_end,
+  };
+}
+
 export async function getOrCreateBillingAccount(
   userId: string,
   supabase: SupabaseClient<Database> = createServiceRoleClient()
@@ -242,10 +267,8 @@ export async function getOrCreateBillingAccount(
     .select("*")
     .single();
 
-  if (insertError || !created) {
-    throw new Error(
-      `Failed to create billing account: ${insertError?.message ?? "unknown error"}`
-    );
+  if (insertError) {
+    throw new Error(`Failed to create billing account: ${insertError.message}`);
   }
 
   return created;
@@ -364,20 +387,17 @@ export async function refundMeetingQuota(
   }
 }
 
-export async function resetSubscriptionPeriod(
+async function loadResetAccount(
   params: ResetSubscriptionPeriodParams,
   supabase: SupabaseClient<Database> = createServiceRoleClient()
-): Promise<void> {
-  const account = await getBillingAccountByLookup(params, supabase);
-  if (!params.plan) {
-    if (!account || account.plan === "free") return;
-  }
+): Promise<BillingAccount | null> {
+  return getBillingAccountByLookup(params, supabase);
+}
 
-  const now = params.now ?? new Date();
-  const period = resolveSubscriptionPeriod(params, account, now);
-  if (!period) return;
-
-  const updatePayload = buildSubscriptionResetPayload(params, period, now);
+function applyResetPayloadOptions(
+  updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"],
+  params: ResetSubscriptionPeriodParams
+): void {
   if (params.clearAbacatePayPending) {
     updatePayload.abacatepay_pending_checkout_id = null;
     updatePayload.abacatepay_pending_plan = null;
@@ -391,9 +411,31 @@ export async function resetSubscriptionPeriod(
     updatePayload.abacatepay_next_renewal_attempt_at = null;
     updatePayload.abacatepay_last_renewal_error = null;
   }
+}
 
-  const query = supabase.from("billing_accounts").update(updatePayload);
-  const { error } = await applyBillingAccountLookup(query, params);
+export async function resetSubscriptionPeriod(
+  params: ResetSubscriptionPeriodParams,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
+): Promise<void> {
+  const account = await loadResetAccount(params, supabase);
+  if (!params.plan) {
+    if (!account || account.plan === "free") return;
+  }
+
+  const now = params.now ?? new Date();
+  const period = resolveSubscriptionPeriod(params, account, now);
+  if (!period) return;
+
+  const updatePayload = buildSubscriptionResetPayload(params, period, now);
+  applyResetPayloadOptions(updatePayload, params);
+  const query = applyBillingAccountLookup(
+    supabase.from("billing_accounts").update(updatePayload),
+    params
+  );
+  const guardedQuery = period.guardCurrentPeriodEnd
+    ? query.eq("current_period_end", period.start.toISOString())
+    : query;
+  const { error } = await guardedQuery;
 
   if (error) {
     throw new Error(`Failed to reset subscription period: ${error.message}`);

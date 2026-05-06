@@ -9,6 +9,7 @@ import { processMeeting, handleProcessMeetingFailure } from "@/inngest/process-m
 import { answerMeetingChat } from "@/inngest/answer-meeting-chat";
 import { dispatchMeetingChatOutbox } from "@/inngest/meeting-chat-outbox";
 import { renewAbacatePaySubscription } from "@/inngest/renew-abacatepay-subscription";
+import { applyAbacatePayRenewal } from "@/inngest/abacatepay-renewal";
 import {
   captureObservedError,
   createRequestId,
@@ -89,6 +90,7 @@ const handler = serve({
     answerMeetingChat,
     dispatchMeetingChatOutbox,
     renewAbacatePaySubscription,
+    applyAbacatePayRenewal,
   ],
 });
 

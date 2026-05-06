@@ -11,21 +11,43 @@ alter table public.billing_accounts
   add column if not exists abacatepay_next_renewal_attempt_at timestamptz,
   add column if not exists abacatepay_last_renewal_error text;
 
-alter table public.billing_accounts
-  add constraint billing_accounts_abacatepay_renewal_attempts_nonnegative
-  check (abacatepay_renewal_attempts >= 0) not valid;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'billing_accounts_abacatepay_renewal_attempts_nonnegative'
+      and conrelid = 'public.billing_accounts'::regclass
+  ) then
+    alter table public.billing_accounts
+      add constraint billing_accounts_abacatepay_renewal_attempts_nonnegative
+      check (abacatepay_renewal_attempts >= 0) not valid;
+  end if;
+end;
+$$;
 
-alter table public.billing_accounts
-  add constraint billing_accounts_abacatepay_renewal_status_check
-  check (
-    abacatepay_renewal_status in (
-      'idle',
-      'active',
-      'checkout_created',
-      'retrying',
-      'suspended'
-    )
-  ) not valid;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'billing_accounts_abacatepay_renewal_status_check'
+      and conrelid = 'public.billing_accounts'::regclass
+  ) then
+    alter table public.billing_accounts
+      add constraint billing_accounts_abacatepay_renewal_status_check
+      check (
+        abacatepay_renewal_status in (
+          'idle',
+          'active',
+          'checkout_created',
+          'retrying',
+          'suspended'
+        )
+      ) not valid;
+  end if;
+end;
+$$;
 
 create or replace function public.consume_meeting_quota(p_user_id uuid)
 returns table (

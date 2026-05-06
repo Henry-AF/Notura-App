@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
+const inngestSend = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
+}));
+
+vi.mock("@/lib/inngest", () => ({
+  inngest: {
+    send: inngestSend,
+  },
 }));
 
 function createBillingClient(options?: {
@@ -63,6 +70,7 @@ describe("billing helpers", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    inngestSend.mockResolvedValue(undefined);
   });
 
   it("uses billing_accounts.meetings_used as source of truth", async () => {
@@ -127,6 +135,44 @@ describe("billing helpers", () => {
       allowed: false,
       code: "period_quota_exceeded",
       quotaLimit: 100,
+    });
+  });
+
+  it("keeps paid access open while an AbacatePay renewal retry is pending", async () => {
+    const mod = await import("./billing");
+    const now = new Date("2026-04-27T12:00:00.000Z");
+
+    expect(
+      mod.getMeetingQuotaStatus(
+        {
+          plan: "pro",
+          meetings_used: 12,
+          current_period_end: "2026-04-27T11:59:59.000Z",
+          abacatepay_auto_renew_enabled: true,
+          abacatepay_renewal_status: "retrying",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      allowed: true,
+      code: null,
+      quotaLimit: 30,
+    });
+
+    expect(
+      mod.getMeetingQuotaStatus(
+        {
+          plan: "pro",
+          meetings_used: 12,
+          current_period_end: "2026-04-27T11:59:59.000Z",
+          abacatepay_auto_renew_enabled: true,
+          abacatepay_renewal_status: "suspended",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      allowed: false,
+      code: "subscription_expired",
     });
   });
 
@@ -219,9 +265,20 @@ describe("billing helpers", () => {
       current_period_start: "2026-04-27T12:00:00.000Z",
       current_period_end: "2026-05-27T12:00:00.000Z",
       abacatepay_customer_id: "customer-1",
+      abacatepay_auto_renew_enabled: true,
+      abacatepay_renewal_attempts: 0,
+      abacatepay_renewal_status: "active",
+      abacatepay_renewal_period_end: null,
+      abacatepay_next_renewal_attempt_at: null,
+      abacatepay_last_renewal_error: null,
       updated_at: "2026-04-27T12:00:00.000Z",
     });
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "billing/abacatepay.renew",
+      data: { userId: "user-1", attempt: 1 },
+      ts: new Date("2026-05-27T12:00:00.000Z").getTime(),
+    });
   });
 
   it("clamps subscription period end when renewal starts at the end of a month", async () => {
@@ -294,9 +351,45 @@ describe("billing helpers", () => {
       plan: "free",
       current_period_start: null,
       current_period_end: null,
+      abacatepay_pending_checkout_id: null,
+      abacatepay_pending_plan: null,
+      abacatepay_renewal_period_end: null,
       updated_at: "2026-04-27T12:00:00.000Z",
     });
     expect(updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+
+  it("toggles AbacatePay auto-renew without changing the active paid period", async () => {
+    const updateEq = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            abacatepay_auto_renew_enabled: false,
+            current_period_end: "2026-05-27T12:00:00.000Z",
+            abacatepay_renewal_status: "active",
+          },
+          error: null,
+        }),
+      }),
+    });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const from = vi.fn().mockReturnValue({ update });
+    createServiceRoleClient.mockReturnValue({ from });
+
+    const mod = await import("./billing");
+    const result = await mod.setAbacatePayAutoRenew("user-1", false);
+
+    expect(result).toEqual({
+      autoRenewEnabled: false,
+      currentPeriodEnd: "2026-05-27T12:00:00.000Z",
+      renewalStatus: "active",
+    });
+    expect(update).toHaveBeenCalledWith({
+      abacatepay_auto_renew_enabled: false,
+      abacatepay_auto_renew_updated_at: expect.any(String),
+      updated_at: expect.any(String),
+    });
+    expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("maps quota block errors from stable Postgres error codes", async () => {

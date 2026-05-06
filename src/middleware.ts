@@ -7,9 +7,10 @@ export async function middleware(request: NextRequest) {
   // Handle CORS for API routes
   if (request.nextUrl.pathname.startsWith("/api")) {
     const origin = request.headers.get("origin");
-    const allowedOrigins = ["http://localhost:21377"];
+    const allowedOrigins = ["http://localhost:11000", "http://localhost:21377"];
+    const isAllowedOrigin = origin && allowedOrigins.includes(origin);
 
-    if (origin && allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin) {
       response.headers.set("Access-Control-Allow-Origin", origin);
     }
 
@@ -19,16 +20,23 @@ export async function middleware(request: NextRequest) {
     );
     response.headers.set(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Client-Info, X-Supabase-Auth, Apollo-Require-Preflight"
+      request.headers.get("access-control-request-headers") ??
+        "Content-Type, Authorization, X-Client-Info, X-Supabase-Auth, Apollo-Require-Preflight"
     );
     response.headers.set("Access-Control-Allow-Credentials", "true");
 
     if (request.method === "OPTIONS") {
+      if (!isAllowedOrigin) {
+        return new NextResponse(null, { status: 403 });
+      }
+
       return new NextResponse(null, {
         status: 204,
         headers: response.headers,
       });
     }
+
+    return response;
   }
 
   const supabase = createServerClient(

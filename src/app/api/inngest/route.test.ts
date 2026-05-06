@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   dispatchMeetingChatOutbox: { id: "dispatch-meeting-chat-outbox" },
   handleProcessMeetingFailure: { id: "process-meeting-failure" },
   processMeeting: { id: "process-meeting" },
+  renewAbacatePaySubscription: { id: "renew-abacatepay-subscription" },
   serve: vi.fn(() => ({
     GET: vi.fn(),
     POST: vi.fn(),
@@ -33,6 +34,10 @@ vi.mock("@/inngest/meeting-chat-outbox", () => ({
   dispatchMeetingChatOutbox: mocks.dispatchMeetingChatOutbox,
 }));
 
+vi.mock("@/inngest/renew-abacatepay-subscription", () => ({
+  renewAbacatePaySubscription: mocks.renewAbacatePaySubscription,
+}));
+
 vi.mock("@/lib/observability", () => ({
   captureObservedError: vi.fn(),
   createRequestId: () => "request-id",
@@ -59,6 +64,7 @@ describe("/api/inngest route", () => {
           mocks.handleProcessMeetingFailure,
           mocks.answerMeetingChat,
           mocks.dispatchMeetingChatOutbox,
+          mocks.renewAbacatePaySubscription,
         ]),
       })
     );

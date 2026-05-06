@@ -6,14 +6,21 @@ export interface SettingsToggleProps {
   checked: boolean;
   onChange: (val: boolean) => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }
 
-export function SettingsToggle({ checked, onChange, disabled }: SettingsToggleProps) {
+export function SettingsToggle({
+  checked,
+  onChange,
+  disabled,
+  ariaLabel,
+}: SettingsToggleProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className="relative shrink-0 cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6851FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1C1C1C] disabled:cursor-not-allowed disabled:opacity-50"

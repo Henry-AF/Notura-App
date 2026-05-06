@@ -8,6 +8,7 @@ import { inngest } from "@/lib/inngest";
 import { processMeeting, handleProcessMeetingFailure } from "@/inngest/process-meeting";
 import { answerMeetingChat } from "@/inngest/answer-meeting-chat";
 import { dispatchMeetingChatOutbox } from "@/inngest/meeting-chat-outbox";
+import { renewAbacatePaySubscription } from "@/inngest/renew-abacatepay-subscription";
 import {
   captureObservedError,
   createRequestId,
@@ -87,6 +88,7 @@ const handler = serve({
     handleProcessMeetingFailure,
     answerMeetingChat,
     dispatchMeetingChatOutbox,
+    renewAbacatePaySubscription,
   ],
 });
 

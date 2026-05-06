@@ -19,6 +19,7 @@ import {
   fetchCurrentUser,
   prewarmAbacatePayCustomerInBackground,
   updateCurrentUser,
+  updateAbacatePayAutoRenew,
   verifySettingsPayment,
   type CurrentUser,
 } from "./settings-api";
@@ -66,6 +67,10 @@ function SettingsPageInner() {
   const [planName, setPlanName] = useState(getPlanTitle("free"));
   const [meetingsUsed, setMeetingsUsed] = useState(0);
   const [meetingsTotal, setMeetingsTotal] = useState<number | null>(3);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const [autoRenewEnabled, setAutoRenewEnabled] = useState(true);
+  const [renewalStatus, setRenewalStatus] = useState("idle");
+  const [autoRenewSaving, setAutoRenewSaving] = useState(false);
 
   // Modal
   const [showPlanModal, setShowPlanModal] = useState(false);
@@ -99,6 +104,9 @@ function SettingsPageInner() {
     setPlanName(getPlanName(user.plan));
     setMeetingsUsed(user.meetingsThisMonth);
     setMeetingsTotal(user.monthlyLimit);
+    setCurrentPeriodEnd(user.currentPeriodEnd ?? null);
+    setAutoRenewEnabled(user.abacatepayAutoRenewEnabled ?? true);
+    setRenewalStatus(user.abacatepayRenewalStatus ?? "idle");
     setIntegrations([
       {
         id: "whatsapp",
@@ -250,6 +258,31 @@ function SettingsPageInner() {
     [show, toggleTheme]
   );
 
+  const handleAutoRenewChange = useCallback(
+    async (enabled: boolean) => {
+      setAutoRenewSaving(true);
+
+      try {
+        const status = await updateAbacatePayAutoRenew(enabled);
+        setAutoRenewEnabled(status.autoRenewEnabled);
+        setCurrentPeriodEnd(status.currentPeriodEnd);
+        setRenewalStatus(status.renewalStatus);
+        notifyUserUpdated();
+        show(
+          status.autoRenewEnabled
+            ? "Renovação automática ativada."
+            : "Renovação automática desativada.",
+          "success"
+        );
+      } catch {
+        show("Erro ao atualizar renovação automática.", "error");
+      } finally {
+        setAutoRenewSaving(false);
+      }
+    },
+    [show]
+  );
+
   const handleDeleteAccount = useCallback(async () => {
     const res = await fetch("/api/user/account", { method: "DELETE" });
     if (!res.ok) {
@@ -294,10 +327,16 @@ function SettingsPageInner() {
             style={{ animation: "cardFadeIn 0.3s ease-out both", animationDelay: "60ms" }}
           >
             <SubscriptionCard
+              plan={rawPlan}
               planName={planName}
               meetingsUsed={meetingsUsed}
               meetingsTotal={meetingsTotal}
               renewsInDays={getDaysUntilEndOfMonth()}
+              currentPeriodEnd={currentPeriodEnd}
+              autoRenewEnabled={autoRenewEnabled}
+              renewalStatus={renewalStatus}
+              autoRenewSaving={autoRenewSaving}
+              onAutoRenewChange={handleAutoRenewChange}
               onChangePlan={() => setShowPlanModal(true)}
             />
           </div>

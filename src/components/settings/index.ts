@@ -1,5 +1,7 @@
 export { SettingsToggle } from "./SettingsToggle";
 export type { SettingsToggleProps } from "./SettingsToggle";
+export { AutoRenewControl } from "./AutoRenewControl";
+export type { AutoRenewControlProps } from "./AutoRenewControl";
 export { ProfileCard } from "./ProfileCard";
 export type { ProfileCardProps } from "./ProfileCard";
 export { SubscriptionCard } from "./SubscriptionCard";

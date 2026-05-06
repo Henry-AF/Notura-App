@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMonths } from "date-fns/addMonths";
+import { inngest } from "@/lib/inngest";
 import { getPlanMonthlyLimit } from "@/lib/plans";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
@@ -43,6 +44,7 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   plan?: Exclude<Plan, "free">;
   now?: Date;
   clearAbacatePayPending?: boolean;
+  abacatepaySubscriptionId?: string;
 };
 
 type DowngradeToFreeParams = BillingAccountLookup & {
@@ -54,6 +56,12 @@ interface ConsumedQuotaRow {
   plan: string;
   current_period_start: string | null;
   current_period_end: string | null;
+}
+
+export interface AbacatePayAutoRenewStatus {
+  autoRenewEnabled: boolean;
+  currentPeriodEnd: string | null;
+  renewalStatus: string;
 }
 
 export function getMonthlyMeetingLimit(plan: Plan): number | null {
@@ -126,6 +134,27 @@ async function getBillingAccountByLookup(
   return data;
 }
 
+function shouldResetAbacatePayRenewal(params: ResetSubscriptionPeriodParams): boolean {
+  return (
+    "abacatepayCustomerId" in params ||
+    Boolean(params.clearAbacatePayPending) ||
+    Boolean(params.abacatepaySubscriptionId)
+  );
+}
+
+async function scheduleAbacatePayRenewal(
+  userId: string | undefined,
+  currentPeriodEnd: Date
+): Promise<void> {
+  if (!userId) return;
+
+  await inngest.send({
+    name: "billing/abacatepay.renew",
+    data: { userId, attempt: 1 },
+    ts: currentPeriodEnd.getTime(),
+  });
+}
+
 export async function getOrCreateBillingAccount(
   userId: string,
   supabase: SupabaseClient<Database> = createServiceRoleClient()
@@ -179,15 +208,25 @@ export function getMeetingQuotaStatus(
   account: Pick<
     BillingAccount,
     "plan" | "meetings_used" | "meetings_this_month" | "current_period_end"
-  >,
+  > &
+    Partial<
+      Pick<
+        BillingAccount,
+        "abacatepay_auto_renew_enabled" | "abacatepay_renewal_status"
+      >
+    >,
   now: Date = new Date()
 ): MeetingQuotaStatus {
   const plan = account.plan as Plan;
   const meetingsUsed = getMeetingsUsed(account);
   const quotaLimit = getMeetingQuotaLimit(plan);
+  const hasAbacatePayRetryGrace =
+    account.abacatepay_auto_renew_enabled === true &&
+    account.abacatepay_renewal_status === "retrying";
 
   if (
     plan !== "free" &&
+    !hasAbacatePayRetryGrace &&
     (!account.current_period_end ||
       new Date(account.current_period_end).getTime() <= now.getTime())
   ) {
@@ -264,16 +303,18 @@ export async function resetSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<void> {
+  let account: BillingAccount | null = null;
   if (!params.plan) {
-    const account = await getBillingAccountByLookup(params, supabase);
+    account = await getBillingAccountByLookup(params, supabase);
     if (!account || account.plan === "free") return;
   }
 
   const now = params.now ?? new Date();
+  const currentPeriodEnd = addOneMonth(now);
   const updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"] = {
     meetings_used: 0,
     current_period_start: now.toISOString(),
-    current_period_end: addOneMonth(now).toISOString(),
+    current_period_end: currentPeriodEnd.toISOString(),
     updated_at: now.toISOString(),
   };
   if (params.plan) {
@@ -285,9 +326,21 @@ export async function resetSubscriptionPeriod(
   if ("abacatepayCustomerId" in params) {
     updatePayload.abacatepay_customer_id = params.abacatepayCustomerId;
   }
+  if (params.abacatepaySubscriptionId) {
+    updatePayload.abacatepay_subscription_id = params.abacatepaySubscriptionId;
+  }
   if (params.clearAbacatePayPending) {
     updatePayload.abacatepay_pending_checkout_id = null;
     updatePayload.abacatepay_pending_plan = null;
+    updatePayload.abacatepay_renewal_period_end = null;
+  }
+  if (shouldResetAbacatePayRenewal(params)) {
+    updatePayload.abacatepay_auto_renew_enabled = true;
+    updatePayload.abacatepay_renewal_attempts = 0;
+    updatePayload.abacatepay_renewal_status = "active";
+    updatePayload.abacatepay_renewal_period_end = null;
+    updatePayload.abacatepay_next_renewal_attempt_at = null;
+    updatePayload.abacatepay_last_renewal_error = null;
   }
 
   const query = supabase.from("billing_accounts").update(updatePayload);
@@ -295,6 +348,11 @@ export async function resetSubscriptionPeriod(
 
   if (error) {
     throw new Error(`Failed to reset subscription period: ${error.message}`);
+  }
+
+  if (shouldResetAbacatePayRenewal(params)) {
+    const userId = "userId" in params ? params.userId : account?.user_id;
+    await scheduleAbacatePayRenewal(userId, currentPeriodEnd);
   }
 }
 
@@ -308,6 +366,9 @@ export async function downgradeToFree(
     plan: "free",
     current_period_start: null,
     current_period_end: null,
+    abacatepay_pending_checkout_id: null,
+    abacatepay_pending_plan: null,
+    abacatepay_renewal_period_end: null,
     updated_at: now.toISOString(),
   });
   const { error } = await applyBillingAccountLookup(query, params);
@@ -315,6 +376,40 @@ export async function downgradeToFree(
   if (error) {
     throw new Error(`Failed to downgrade billing account: ${error.message}`);
   }
+}
+
+export async function setAbacatePayAutoRenew(
+  userId: string,
+  enabled: boolean,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
+): Promise<AbacatePayAutoRenewStatus> {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .update({
+      abacatepay_auto_renew_enabled: enabled,
+      abacatepay_auto_renew_updated_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq("user_id", userId)
+    .select(
+      "abacatepay_auto_renew_enabled, current_period_end, abacatepay_renewal_status"
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to update AbacatePay auto-renew: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Billing account not found.");
+  }
+
+  return {
+    autoRenewEnabled: data.abacatepay_auto_renew_enabled,
+    currentPeriodEnd: data.current_period_end,
+    renewalStatus: data.abacatepay_renewal_status,
+  };
 }
 
 export async function getBillingStatus(userId: string): Promise<{

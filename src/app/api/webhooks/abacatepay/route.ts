@@ -1,8 +1,8 @@
 // POST /api/webhooks/abacatepay
-// Register the webhook URL without query params and send the shared secret in
-// the x-abacatepay-secret header.
+// AbacatePay sends webhookSecret in the URL and signs the raw request body
+// with X-Webhook-Signature.
 
-import { timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
@@ -11,6 +11,7 @@ import { parseAbacatePayOnboardingExternalId } from "@/lib/abacatepay";
 import { downgradeToFree, resetSubscriptionPeriod } from "@/lib/billing";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
+const WEBHOOK_PUBLIC_KEY = process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY;
 
 interface AbacatePayWebhookEvent {
   event: string;
@@ -54,6 +55,21 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+function signWebhookBody(rawBody: string, publicKey: string): string {
+  return createHmac("sha256", publicKey)
+    .update(rawBody, "utf8")
+    .digest("base64");
+}
+
+function verifyWebhookSignature(
+  rawBody: string,
+  incomingSignature: string,
+  publicKey: string | undefined
+): boolean {
+  if (!publicKey || !incomingSignature) return false;
+  return safeEqual(incomingSignature, signWebhookBody(rawBody, publicKey));
+}
+
 function readEventExternalId(data: AbacatePayWebhookEvent["data"]): string | undefined {
   return (
     data.externalId ??
@@ -76,14 +92,21 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayWebhook,
   async (request: NextRequest): Promise<NextResponse> => {
-  const incomingSecret = request.headers.get("x-abacatepay-secret") ?? "";
+  const incomingSecret =
+    new URL(request.url).searchParams.get("webhookSecret") ?? "";
   if (!WEBHOOK_SECRET || !safeEqual(incomingSecret, WEBHOOK_SECRET)) {
+    return new NextResponse(null, { status: 401 });
+  }
+
+  const rawBody = await request.text();
+  const incomingSignature = request.headers.get("x-webhook-signature") ?? "";
+  if (!verifyWebhookSignature(rawBody, incomingSignature, WEBHOOK_PUBLIC_KEY)) {
     return new NextResponse(null, { status: 401 });
   }
 
   let event: AbacatePayWebhookEvent;
   try {
-    event = (await request.json()) as AbacatePayWebhookEvent;
+    event = JSON.parse(rawBody) as AbacatePayWebhookEvent;
   } catch {
     return new NextResponse(null, { status: 400 });
   }
@@ -94,7 +117,7 @@ export const POST = withPublicRateLimit<NextRequest>(
     return handleBillingPaid(data);
   }
 
-  if (eventType === "subscription.canceled") {
+  if (eventType === "subscription.canceled" || eventType === "subscription.cancelled") {
     return handleSubscriptionCanceled(data);
   }
 
@@ -116,10 +139,12 @@ async function handleBillingPaid(
   if (!parsed) return NextResponse.json({ received: true });
 
   const customerId = readEventCustomerId(data);
+  const subscriptionId = data.subscription?.id ?? data.id;
   const params = {
     userId: parsed.userId,
     plan: parsed.plan,
     clearAbacatePayPending: true,
+    ...(subscriptionId ? { abacatepaySubscriptionId: subscriptionId } : {}),
     ...(customerId ? { abacatepayCustomerId: customerId } : {}),
   };
 
@@ -189,6 +214,7 @@ async function handleSubscriptionRenewed(
         userId: parsed.userId,
         plan: parsed.plan,
         clearAbacatePayPending: true,
+        ...(data.subscription?.id ? { abacatepaySubscriptionId: data.subscription.id } : {}),
         ...(customerId ? { abacatepayCustomerId: customerId } : {}),
       }
     : { abacatepayCustomerId: customerId as string };

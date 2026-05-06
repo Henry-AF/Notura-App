@@ -9,6 +9,9 @@ export interface CurrentUser {
   plan: Plan;
   meetingsThisMonth: number;
   monthlyLimit: number | null;
+  currentPeriodEnd: string | null;
+  abacatepayAutoRenewEnabled: boolean;
+  abacatepayRenewalStatus: string;
 }
 
 export interface CurrentUserIdentity {

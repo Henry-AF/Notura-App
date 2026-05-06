@@ -1,17 +1,25 @@
+import { createHmac } from "crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
+const inngestSend = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
+}));
+
+vi.mock("@/lib/inngest", () => ({
+  inngest: {
+    send: inngestSend,
+  },
 }));
 
 function createAdminClient() {
   const updateEq = vi.fn().mockResolvedValue({ error: null });
   const update = vi.fn().mockReturnValue({ eq: updateEq });
   const maybeSingle = vi.fn().mockResolvedValue({
-    data: { plan: "team" },
+    data: { user_id: "user-from-customer", plan: "team" },
     error: null,
   });
   const selectEq = vi.fn().mockReturnValue({ maybeSingle });
@@ -29,37 +37,54 @@ function createAdminClient() {
 
 function createWebhookRequest(
   body: Record<string, unknown>,
-  options: { headerSecret?: string; querySecret?: string } = {}
+  options: {
+    headerSecret?: string;
+    querySecret?: string;
+    signatureKey?: string;
+    signatureBody?: string;
+  } = {}
 ) {
   const url = new URL("http://localhost/api/webhooks/abacatepay");
   if (options.querySecret) {
     url.searchParams.set("webhookSecret", options.querySecret);
   }
+  const rawBody = JSON.stringify(body);
+  const signaturePayload = options.signatureBody ?? rawBody;
+  const signature = options.signatureKey
+    ? createHmac("sha256", options.signatureKey)
+        .update(signaturePayload, "utf8")
+        .digest("base64")
+    : undefined;
 
   return new NextRequest(url.toString(), {
     method: "POST",
-    headers: options.headerSecret
-      ? { "x-abacatepay-secret": options.headerSecret }
-      : undefined,
-    body: JSON.stringify(body),
+    headers: {
+      ...(options.headerSecret ? { "x-abacatepay-secret": options.headerSecret } : {}),
+      ...(signature ? { "x-webhook-signature": signature } : {}),
+    },
+    body: rawBody,
   });
 }
 
 describe("POST /api/webhooks/abacatepay", () => {
   const originalSecret = process.env.ABACATEPAY_WEBHOOK_SECRET;
+  const originalPublicKey = process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY;
 
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     process.env.ABACATEPAY_WEBHOOK_SECRET = "webhook-secret";
+    process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY = "abacatepay-public-key";
     createServiceRoleClient.mockReturnValue(createAdminClient());
+    inngestSend.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     process.env.ABACATEPAY_WEBHOOK_SECRET = originalSecret;
+    process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY = originalPublicKey;
   });
 
-  it("authenticates requests with the x-abacatepay-secret header", async () => {
+  it("authenticates requests with webhookSecret query param and HMAC signature", async () => {
     const mod = await import("./route");
 
     const response = await mod.POST(
@@ -68,7 +93,10 @@ describe("POST /api/webhooks/abacatepay", () => {
           event: "ignored.event",
           data: {},
         },
-        { headerSecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+        }
       )
     );
 
@@ -76,7 +104,7 @@ describe("POST /api/webhooks/abacatepay", () => {
     expect(await response.json()).toEqual({ received: true });
   });
 
-  it("rejects webhook secrets sent through query string", async () => {
+  it("rejects webhook requests with an invalid HMAC signature", async () => {
     const mod = await import("./route");
 
     const response = await mod.POST(
@@ -85,7 +113,11 @@ describe("POST /api/webhooks/abacatepay", () => {
           event: "ignored.event",
           data: {},
         },
-        { querySecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+          signatureBody: JSON.stringify({ event: "ignored.event", data: { tampered: true } }),
+        }
       )
     );
 
@@ -119,7 +151,10 @@ describe("POST /api/webhooks/abacatepay", () => {
             },
           },
         },
-        { headerSecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+        }
       )
     );
 
@@ -139,6 +174,13 @@ describe("POST /api/webhooks/abacatepay", () => {
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "billing/abacatepay.renew",
+        data: { userId: "user-1", attempt: 1 },
+        ts: expect.any(Number),
+      })
+    );
   });
 
   it("resets quota period from subscription.renewed payloads", async () => {
@@ -154,7 +196,10 @@ describe("POST /api/webhooks/abacatepay", () => {
             },
           },
         },
-        { headerSecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+        }
       )
     );
 
@@ -170,6 +215,13 @@ describe("POST /api/webhooks/abacatepay", () => {
     expect(adminClient.updateEq).toHaveBeenCalledWith(
       "abacatepay_customer_id",
       "customer-1"
+    );
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "billing/abacatepay.renew",
+        data: { userId: "user-from-customer", attempt: 1 },
+        ts: expect.any(Number),
+      })
     );
   });
 
@@ -187,7 +239,10 @@ describe("POST /api/webhooks/abacatepay", () => {
             },
           },
         },
-        { headerSecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+        }
       )
     );
 
@@ -213,14 +268,17 @@ describe("POST /api/webhooks/abacatepay", () => {
     const response = await mod.POST(
       createWebhookRequest(
         {
-          event: "subscription.canceled",
+          event: "subscription.cancelled",
           data: {
             customer: {
               id: "customer-1",
             },
           },
         },
-        { headerSecret: "webhook-secret" }
+        {
+          querySecret: "webhook-secret",
+          signatureKey: "abacatepay-public-key",
+        }
       )
     );
 

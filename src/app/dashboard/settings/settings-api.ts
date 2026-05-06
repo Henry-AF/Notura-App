@@ -3,6 +3,12 @@ import {
   prewarmAbacatePayCustomer as prewarmAbacatePayCustomerRequest,
   prewarmAbacatePayCustomerInBackground as prewarmAbacatePayCustomerRequestInBackground,
 } from "@/lib/abacatepay-customer-client";
+export {
+  updateAbacatePayAutoRenew,
+} from "@/lib/abacatepay-auto-renew-client";
+export type {
+  AbacatePayAutoRenewStatus,
+} from "@/lib/abacatepay-auto-renew-client";
 
 export {
   fetchCurrentUser,

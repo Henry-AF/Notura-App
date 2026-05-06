@@ -97,7 +97,7 @@ function useDismissibleLayer(
   }, [open, onClose, ref]);
 }
 
-function CreateDropdown({ onNavigate }: { onNavigate?: () => void }) {
+function CreateDropdown({ onNavigate, collapsible }: { onNavigate?: () => void; collapsible?: boolean }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -112,10 +112,22 @@ function CreateDropdown({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div ref={ref} className="relative mb-2 px-3">
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex w-full items-center justify-center rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 p-2.5 text-white transition-all active:scale-[0.98] group-hover:hidden"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center justify-between gap-2 rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]"
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]",
+          collapsible && "hidden group-hover:flex"
+        )}
       >
         <span className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
@@ -249,7 +261,7 @@ function UserDropdown({
   );
 }
 
-function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarNavigation({ onNavigate, collapsible }: { onNavigate?: () => void; collapsible?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -266,10 +278,20 @@ function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
             href={item.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
-              active
-                ? "border-l-2 border-notura-primary bg-notura-surface text-notura-ink"
-                : "text-notura-ink-secondary hover:bg-notura-surface/50 hover:text-notura-ink"
+              "flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-150",
+              collapsible
+                ? cn(
+                    "justify-center group-hover:justify-start group-hover:gap-3 group-hover:px-3",
+                    active
+                      ? "bg-notura-surface text-notura-ink group-hover:border-l-2 group-hover:border-notura-primary"
+                      : "text-notura-ink-secondary hover:bg-notura-surface/50 hover:text-notura-ink"
+                  )
+                : cn(
+                    "gap-3 px-3",
+                    active
+                      ? "border-l-2 border-notura-primary bg-notura-surface text-notura-ink"
+                      : "text-notura-ink-secondary hover:bg-notura-surface/50 hover:text-notura-ink"
+                  )
             )}
           >
             <Icon
@@ -278,7 +300,13 @@ function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
                 active && "text-notura-primary"
               )}
             />
-            {item.label}
+            {collapsible ? (
+              <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                {item.label}
+              </span>
+            ) : (
+              item.label
+            )}
           </Link>
         );
       })}
@@ -290,21 +318,34 @@ function SidebarFooter({
   user,
   onUpgradeClick,
   onSettingsClick,
+  collapsible = false,
 }: {
   user: CurrentUser;
   onUpgradeClick: () => void;
   onSettingsClick: () => void;
+  collapsible?: boolean;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
     <div className="space-y-3 px-4 pb-4 pt-3">
-      <SidebarPlanWidget
-        planName={getPlanLabel(user.plan)}
-        used={user.meetingsThisMonth}
-        total={user.monthlyLimit}
-        onUpgradeClick={onUpgradeClick}
-      />
+      {collapsible ? (
+        <div className="hidden group-hover:block">
+          <SidebarPlanWidget
+            planName={getPlanLabel(user.plan)}
+            used={user.meetingsThisMonth}
+            total={user.monthlyLimit}
+            onUpgradeClick={onUpgradeClick}
+          />
+        </div>
+      ) : (
+        <SidebarPlanWidget
+          planName={getPlanLabel(user.plan)}
+          used={user.meetingsThisMonth}
+          total={user.monthlyLimit}
+          onUpgradeClick={onUpgradeClick}
+        />
+      )}
 
       <div className="relative">
         <button
@@ -312,7 +353,10 @@ function SidebarFooter({
           aria-haspopup="menu"
           aria-expanded={showDropdown}
           onClick={() => setShowDropdown((value) => !value)}
-          className="flex w-full items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-notura-surface/50"
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-notura-surface/50",
+            collapsible && "justify-center group-hover:justify-start"
+          )}
         >
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback
@@ -322,14 +366,25 @@ function SidebarFooter({
               {getUserInitials(user.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1 text-left">
-            <p className="truncate text-sm font-medium text-notura-ink">
-              {user.name}
-            </p>
-            <p className="text-[11px] text-notura-ink-secondary capitalize">
-              {getPlanLabel(user.plan)}
-            </p>
-          </div>
+          {collapsible ? (
+            <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <p className="truncate text-sm font-medium text-notura-ink">
+                {user.name}
+              </p>
+              <p className="text-[11px] text-notura-ink-secondary capitalize">
+                {getPlanLabel(user.plan)}
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-sm font-medium text-notura-ink">
+                {user.name}
+              </p>
+              <p className="text-[11px] text-notura-ink-secondary capitalize">
+                {getPlanLabel(user.plan)}
+              </p>
+            </div>
+          )}
         </button>
 
         {showDropdown && (
@@ -349,26 +404,47 @@ function SidebarContent({
   onNavigate,
   onUpgradeClick,
   onSettingsClick,
+  collapsible = false,
 }: {
   user: CurrentUser;
   onNavigate?: () => void;
   onUpgradeClick: () => void;
   onSettingsClick: () => void;
+  collapsible?: boolean;
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="px-5 py-6">
+      <div
+        className={cn(
+          "py-6",
+          collapsible
+            ? "flex items-center justify-center group-hover:justify-start group-hover:px-5"
+            : "px-5"
+        )}
+      >
         <Link href="/dashboard" onClick={onNavigate}>
-          <LogoFull iconSize={28} />
+          {collapsible ? (
+            <>
+              <span className="block group-hover:hidden">
+                <Logo size={28} />
+              </span>
+              <span className="hidden group-hover:block">
+                <LogoFull iconSize={28} />
+              </span>
+            </>
+          ) : (
+            <LogoFull iconSize={28} />
+          )}
         </Link>
       </div>
 
-      <CreateDropdown onNavigate={onNavigate} />
-      <SidebarNavigation onNavigate={onNavigate} />
+      <CreateDropdown onNavigate={onNavigate} collapsible={collapsible} />
+      <SidebarNavigation onNavigate={onNavigate} collapsible={collapsible} />
       <SidebarFooter
         user={user}
         onUpgradeClick={onUpgradeClick}
         onSettingsClick={onSettingsClick}
+        collapsible={collapsible}
       />
     </div>
   );
@@ -458,9 +534,10 @@ export function DashboardLayoutClient({
 
   return (
     <div className="flex h-screen overflow-hidden bg-notura-bg">
-      <aside className="hidden w-60 shrink-0 border-r border-notura-border/50 bg-notura-bg-secondary lg:block">
+      <aside className="group hidden w-16 shrink-0 overflow-hidden border-r border-notura-border/50 bg-notura-bg-secondary transition-[width] duration-[250ms] ease-in-out hover:w-60 lg:block">
         <SidebarContent
           user={user}
+          collapsible
           onUpgradeClick={() => setShowPlanModal(true)}
           onSettingsClick={() => setShowSettingsModal(true)}
         />

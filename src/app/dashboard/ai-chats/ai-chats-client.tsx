@@ -9,6 +9,8 @@ import {
   Lock,
   MessageSquareText,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   X,
 } from "lucide-react";
@@ -283,7 +285,8 @@ function SourceAccordion({ chat }: { chat: AiChatItem }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:text-primary/80"
+        className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wider transition-colors hover:opacity-80"
+        style={{ color: "#6C63FF" }}
       >
         <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
         Fontes ({chat.sources.length})
@@ -353,6 +356,12 @@ function ChatSheetHeader({
 }
 
 function ChatSheetBody({ chat }: { chat: AiChatItem }) {
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  function handleFeedback(value: "up" | "down") {
+    setFeedback((prev) => (prev === value ? null : value));
+  }
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-5">
       <div className="mb-5 flex items-center gap-2 text-xs text-muted-foreground">
@@ -363,11 +372,68 @@ function ChatSheetBody({ chat }: { chat: AiChatItem }) {
         <div className="self-end max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground">
           {chat.question}
         </div>
-        <div className="self-start max-w-[88%] rounded-2xl rounded-bl-sm bg-muted px-4 py-3">
+        <div
+          className="self-start max-w-[88%] rounded-2xl rounded-bl-sm px-4 py-3"
+          style={{
+            background: "#F0EFFF",
+            color: "#1F1F2E",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+          }}
+        >
           <p className={cn("text-sm leading-relaxed", chat.status === "failed" && "text-destructive")}>
             {getChatAnswer(chat)}
           </p>
           <SourceAccordion chat={chat} />
+          <div className="flex items-center justify-end gap-2" style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              aria-label="Resposta útil"
+              onClick={() => handleFeedback("up")}
+              style={{
+                background: feedback === "up" ? "rgba(16,185,129,0.12)" : "transparent",
+                border: "none",
+                borderRadius: 6,
+                padding: "4px 6px",
+                cursor: "pointer",
+                color: feedback === "up" ? "#10B981" : "#9CA3AF",
+                transition: "color 0.15s, background 0.15s",
+                display: "flex",
+                alignItems: "center",
+              }}
+              onMouseEnter={(e) => {
+                if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
+              }}
+              onMouseLeave={(e) => {
+                if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = feedback === "up" ? "#10B981" : "#9CA3AF";
+              }}
+            >
+              <ThumbsUp style={{ width: 16, height: 16 }} />
+            </button>
+            <button
+              type="button"
+              aria-label="Resposta não útil"
+              onClick={() => handleFeedback("down")}
+              style={{
+                background: feedback === "down" ? "rgba(239,68,68,0.12)" : "transparent",
+                border: "none",
+                borderRadius: 6,
+                padding: "4px 6px",
+                cursor: "pointer",
+                color: feedback === "down" ? "#EF4444" : "#9CA3AF",
+                transition: "color 0.15s, background 0.15s",
+                display: "flex",
+                alignItems: "center",
+              }}
+              onMouseEnter={(e) => {
+                if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
+              }}
+              onMouseLeave={(e) => {
+                if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";
+              }}
+            >
+              <ThumbsDown style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

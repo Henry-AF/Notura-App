@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Send, Sparkles, X } from "lucide-react";
+import { ChevronRight, Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { AppSideSheet } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import {
@@ -64,7 +64,8 @@ function SourceAccordion({ sources }: { sources: MeetingChatSource[] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-primary/70 transition-colors hover:text-primary"
+        className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide transition-colors hover:opacity-80"
+        style={{ color: "#6C63FF" }}
       >
         <ChevronRight
           className="h-3 w-3 transition-transform duration-150"
@@ -105,6 +106,11 @@ function SourceAccordion({ sources }: { sources: MeetingChatSource[] }) {
 function ChatEntryItem({ entry }: { entry: ChatEntry }) {
   const { question, response, error } = entry;
   const isProcessing = response === null && error === null;
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  function handleFeedback(value: "up" | "down") {
+    setFeedback((prev) => (prev === value ? null : value));
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -143,18 +149,76 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
         )}
 
         {response?.status === "completed" && (
-          <div className="rounded-2xl rounded-bl-sm bg-muted px-4 py-3">
-            <p className="m-0 text-sm leading-relaxed text-foreground">
+          <div
+            className="rounded-2xl rounded-bl-sm px-4 py-3"
+            style={{
+              background: "#F0EFFF",
+              color: "#1F1F2E",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            }}
+          >
+            <p className="m-0 text-sm leading-relaxed">
               {response.modelConfirmed
                 ? response.answer
                 : formatMeetingChatFallback(response.fallbackReason)}
             </p>
 
             {response.modelConfirmed && response.sources.length > 0 && (
-              <div className="mt-3 border-t border-border/40 pt-3">
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(108,99,255,0.15)" }}>
                 <SourceAccordion sources={response.sources} />
               </div>
             )}
+
+            <div className="flex items-center justify-end gap-2" style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                aria-label="Resposta útil"
+                onClick={() => handleFeedback("up")}
+                style={{
+                  background: feedback === "up" ? "rgba(16,185,129,0.12)" : "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "4px 6px",
+                  cursor: "pointer",
+                  color: feedback === "up" ? "#10B981" : "#9CA3AF",
+                  transition: "color 0.15s, background 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onMouseEnter={(e) => {
+                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
+                }}
+                onMouseLeave={(e) => {
+                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = feedback === "up" ? "#10B981" : "#9CA3AF";
+                }}
+              >
+                <ThumbsUp style={{ width: 16, height: 16 }} />
+              </button>
+              <button
+                type="button"
+                aria-label="Resposta não útil"
+                onClick={() => handleFeedback("down")}
+                style={{
+                  background: feedback === "down" ? "rgba(239,68,68,0.12)" : "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "4px 6px",
+                  cursor: "pointer",
+                  color: feedback === "down" ? "#EF4444" : "#9CA3AF",
+                  transition: "color 0.15s, background 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onMouseEnter={(e) => {
+                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
+                }}
+                onMouseLeave={(e) => {
+                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";
+                }}
+              >
+                <ThumbsDown style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
           </div>
         )}
       </div>

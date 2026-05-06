@@ -67,8 +67,6 @@ export function MeetingTabs({ activeTab, onChange }: MeetingTabsProps) {
         })}
       </div>
 
-      {/* Subtle divider */}
-      <div className="mt-1 h-px bg-border/50" />
     </div>
   );
 }

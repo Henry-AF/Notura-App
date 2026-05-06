@@ -141,17 +141,16 @@ export function TaskCard({ task, index, onEdit }: TaskCardProps) {
               transform: composedTransform || undefined,
               transition: snapshot.isDragging
                 ? libStyle?.transition
-                : "box-shadow 180ms ease, border-color 180ms ease, transform 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                : "box-shadow 180ms ease, transform 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
               willChange: snapshot.isDragging ? "transform" : undefined,
               background: snapshot.isDragging ? "rgb(var(--cn-card2))" : "rgb(var(--cn-card))",
-              border: `1px solid ${snapshot.isDragging ? p.border : "rgb(var(--cn-border))"}`,
               borderRadius: 10,
               padding: "12px 14px",
               cursor: "pointer",
               userSelect: "none",
               boxShadow: snapshot.isDragging
-                ? `0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px ${p.border}`
-                : "0 1px 3px rgba(0,0,0,0.25)",
+                ? `0 8px 32px rgba(0,0,0,0.45), 0 0 0 2px ${p.border}`
+                : "0 2px 8px rgba(0,0,0,0.06)",
               opacity: isDone ? 0.6 : 1,
             }}
           >

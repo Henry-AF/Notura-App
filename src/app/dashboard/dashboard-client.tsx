@@ -53,6 +53,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
       router.prefetch(href);
     };
 
+    prefetchSafely("/dashboard/recording");
     prefetchSafely("/dashboard/new");
     prefetchSafely("/dashboard/meetings");
   }, [router]);
@@ -63,7 +64,8 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <DashboardHeader
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
-          onNewMeeting={() => router.push("/dashboard/new")}
+          onNewMeeting={() => router.push("/dashboard/recording")}
+          onUpload={() => router.push("/dashboard/new")}
         />
       </div>
 

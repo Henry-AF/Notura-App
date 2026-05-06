@@ -45,6 +45,7 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   now?: Date;
   clearAbacatePayPending?: boolean;
   abacatepaySubscriptionId?: string;
+  previousPeriodEnd?: Date | string | null;
 };
 
 type DowngradeToFreeParams = BillingAccountLookup & {
@@ -74,6 +75,12 @@ function getMeetingQuotaLimit(plan: Plan): number {
 
 function addOneMonth(date: Date): Date {
   return addMonths(date, 1);
+}
+
+function parseBillingDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getMeetingsUsed(account: Partial<BillingAccount>): number {
@@ -142,13 +149,71 @@ function shouldResetAbacatePayRenewal(params: ResetSubscriptionPeriodParams): bo
   );
 }
 
+function resolveSubscriptionPeriod(
+  params: ResetSubscriptionPeriodParams,
+  account: BillingAccount | null,
+  now: Date
+): { start: Date; end: Date } | null {
+  const explicitPreviousPeriodEnd = parseBillingDate(params.previousPeriodEnd);
+  if (explicitPreviousPeriodEnd) {
+    return {
+      start: explicitPreviousPeriodEnd,
+      end: addOneMonth(explicitPreviousPeriodEnd),
+    };
+  }
+
+  const currentPeriodEnd = parseBillingDate(account?.current_period_end);
+  if (currentPeriodEnd && currentPeriodEnd.getTime() <= now.getTime()) {
+    return { start: currentPeriodEnd, end: addOneMonth(currentPeriodEnd) };
+  }
+
+  if (
+    account &&
+    account.plan !== "free" &&
+    currentPeriodEnd &&
+    (!params.plan || params.plan === account.plan)
+  ) {
+    return null;
+  }
+
+  return { start: now, end: addOneMonth(now) };
+}
+
+function buildSubscriptionResetPayload(
+  params: ResetSubscriptionPeriodParams,
+  period: { start: Date; end: Date },
+  now: Date
+): Database["public"]["Tables"]["billing_accounts"]["Update"] {
+  const updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"] = {
+    meetings_used: 0,
+    current_period_start: period.start.toISOString(),
+    current_period_end: period.end.toISOString(),
+    updated_at: now.toISOString(),
+  };
+  if (params.plan) {
+    updatePayload.plan = params.plan;
+  }
+  if ("stripeCustomerId" in params) {
+    updatePayload.stripe_customer_id = params.stripeCustomerId;
+  }
+  if ("abacatepayCustomerId" in params) {
+    updatePayload.abacatepay_customer_id = params.abacatepayCustomerId;
+  }
+  if (params.abacatepaySubscriptionId) {
+    updatePayload.abacatepay_subscription_id = params.abacatepaySubscriptionId;
+  }
+  return updatePayload;
+}
+
 async function scheduleAbacatePayRenewal(
   userId: string | undefined,
   currentPeriodEnd: Date
 ): Promise<void> {
   if (!userId) return;
 
+  const currentPeriodEndIso = currentPeriodEnd.toISOString();
   await inngest.send({
+    id: `renew:${userId}:${currentPeriodEndIso}`,
     name: "billing/abacatepay.renew",
     data: { userId, attempt: 1 },
     ts: currentPeriodEnd.getTime(),
@@ -303,32 +368,16 @@ export async function resetSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<void> {
-  let account: BillingAccount | null = null;
+  const account = await getBillingAccountByLookup(params, supabase);
   if (!params.plan) {
-    account = await getBillingAccountByLookup(params, supabase);
     if (!account || account.plan === "free") return;
   }
 
   const now = params.now ?? new Date();
-  const currentPeriodEnd = addOneMonth(now);
-  const updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"] = {
-    meetings_used: 0,
-    current_period_start: now.toISOString(),
-    current_period_end: currentPeriodEnd.toISOString(),
-    updated_at: now.toISOString(),
-  };
-  if (params.plan) {
-    updatePayload.plan = params.plan;
-  }
-  if ("stripeCustomerId" in params) {
-    updatePayload.stripe_customer_id = params.stripeCustomerId;
-  }
-  if ("abacatepayCustomerId" in params) {
-    updatePayload.abacatepay_customer_id = params.abacatepayCustomerId;
-  }
-  if (params.abacatepaySubscriptionId) {
-    updatePayload.abacatepay_subscription_id = params.abacatepaySubscriptionId;
-  }
+  const period = resolveSubscriptionPeriod(params, account, now);
+  if (!period) return;
+
+  const updatePayload = buildSubscriptionResetPayload(params, period, now);
   if (params.clearAbacatePayPending) {
     updatePayload.abacatepay_pending_checkout_id = null;
     updatePayload.abacatepay_pending_plan = null;
@@ -352,7 +401,7 @@ export async function resetSubscriptionPeriod(
 
   if (shouldResetAbacatePayRenewal(params)) {
     const userId = "userId" in params ? params.userId : account?.user_id;
-    await scheduleAbacatePayRenewal(userId, currentPeriodEnd);
+    await scheduleAbacatePayRenewal(userId, period.end);
   }
 }
 

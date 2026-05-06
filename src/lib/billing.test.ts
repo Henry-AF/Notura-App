@@ -23,8 +23,8 @@ function createBillingClient(options?: {
     data: options?.existingAccount ?? null,
     error: null,
   });
-  const eq = vi.fn().mockReturnValue({ maybeSingle });
-  const select = vi.fn().mockReturnValue({ eq });
+  const selectEq = vi.fn().mockReturnValue({ maybeSingle });
+  const select = vi.fn().mockReturnValue({ eq: selectEq });
 
   const single = vi.fn().mockResolvedValue({
     data: options?.createdAccount ?? null,
@@ -33,12 +33,13 @@ function createBillingClient(options?: {
   const insertSelect = vi.fn().mockReturnValue({ single });
   const insert = vi.fn().mockReturnValue({ select: insertSelect });
 
+  const updateEq = vi.fn().mockResolvedValue({ error: null });
+  const update = vi.fn().mockReturnValue({ eq: updateEq });
+
   const from = vi.fn().mockReturnValue({
     select,
     insert,
-    update: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    }),
+    update,
   });
 
   const rpc = vi.fn().mockResolvedValue({
@@ -49,7 +50,11 @@ function createBillingClient(options?: {
   return {
     client: { from, rpc },
     from,
+    maybeSingle,
     rpc,
+    selectEq,
+    update,
+    updateEq,
   };
 }
 
@@ -246,10 +251,14 @@ describe("billing helpers", () => {
   });
 
   it("resets subscription period for paid plans", async () => {
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    const update = vi.fn().mockReturnValue({ eq: updateEq });
-    const from = vi.fn().mockReturnValue({ update });
-    createServiceRoleClient.mockReturnValue({ from });
+    const { client, update, updateEq } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
 
     const mod = await import("./billing");
     await mod.resetSubscriptionPeriod({
@@ -275,6 +284,7 @@ describe("billing helpers", () => {
     });
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
     expect(inngestSend).toHaveBeenCalledWith({
+      id: "renew:user-1:2026-05-27T12:00:00.000Z",
       name: "billing/abacatepay.renew",
       data: { userId: "user-1", attempt: 1 },
       ts: new Date("2026-05-27T12:00:00.000Z").getTime(),
@@ -282,10 +292,14 @@ describe("billing helpers", () => {
   });
 
   it("clamps subscription period end when renewal starts at the end of a month", async () => {
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    const update = vi.fn().mockReturnValue({ eq: updateEq });
-    const from = vi.fn().mockReturnValue({ update });
-    createServiceRoleClient.mockReturnValue({ from });
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
 
     const mod = await import("./billing");
     await mod.resetSubscriptionPeriod({
@@ -311,6 +325,58 @@ describe("billing helpers", () => {
         current_period_end: "2026-09-30T12:00:00.000Z",
       })
     );
+  });
+
+  it("extends paid renewals from the previous period end when webhook is delayed", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        current_period_end: "2026-05-27T12:00:00.000Z",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      abacatepayCustomerId: "customer-1",
+      now: new Date("2026-05-30T12:00:00.000Z"),
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        current_period_start: "2026-05-27T12:00:00.000Z",
+        current_period_end: "2026-06-27T12:00:00.000Z",
+      })
+    );
+    expect(inngestSend).toHaveBeenCalledWith({
+      id: "renew:user-1:2026-06-27T12:00:00.000Z",
+      name: "billing/abacatepay.renew",
+      data: { userId: "user-1", attempt: 1 },
+      ts: new Date("2026-06-27T12:00:00.000Z").getTime(),
+    });
+  });
+
+  it("does not schedule another renewal when a same-plan webhook is replayed", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        current_period_end: "2026-06-27T12:00:00.000Z",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "pro",
+      abacatepayCustomerId: "customer-1",
+      now: new Date("2026-05-30T12:00:00.000Z"),
+    });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
   });
 
   it("does not reset customer renewals for accounts already downgraded to free", async () => {

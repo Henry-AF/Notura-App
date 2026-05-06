@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Logo, LogoFull } from "@/components/logo";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
+import { WhatsAppSupportButton } from "@/components/dashboard/WhatsAppSupportButton";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -301,7 +302,7 @@ function SidebarNavigation({ onNavigate, collapsible }: { onNavigate?: () => voi
               )}
             />
             {collapsible ? (
-              <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <span className="hidden whitespace-nowrap group-hover:block">
                 {item.label}
               </span>
             ) : (
@@ -367,7 +368,7 @@ function SidebarFooter({
             </AvatarFallback>
           </Avatar>
           {collapsible ? (
-            <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <div className="hidden min-w-0 flex-1 text-left group-hover:block">
               <p className="truncate text-sm font-medium text-notura-ink">
                 {user.name}
               </p>
@@ -597,6 +598,8 @@ export function DashboardLayoutClient({
           onUserChange={setUser}
         />
       )}
+
+      <WhatsAppSupportButton />
     </div>
   );
 }

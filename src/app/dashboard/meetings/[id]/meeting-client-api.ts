@@ -69,14 +69,18 @@ export async function waitForMeetingChat(
   chatId: string,
   options: { intervalMs?: number; maxAttempts?: number } = {}
 ): Promise<MeetingChatResponse> {
-  const intervalMs = options.intervalMs ?? 1500;
-  const maxAttempts = options.maxAttempts ?? 40;
+  const intervalMs = options.intervalMs ?? 2000;
+  const maxAttempts = options.maxAttempts ?? 120;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const chat = await fetchMeetingChat(meetingId, chatId);
     if (chat.status !== "processing") return chat;
     await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
   }
+
+  // Last read before timing out, to catch late provider failures/completions.
+  const lastChat = await fetchMeetingChat(meetingId, chatId);
+  if (lastChat.status !== "processing") return lastChat;
 
   throw new Error("Tempo limite ao aguardar resposta do chat.");
 }

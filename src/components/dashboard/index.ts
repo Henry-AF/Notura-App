@@ -1,6 +1,7 @@
 export { BannerCarousel } from "./BannerCarousel";
 export { DashboardHeader } from "./DashboardHeader";
 export type { DashboardHeaderProps } from "./DashboardHeader";
+export { NewMeetingDropdown } from "./DashboardHeader";
 export { MetricCard } from "./MetricCard";
 export type { MetricCardProps } from "./MetricCard";
 export { MetricsRow } from "./MetricsRow";

@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { NewMeetingDropdown } from "@/components/dashboard";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,6 +173,12 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         ]}
         title="Reuniões"
         description={`${meetings.length} ${meetings.length !== 1 ? "reuniões" : "reunião"} no total`}
+        actions={
+          <NewMeetingDropdown
+            onNewMeeting={() => router.push("/dashboard/recording")}
+            onUpload={() => router.push("/dashboard/new")}
+          />
+        }
       />
 
       <FilterBar

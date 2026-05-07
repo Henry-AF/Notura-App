@@ -20,7 +20,7 @@ function getGreeting(): { text: string; emoji: string } {
   return { text: "Boa noite", emoji: "🌙" };
 }
 
-function NewMeetingDropdown({
+export function NewMeetingDropdown({
   onNewMeeting,
   onUpload,
 }: {

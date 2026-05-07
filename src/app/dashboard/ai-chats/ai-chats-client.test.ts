@@ -24,4 +24,15 @@ describe("ai chats client presentation", () => {
     expect(source).toContain('title="Todas as reuniões"');
     expect(source).toContain("title={option.label}");
   });
+
+  it("avoids impossible feedback comparisons in hover handlers", () => {
+    const source = readClientSource();
+
+    expect(source).not.toContain(
+      'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";'
+    );
+    expect(source).toContain(
+      'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";'
+    );
+  });
 });

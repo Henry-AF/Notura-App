@@ -428,7 +428,7 @@ function ChatSheetBody({ chat }: { chat: AiChatItem }) {
                 if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
               }}
               onMouseLeave={(e) => {
-                if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";
+                if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
               }}
             >
               <ThumbsDown style={{ width: 16, height: 16 }} />

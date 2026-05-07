@@ -189,7 +189,7 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
                   if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
                 }}
                 onMouseLeave={(e) => {
-                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = feedback === "up" ? "#10B981" : "#9CA3AF";
+                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
                 }}
               >
                 <ThumbsUp style={{ width: 16, height: 16 }} />
@@ -213,7 +213,7 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
                   if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
                 }}
                 onMouseLeave={(e) => {
-                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";
+                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
                 }}
               >
                 <ThumbsDown style={{ width: 16, height: 16 }} />

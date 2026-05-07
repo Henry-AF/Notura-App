@@ -22,5 +22,11 @@ describe("meeting detail actions", () => {
     expect(meetingChatSheet).not.toContain('aria-label="Abrir análise com IA"');
     expect(meetingChatSheet).not.toContain("position: fixed");
     expect(meetingDetailIndex).not.toContain("AIInsightToast");
+    expect(meetingChatSheet).not.toContain(
+      'if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = feedback === "up" ? "#10B981" : "#9CA3AF";'
+    );
+    expect(meetingChatSheet).not.toContain(
+      'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";'
+    );
   });
 });

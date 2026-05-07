@@ -187,6 +187,37 @@
   .label-pill {
     @apply inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-3 py-1 text-xs font-medium uppercase tracking-wider text-notura-primary;
   }
+
+  /* BannerCarousel — responsive border-radius and proportional scaling */
+  .banner-carousel-root {
+    border-radius: 14px; /* mobile: less aggressive curvature */
+  }
+  @media (min-width: 640px) {
+    .banner-carousel-root {
+      border-radius: 18px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+  @media (min-width: 768px) {
+    .banner-carousel-root {
+      border-radius: 20px;
+      max-width: 700px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .banner-carousel-root {
+      border-radius: 22px;
+      max-width: 800px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .banner-carousel-root {
+      border-radius: 24px;
+      max-width: 920px;
+    }
+  }
 }
 
 @layer utilities {

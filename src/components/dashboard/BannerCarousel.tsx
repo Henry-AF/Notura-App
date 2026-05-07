@@ -129,7 +129,6 @@ export function BannerCarousel() {
         onTouchEnd={handleTouchEnd}
         style={{
           position: "relative",
-          borderRadius: 40,
           overflow: "hidden",
         }}
         className="banner-carousel-root shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
@@ -162,7 +161,6 @@ export function BannerCarousel() {
                 alt={banner.alt}
                 style={{
                   width: "100%",
-                  height: "auto",
                   display: "block",
                   pointerEvents: "none",
                 }}

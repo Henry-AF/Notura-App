@@ -132,7 +132,7 @@ export function BannerCarousel() {
           borderRadius: 40,
           overflow: "hidden",
         }}
-        className="banner-carousel-root"
+        className="banner-carousel-root shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
       >
         {/* Sliding strip */}
         <div

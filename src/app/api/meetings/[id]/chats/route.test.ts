@@ -35,6 +35,19 @@ function createAdminClient(options?: {
   meetingStatus?: string;
   transcript?: string | null;
   chatRpcError?: { code?: string; message: string };
+  chatRows?: Array<{
+    id: string;
+    meeting_id: string;
+    status: string;
+    question: string;
+    answer: string | null;
+    fallback_reason: string | null;
+    model_confirmed: boolean | null;
+    sources: unknown[];
+    error_message: string | null;
+    created_at: string;
+    completed_at: string | null;
+  }>;
 }) {
   const ownsMeeting = options?.ownsMeeting ?? true;
   const meetingStatus = options?.meetingStatus ?? "completed";
@@ -55,10 +68,29 @@ function createAdminClient(options?: {
       : { chat_id: "chat-1", status: "processing" },
     error: options?.chatRpcError ?? null,
   });
+  const chatRows = options?.chatRows ?? [];
+  const chatsOrder = vi.fn().mockResolvedValue({
+    data: chatRows,
+    error: null,
+  });
   const rpc = vi.fn(() => ({
     single: rpcSingle,
   }));
   const from = vi.fn((table: string) => {
+    if (table === "meeting_chats") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              in: vi.fn(() => ({
+                order: chatsOrder,
+              })),
+            })),
+          })),
+        })),
+      };
+    }
+
     return {
       select: vi.fn((columns: string) => ({
         eq: vi.fn(() =>
@@ -97,6 +129,49 @@ describe("POST /api/meetings/[id]/chats", () => {
     });
 
     expect(response.status).toBe(403);
+  });
+
+  it("lists archived chats for the owned meeting", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        chatRows: [
+          {
+            id: "chat-2",
+            meeting_id: "meeting-1",
+            status: "completed",
+            question: "Quais foram os proximos passos?",
+            answer: "Alinhar com vendas.",
+            fallback_reason: null,
+            model_confirmed: true,
+            sources: [],
+            error_message: null,
+            created_at: "2026-05-07T11:00:00.000Z",
+            completed_at: "2026-05-07T11:00:04.000Z",
+          },
+        ],
+      })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.GET(new Request("http://localhost/api/meetings/meeting-1/chats") as NextRequest, {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([
+      {
+        id: "chat-2",
+        status: "completed",
+        question: "Quais foram os proximos passos?",
+        answer: "Alinhar com vendas.",
+        fallbackReason: null,
+        modelConfirmed: true,
+        sources: [],
+        errorMessage: null,
+        createdAt: "2026-05-07T11:00:00.000Z",
+        completedAt: "2026-05-07T11:00:04.000Z",
+      },
+    ]);
   });
 
   it("rejects long questions", async () => {

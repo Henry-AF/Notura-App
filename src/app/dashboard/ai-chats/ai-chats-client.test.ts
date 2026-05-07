@@ -31,8 +31,13 @@ describe("ai chats client presentation", () => {
     expect(source).not.toContain(
       'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";'
     );
-    expect(source).toContain(
-      'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";'
-    );
+    expect(source).not.toContain('aria-label="Resposta útil"');
+  });
+
+  it("reuses the shared archived meeting chat sheet instead of keeping a local one", () => {
+    const source = readClientSource();
+
+    expect(source).toContain("MeetingArchivedChatsSheet");
+    expect(source).not.toContain("function AiChatSheet(");
   });
 });

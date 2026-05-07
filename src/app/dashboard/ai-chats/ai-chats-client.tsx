@@ -4,15 +4,9 @@ import React, { useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronDown,
-  ChevronRight,
-  Clock3,
-  Lock,
   MessageSquareText,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
   Trash2,
-  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -35,12 +29,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   EmptyState,
-  AppSideSheet,
   FilterBar,
   PageHeader,
   PageShell,
   SectionCard,
 } from "@/components/ui/app";
+import { MeetingArchivedChatsSheet } from "@/components/meeting-detail";
 import { cn, getInitials } from "@/lib/utils";
 import type {
   AiChatItem,
@@ -75,32 +69,6 @@ function formatDateTime(date: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
-}
-
-function formatMs(ms: number | null): string {
-  if (ms === null) return "--:--";
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function formatResponseTime(createdAt: string, completedAt: string | null): string | null {
-  if (!completedAt) return null;
-  const created = new Date(createdAt).getTime();
-  const completed = new Date(completedAt).getTime();
-  if (!Number.isFinite(created) || !Number.isFinite(completed) || completed <= created) return null;
-  const seconds = (completed - created) / 1000;
-  return `Respondeu em ${seconds.toFixed(1)}s`;
-}
-
-function getChatAnswer(chat: AiChatItem): string {
-  if (chat.status === "failed") {
-    return chat.errorMessage ?? "Erro técnico ao processar este chat.";
-  }
-
-  if (chat.modelConfirmed && chat.answer) return chat.answer;
-  return formatChatFallback(chat.fallbackReason);
 }
 
 function buildMeetingOptions(chats: AiChatItem[]): AiChatMeetingOption[] {
@@ -285,215 +253,6 @@ function ChatRow({
   );
 }
 
-function SourceAccordion({ chat }: { chat: AiChatItem }) {
-  const [open, setOpen] = useState(false);
-  if (!chat.sources.length || !chat.modelConfirmed) return null;
-
-  return (
-    <div className="mt-4 border-t border-border/50 pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wider transition-colors hover:opacity-80"
-        style={{ color: "#6C63FF" }}
-      >
-        <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
-        Fontes ({chat.sources.length})
-      </button>
-      {open ? (
-        <div className="mt-2 space-y-2">
-          {chat.sources.map((source) => (
-            <div key={source.chunkId} className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-              <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {source.speaker ? <span>Falante {source.speaker}</span> : null}
-                <span>{formatMs(source.startMs)} – {formatMs(source.endMs)}</span>
-                <span className="ml-auto">{Math.round(source.similarity * 100)}% sim.</span>
-              </div>
-              <p className="leading-relaxed text-foreground/80">{source.text}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ChatSheetHeader({
-  chat,
-  onClose,
-  onDelete,
-}: {
-  chat: AiChatItem;
-  onClose: () => void;
-  onDelete: (chat: AiChatItem) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between border-b px-5 py-4">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <Sparkles className="h-4 w-4 text-primary" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">Notura AI</p>
-          <p className="truncate text-[11px] text-muted-foreground">{chat.meetingTitle}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:text-destructive"
-          aria-label="Excluir chat"
-          onClick={() => onDelete(chat)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 rounded-lg p-0"
-          aria-label="Fechar"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ChatSheetBody({ chat }: { chat: AiChatItem }) {
-  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
-  const responseTimeLabel = formatResponseTime(chat.createdAt, chat.completedAt);
-
-  function handleFeedback(value: "up" | "down") {
-    setFeedback((prev) => (prev === value ? null : value));
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto px-4 py-5">
-      <div className="mb-5 flex items-center gap-2 text-xs text-muted-foreground">
-        <Clock3 className="h-3.5 w-3.5" />
-        {formatDateTime(chat.createdAt)}
-      </div>
-      <div className="flex flex-col gap-4">
-        <div className="self-end max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground">
-          {chat.question}
-        </div>
-        <div>
-          <div
-            className="self-start max-w-[88%] rounded-2xl rounded-bl-sm px-4 py-3"
-            style={{
-              background: "#F0EFFF",
-              color: "#1F1F2E",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-            }}
-          >
-            <p className={cn("text-sm leading-relaxed", chat.status === "failed" && "text-destructive")}>
-              {getChatAnswer(chat)}
-            </p>
-            <SourceAccordion chat={chat} />
-            <div className="flex items-center justify-end gap-2" style={{ marginTop: 10 }}>
-              <button
-                type="button"
-                aria-label="Resposta útil"
-                onClick={() => handleFeedback("up")}
-                style={{
-                  background: feedback === "up" ? "rgba(16,185,129,0.12)" : "transparent",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "4px 6px",
-                  cursor: "pointer",
-                  color: feedback === "up" ? "#10B981" : "#9CA3AF",
-                  transition: "color 0.15s, background 0.15s",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                onMouseEnter={(e) => {
-                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
-                }}
-                onMouseLeave={(e) => {
-                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
-                }}
-              >
-                <ThumbsUp style={{ width: 16, height: 16 }} />
-              </button>
-              <button
-                type="button"
-                aria-label="Resposta não útil"
-                onClick={() => handleFeedback("down")}
-                style={{
-                  background: feedback === "down" ? "rgba(239,68,68,0.12)" : "transparent",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "4px 6px",
-                  cursor: "pointer",
-                  color: feedback === "down" ? "#EF4444" : "#9CA3AF",
-                  transition: "color 0.15s, background 0.15s",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                onMouseEnter={(e) => {
-                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
-                }}
-                onMouseLeave={(e) => {
-                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
-                }}
-              >
-                <ThumbsDown style={{ width: 16, height: 16 }} />
-              </button>
-            </div>
-          </div>
-          {responseTimeLabel && (
-            <p className="mt-1 pl-2 text-[11px] text-muted-foreground/80">{responseTimeLabel}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatSheetFooter() {
-  return (
-    <div className="border-t px-4 py-3">
-      <div className="flex items-center gap-2 rounded-xl bg-muted/45 px-3 py-2 text-xs text-muted-foreground">
-        <Lock className="h-3.5 w-3.5" />
-        Chat arquivado em modo somente leitura
-      </div>
-    </div>
-  );
-}
-
-function AiChatSheet({
-  chat,
-  onClose,
-  onDelete,
-}: {
-  chat: AiChatItem | null;
-  onClose: () => void;
-  onDelete: (chat: AiChatItem) => void;
-}) {
-  return (
-    <AppSideSheet
-      open={Boolean(chat)}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      ariaLabel="Chat de IA"
-      header={
-        chat ? (
-          <ChatSheetHeader chat={chat} onClose={onClose} onDelete={onDelete} />
-        ) : null
-      }
-      footer={chat ? <ChatSheetFooter /> : null}
-    >
-      {chat ? <ChatSheetBody chat={chat} /> : null}
-    </AppSideSheet>
-  );
-}
-
 function DeleteChatDialog({
   chat,
   deleting,
@@ -653,6 +412,23 @@ function useAiChatsState(initialChats: AiChatItem[]) {
 
 export function AiChatsClient({ initialData }: AiChatsClientProps) {
   const state = useAiChatsState(initialData.chats);
+  const selectedChatMeetingTitle = state.selectedChat?.meetingTitle ?? "Reunião sem título";
+  const selectedMeetingChats = state.selectedChat
+    ? state.chats
+        .filter((chat) => chat.meetingId === state.selectedChat?.meetingId)
+        .map((chat) => ({
+          id: chat.id,
+          status: chat.status,
+          question: chat.question,
+          answer: chat.answer,
+          fallbackReason: chat.fallbackReason,
+          modelConfirmed: chat.modelConfirmed,
+          sources: chat.sources,
+          errorMessage: chat.errorMessage,
+          createdAt: chat.createdAt,
+          completedAt: chat.completedAt,
+        }))
+    : [];
 
   return (
     <PageShell>
@@ -686,10 +462,14 @@ export function AiChatsClient({ initialData }: AiChatsClientProps) {
         onDeleteChat={state.setDeleteTarget}
       />
 
-      <AiChatSheet
-        chat={state.selectedChat}
-        onClose={() => state.setSelectedChatId(null)}
-        onDelete={state.setDeleteTarget}
+      <MeetingArchivedChatsSheet
+        open={Boolean(state.selectedChat)}
+        onOpenChange={(open) => {
+          if (!open) state.setSelectedChatId(null);
+        }}
+        meetingTitle={selectedChatMeetingTitle}
+        chats={selectedMeetingChats}
+        initialChatId={state.selectedChat?.id ?? null}
       />
       <DeleteChatDialog
         chat={state.deleteTarget}

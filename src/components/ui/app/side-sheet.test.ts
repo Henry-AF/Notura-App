@@ -22,8 +22,7 @@ describe("AppSideSheet shared frame", () => {
     expect(meetingChatSheet).toContain("AppSideSheet");
     expect(meetingChatSheet).not.toContain(FRAME_PANEL_CLASS);
 
-    expect(aiChatSheet).toMatch(SHARED_IMPORT_PATTERN);
-    expect(aiChatSheet).toContain("AppSideSheet");
+    expect(aiChatSheet).toContain("MeetingArchivedChatsSheet");
     expect(aiChatSheet).not.toContain(FRAME_PANEL_CLASS);
   });
 

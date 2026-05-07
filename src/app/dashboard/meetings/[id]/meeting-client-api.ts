@@ -29,6 +29,12 @@ export interface MeetingChatResponse {
   completedAt: string | null;
 }
 
+function readErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+  const { error } = body as { error?: unknown };
+  return typeof error === "string" ? error : undefined;
+}
+
 // ─── Meeting chat API helpers ─────────────────────────────────────────────────
 
 export async function createMeetingChat(
@@ -62,6 +68,25 @@ export async function fetchMeetingChat(
   }
 
   return body;
+}
+
+export async function fetchMeetingArchivedChats(
+  meetingId: string
+): Promise<MeetingChatResponse[]> {
+  const response = await fetch(`/api/meetings/${meetingId}/chats`);
+  const body = await parseJson<unknown>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      normalizeError(readErrorMessage(body), "Erro ao carregar chats da reuniao.")
+    );
+  }
+
+  if (!Array.isArray(body)) {
+    throw new Error("Erro ao carregar chats da reuniao.");
+  }
+
+  return body as MeetingChatResponse[];
 }
 
 export async function waitForMeetingChat(

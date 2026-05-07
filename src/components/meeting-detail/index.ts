@@ -20,4 +20,8 @@ export type { MeetingLocationCardProps } from "./MeetingLocationCard";
 export { MeetingFilesCard } from "./MeetingFilesCard";
 export type { MeetingFile, MeetingFilesCardProps } from "./MeetingFilesCard";
 export { MeetingChatSheet } from "./MeetingChatSheet";
-export type { MeetingChatSheetProps } from "./MeetingChatSheet";
+export { MeetingArchivedChatsSheet } from "./MeetingChatSheet";
+export type {
+  MeetingArchivedChatsSheetProps,
+  MeetingChatSheetProps,
+} from "./MeetingChatSheet";

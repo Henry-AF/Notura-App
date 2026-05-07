@@ -5,7 +5,7 @@ import {
   isMeetingChatDailyQuotaExceededError,
   resolveMeetingChatDailyQuotaLimit,
 } from "@/lib/ai/usage-limits";
-import { requireOwnership } from "@/lib/api/auth";
+import { requireOwnership, withAuth } from "@/lib/api/auth";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { inngest } from "@/lib/inngest";
@@ -14,6 +14,63 @@ import {
   validateMeetingChatQuestion,
 } from "@/lib/meetings/rag";
 import { createTraceId, getErrorMessage, logStructured } from "@/lib/observability";
+import type { MeetingChat } from "@/types/database";
+
+type MeetingChatListRow = Pick<
+  MeetingChat,
+  | "id"
+  | "status"
+  | "question"
+  | "answer"
+  | "fallback_reason"
+  | "model_confirmed"
+  | "sources"
+  | "error_message"
+  | "created_at"
+  | "completed_at"
+>;
+
+function mapChat(chat: MeetingChatListRow) {
+  return {
+    id: chat.id,
+    status: chat.status,
+    question: chat.question,
+    answer: chat.answer,
+    fallbackReason: chat.fallback_reason,
+    modelConfirmed: chat.model_confirmed,
+    sources: chat.sources,
+    errorMessage: chat.error_message,
+    createdAt: chat.created_at,
+    completedAt: chat.completed_at,
+  };
+}
+
+export const GET = withAuth<{ id: string }, NextRequest>(async (
+  _request: NextRequest,
+  { params, auth }
+) => {
+  const supabase = auth.supabaseAdmin;
+  await requireOwnership(supabase, "meetings", params.id, auth.user.id);
+
+  const { data, error } = await supabase
+    .from("meeting_chats")
+    .select(
+      "id, status, question, answer, fallback_reason, model_confirmed, sources, error_message, created_at, completed_at"
+    )
+    .eq("meeting_id", params.id)
+    .eq("user_id", auth.user.id)
+    .in("status", ["completed", "failed"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json(
+      { error: "Erro ao carregar chats da reunião." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json(((data ?? []) as MeetingChatListRow[]).map(mapChat));
+});
 
 export const POST = withAuthRateLimit<{ id: string }, NextRequest>(
   RATE_LIMIT_POLICIES.meetingAiChatCreate,

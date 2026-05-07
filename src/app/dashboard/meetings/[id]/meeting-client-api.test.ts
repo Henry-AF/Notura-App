@@ -5,6 +5,42 @@ describe("meeting detail client api", () => {
     vi.restoreAllMocks();
   });
 
+  it("loads archived chats for the current meeting through the owned API route", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: "chat-1",
+            status: "completed",
+            question: "Qual foi o prazo?",
+            answer: "Sexta-feira.",
+            fallbackReason: null,
+            modelConfirmed: true,
+            sources: [],
+            errorMessage: null,
+            createdAt: "2026-05-07T10:00:00.000Z",
+            completedAt: "2026-05-07T10:00:03.000Z",
+          },
+        ]),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+    const result = await mod.fetchMeetingArchivedChats("meeting-1");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/meetings/meeting-1/chats");
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "chat-1",
+        question: "Qual foi o prazo?",
+      }),
+    ]);
+  });
+
   it("deletes a meeting through the owned API route", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {

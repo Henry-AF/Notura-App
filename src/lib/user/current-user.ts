@@ -47,6 +47,11 @@ export async function getCurrentUserForIdentity(
     plan: billingStatus.billingAccount.plan as Plan,
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
+    currentPeriodEnd: billingStatus.billingAccount.current_period_end ?? null,
+    abacatepayAutoRenewEnabled:
+      billingStatus.billingAccount.abacatepay_auto_renew_enabled ?? true,
+    abacatepayRenewalStatus:
+      billingStatus.billingAccount.abacatepay_renewal_status ?? "idle",
   };
 }
 

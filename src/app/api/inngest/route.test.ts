@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+interface InngestServeConfig {
+  functions: unknown[];
+}
+
 const mocks = vi.hoisted(() => ({
   answerMeetingChat: { id: "answer-meeting-chat" },
   dispatchMeetingChatOutbox: { id: "dispatch-meeting-chat-outbox" },
   handleProcessMeetingFailure: { id: "process-meeting-failure" },
   processMeeting: { id: "process-meeting" },
+  applyAbacatePayRenewal: { id: "billing-abacatepay-renewal-confirmed" },
+  renewAbacatePaySubscription: { id: "renew-abacatepay-subscription" },
   serve: vi.fn(() => ({
     GET: vi.fn(),
     POST: vi.fn(),
@@ -33,6 +39,14 @@ vi.mock("@/inngest/meeting-chat-outbox", () => ({
   dispatchMeetingChatOutbox: mocks.dispatchMeetingChatOutbox,
 }));
 
+vi.mock("@/inngest/renew-abacatepay-subscription", () => ({
+  renewAbacatePaySubscription: mocks.renewAbacatePaySubscription,
+}));
+
+vi.mock("@/inngest/abacatepay-renewal", () => ({
+  applyAbacatePayRenewal: mocks.applyAbacatePayRenewal,
+}));
+
 vi.mock("@/lib/observability", () => ({
   captureObservedError: vi.fn(),
   createRequestId: () => "request-id",
@@ -52,15 +66,16 @@ describe("/api/inngest route", () => {
   it("registers the meeting chat answer function", async () => {
     await import("./route");
 
-    expect(mocks.serve).toHaveBeenCalledWith(
-      expect.objectContaining({
-        functions: expect.arrayContaining([
-          mocks.processMeeting,
-          mocks.handleProcessMeetingFailure,
-          mocks.answerMeetingChat,
-          mocks.dispatchMeetingChatOutbox,
-        ]),
-      })
+    const [config] = mocks.serve.mock.calls[0] as [InngestServeConfig];
+    expect(config.functions).toEqual(
+      expect.arrayContaining([
+        mocks.processMeeting,
+        mocks.handleProcessMeetingFailure,
+        mocks.answerMeetingChat,
+        mocks.dispatchMeetingChatOutbox,
+        mocks.renewAbacatePaySubscription,
+        mocks.applyAbacatePayRenewal,
+      ])
     );
   });
 });

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 
 describe("middleware CORS (API)", () => {
   it("returns 204 for OPTIONS from allowed origin", async () => {
     const { middleware } = await import("./middleware");
 
-    const request = new Request("http://localhost:3000/api/meetings", {
+    const request = new NextRequest("http://localhost:3000/api/meetings", {
       method: "OPTIONS",
       headers: {
         origin: "http://localhost:11000",
         "access-control-request-headers": "authorization,content-type",
       },
-    }) as NextRequest;
+    });
 
     const response = await middleware(request);
 
@@ -23,12 +23,12 @@ describe("middleware CORS (API)", () => {
   it("returns 403 for OPTIONS from blocked origin", async () => {
     const { middleware } = await import("./middleware");
 
-    const request = new Request("http://localhost:3000/api/meetings", {
+    const request = new NextRequest("http://localhost:3000/api/meetings", {
       method: "OPTIONS",
       headers: {
         origin: "https://evil.example",
       },
-    }) as NextRequest;
+    });
 
     const response = await middleware(request);
 
@@ -38,12 +38,12 @@ describe("middleware CORS (API)", () => {
   it("adds CORS headers on non-OPTIONS requests from allowed origin", async () => {
     const { middleware } = await import("./middleware");
 
-    const request = new Request("http://localhost:3000/api/meetings", {
+    const request = new NextRequest("http://localhost:3000/api/meetings", {
       method: "GET",
       headers: {
         origin: "http://localhost:11000",
       },
-    }) as NextRequest;
+    });
 
     const response = await middleware(request);
 

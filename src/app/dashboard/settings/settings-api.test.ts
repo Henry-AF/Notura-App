@@ -93,6 +93,33 @@ describe("settings api client", () => {
     });
   });
 
+  it("updates AbacatePay auto-renew through the settings helper", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          autoRenewEnabled: false,
+          currentPeriodEnd: "2026-05-27T12:00:00.000Z",
+          renewalStatus: "active",
+        }),
+        { status: 200 }
+      )
+    );
+
+    const mod = await import("./settings-api");
+    const result = await mod.updateAbacatePayAutoRenew(false);
+
+    expect(result).toEqual({
+      autoRenewEnabled: false,
+      currentPeriodEnd: "2026-05-27T12:00:00.000Z",
+      renewalStatus: "active",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/auto-renew", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+  });
+
   it("prewarms the AbacatePay customer through the settings api helper", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ success: true, customerId: "customer-1" }), {

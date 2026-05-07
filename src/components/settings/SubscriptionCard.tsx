@@ -3,20 +3,34 @@
 import React from "react";
 import { Check } from "lucide-react";
 import { useThemeColors } from "@/lib/theme-context";
+import type { Plan } from "@/types/database";
+import { AutoRenewControl } from "./AutoRenewControl";
 
 export interface SubscriptionCardProps {
+  plan?: Plan;
   planName: string;
   meetingsUsed: number;
   meetingsTotal: number | null;
   renewsInDays: number;
+  currentPeriodEnd?: string | null;
+  autoRenewEnabled?: boolean;
+  renewalStatus?: string;
+  autoRenewSaving?: boolean;
+  onAutoRenewChange?: (enabled: boolean) => void;
   onChangePlan: () => void;
 }
 
 export function SubscriptionCard({
+  plan,
   planName,
   meetingsUsed,
   meetingsTotal,
   renewsInDays,
+  currentPeriodEnd = null,
+  autoRenewEnabled = true,
+  renewalStatus = "idle",
+  autoRenewSaving = false,
+  onAutoRenewChange,
   onChangePlan,
 }: SubscriptionCardProps) {
   const c = useThemeColors();
@@ -89,6 +103,19 @@ export function SubscriptionCard({
             : `Renova em ${renewsInDays} dias`}
         </p>
       </div>
+
+      {plan && onAutoRenewChange && (
+        <div className="mt-4">
+          <AutoRenewControl
+            plan={plan}
+            currentPeriodEnd={currentPeriodEnd}
+            autoRenewEnabled={autoRenewEnabled}
+            renewalStatus={renewalStatus}
+            pending={autoRenewSaving}
+            onChange={onAutoRenewChange}
+          />
+        </div>
+      )}
 
       {/* CTA */}
       <button

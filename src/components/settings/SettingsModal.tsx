@@ -11,6 +11,8 @@ import {
   User,
   X,
 } from "lucide-react";
+import { AutoRenewControl } from "@/components/settings/AutoRenewControl";
+import { updateAbacatePayAutoRenew } from "@/lib/abacatepay-auto-renew-client";
 import { useTheme, useThemeColors } from "@/lib/theme-context";
 import {
   logoutCurrentUser,
@@ -27,6 +29,9 @@ interface UserData {
   plan: CurrentUser["plan"];
   meetingsUsed: number;
   monthlyLimit: number | null;
+  currentPeriodEnd: string | null;
+  abacatepayAutoRenewEnabled: boolean;
+  abacatepayRenewalStatus: string;
 }
 
 type Tab = "profile" | "preferences" | "plan";
@@ -47,6 +52,9 @@ function buildUserData(user: CurrentUser): UserData {
     plan: user.plan,
     meetingsUsed: user.meetingsThisMonth,
     monthlyLimit: user.monthlyLimit,
+    currentPeriodEnd: user.currentPeriodEnd ?? null,
+    abacatepayAutoRenewEnabled: user.abacatepayAutoRenewEnabled ?? true,
+    abacatepayRenewalStatus: user.abacatepayRenewalStatus ?? "idle",
   };
 }
 
@@ -69,6 +77,7 @@ export function SettingsModal({
 
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
+  const [autoRenewSaving, setAutoRenewSaving] = useState(false);
   const [data, setData] = useState<UserData>(() => buildUserData(currentUser));
   const [name, setName] = useState(currentUser.name);
   const [company, setCompany] = useState(currentUser.company);
@@ -148,6 +157,30 @@ export function SettingsModal({
       router.refresh();
     } catch (error) {
       console.error("[settings-modal] logout failed", error);
+    }
+  }
+
+  async function handleAutoRenewChange(enabled: boolean) {
+    setAutoRenewSaving(true);
+
+    try {
+      const status = await updateAbacatePayAutoRenew(enabled);
+      setData((previous) => ({
+        ...previous,
+        currentPeriodEnd: status.currentPeriodEnd,
+        abacatepayAutoRenewEnabled: status.autoRenewEnabled,
+        abacatepayRenewalStatus: status.renewalStatus,
+      }));
+      onUserChange?.({
+        ...currentUser,
+        currentPeriodEnd: status.currentPeriodEnd,
+        abacatepayAutoRenewEnabled: status.autoRenewEnabled,
+        abacatepayRenewalStatus: status.renewalStatus,
+      });
+    } catch (error) {
+      console.error("[settings-modal] auto renew update failed", error);
+    } finally {
+      setAutoRenewSaving(false);
     }
   }
 
@@ -562,6 +595,15 @@ export function SettingsModal({
                       : "Reuniões ilimitadas no plano atual"}
                   </p>
                 </div>
+
+                <AutoRenewControl
+                  plan={data.plan}
+                  currentPeriodEnd={data.currentPeriodEnd}
+                  autoRenewEnabled={data.abacatepayAutoRenewEnabled}
+                  renewalStatus={data.abacatepayRenewalStatus}
+                  pending={autoRenewSaving}
+                  onChange={(enabled) => void handleAutoRenewChange(enabled)}
+                />
 
                 {data.plan === "free" && (
                   <button

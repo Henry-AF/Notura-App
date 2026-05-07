@@ -193,10 +193,9 @@ describe("critical API routes rate limiting", () => {
       {
         routePath: "./webhooks/abacatepay/route",
         buildRequest: () =>
-          new NextRequest("http://localhost/api/webhooks/abacatepay", {
+          new NextRequest("http://localhost/api/webhooks/abacatepay?webhookSecret=wrong", {
             method: "POST",
             headers: {
-              "x-abacatepay-secret": "wrong",
               "x-forwarded-for": "203.0.113.10",
             },
             body: JSON.stringify({ event: "noop" }),

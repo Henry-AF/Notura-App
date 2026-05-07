@@ -44,6 +44,14 @@ export interface Database {
           meetings_used: number
           stripe_customer_id: string | null
           abacatepay_customer_id: string | null
+          abacatepay_subscription_id: string | null
+          abacatepay_auto_renew_enabled: boolean
+          abacatepay_auto_renew_updated_at: string | null
+          abacatepay_renewal_attempts: number
+          abacatepay_renewal_status: string
+          abacatepay_renewal_period_end: string | null
+          abacatepay_next_renewal_attempt_at: string | null
+          abacatepay_last_renewal_error: string | null
           abacatepay_customer_sync_started_at: string | null
           abacatepay_pending_checkout_id: string | null
           abacatepay_pending_plan: string | null
@@ -59,6 +67,14 @@ export interface Database {
           meetings_used?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
+          abacatepay_subscription_id?: string | null
+          abacatepay_auto_renew_enabled?: boolean
+          abacatepay_auto_renew_updated_at?: string | null
+          abacatepay_renewal_attempts?: number
+          abacatepay_renewal_status?: string
+          abacatepay_renewal_period_end?: string | null
+          abacatepay_next_renewal_attempt_at?: string | null
+          abacatepay_last_renewal_error?: string | null
           abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null
@@ -74,6 +90,14 @@ export interface Database {
           meetings_used?: number
           stripe_customer_id?: string | null
           abacatepay_customer_id?: string | null
+          abacatepay_subscription_id?: string | null
+          abacatepay_auto_renew_enabled?: boolean
+          abacatepay_auto_renew_updated_at?: string | null
+          abacatepay_renewal_attempts?: number
+          abacatepay_renewal_status?: string
+          abacatepay_renewal_period_end?: string | null
+          abacatepay_next_renewal_attempt_at?: string | null
+          abacatepay_last_renewal_error?: string | null
           abacatepay_customer_sync_started_at?: string | null
           abacatepay_pending_checkout_id?: string | null
           abacatepay_pending_plan?: string | null

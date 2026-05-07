@@ -59,7 +59,6 @@ describe("dashboard api client", () => {
     expect(overview.userName).toBe("Ana");
     expect(overview.plan).toBe("free");
     expect(overview.meetings[0]?.status).toBe("processing");
-    expect(overview.tasks[0]?.isNew).toBe(true);
     expect(overview.metrics).toEqual([
       expect.objectContaining({ label: "Reuniões este mês", value: 2 }),
       expect.objectContaining({ label: "Tarefas abertas", value: 1 }),

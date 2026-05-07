@@ -476,6 +476,29 @@ describe("answerMeetingChat", () => {
     );
   });
 
+  it("maps provider 503 errors to an explicit unavailable message for users", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.generateEmbedding.mockRejectedValue(new Error("Gemini API error: 503 Service Unavailable"));
+
+    await runJob();
+
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "failed",
+        fallback_reason: "provider_error",
+        error_message: "O serviço de IA está indisponível no momento (503). Tente novamente em instantes.",
+      })
+    );
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "failed",
+        stage: "provider_error",
+        error_message: "Gemini API error: 503 Service Unavailable",
+      })
+    );
+  });
+
   it("finalizes the processing metric trace when provider errors occur", async () => {
     const supabase = createSupabaseMock();
     mocks.createServiceRoleClient.mockReturnValue(supabase);

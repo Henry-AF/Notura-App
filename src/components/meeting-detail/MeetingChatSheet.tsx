@@ -144,7 +144,7 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
 
         {response?.status === "failed" && (
           <div className="rounded-2xl rounded-bl-sm bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Erro técnico ao processar esta pergunta.
+            {response.errorMessage ?? "Erro técnico ao processar esta pergunta."}
           </div>
         )}
 

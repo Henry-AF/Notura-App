@@ -188,6 +188,19 @@ async function saveProviderFailure(
   });
 }
 
+function toUserFacingProviderErrorMessage(rawMessage: string): string {
+  const normalized = rawMessage.toLowerCase();
+  if (
+    normalized.includes("503") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("temporarily unavailable")
+  ) {
+    return "O serviço de IA está indisponível no momento (503). Tente novamente em instantes.";
+  }
+
+  return rawMessage;
+}
+
 function createMetricState(): MeetingChatAiMetricState {
   return {
     question: "",
@@ -642,8 +655,9 @@ export const answerMeetingChat = inngest.createFunction(
 
       return { chatId: chat.id, status: "completed" };
     } catch (error) {
-      const message = getErrorMessage(error);
-      await saveProviderFailure(supabase, data.chatId, message);
+      const rawMessage = getErrorMessage(error);
+      const userFacingMessage = toUserFacingProviderErrorMessage(rawMessage);
+      await saveProviderFailure(supabase, data.chatId, userFacingMessage);
       await refundProviderErrorQuota({
         supabase,
         requestId,
@@ -657,7 +671,7 @@ export const answerMeetingChat = inngest.createFunction(
         startedAt,
         metricId,
         stage: "provider_error",
-        errorMessage: message,
+        errorMessage: rawMessage,
         chatId: data.chatId,
         meetingId: data.meetingId,
         userId: data.userId,

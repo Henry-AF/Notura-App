@@ -537,8 +537,11 @@ export interface Database {
           chat_id: string
           meeting_id: string
           user_id: string
-          status: "completed" | "failed"
+          status: "processing" | "completed" | "failed"
           fallback_reason: string | null
+          request_id: string | null
+          stage: string
+          error_message: string | null
           embedding_model: string
           answer_model: string
           retrieved_chunks_count: number
@@ -552,6 +555,9 @@ export interface Database {
           generation_duration_ms: number | null
           total_duration_ms: number
           estimated_cost_usd: number
+          started_at: string | null
+          completed_at: string | null
+          updated_at: string
           created_at: string
         }
         Insert: {
@@ -559,8 +565,11 @@ export interface Database {
           chat_id: string
           meeting_id: string
           user_id: string
-          status: "completed" | "failed"
+          status: "processing" | "completed" | "failed"
           fallback_reason?: string | null
+          request_id?: string | null
+          stage?: string
+          error_message?: string | null
           embedding_model: string
           answer_model: string
           retrieved_chunks_count?: number
@@ -574,6 +583,9 @@ export interface Database {
           generation_duration_ms?: number | null
           total_duration_ms: number
           estimated_cost_usd?: number
+          started_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
           created_at?: string
         }
         Update: {
@@ -581,8 +593,11 @@ export interface Database {
           chat_id?: string
           meeting_id?: string
           user_id?: string
-          status?: "completed" | "failed"
+          status?: "processing" | "completed" | "failed"
           fallback_reason?: string | null
+          request_id?: string | null
+          stage?: string
+          error_message?: string | null
           embedding_model?: string
           answer_model?: string
           retrieved_chunks_count?: number
@@ -596,6 +611,9 @@ export interface Database {
           generation_duration_ms?: number | null
           total_duration_ms?: number
           estimated_cost_usd?: number
+          started_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
           created_at?: string
         }
         Relationships: [

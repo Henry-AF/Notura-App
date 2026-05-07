@@ -13,12 +13,17 @@ import type { Database } from "@/types/database";
 type SupabaseAdminClient = SupabaseClient<Database>;
 type MeetingChatAiMetricInsert =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Insert"];
-type MeetingChatAiMetricStatus = "completed" | "failed";
+type MeetingChatAiMetricUpdate =
+  Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Update"];
+type MeetingChatAiMetricStatus = "processing" | "completed" | "failed";
 
 interface MeetingChatAiMetricInput {
   chatId: string;
   meetingId: string;
   userId: string;
+  requestId: string;
+  stage: string;
+  errorMessage?: string | null;
   question: string;
   status: MeetingChatAiMetricStatus;
   fallbackReason: MeetingChatFallbackReason | null;
@@ -30,6 +35,8 @@ interface MeetingChatAiMetricInput {
   retrievalDurationMs: number | null;
   generationDurationMs: number | null;
   totalDurationMs: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 interface EstimatedCostInput {
@@ -59,6 +66,9 @@ export function buildMeetingChatAiMetric(
     user_id: input.userId,
     status: input.status,
     fallback_reason: input.fallbackReason,
+    request_id: input.requestId,
+    stage: input.stage,
+    error_message: input.errorMessage ?? null,
     embedding_model: EMBEDDING_MODEL_NAME,
     answer_model: GEMINI_TEXT_MODEL_NAME,
     retrieved_chunks_count: input.sources.length,
@@ -78,15 +88,38 @@ export function buildMeetingChatAiMetric(
       questionEmbeddingGenerated: input.questionEmbeddingGenerated,
       generationAttempted: input.generationAttempted,
     }),
+    started_at: input.startedAt,
+    completed_at: input.completedAt,
+    updated_at: new Date().toISOString(),
   };
 }
 
 export async function insertMeetingChatAiMetric(
   supabase: SupabaseAdminClient,
   metric: MeetingChatAiMetricInsert
-): Promise<void> {
-  const { error } = await supabase.from("meeting_chat_ai_metrics").insert(metric);
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("meeting_chat_ai_metrics")
+    .insert(metric)
+    .select("id")
+    .single();
+
   if (error) throw new Error(`Failed to insert meeting chat AI metrics: ${error.message}`);
+  if (!data?.id) throw new Error("Failed to insert meeting chat AI metrics: missing metric id");
+  return data.id;
+}
+
+export async function updateMeetingChatAiMetric(
+  supabase: SupabaseAdminClient,
+  metricId: string,
+  metric: MeetingChatAiMetricUpdate
+): Promise<void> {
+  const { error } = await supabase
+    .from("meeting_chat_ai_metrics")
+    .update(metric)
+    .eq("id", metricId);
+
+  if (error) throw new Error(`Failed to update meeting chat AI metrics: ${error.message}`);
 }
 
 function estimateSourcesTokenCount(sources: ChatSource[]): number {

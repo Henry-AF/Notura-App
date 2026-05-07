@@ -57,6 +57,7 @@ function createSupabaseMock(options?: {
   transcript?: string | null;
 }) {
   const inserts: Record<string, unknown[]> = {};
+  let metricInsertCount = 0;
   const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
   const updates: unknown[] = [];
   const chatSingle = vi.fn().mockResolvedValue({
@@ -92,7 +93,15 @@ function createSupabaseMock(options?: {
     })),
     insert: vi.fn((payload: unknown) => {
       inserts[table] = [...(inserts[table] ?? []), payload];
-      return Promise.resolve({ error: null });
+      metricInsertCount += table === "meeting_chat_ai_metrics" ? 1 : 0;
+      return {
+        select: vi.fn(() => ({
+          single: vi.fn().mockResolvedValue({
+            data: { id: `metric-${metricInsertCount}` },
+            error: null,
+          }),
+        })),
+      };
     }),
     update,
   }));
@@ -198,13 +207,16 @@ describe("answerMeetingChat", () => {
         ],
       })
     );
-    expect(supabase.inserts.meeting_chat_ai_metrics ?? []).toContainEqual(
+    expect(supabase.updates).toContainEqual(
       expect.objectContaining({
         chat_id: "chat-1",
         meeting_id: "meeting-1",
         user_id: "user-1",
+        request_id: "event-1",
+        stage: "completed",
         status: "completed",
         fallback_reason: null,
+        error_message: null,
         embedding_model: "gemini-embedding-001",
         answer_model: "gemini-3.1-flash-lite-preview",
         retrieved_chunks_count: 1,
@@ -243,6 +255,36 @@ describe("answerMeetingChat", () => {
         retrievalDurationMs: expect.any(Number),
         generationDurationMs: expect.any(Number),
         estimatedCostUsd: expect.any(Number),
+      })
+    );
+  });
+
+  it("creates a processing metric trace before answering and finalizes it on success", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+
+    await runJob();
+
+    expect(supabase.inserts.meeting_chat_ai_metrics?.[0]).toEqual(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        status: "processing",
+        request_id: "event-1",
+        stage: "answer_started",
+        fallback_reason: null,
+        error_message: null,
+      })
+    );
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "completed",
+        request_id: "event-1",
+        stage: "completed",
+        fallback_reason: null,
+        error_message: null,
+        completed_at: expect.any(String),
       })
     );
   });
@@ -289,13 +331,16 @@ describe("answerMeetingChat", () => {
       })
     );
     expect(mocks.answerMeetingQuestionFromChunks).not.toHaveBeenCalled();
-    expect(supabase.inserts.meeting_chat_ai_metrics ?? []).toContainEqual(
+    expect(supabase.updates).toContainEqual(
       expect.objectContaining({
         chat_id: "chat-1",
         meeting_id: "meeting-1",
         user_id: "user-1",
+        request_id: "event-1",
+        stage: "low_similarity",
         status: "completed",
         fallback_reason: "low_similarity",
+        error_message: null,
         embedding_model: "gemini-embedding-001",
         answer_model: "gemini-3.1-flash-lite-preview",
         retrieved_chunks_count: 0,
@@ -427,6 +472,35 @@ describe("answerMeetingChat", () => {
         fallbackReason: "provider_error",
         retrievedChunksCount: 0,
         generationDurationMs: null,
+      })
+    );
+  });
+
+  it("finalizes the processing metric trace when provider errors occur", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.generateEmbedding.mockRejectedValue(new Error("Gemini unavailable"));
+
+    await runJob();
+
+    expect(supabase.inserts.meeting_chat_ai_metrics?.[0]).toEqual(
+      expect.objectContaining({
+        chat_id: "chat-1",
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        status: "processing",
+        request_id: "event-1",
+        stage: "answer_started",
+      })
+    );
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "failed",
+        request_id: "event-1",
+        stage: "provider_error",
+        fallback_reason: "provider_error",
+        error_message: "Gemini unavailable",
+        completed_at: expect.any(String),
       })
     );
   });

@@ -8,6 +8,7 @@ import {
 import {
   buildMeetingChatAiMetric,
   insertMeetingChatAiMetric,
+  updateMeetingChatAiMetric,
 } from "@/lib/ai/meeting-chat-metrics";
 import { refundMeetingChatAiQuota } from "@/lib/ai/usage-limits";
 import {
@@ -59,6 +60,9 @@ interface RecordMeetingChatAiMetricInput {
   supabase: SupabaseAdminClient;
   requestId: string;
   startedAt: number;
+  metricId: string | null;
+  stage: string;
+  errorMessage?: string | null;
   chatId: string;
   meetingId: string;
   userId: string;
@@ -213,6 +217,9 @@ async function recordMeetingChatAiMetric({
   supabase,
   requestId,
   startedAt,
+  metricId,
+  stage,
+  errorMessage = null,
   chatId,
   meetingId,
   userId,
@@ -225,6 +232,9 @@ async function recordMeetingChatAiMetric({
       chatId,
       meetingId,
       userId,
+      requestId,
+      stage,
+      errorMessage,
       question: state.question,
       status,
       fallbackReason,
@@ -236,13 +246,18 @@ async function recordMeetingChatAiMetric({
       retrievalDurationMs: state.retrievalDurationMs,
       generationDurationMs: state.generationDurationMs,
       totalDurationMs: Date.now() - startedAt,
+      completedAt: new Date().toISOString(),
     });
 
     logMeetingChatAiMetric(requestId, metric);
-    await insertMeetingChatAiMetric(supabase, metric);
+    if (metricId) {
+      await updateMeetingChatAiMetric(supabase, metricId, metric);
+    } else {
+      await insertMeetingChatAiMetric(supabase, metric);
+    }
   } catch (error) {
-    logStructured("warn", {
-      event: "meeting.chat.ai_metrics.insert_failed",
+    logStructured("error", {
+      event: "meeting.chat.ai_metrics.persist_failed",
       requestId,
       userId,
       route: "inngest/answer-meeting-chat",
@@ -250,7 +265,58 @@ async function recordMeetingChatAiMetric({
       status: "metrics_failed",
       errorMessage: getErrorMessage(error),
     });
+    captureObservedError(error, {
+      event: "meeting.chat.ai_metrics.persist_failed",
+      requestId,
+      userId,
+      route: "inngest/answer-meeting-chat",
+      durationMs: Date.now() - startedAt,
+      status: "metrics_failed",
+      extra: {
+        chatId,
+        meetingId,
+        metricId,
+        stage,
+      },
+    });
   }
+}
+
+async function startMeetingChatAiMetric({
+  supabase,
+  requestId,
+  startedAt,
+  chat,
+}: {
+  supabase: SupabaseAdminClient;
+  requestId: string;
+  startedAt: number;
+  chat: ChatMeetingContext["chat"];
+}): Promise<string> {
+  const startedAtIso = new Date(startedAt).toISOString();
+  const metric = buildMeetingChatAiMetric({
+    chatId: chat.id,
+    meetingId: chat.meeting_id,
+    userId: chat.user_id,
+    requestId,
+    stage: "answer_started",
+    errorMessage: null,
+    question: chat.question,
+    status: "processing",
+    fallbackReason: null,
+    sources: [],
+    answerText: null,
+    questionEmbeddingGenerated: false,
+    generationAttempted: false,
+    embeddingDurationMs: null,
+    retrievalDurationMs: null,
+    generationDurationMs: null,
+    totalDurationMs: 0,
+    startedAt: startedAtIso,
+    completedAt: null,
+  });
+
+  return insertMeetingChatAiMetric(supabase, metric);
 }
 
 function logMeetingChatAiMetric(
@@ -363,6 +429,7 @@ export const answerMeetingChat = inngest.createFunction(
     const supabase = createServiceRoleClient();
     const data = parseMeetingChatAnswerEventData(event.data);
     const metricState = createMetricState();
+    let metricId: string | null = null;
 
     try {
       const { chat, meeting } = await step.run("load-chat-meeting", () =>
@@ -384,12 +451,18 @@ export const answerMeetingChat = inngest.createFunction(
         return { chatId: chat.id, status: chat.status, skipped: true };
       }
 
+      metricId = await step.run("start-ai-metric", () =>
+        startMeetingChatAiMetric({ supabase, requestId, startedAt, chat })
+      );
+
       if (!meeting.transcript) {
         await saveFallback(supabase, chat.id, "no_transcript", null);
         await recordMeetingChatAiMetric({
           supabase,
           requestId,
           startedAt,
+          metricId,
+          stage: "no_transcript",
           chatId: chat.id,
           meetingId: chat.meeting_id,
           userId: chat.user_id,
@@ -406,6 +479,8 @@ export const answerMeetingChat = inngest.createFunction(
           supabase,
           requestId,
           startedAt,
+          metricId,
+          stage: "meeting_not_ready",
           chatId: chat.id,
           meetingId: chat.meeting_id,
           userId: chat.user_id,
@@ -453,6 +528,8 @@ export const answerMeetingChat = inngest.createFunction(
           supabase,
           requestId,
           startedAt,
+          metricId,
+          stage: "low_similarity",
           chatId: chat.id,
           meetingId: chat.meeting_id,
           userId: chat.user_id,
@@ -488,6 +565,8 @@ export const answerMeetingChat = inngest.createFunction(
           supabase,
           requestId,
           startedAt,
+          metricId,
+          stage: "not_confirmed_by_model",
           chatId: chat.id,
           meetingId: chat.meeting_id,
           userId: chat.user_id,
@@ -515,6 +594,8 @@ export const answerMeetingChat = inngest.createFunction(
           supabase,
           requestId,
           startedAt,
+          metricId,
+          stage: "not_confirmed_by_model",
           chatId: chat.id,
           meetingId: chat.meeting_id,
           userId: chat.user_id,
@@ -540,6 +621,8 @@ export const answerMeetingChat = inngest.createFunction(
         supabase,
         requestId,
         startedAt,
+        metricId,
+        stage: "completed",
         chatId: chat.id,
         meetingId: chat.meeting_id,
         userId: chat.user_id,
@@ -572,6 +655,9 @@ export const answerMeetingChat = inngest.createFunction(
         supabase,
         requestId,
         startedAt,
+        metricId,
+        stage: "provider_error",
+        errorMessage: message,
         chatId: data.chatId,
         meetingId: data.meetingId,
         userId: data.userId,

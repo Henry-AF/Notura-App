@@ -213,7 +213,7 @@ export function RecentMeetingsTable({
       className="rounded-[14px] p-4 sm:p-5"
       style={{
         background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
       }}
     >
       {/* Header */}
@@ -236,9 +236,8 @@ export function RecentMeetingsTable({
 
       {/* Column header — desktop only */}
       <div
-        className="hidden grid-cols-[1fr_120px_140px_60px] gap-2 border-b px-3 pb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] sm:grid"
+        className="hidden grid-cols-[1fr_120px_140px_60px] gap-2 px-3 pb-2.5 text-[10px] font-bold uppercase tracking-[0.1em] sm:grid"
         style={{
-          borderColor: "rgb(var(--cn-border))",
           color: "rgb(var(--cn-muted))",
         }}
       >

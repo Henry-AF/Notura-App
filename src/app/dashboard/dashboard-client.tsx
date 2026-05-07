@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BannerCarousel,
   DashboardHeader,
   MetricsRow,
   RecentMeetingsTable,
@@ -52,6 +53,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
       router.prefetch(href);
     };
 
+    prefetchSafely("/dashboard/recording");
     prefetchSafely("/dashboard/new");
     prefetchSafely("/dashboard/meetings");
   }, [router]);
@@ -62,8 +64,13 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <DashboardHeader
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
-          onNewMeeting={() => router.push("/dashboard/new")}
+          onNewMeeting={() => router.push("/dashboard/recording")}
+          onUpload={() => router.push("/dashboard/new")}
         />
+      </div>
+
+      <div className="mt-6 animate-fade-in [animation-delay:40ms]">
+        <BannerCarousel />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">

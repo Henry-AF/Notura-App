@@ -19,7 +19,7 @@ export function SectionCard({
   const hasHeader = Boolean(title || description || actions);
 
   return (
-    <Card className={cn("border-border/80 bg-card/95", className)} {...props}>
+    <Card className={cn("border-0 shadow-[0_2px_8px_rgba(0,0,0,0.06)] bg-card/95", className)} {...props}>
       {hasHeader && (
         <CardHeader className="space-y-1.5">
           <div className="flex items-start justify-between gap-3">

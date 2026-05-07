@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, Share2, Pencil, Trash2 } from "lucide-react";
+import { Calendar, MessageSquare, Share2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -55,6 +55,7 @@ export interface MeetingHeaderProps {
   date: string;
   status: "completed" | "processing" | "failed" | "scheduled";
   participants: Array<{ name: string; avatarUrl?: string }>;
+  onChat?: () => void;
   onShare: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -66,6 +67,7 @@ export function MeetingHeader({
   date,
   status,
   participants,
+  onChat,
   onShare,
   onEdit,
   onDelete,
@@ -87,6 +89,18 @@ export function MeetingHeader({
       descriptionClassName="max-w-none"
       actions={
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {onChat ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onChat}
+              className="w-full sm:w-auto"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Chat
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

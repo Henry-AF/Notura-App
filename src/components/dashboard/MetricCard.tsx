@@ -89,7 +89,7 @@ export function MetricCard({
     <div
       style={{
         background: "rgb(var(--cn-card))",
-        border: "1px solid rgb(var(--cn-border))",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         borderRadius: "14px",
         padding: "20px",
       }}

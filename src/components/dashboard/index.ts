@@ -1,3 +1,4 @@
+export { BannerCarousel } from "./BannerCarousel";
 export { DashboardHeader } from "./DashboardHeader";
 export type { DashboardHeaderProps } from "./DashboardHeader";
 export { MetricCard } from "./MetricCard";

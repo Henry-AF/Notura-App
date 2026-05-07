@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Send, Sparkles, X } from "lucide-react";
+import { ChevronRight, Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { AppSideSheet } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
 import {
@@ -64,7 +64,8 @@ function SourceAccordion({ sources }: { sources: MeetingChatSource[] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-primary/70 transition-colors hover:text-primary"
+        className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide transition-colors hover:opacity-80"
+        style={{ color: "#6C63FF" }}
       >
         <ChevronRight
           className="h-3 w-3 transition-transform duration-150"
@@ -105,6 +106,11 @@ function SourceAccordion({ sources }: { sources: MeetingChatSource[] }) {
 function ChatEntryItem({ entry }: { entry: ChatEntry }) {
   const { question, response, error } = entry;
   const isProcessing = response === null && error === null;
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  function handleFeedback(value: "up" | "down") {
+    setFeedback((prev) => (prev === value ? null : value));
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -143,18 +149,76 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
         )}
 
         {response?.status === "completed" && (
-          <div className="rounded-2xl rounded-bl-sm bg-muted px-4 py-3">
-            <p className="m-0 text-sm leading-relaxed text-foreground">
+          <div
+            className="rounded-2xl rounded-bl-sm px-4 py-3"
+            style={{
+              background: "#F0EFFF",
+              color: "#1F1F2E",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            }}
+          >
+            <p className="m-0 text-sm leading-relaxed">
               {response.modelConfirmed
                 ? response.answer
                 : formatMeetingChatFallback(response.fallbackReason)}
             </p>
 
             {response.modelConfirmed && response.sources.length > 0 && (
-              <div className="mt-3 border-t border-border/40 pt-3">
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(108,99,255,0.15)" }}>
                 <SourceAccordion sources={response.sources} />
               </div>
             )}
+
+            <div className="flex items-center justify-end gap-2" style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                aria-label="Resposta útil"
+                onClick={() => handleFeedback("up")}
+                style={{
+                  background: feedback === "up" ? "rgba(16,185,129,0.12)" : "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "4px 6px",
+                  cursor: "pointer",
+                  color: feedback === "up" ? "#10B981" : "#9CA3AF",
+                  transition: "color 0.15s, background 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onMouseEnter={(e) => {
+                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#10B981";
+                }}
+                onMouseLeave={(e) => {
+                  if (feedback !== "up") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
+                }}
+              >
+                <ThumbsUp style={{ width: 16, height: 16 }} />
+              </button>
+              <button
+                type="button"
+                aria-label="Resposta não útil"
+                onClick={() => handleFeedback("down")}
+                style={{
+                  background: feedback === "down" ? "rgba(239,68,68,0.12)" : "transparent",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "4px 6px",
+                  cursor: "pointer",
+                  color: feedback === "down" ? "#EF4444" : "#9CA3AF",
+                  transition: "color 0.15s, background 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onMouseEnter={(e) => {
+                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#EF4444";
+                }}
+                onMouseLeave={(e) => {
+                  if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF";
+                }}
+              >
+                <ThumbsDown style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -187,10 +251,15 @@ const MAX_SENTENCES = 3;
 
 export interface MeetingChatSheetProps {
   meetingId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function MeetingChatSheet({ meetingId }: MeetingChatSheetProps) {
-  const [open, setOpen] = useState(false);
+export function MeetingChatSheet({
+  meetingId,
+  open,
+  onOpenChange,
+}: MeetingChatSheetProps) {
   const [question, setQuestion] = useState("");
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [processing, setProcessing] = useState(false);
@@ -251,99 +320,87 @@ export function MeetingChatSheet({ meetingId }: MeetingChatSheetProps) {
   );
 
   return (
-    <>
-      {/* FAB */}
-      <button
-        type="button"
-        aria-label="Abrir análise com IA"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-7 right-7 z-40 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#5341CD] text-white shadow-[0_4px_20px_rgba(83,65,205,0.45)] transition-all duration-200 hover:bg-[#4433BB] hover:shadow-[0_6px_28px_rgba(83,65,205,0.6)] active:scale-95"
-      >
-        <Sparkles style={{ width: 22, height: 22 }} />
-      </button>
-
-      <AppSideSheet
-        open={open}
-        onOpenChange={setOpen}
-        ariaLabel="Chat de análise com IA"
-        header={
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">Notura AI</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Pergunte sobre esta reunião
-                </p>
-              </div>
+    <AppSideSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      ariaLabel="Chat de análise com IA"
+      header={
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="h-4 w-4 text-primary" />
             </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Notura AI</p>
+              <p className="text-[11px] text-muted-foreground">
+                Pergunte sobre esta reunião
+              </p>
+            </div>
+          </div>
 
+          <button
+            type="button"
+            aria-label="Fechar"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      }
+      footer={
+        <div className="border-t border-border px-4 py-3">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={processing}
+              placeholder="Quais prazos foram combinados?"
+              rows={3}
+              className={cn(
+                "w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                isOverLimit ? "border-destructive" : "border-input"
+              )}
+            />
             <button
               type="button"
-              aria-label="Fechar"
-              onClick={() => setOpen(false)}
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={() => void handleSubmit()}
+              disabled={!question.trim() || processing || isOverLimit}
+              aria-label="Enviar pergunta"
+              className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
             >
-              <X className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             </button>
           </div>
-        }
-        footer={
-          <div className="border-t border-border px-4 py-3">
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={processing}
-                placeholder="Quais prazos foram combinados?"
-                rows={3}
-                className={cn(
-                  "w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-                  isOverLimit ? "border-destructive" : "border-input"
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => void handleSubmit()}
-                disabled={!question.trim() || processing || isOverLimit}
-                aria-label="Enviar pergunta"
-                className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
-            </div>
 
-            <div className="mt-1.5 flex items-center justify-between px-1">
-              <p
-                className={cn(
-                  "text-[10px]",
-                  isOverLimit ? "text-destructive" : "text-muted-foreground"
-                )}
-              >
-                Máx. 3 frases · {question.length}/{MAX_CHARS} chars
-              </p>
-              <p className="text-[10px] text-muted-foreground">Enter para enviar</p>
-            </div>
+          <div className="mt-1.5 flex items-center justify-between px-1">
+            <p
+              className={cn(
+                "text-[10px]",
+                isOverLimit ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
+              Máx. 3 frases · {question.length}/{MAX_CHARS} chars
+            </p>
+            <p className="text-[10px] text-muted-foreground">Enter para enviar</p>
           </div>
-        }
-      >
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {entries.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-5">
-              {entries.map((entry) => (
-                <ChatEntryItem key={entry.id} entry={entry} />
-              ))}
-            </div>
-          )}
-          <div ref={bottomRef} />
         </div>
-      </AppSideSheet>
-    </>
+      }
+    >
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {entries.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="flex flex-col gap-5">
+            {entries.map((entry) => (
+              <ChatEntryItem key={entry.id} entry={entry} />
+            ))}
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+    </AppSideSheet>
   );
 }

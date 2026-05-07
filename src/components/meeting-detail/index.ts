@@ -19,7 +19,5 @@ export { MeetingLocationCard } from "./MeetingLocationCard";
 export type { MeetingLocationCardProps } from "./MeetingLocationCard";
 export { MeetingFilesCard } from "./MeetingFilesCard";
 export type { MeetingFile, MeetingFilesCardProps } from "./MeetingFilesCard";
-export { AIInsightToast } from "./AIInsightToast";
-export type { AIInsightToastProps } from "./AIInsightToast";
 export { MeetingChatSheet } from "./MeetingChatSheet";
 export type { MeetingChatSheetProps } from "./MeetingChatSheet";

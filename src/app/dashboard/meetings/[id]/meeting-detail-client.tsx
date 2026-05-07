@@ -9,7 +9,6 @@ import {
   SmartSummaryCard,
   KeyDecisionCard,
   AlertPointCard,
-  AIInsightToast,
   MeetingChatSheet,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
@@ -139,7 +138,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
   // Tasks & files
   const [tasks, setTasks] = useState<MeetingTask[]>(meeting.tasks);
-  const [insightMessage] = useState(meeting.insightMessage);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [taskColumnById, setTaskColumnById] = useState<
@@ -147,6 +145,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   >(() => buildInitialTaskColumnMap(meeting.tasks));
 
   const [activeTab, setActiveTab] = useState<MeetingTab>("summary");
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
   const taskColumns = useMemo(
@@ -597,6 +596,9 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           date={meetingDate}
           status={meetingStatus}
           participants={participants}
+          onChat={
+            meetingStatus === "completed" ? () => setIsChatOpen(true) : undefined
+          }
           onShare={handleShare}
           onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
           onDelete={() => setIsDeleteDialogOpen(true)}
@@ -643,11 +645,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         onConfirmDelete={handleDeleteMeeting}
       />
 
-      {/* AI Insight Toast (fixed bottom-left on desktop, full-width on mobile) */}
-      <AIInsightToast message={insightMessage} />
-
-      {/* AI RAG chat side sheet — only for completed meetings */}
-      {meetingStatus === "completed" && <MeetingChatSheet meetingId={id} />}
+      {meetingStatus === "completed" && (
+        <MeetingChatSheet
+          meetingId={id}
+          open={isChatOpen}
+          onOpenChange={setIsChatOpen}
+        />
+      )}
 
       {/* Export button via a portal-like approach — rendered as fixed button
           top-right to supplement the existing topbar */}

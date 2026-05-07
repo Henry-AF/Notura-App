@@ -65,6 +65,7 @@ export function SettingsModal({
   const { isDark, setTheme } = useTheme();
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
+  const modalFrameMinHeight = "min(560px, 90dvh)";
 
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
@@ -193,6 +194,7 @@ export function SettingsModal({
           background: c.bg2,
           border: `1px solid ${c.border}`,
           maxHeight: "90dvh",
+          minHeight: modalFrameMinHeight,
         }}
       >
         {/* ── Mobile: drag handle ───────────────────────────────────── */}

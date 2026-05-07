@@ -18,6 +18,7 @@ describe("meeting detail actions", () => {
     const meetingDetailIndex = readSource("src/components/meeting-detail/index.ts");
 
     expect(meetingHeader).toContain("Chat");
+    expect(meetingHeader).toContain("bg-[linear-gradient(135deg,rgba(94,76,235,0.92)_0%,rgba(59,130,246,0.82)_100%)]");
     expect(meetingDetailClient).not.toContain("AIInsightToast");
     expect(meetingChatSheet).not.toContain('aria-label="Abrir análise com IA"');
     expect(meetingChatSheet).not.toContain("position: fixed");

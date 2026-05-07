@@ -92,10 +92,10 @@ export function MeetingHeader({
           {onChat ? (
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={onChat}
-              className="w-full sm:w-auto"
+              className="w-full border-0 bg-[linear-gradient(135deg,rgba(94,76,235,0.92)_0%,rgba(59,130,246,0.82)_100%)] text-white shadow-[0_10px_24px_rgba(94,76,235,0.28),0_4px_12px_rgba(59,130,246,0.18)] transition-all duration-200 hover:scale-[0.99] hover:brightness-105 sm:w-auto"
             >
               <MessageSquare className="h-4 w-4" />
               Chat

@@ -48,6 +48,8 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 const TEXT_MODEL_FALLBACK_MESSAGE_PATTERNS = [
   /model not found/i,
   /not found/i,
+  /aborted/i,
+  /operation was aborted/i,
   /timeout/i,
   /timed out/i,
   /temporarily unavailable/i,

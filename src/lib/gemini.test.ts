@@ -162,6 +162,25 @@ describe("generateMeetingSummary retry policy", () => {
       expect.objectContaining({ model: "gemini-2.5-flash-lite" })
     );
   });
+
+  it("falls back when the SDK reports an aborted preview request", async () => {
+    generateContentMock
+      .mockRejectedValueOnce(
+        new Error(
+          "[GoogleGenerativeAI Error]: Request aborted when fetching https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent: This operation was aborted"
+        )
+      )
+      .mockResolvedValueOnce(createValidGeminiResponse());
+
+    const mod = await import("./gemini");
+    const result = await mod.generateMeetingSummary("transcript");
+
+    expect(result.summaryWhatsapp).toBe("Resumo pronto para WhatsApp");
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
+  });
 });
 
 describe("generateMeetingSummary dynamic summary length", () => {

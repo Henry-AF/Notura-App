@@ -1,8 +1,30 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+function createChatResponse(status: "processing" | "completed") {
+  return new Response(
+    JSON.stringify({
+      id: "chat-1",
+      status,
+      question: "Qual foi o prazo?",
+      answer: status === "completed" ? "Sexta-feira." : null,
+      fallbackReason: null,
+      modelConfirmed: status === "completed" ? true : null,
+      sources: [],
+      errorMessage: null,
+      createdAt: "2026-05-07T10:00:00.000Z",
+      completedAt: status === "completed" ? "2026-05-07T10:00:03.000Z" : null,
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }
+  );
+}
+
 describe("meeting detail client api", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("loads archived chats for the current meeting through the owned API route", async () => {
@@ -70,5 +92,34 @@ describe("meeting detail client api", () => {
     await expect(mod.deleteMeetingById("meeting-1")).rejects.toThrow(
       "Nao foi possivel excluir."
     );
+  });
+
+  it("polls chat status quickly at first and backs off between attempts", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(createChatResponse("processing"))
+      .mockResolvedValueOnce(createChatResponse("processing"))
+      .mockResolvedValueOnce(createChatResponse("completed"));
+
+    const mod = await import("./meeting-client-api");
+    const promise = mod.waitForMeetingChat("meeting-1", "chat-1", {
+      maxAttempts: 5,
+    });
+
+    await vi.advanceTimersByTimeAsync(499);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await promise;
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(result.status).toBe("completed");
   });
 });

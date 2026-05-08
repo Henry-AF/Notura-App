@@ -17,6 +17,7 @@ import type { MeetingJSON } from "@/types/database";
 
 export const GEMINI_TEXT_MODEL_NAME = "gemini-3.1-flash-lite-preview";
 export const GEMINI_TEXT_FALLBACK_MODEL_NAME = "gemini-2.5-flash-lite";
+export const GEMINI_TEXT_PRIMARY_TIMEOUT_MS = 6_000;
 export const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
 export const EMBEDDING_OUTPUT_DIMENSIONS = 768;
 const LOCAL_MAX_ATTEMPTS = 2;
@@ -47,6 +48,8 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 const TEXT_MODEL_FALLBACK_MESSAGE_PATTERNS = [
   /model not found/i,
   /not found/i,
+  /timeout/i,
+  /timed out/i,
   /temporarily unavailable/i,
   /unavailable/i,
   /overloaded/i,
@@ -121,6 +124,10 @@ type EmbedContentRequestWithDimensionality = EmbedContentRequest & {
 interface GeminiTextGenerationResult {
   text: string;
   modelName: (typeof TEXT_MODEL_NAMES)[number];
+}
+
+interface GeminiGenerateContentRequestOptions {
+  timeout?: number;
 }
 
 // ── Prompt do sistema ────────────────────────────────────────────────────────
@@ -412,7 +419,10 @@ async function generateTextWithFallback(
             systemInstruction,
           });
 
-          return model.generateContent(prompt);
+          const requestOptions = resolveTextModelRequestOptions(modelName);
+          return requestOptions
+            ? model.generateContent(prompt, requestOptions)
+            : model.generateContent(prompt);
         },
         maxAttempts
       );
@@ -436,6 +446,13 @@ async function generateTextWithFallback(
   }
 
   throw new Error("Gemini text generation failed without a provider response");
+}
+
+function resolveTextModelRequestOptions(
+  modelName: (typeof TEXT_MODEL_NAMES)[number]
+): GeminiGenerateContentRequestOptions | undefined {
+  if (modelName !== GEMINI_TEXT_MODEL_NAME) return undefined;
+  return { timeout: GEMINI_TEXT_PRIMARY_TIMEOUT_MS };
 }
 
 function parseJsonResponse<T>(text: string): T {

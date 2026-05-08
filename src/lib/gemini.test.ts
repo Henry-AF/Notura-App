@@ -142,6 +142,26 @@ describe("generateMeetingSummary retry policy", () => {
     );
     expect(generateContentMock).toHaveBeenCalledTimes(2);
   });
+
+  it("uses a short timeout on the preview model before falling back", async () => {
+    generateContentMock
+      .mockRejectedValueOnce(new Error("request timed out"))
+      .mockResolvedValueOnce(createValidGeminiResponse());
+
+    const mod = await import("./gemini");
+    const result = await mod.generateMeetingSummary("transcript");
+
+    expect(result.summaryWhatsapp).toBe("Resumo pronto para WhatsApp");
+    expect(generateContentMock).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      { timeout: mod.GEMINI_TEXT_PRIMARY_TIMEOUT_MS }
+    );
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
+  });
 });
 
 describe("generateMeetingSummary dynamic summary length", () => {
@@ -157,10 +177,14 @@ describe("generateMeetingSummary dynamic summary length", () => {
     await mod.generateMeetingSummary("transcript");
 
     expect(generateContentMock).toHaveBeenCalledWith(
-      expect.stringContaining('Limite de tamanho do "summary_whatsapp": até 400 palavras.')
+      expect.stringContaining(
+        'Limite de tamanho do "summary_whatsapp": até 400 palavras.'
+      ),
+      { timeout: mod.GEMINI_TEXT_PRIMARY_TIMEOUT_MS }
     );
     expect(generateContentMock).toHaveBeenCalledWith(
-      expect.stringContaining("Duração da reunião: não informada.")
+      expect.stringContaining("Duração da reunião: não informada."),
+      { timeout: mod.GEMINI_TEXT_PRIMARY_TIMEOUT_MS }
     );
   });
 
@@ -178,7 +202,8 @@ describe("generateMeetingSummary dynamic summary length", () => {
       expect(generateContentMock).toHaveBeenCalledWith(
         expect.stringContaining(
           `Limite de tamanho do "summary_whatsapp": até ${expectedWordLimit} palavras.`
-        )
+        ),
+        { timeout: mod.GEMINI_TEXT_PRIMARY_TIMEOUT_MS }
       );
     }
   );
@@ -322,7 +347,8 @@ describe("answerMeetingQuestionFromChunks", () => {
       })
     );
     expect(generateContentMock).toHaveBeenCalledWith(
-      expect.stringContaining('id="chunk-1"')
+      expect.stringContaining('id="chunk-1"'),
+      { timeout: mod.GEMINI_TEXT_PRIMARY_TIMEOUT_MS }
     );
     expect(result).toEqual({
       answer: "O prazo combinado foi sexta-feira.",

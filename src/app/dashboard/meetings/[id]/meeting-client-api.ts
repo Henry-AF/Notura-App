@@ -29,6 +29,15 @@ export interface MeetingChatResponse {
   completedAt: string | null;
 }
 
+const DEFAULT_CHAT_POLL_INITIAL_INTERVAL_MS = 500;
+const DEFAULT_CHAT_POLL_MAX_INTERVAL_MS = 2000;
+
+interface WaitForMeetingChatOptions {
+  intervalMs?: number;
+  maxIntervalMs?: number;
+  maxAttempts?: number;
+}
+
 function readErrorMessage(body: unknown): string | undefined {
   if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
   const { error } = body as { error?: unknown };
@@ -92,15 +101,25 @@ export async function fetchMeetingArchivedChats(
 export async function waitForMeetingChat(
   meetingId: string,
   chatId: string,
-  options: { intervalMs?: number; maxAttempts?: number } = {}
+  options: WaitForMeetingChatOptions = {}
 ): Promise<MeetingChatResponse> {
-  const intervalMs = options.intervalMs ?? 2000;
+  const initialIntervalMs =
+    options.intervalMs ?? DEFAULT_CHAT_POLL_INITIAL_INTERVAL_MS;
+  const maxIntervalMs =
+    options.maxIntervalMs ?? DEFAULT_CHAT_POLL_MAX_INTERVAL_MS;
   const maxAttempts = options.maxAttempts ?? 120;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const chat = await fetchMeetingChat(meetingId, chatId);
     if (chat.status !== "processing") return chat;
-    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    const delayMs = resolveChatPollDelayMs(
+      attempt,
+      initialIntervalMs,
+      maxIntervalMs
+    );
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, delayMs)
+    );
   }
 
   // Last read before timing out, to catch late provider failures/completions.
@@ -108,6 +127,14 @@ export async function waitForMeetingChat(
   if (lastChat.status !== "processing") return lastChat;
 
   throw new Error("Tempo limite ao aguardar resposta do chat.");
+}
+
+function resolveChatPollDelayMs(
+  attempt: number,
+  initialIntervalMs: number,
+  maxIntervalMs: number
+): number {
+  return Math.min(initialIntervalMs * 2 ** attempt, maxIntervalMs);
 }
 
 // ─── Meeting delete ───────────────────────────────────────────────────────────

@@ -5,7 +5,11 @@ import {
   isMeetingChatDailyQuotaExceededError,
   resolveMeetingChatDailyQuotaLimit,
 } from "@/lib/ai/usage-limits";
-import { requireOwnership, withAuth } from "@/lib/api/auth";
+import {
+  requireOwnership,
+  withAuth,
+  type RouteAuthContext,
+} from "@/lib/api/auth";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { inngest } from "@/lib/inngest";
@@ -29,6 +33,26 @@ type MeetingChatListRow = Pick<
   | "created_at"
   | "completed_at"
 >;
+type SupabaseAdminClient = RouteAuthContext["supabaseAdmin"];
+
+interface DispatchMeetingChatAnswerInput {
+  supabase: SupabaseAdminClient;
+  chatId: string;
+  meetingId: string;
+  userId: string;
+  requestId: string;
+  route: string;
+  startedAt: number;
+}
+
+interface DispatchWarningInput {
+  event: string;
+  error: unknown;
+  requestId: string;
+  userId: string;
+  route: string;
+  startedAt: number;
+}
 
 function mapChat(chat: MeetingChatListRow) {
   return {
@@ -43,6 +67,126 @@ function mapChat(chat: MeetingChatListRow) {
     createdAt: chat.created_at,
     completedAt: chat.completed_at,
   };
+}
+
+function logDispatchWarning({
+  event,
+  error,
+  requestId,
+  userId,
+  route,
+  startedAt,
+}: DispatchWarningInput): void {
+  logStructured("warn", {
+    event,
+    requestId,
+    userId,
+    route,
+    durationMs: Date.now() - startedAt,
+    status: 202,
+    errorMessage: getErrorMessage(error),
+  });
+}
+
+async function markMeetingChatOutboxSent(
+  supabase: SupabaseAdminClient,
+  chatId: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("meeting_chat_outbox")
+    .update({
+      status: "sent",
+      sent_at: now,
+      last_error: null,
+      updated_at: now,
+    })
+    .eq("chat_id", chatId)
+    .in("status", ["pending", "processing"]);
+
+  if (error) throw error;
+}
+
+async function kickMeetingChatOutboxDispatcher({
+  meetingId,
+  userId,
+}: Pick<DispatchMeetingChatAnswerInput, "meetingId" | "userId">): Promise<void> {
+  await inngest.send({
+    name: "meeting/chat.outbox.dispatch",
+    data: {
+      meetingId,
+      userId,
+    },
+  });
+}
+
+async function kickOutboxAfterDirectDispatchFailure(
+  input: Omit<DispatchMeetingChatAnswerInput, "supabase" | "chatId">,
+  error: unknown
+): Promise<void> {
+  logDispatchWarning({
+    event: "meeting.chat.answer.dispatch_failed",
+    error,
+    requestId: input.requestId,
+    userId: input.userId,
+    route: input.route,
+    startedAt: input.startedAt,
+  });
+
+  try {
+    await kickMeetingChatOutboxDispatcher(input);
+  } catch (kickError) {
+    logDispatchWarning({
+      event: "meeting.chat.outbox.dispatch_kick_failed",
+      error: kickError,
+      requestId: input.requestId,
+      userId: input.userId,
+      route: input.route,
+      startedAt: input.startedAt,
+    });
+  }
+}
+
+async function dispatchMeetingChatAnswerImmediately({
+  supabase,
+  chatId,
+  meetingId,
+  userId,
+  requestId,
+  route,
+  startedAt,
+}: DispatchMeetingChatAnswerInput): Promise<void> {
+  try {
+    await inngest.send({
+      name: "meeting/chat.answer",
+      data: { chatId, meetingId, userId },
+    });
+  } catch (error) {
+    await kickOutboxAfterDirectDispatchFailure(
+      {
+        meetingId,
+        userId,
+        requestId,
+        route,
+        startedAt,
+      },
+      error
+    );
+    return;
+  }
+
+  try {
+    await markMeetingChatOutboxSent(supabase, chatId);
+  } catch (error) {
+    logDispatchWarning({
+      event: "meeting.chat.outbox.mark_sent_failed",
+      error,
+      requestId,
+      userId,
+      route,
+      startedAt,
+    });
+  }
 }
 
 export const GET = withAuth<{ id: string }, NextRequest>(async (
@@ -150,25 +294,15 @@ export const POST = withAuthRateLimit<{ id: string }, NextRequest>(
       );
     }
 
-    try {
-      await inngest.send({
-        name: "meeting/chat.outbox.dispatch",
-        data: {
-          meetingId: params.id,
-          userId: auth.user.id,
-        },
-      });
-    } catch (error) {
-      logStructured("warn", {
-        event: "meeting.chat.outbox.dispatch_kick_failed",
-        requestId,
-        userId: auth.user.id,
-        route: `/api/meetings/${params.id}/chats`,
-        durationMs: Date.now() - startedAt,
-        status: 202,
-        errorMessage: getErrorMessage(error),
-      });
-    }
+    await dispatchMeetingChatAnswerImmediately({
+      supabase,
+      chatId: chat.chat_id,
+      meetingId: params.id,
+      userId: auth.user.id,
+      requestId,
+      route: `/api/meetings/${params.id}/chats`,
+      startedAt,
+    });
 
     return NextResponse.json(
       { chatId: chat.chat_id, status: chat.status },

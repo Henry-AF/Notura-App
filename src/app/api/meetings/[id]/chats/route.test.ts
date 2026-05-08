@@ -73,6 +73,13 @@ function createAdminClient(options?: {
     data: chatRows,
     error: null,
   });
+  const outboxUpdates: unknown[] = [];
+  const outboxStatusIn = vi.fn().mockResolvedValue({ error: null });
+  const outboxChatEq = vi.fn(() => ({ in: outboxStatusIn }));
+  const outboxUpdate = vi.fn((payload: unknown) => {
+    outboxUpdates.push(payload);
+    return { eq: outboxChatEq };
+  });
   const rpc = vi.fn(() => ({
     single: rpcSingle,
   }));
@@ -91,6 +98,12 @@ function createAdminClient(options?: {
       };
     }
 
+    if (table === "meeting_chat_outbox") {
+      return {
+        update: outboxUpdate,
+      };
+    }
+
     return {
       select: vi.fn((columns: string) => ({
         eq: vi.fn(() =>
@@ -100,7 +113,7 @@ function createAdminClient(options?: {
     };
   });
 
-  return { from, rpc };
+  return { from, rpc, outboxUpdates, outboxChatEq, outboxStatusIn };
 }
 
 function createRequest(question: string) {
@@ -200,7 +213,7 @@ describe("POST /api/meetings/[id]/chats", () => {
     expect(await response.json()).toEqual({ error: "meeting_not_ready" });
   });
 
-  it("creates a processing chat with an outbox row and kicks the dispatcher", async () => {
+  it("creates a processing chat with an outbox row and dispatches the answer immediately", async () => {
     const admin = createAdminClient();
     createServiceRoleClient.mockReturnValue(admin);
 
@@ -221,13 +234,26 @@ describe("POST /api/meetings/[id]/chats", () => {
       p_question: "Qual foi o prazo?",
       p_user_id: "user-1",
     });
+    expect(inngestSend).toHaveBeenCalledTimes(1);
     expect(inngestSend).toHaveBeenCalledWith({
-      name: "meeting/chat.outbox.dispatch",
+      name: "meeting/chat.answer",
       data: {
+        chatId: "chat-1",
         meetingId: "meeting-1",
         userId: "user-1",
       },
     });
+    expect(admin.outboxUpdates).toContainEqual(
+      expect.objectContaining({
+        status: "sent",
+        last_error: null,
+      })
+    );
+    expect(admin.outboxChatEq).toHaveBeenCalledWith("chat_id", "chat-1");
+    expect(admin.outboxStatusIn).toHaveBeenCalledWith("status", [
+      "pending",
+      "processing",
+    ]);
   });
 
   it("returns 403 when the daily AI chat quota is exhausted", async () => {
@@ -252,10 +278,12 @@ describe("POST /api/meetings/[id]/chats", () => {
     });
   });
 
-  it("still returns 202 when the dispatcher kick fails after the outbox commit", async () => {
+  it("kicks the outbox dispatcher when the direct answer dispatch fails", async () => {
     const admin = createAdminClient();
     createServiceRoleClient.mockReturnValue(admin);
-    inngestSend.mockRejectedValue(new Error("Inngest unavailable"));
+    inngestSend
+      .mockRejectedValueOnce(new Error("Inngest unavailable"))
+      .mockResolvedValueOnce(undefined);
 
     const mod = await import("./route");
     const response = await mod.POST(createRequest("Qual foi o prazo?"), {
@@ -274,6 +302,41 @@ describe("POST /api/meetings/[id]/chats", () => {
       p_question: "Qual foi o prazo?",
       p_user_id: "user-1",
     });
+    expect(inngestSend).toHaveBeenNthCalledWith(1, {
+      name: "meeting/chat.answer",
+      data: {
+        chatId: "chat-1",
+        meetingId: "meeting-1",
+        userId: "user-1",
+      },
+    });
+    expect(inngestSend).toHaveBeenNthCalledWith(2, {
+      name: "meeting/chat.outbox.dispatch",
+      data: {
+        meetingId: "meeting-1",
+        userId: "user-1",
+      },
+    });
+    expect(admin.outboxUpdates).toEqual([]);
+  });
+
+  it("still returns 202 when direct dispatch and the fallback kick fail after the outbox commit", async () => {
+    const admin = createAdminClient();
+    createServiceRoleClient.mockReturnValue(admin);
+    inngestSend.mockRejectedValue(new Error("Inngest unavailable"));
+
+    const mod = await import("./route");
+    const response = await mod.POST(createRequest("Qual foi o prazo?"), {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      chatId: "chat-1",
+      status: "processing",
+    });
+    expect(inngestSend).toHaveBeenCalledTimes(2);
+    expect(admin.outboxUpdates).toEqual([]);
   });
 
   it("rate limits chat creation to two requests per minute per user", async () => {

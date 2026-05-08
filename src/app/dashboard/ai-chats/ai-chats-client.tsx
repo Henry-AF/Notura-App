@@ -463,6 +463,7 @@ export function AiChatsClient({ initialData }: AiChatsClientProps) {
       />
 
       <MeetingArchivedChatsSheet
+        meetingId={state.selectedChat?.meetingId ?? ""}
         open={Boolean(state.selectedChat)}
         onOpenChange={(open) => {
           if (!open) state.setSelectedChatId(null);

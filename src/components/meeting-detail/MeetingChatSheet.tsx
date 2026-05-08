@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -391,6 +391,7 @@ export interface MeetingChatSheetProps {
 }
 
 export interface MeetingArchivedChatsSheetProps {
+  meetingId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meetingTitle: string;
@@ -638,11 +639,7 @@ export function MeetingChatSheet({
         </div>
       </div>
     ) : (
-      <div className="border-t border-border/60 bg-background/80 px-4 py-3 backdrop-blur-[14px]">
-        <div className="rounded-[18px] border border-border/50 bg-muted px-3 py-2 text-xs text-muted-foreground shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.05)]">
-          Chats arquivados ficam em modo somente leitura dentro desta reunião.
-        </div>
-      </div>
+      null
     );
 
   return (
@@ -724,39 +721,118 @@ export function MeetingChatSheet({
 }
 
 export function MeetingArchivedChatsSheet({
+  meetingId,
   open,
   onOpenChange,
   meetingTitle,
   chats,
   initialChatId = null,
 }: MeetingArchivedChatsSheetProps) {
+  const [mode, setMode] = useState<ChatSheetMode>("archived");
+  const [question, setQuestion] = useState("");
+  const [entries, setEntries] = useState<ChatEntry[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [createdChats, setCreatedChats] = useState<MeetingChatResponse[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId);
   const [archivedPane, setArchivedPane] = useState<ArchivedPane>(
     initialChatId ? "detail" : "list"
   );
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const visibleChats = useMemo(
+    () => [
+      ...createdChats,
+      ...chats.filter((chat) => !createdChats.some((created) => created.id === chat.id)),
+    ],
+    [chats, createdChats]
+  );
+  const isOverLimit =
+    question.length > MAX_CHARS || countSentences(question) > MAX_SENTENCES;
 
   useEffect(() => {
     if (!open) {
+      setMode("archived");
+      setQuestion("");
+      setEntries([]);
+      setProcessing(false);
       setArchivedPane(initialChatId ? "detail" : "list");
       setSelectedChatId(initialChatId);
       return;
     }
 
+    setMode("archived");
     setArchivedPane(initialChatId ? "detail" : "list");
     setSelectedChatId(initialChatId);
   }, [initialChatId, open]);
 
   useEffect(() => {
-    if (selectedChatId && !chats.some((chat) => chat.id === selectedChatId)) {
+    if (selectedChatId && !visibleChats.some((chat) => chat.id === selectedChatId)) {
       setSelectedChatId(null);
       setArchivedPane("list");
     }
-  }, [chats, selectedChatId]);
+  }, [selectedChatId, visibleChats]);
+
+  useEffect(() => {
+    if (mode === "new" && entries.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [entries, mode]);
+
+  useEffect(() => {
+    if (open && mode === "new") {
+      setTimeout(() => textareaRef.current?.focus(), 200);
+    }
+  }, [mode, open]);
 
   const selectedChat = selectedChatId
-    ? chats.find((chat) => chat.id === selectedChatId) ?? null
+    ? visibleChats.find((chat) => chat.id === selectedChatId) ?? null
     : null;
   const isDetailOpen = archivedPane === "detail" && selectedChat !== null;
+  const isNewMode = mode === "new";
+
+  const handleSubmit = useCallback(async () => {
+    const trimmed = question.trim();
+    if (!meetingId || !trimmed || processing || isOverLimit) return;
+
+    const id = nextEntryId();
+    setEntries((prev) => [...prev, { id, question: trimmed, response: null, error: null }]);
+    setQuestion("");
+    setProcessing(true);
+
+    try {
+      const { chatId } = await createMeetingChat(meetingId, trimmed);
+      const result = await waitForMeetingChat(meetingId, chatId);
+      setCreatedChats((prev) => [result, ...prev.filter((chat) => chat.id !== result.id)]);
+      setEntries((prev) =>
+        prev.map((entry) => (entry.id === id ? { ...entry, response: result } : entry))
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao processar pergunta.";
+      setEntries((prev) =>
+        prev.map((entry) => (entry.id === id ? { ...entry, error: message } : entry))
+      );
+    } finally {
+      setProcessing(false);
+    }
+  }, [isOverLimit, meetingId, processing, question]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void handleSubmit();
+      }
+    },
+    [handleSubmit]
+  );
+
+  function openArchivedList() {
+    setMode("archived");
+    setArchivedPane("list");
+    setSelectedChatId(null);
+  }
 
   return (
     <AppSideSheet
@@ -787,7 +863,11 @@ export function MeetingArchivedChatsSheet({
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">Notura AI</p>
                 <p className="truncate text-[11px] text-muted-foreground">
-                  {isDetailOpen ? meetingTitle : `${meetingTitle} · chats arquivados`}
+                  {isDetailOpen
+                    ? meetingTitle
+                    : isNewMode
+                      ? "Pergunte sobre esta reunião"
+                      : `${meetingTitle} · chats arquivados`}
                 </p>
               </div>
             </div>
@@ -801,35 +881,125 @@ export function MeetingArchivedChatsSheet({
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {!isDetailOpen && (
+            <div className="mt-4 rounded-[18px] border border-border/50 bg-muted/80 p-1 shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.05)] backdrop-blur-[10px]">
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMode("new")}
+                  className={cn(
+                    "rounded-[14px] px-3 py-2 text-sm font-medium transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
+                    mode === "new"
+                      ? "bg-card text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Nova pergunta
+                </button>
+                <button
+                  type="button"
+                  onClick={openArchivedList}
+                  className={cn(
+                    "rounded-[14px] px-3 py-2 text-sm font-medium transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
+                    mode === "archived"
+                      ? "bg-card text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Chats arquivados
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       }
       footer={
-        <div className="border-t border-border/60 bg-background/80 px-4 py-3 backdrop-blur-[14px]">
-          <div className="rounded-[18px] border border-border/50 bg-muted px-3 py-2 text-xs text-muted-foreground shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.05)]">
-            Chats arquivados ficam em modo somente leitura dentro desta reunião.
+        isNewMode ? (
+          <div className="border-t border-border/60 bg-background/80 px-4 py-3 backdrop-blur-[14px]">
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={processing}
+                placeholder="Quais prazos foram combinados?"
+                rows={3}
+                className={cn(
+                  "w-full resize-none rounded-[18px] border border-border/50 bg-muted px-4 py-3 pr-12 text-sm text-foreground shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.05)] transition-all duration-200 focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                  isOverLimit && "ring-1 ring-destructive"
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={!question.trim() || processing || isOverLimit}
+                aria-label="Enviar pergunta"
+                className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="mt-1.5 flex items-center justify-between px-1">
+              <p
+                className={cn(
+                  "text-[10px]",
+                  isOverLimit ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                Máx. 3 frases · {question.length}/{MAX_CHARS} chars
+              </p>
+              <p className="text-[10px] text-muted-foreground">Enter para enviar</p>
+            </div>
           </div>
-        </div>
+        ) : null
       }
     >
       <div className="relative flex-1 overflow-hidden bg-background">
         <div
           className={cn(
             "absolute inset-0 overflow-y-auto px-4 py-4 transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
-            archivedPane === "list"
+            isNewMode
               ? "translate-x-0 opacity-100"
               : "-translate-x-6 opacity-0 pointer-events-none"
           )}
           style={{ transitionTimingFunction: TRANSITION_EASING }}
         >
-          {chats.length === 0 ? (
+          {entries.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="flex flex-col gap-5">
+              {entries.map((entry) => (
+                <ChatEntryItem key={entry.id} entry={entry} />
+              ))}
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div
+          className={cn(
+            "absolute inset-0 overflow-y-auto px-4 py-4 transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
+            mode === "archived" && archivedPane === "list"
+              ? "translate-x-0 opacity-100"
+              : mode === "archived"
+                ? "-translate-x-6 opacity-0 pointer-events-none"
+                : "translate-x-6 opacity-0 pointer-events-none"
+          )}
+          style={{ transitionTimingFunction: TRANSITION_EASING }}
+        >
+          {visibleChats.length === 0 ? (
             <ArchivedChatsEmptyState />
           ) : (
             <div className="flex flex-col gap-3">
-              {chats.map((chat) => (
+              {visibleChats.map((chat) => (
                 <ArchivedChatListItem
                   key={chat.id}
                   chat={chat}
                   onOpen={(item) => {
+                    setMode("archived");
                     setSelectedChatId(item.id);
                     setArchivedPane("detail");
                   }}

@@ -40,4 +40,10 @@ describe("ai chats client presentation", () => {
     expect(source).toContain("MeetingArchivedChatsSheet");
     expect(source).not.toContain("function AiChatSheet(");
   });
+
+  it("passes the selected meeting id to the archived sheet so users can ask there", () => {
+    const source = readClientSource();
+
+    expect(source).toContain('meetingId={state.selectedChat?.meetingId ?? ""}');
+  });
 });

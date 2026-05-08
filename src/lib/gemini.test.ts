@@ -24,6 +24,13 @@ vi.mock("@google/generative-ai", () => {
   };
 });
 
+beforeEach(() => {
+  embedContentMock.mockReset();
+  generateContentMock.mockReset();
+  getGenerativeModelMock.mockClear();
+  GoogleGenerativeAIMock.mockClear();
+});
+
 function createValidGeminiResponse() {
   return {
     response: {
@@ -74,25 +81,25 @@ describe("generateMeetingSummary retry policy", () => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
   });
 
-  it("does not retry non-retryable provider errors like 404", async () => {
+  it("does not retry or fallback on invalid request provider errors like 400", async () => {
     generateContentMock.mockRejectedValue(
       new Error(
-        "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent: [404 Not Found] model not found"
+        "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent: [400 Bad Request] invalid request"
       )
     );
 
     const mod = await import("./gemini");
     await expect(mod.generateMeetingSummary("transcript")).rejects.toThrow(
-      /404 Not Found/i
+      /400 Bad Request/i
     );
     expect(generateContentMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries once on retryable provider errors like 429", async () => {
+  it("falls back to stable Gemini 2.5 Flash-Lite when the preview model is unavailable", async () => {
     generateContentMock
       .mockRejectedValueOnce(
         new Error(
-          "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] quota exceeded"
+          "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent: [404 Not Found] model not found"
         )
       )
       .mockResolvedValueOnce(createValidGeminiResponse());
@@ -101,6 +108,38 @@ describe("generateMeetingSummary retry policy", () => {
     const result = await mod.generateMeetingSummary("transcript");
 
     expect(result.summaryWhatsapp).toBe("Resumo pronto para WhatsApp");
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ model: "gemini-3.1-flash-lite-preview" })
+    );
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
+    expect(generateContentMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back immediately on preview 503 without retrying the primary model", async () => {
+    generateContentMock
+      .mockRejectedValueOnce(
+        new Error(
+          "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent: [503 Service Unavailable] overloaded"
+        )
+      )
+      .mockResolvedValueOnce(createValidGeminiResponse());
+
+    const mod = await import("./gemini");
+    const result = await mod.generateMeetingSummary("transcript");
+
+    expect(result.summaryWhatsapp).toBe("Resumo pronto para WhatsApp");
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ model: "gemini-3.1-flash-lite-preview" })
+    );
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
     expect(generateContentMock).toHaveBeenCalledTimes(2);
   });
 });
@@ -205,8 +244,49 @@ function createQuestionAnswerResponse(body: Record<string, unknown>) {
 describe("answerMeetingQuestionFromChunks", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.clearAllMocks();
     process.env.GEMINI_API_KEY = "test-gemini-key";
+  });
+
+  it("falls back to stable Gemini 2.5 Flash-Lite when answering with the preview model is unavailable", async () => {
+    generateContentMock
+      .mockRejectedValueOnce(
+        new Error(
+          "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent: [404 Not Found] model not found"
+        )
+      )
+      .mockResolvedValueOnce(
+        createQuestionAnswerResponse({
+          answer: "O prazo combinado foi sexta-feira.",
+          is_answered_from_context: true,
+          cited_chunk_ids: ["chunk-1"],
+          insufficient_context_reason: null,
+        })
+      );
+
+    const mod = await import("./gemini");
+    const result = await mod.answerMeetingQuestionFromChunks({
+      question: "Qual foi o prazo?",
+      chunks: [
+        {
+          chunkId: "chunk-1",
+          similarity: 0.82,
+          startMs: 12000,
+          endMs: 18000,
+          speaker: "A",
+          text: "O prazo combinado foi sexta-feira.",
+        },
+      ],
+    });
+
+    expect(result.answer).toBe("O prazo combinado foi sexta-feira.");
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ model: "gemini-3.1-flash-lite-preview" })
+    );
+    expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
   });
 
   it("uses a strict system prompt and returns the parsed grounded answer", async () => {
@@ -249,6 +329,7 @@ describe("answerMeetingQuestionFromChunks", () => {
       isAnsweredFromContext: true,
       citedChunkIds: ["chunk-1"],
       insufficientContextReason: null,
+      modelName: "gemini-3.1-flash-lite-preview",
     });
   });
 

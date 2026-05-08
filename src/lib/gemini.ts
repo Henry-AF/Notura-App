@@ -17,7 +17,7 @@ import type { MeetingJSON } from "@/types/database";
 
 export const GEMINI_TEXT_MODEL_NAME = "gemini-3.1-flash-lite-preview";
 export const GEMINI_TEXT_FALLBACK_MODEL_NAME = "gemini-2.5-flash-lite";
-export const GEMINI_TEXT_PRIMARY_TIMEOUT_MS = 6_000;
+export const GEMINI_TEXT_PRIMARY_TIMEOUT_MS = 3_000;
 export const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
 export const EMBEDDING_OUTPUT_DIMENSIONS = 768;
 const LOCAL_MAX_ATTEMPTS = 2;

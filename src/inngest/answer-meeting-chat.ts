@@ -3,6 +3,7 @@ import { inngest } from "@/lib/inngest";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   answerMeetingQuestionFromChunks,
+  GEMINI_TEXT_MODEL_NAME,
   generateEmbedding,
 } from "@/lib/gemini";
 import {
@@ -48,6 +49,7 @@ type MeetingChatAiMetricPayload = ReturnType<typeof buildMeetingChatAiMetric>;
 interface MeetingChatAiMetricState {
   question: string;
   sources: ChatSource[];
+  answerModel: string;
   answerText: string | null;
   questionEmbeddingGenerated: boolean;
   generationAttempted: boolean;
@@ -205,6 +207,7 @@ function createMetricState(): MeetingChatAiMetricState {
   return {
     question: "",
     sources: [],
+    answerModel: GEMINI_TEXT_MODEL_NAME,
     answerText: null,
     questionEmbeddingGenerated: false,
     generationAttempted: false,
@@ -247,6 +250,7 @@ async function recordMeetingChatAiMetric({
       userId,
       requestId,
       stage,
+      answerModel: state.answerModel,
       errorMessage,
       question: state.question,
       status,
@@ -313,6 +317,7 @@ async function startMeetingChatAiMetric({
     userId: chat.user_id,
     requestId,
     stage: "answer_started",
+    answerModel: GEMINI_TEXT_MODEL_NAME,
     errorMessage: null,
     question: chat.question,
     status: "processing",
@@ -565,6 +570,7 @@ export const answerMeetingChat = inngest.createFunction(
           )
       );
       metricState.answerText = answer.answer;
+      metricState.answerModel = answer.modelName;
 
       if (!answer.isAnsweredFromContext) {
         await saveFallback(

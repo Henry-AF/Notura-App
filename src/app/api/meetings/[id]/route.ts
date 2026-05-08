@@ -10,13 +10,22 @@ import {
   updateOwnedMeetingForAuth,
 } from "@/lib/meetings/edit";
 import { deleteOwnedMeetingForAuth } from "@/lib/meetings/delete";
+import { prewarmMeetingRagIndex } from "@/lib/meetings/rag-preindex";
 
 export const GET = withAuth<{ id: string }, NextRequest>(async (
   _request: NextRequest,
   { params, auth }
 ) => {
   try {
+    const startedAt = Date.now();
     const result = await getOwnedMeetingWithRelationsForAuth(auth, params.id);
+    await prewarmMeetingRagIndex({
+      supabase: auth.supabaseAdmin,
+      meeting: result,
+      userId: auth.user.id,
+      route: `/api/meetings/${params.id}`,
+      startedAt,
+    });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof Response) {

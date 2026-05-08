@@ -23,6 +23,7 @@ interface MeetingChatAiMetricInput {
   userId: string;
   requestId: string;
   stage: string;
+  answerModel: string;
   errorMessage?: string | null;
   question: string;
   status: MeetingChatAiMetricStatus;
@@ -70,7 +71,7 @@ export function buildMeetingChatAiMetric(
     stage: input.stage,
     error_message: input.errorMessage ?? null,
     embedding_model: EMBEDDING_MODEL_NAME,
-    answer_model: GEMINI_TEXT_MODEL_NAME,
+    answer_model: input.answerModel,
     retrieved_chunks_count: input.sources.length,
     max_similarity: maxOrNull(similarities),
     avg_similarity: averageOrNull(similarities),

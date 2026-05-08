@@ -26,6 +26,7 @@ vi.mock("@/lib/gemini", () => ({
   answerMeetingQuestionFromChunks: mocks.answerMeetingQuestionFromChunks,
   EMBEDDING_MODEL_NAME: "gemini-embedding-001",
   GEMINI_TEXT_MODEL_NAME: "gemini-3.1-flash-lite-preview",
+  GEMINI_TEXT_FALLBACK_MODEL_NAME: "gemini-2.5-flash-lite",
   generateEmbedding: mocks.generateEmbedding,
 }));
 
@@ -167,6 +168,7 @@ describe("answerMeetingChat", () => {
       isAnsweredFromContext: true,
       citedChunkIds: ["chunk-1"],
       insufficientContextReason: null,
+      modelName: "gemini-3.1-flash-lite-preview",
     });
   });
 
@@ -289,6 +291,35 @@ describe("answerMeetingChat", () => {
     );
   });
 
+  it("records the fallback Gemini model in metrics when chat answering uses it", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.answerMeetingQuestionFromChunks.mockResolvedValue({
+      answer: "O prazo foi sexta.",
+      isAnsweredFromContext: true,
+      citedChunkIds: ["chunk-1"],
+      insufficientContextReason: null,
+      modelName: "gemini-2.5-flash-lite",
+    });
+
+    await runJob();
+
+    expect(supabase.updates).toContainEqual(
+      expect.objectContaining({
+        status: "completed",
+        stage: "completed",
+        answer_model: "gemini-2.5-flash-lite",
+      })
+    );
+    expect(mocks.logStructured).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({
+        event: "meeting.chat.answer.completed",
+        answerModel: "gemini-2.5-flash-lite",
+      })
+    );
+  });
+
   it("skips chats that were already finalized by an earlier event", async () => {
     const supabase = createSupabaseMock({ chatStatus: "completed" });
     mocks.createServiceRoleClient.mockReturnValue(supabase);
@@ -383,6 +414,7 @@ describe("answerMeetingChat", () => {
       isAnsweredFromContext: false,
       citedChunkIds: [],
       insufficientContextReason: "A transcricao nao confirma.",
+      modelName: "gemini-3.1-flash-lite-preview",
     });
 
     await runJob();
@@ -404,6 +436,7 @@ describe("answerMeetingChat", () => {
       isAnsweredFromContext: true,
       citedChunkIds: ["chunk-fora-do-contexto"],
       insufficientContextReason: null,
+      modelName: "gemini-3.1-flash-lite-preview",
     });
 
     await runJob();

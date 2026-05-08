@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const deleteOwnedMeetingForAuth = vi.fn();
+const prewarmMeetingRagIndex = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -12,6 +13,10 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/meetings/delete", () => ({
   deleteOwnedMeetingForAuth,
+}));
+
+vi.mock("@/lib/meetings/rag-preindex", () => ({
+  prewarmMeetingRagIndex,
 }));
 
 function createServerClient(user: { id: string } | null) {
@@ -37,10 +42,38 @@ function createMissingMeetingAdminClient() {
   return { from };
 }
 
+function createOwnedMeetingAdminClient() {
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: { id: "meeting-1", user_id: "user-1" },
+    error: null,
+  });
+  const single = vi.fn().mockResolvedValue({
+    data: {
+      id: "meeting-1",
+      user_id: "user-1",
+      status: "completed",
+      transcript: "Transcricao completa",
+      tasks: [],
+      decisions: [],
+      open_items: [],
+    },
+    error: null,
+  });
+  const select = vi.fn((columns: string) => ({
+    eq: vi.fn(() =>
+      columns === "id, user_id" ? { maybeSingle } : { single }
+    ),
+  }));
+  const from = vi.fn(() => ({ select }));
+
+  return { from };
+}
+
 describe("GET /api/meetings/[id]", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    prewarmMeetingRagIndex.mockResolvedValue("dispatched");
   });
 
   it("returns 403 when the meeting does not belong to the authenticated user", async () => {
@@ -54,6 +87,31 @@ describe("GET /api/meetings/[id]", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "Acesso negado." });
+  });
+
+  it("prewarms the meeting RAG index when returning a meeting detail", async () => {
+    const admin = createOwnedMeetingAdminClient();
+    createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
+    createServiceRoleClient.mockReturnValue(admin);
+
+    const mod = await import("./route");
+    const response = await mod.GET(new Request("http://localhost") as NextRequest, {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(prewarmMeetingRagIndex).toHaveBeenCalledWith(
+      expect.objectContaining({
+        supabase: admin,
+        userId: "user-1",
+        route: "/api/meetings/meeting-1",
+        meeting: expect.objectContaining({
+          id: "meeting-1",
+          status: "completed",
+          transcript: "Transcricao completa",
+        }),
+      })
+    );
   });
 });
 

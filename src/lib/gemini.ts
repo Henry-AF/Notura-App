@@ -16,13 +16,25 @@ import type { MeetingJSON } from "@/types/database";
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 export const GEMINI_TEXT_MODEL_NAME = "gemini-3.1-flash-lite-preview";
-const MODEL_NAME = GEMINI_TEXT_MODEL_NAME;
+export const GEMINI_TEXT_FALLBACK_MODEL_NAME = "gemini-2.5-flash-lite";
+export const GEMINI_TEXT_PRIMARY_TIMEOUT_MS = 6_000;
 export const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
 export const EMBEDDING_OUTPUT_DIMENSIONS = 768;
 const LOCAL_MAX_ATTEMPTS = 2;
 const LOCAL_RETRY_BASE_DELAY_MS = 750;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 410, 413, 422]);
+const TEXT_MODEL_FALLBACK_STATUS_CODES = new Set([
+  404,
+  408,
+  409,
+  425,
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
 const RETRYABLE_MESSAGE_PATTERNS = [
   /timeout/i,
   /timed out/i,
@@ -33,9 +45,24 @@ const RETRYABLE_MESSAGE_PATTERNS = [
   /temporarily unavailable/i,
   /rate limit/i,
 ];
+const TEXT_MODEL_FALLBACK_MESSAGE_PATTERNS = [
+  /model not found/i,
+  /not found/i,
+  /timeout/i,
+  /timed out/i,
+  /temporarily unavailable/i,
+  /unavailable/i,
+  /overloaded/i,
+  /quota exceeded/i,
+  /rate limit/i,
+];
 const SUMMARY_SCHEMA_VERSION = "1.0";
 export const PROMPT_VERSION = "1.3.0";
 const DEFAULT_SUMMARY_WHATSAPP_WORD_LIMIT = 400;
+const TEXT_MODEL_NAMES = [
+  GEMINI_TEXT_MODEL_NAME,
+  GEMINI_TEXT_FALLBACK_MODEL_NAME,
+] as const;
 
 type UnprocessableTranscriptPayload = {
   error: "UNPROCESSABLE_TRANSCRIPT";
@@ -70,6 +97,7 @@ export interface MeetingQuestionAnswerResult {
   isAnsweredFromContext: boolean;
   citedChunkIds: string[];
   insufficientContextReason: string | null;
+  modelName: string;
 }
 
 interface GeminiSummaryEnvelope {
@@ -84,9 +112,23 @@ interface GeminiMeetingQuestionEnvelope {
   insufficient_context_reason: string | null;
 }
 
+type NormalizedMeetingQuestionAnswer = Omit<
+  MeetingQuestionAnswerResult,
+  "modelName"
+>;
+
 type EmbedContentRequestWithDimensionality = EmbedContentRequest & {
   outputDimensionality: number;
 };
+
+interface GeminiTextGenerationResult {
+  text: string;
+  modelName: (typeof TEXT_MODEL_NAMES)[number];
+}
+
+interface GeminiGenerateContentRequestOptions {
+  timeout?: number;
+}
 
 // ── Prompt do sistema ────────────────────────────────────────────────────────
 
@@ -325,14 +367,28 @@ function shouldRetryGeminiError(error: unknown): boolean {
   return RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+function shouldFallbackGeminiTextModel(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  const statusCode = extractStatusCode(error) ?? extractStatusCodeFromMessage(message);
+
+  if (statusCode !== null) {
+    return TEXT_MODEL_FALLBACK_STATUS_CODES.has(statusCode) || statusCode >= 500;
+  }
+
+  return TEXT_MODEL_FALLBACK_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = LOCAL_MAX_ATTEMPTS
+): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= LOCAL_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!shouldRetryGeminiError(err) || attempt >= LOCAL_MAX_ATTEMPTS) {
+      if (!shouldRetryGeminiError(err) || attempt >= maxAttempts) {
         throw err;
       }
 
@@ -344,6 +400,59 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     }
   }
   throw lastError;
+}
+
+async function generateTextWithFallback(
+  systemInstruction: string,
+  prompt: string
+): Promise<GeminiTextGenerationResult> {
+  const genAI = getGeminiClient();
+
+  for (const modelName of TEXT_MODEL_NAMES) {
+    try {
+      const maxAttempts =
+        modelName === GEMINI_TEXT_MODEL_NAME ? 1 : LOCAL_MAX_ATTEMPTS;
+      const result = await withRetry(
+        async () => {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction,
+          });
+
+          const requestOptions = resolveTextModelRequestOptions(modelName);
+          return requestOptions
+            ? model.generateContent(prompt, requestOptions)
+            : model.generateContent(prompt);
+        },
+        maxAttempts
+      );
+
+      return {
+        text: result.response.text(),
+        modelName,
+      };
+    } catch (error) {
+      if (
+        modelName === GEMINI_TEXT_FALLBACK_MODEL_NAME ||
+        !shouldFallbackGeminiTextModel(error)
+      ) {
+        throw error;
+      }
+
+      console.warn(
+        `[gemini] Text model ${modelName} unavailable; falling back to ${GEMINI_TEXT_FALLBACK_MODEL_NAME}.`
+      );
+    }
+  }
+
+  throw new Error("Gemini text generation failed without a provider response");
+}
+
+function resolveTextModelRequestOptions(
+  modelName: (typeof TEXT_MODEL_NAMES)[number]
+): GeminiGenerateContentRequestOptions | undefined {
+  if (modelName !== GEMINI_TEXT_MODEL_NAME) return undefined;
+  return { timeout: GEMINI_TEXT_PRIMARY_TIMEOUT_MS };
 }
 
 function parseJsonResponse<T>(text: string): T {
@@ -448,7 +557,7 @@ function formatNullableMs(value: number | null): string {
 
 function normalizeMeetingQuestionAnswer(
   parsed: GeminiMeetingQuestionEnvelope
-): MeetingQuestionAnswerResult {
+): NormalizedMeetingQuestionAnswer {
   if (
     typeof parsed.answer !== "string" ||
     typeof parsed.is_answered_from_context !== "boolean" ||
@@ -487,43 +596,36 @@ export async function generateMeetingSummary(
   transcript: string,
   durationSeconds?: number | null
 ): Promise<MeetingSummaryResult> {
-  return withRetry(async () => {
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_SUMMARIZE,
-    });
+  const generation = await generateTextWithFallback(
+    SYSTEM_SUMMARIZE,
+    buildMeetingSummaryPrompt(transcript, durationSeconds)
+  );
+  const text = generation.text;
 
-    const result = await model.generateContent(
-      buildMeetingSummaryPrompt(transcript, durationSeconds)
-    );
-    const text = result.response.text();
+  if (!text) throw new Error("Gemini returned empty response for meeting summary");
 
-    if (!text) throw new Error("Gemini returned empty response for meeting summary");
+  const parsed = parseJsonResponse<GeminiSummaryEnvelope>(text);
 
-    const parsed = parseJsonResponse<GeminiSummaryEnvelope>(text);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Gemini returned an invalid meeting summary envelope");
+  }
 
-    if (!parsed || typeof parsed !== "object") {
-      throw new Error("Gemini returned an invalid meeting summary envelope");
-    }
+  if (typeof parsed.summary_whatsapp !== "string" || !parsed.summary_whatsapp.trim()) {
+    throw new Error("Gemini returned an invalid WhatsApp summary");
+  }
 
-    if (typeof parsed.summary_whatsapp !== "string" || !parsed.summary_whatsapp.trim()) {
-      throw new Error("Gemini returned an invalid WhatsApp summary");
-    }
+  if (!parsed.summary_json || typeof parsed.summary_json !== "object") {
+    throw new Error("Gemini returned an invalid JSON summary");
+  }
 
-    if (!parsed.summary_json || typeof parsed.summary_json !== "object") {
-      throw new Error("Gemini returned an invalid JSON summary");
-    }
+  if (isUnprocessableTranscriptPayload(parsed.summary_json)) {
+    throw new Error(`Transcript was unprocessable: ${parsed.summary_json.reason}`);
+  }
 
-    if (isUnprocessableTranscriptPayload(parsed.summary_json)) {
-      throw new Error(`Transcript was unprocessable: ${parsed.summary_json.reason}`);
-    }
-
-    return {
-      summaryWhatsapp: parsed.summary_whatsapp,
-      summaryJson: parsed.summary_json,
-    };
-  });
+  return {
+    summaryWhatsapp: parsed.summary_whatsapp,
+    summaryJson: parsed.summary_json,
+  };
 }
 
 export async function generateEmbedding(
@@ -556,18 +658,16 @@ export async function generateEmbedding(
 export async function answerMeetingQuestionFromChunks(
   input: MeetingQuestionAnswerInput
 ): Promise<MeetingQuestionAnswerResult> {
-  return withRetry(async () => {
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_ANSWER_FROM_TRANSCRIPT,
-    });
+  const generation = await generateTextWithFallback(
+    SYSTEM_ANSWER_FROM_TRANSCRIPT,
+    buildMeetingQuestionPrompt(input)
+  );
+  const text = generation.text;
+  if (!text) throw new Error("Gemini returned empty response for meeting chat");
 
-    const result = await model.generateContent(buildMeetingQuestionPrompt(input));
-    const text = result.response.text();
-    if (!text) throw new Error("Gemini returned empty response for meeting chat");
-
-    const parsed = parseJsonResponse<GeminiMeetingQuestionEnvelope>(text);
-    return normalizeMeetingQuestionAnswer(parsed);
-  });
+  const parsed = parseJsonResponse<GeminiMeetingQuestionEnvelope>(text);
+  return {
+    ...normalizeMeetingQuestionAnswer(parsed),
+    modelName: generation.modelName,
+  };
 }

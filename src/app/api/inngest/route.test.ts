@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   answerMeetingChat: { id: "answer-meeting-chat" },
   dispatchMeetingChatOutbox: { id: "dispatch-meeting-chat-outbox" },
   handleProcessMeetingFailure: { id: "process-meeting-failure" },
+  preindexMeetingRag: { id: "preindex-meeting-rag" },
   processMeeting: { id: "process-meeting" },
   applyAbacatePayRenewal: { id: "billing-abacatepay-renewal-confirmed" },
   renewAbacatePaySubscription: { id: "renew-abacatepay-subscription" },
@@ -37,6 +38,10 @@ vi.mock("@/inngest/answer-meeting-chat", () => ({
 
 vi.mock("@/inngest/meeting-chat-outbox", () => ({
   dispatchMeetingChatOutbox: mocks.dispatchMeetingChatOutbox,
+}));
+
+vi.mock("@/inngest/preindex-meeting-rag", () => ({
+  preindexMeetingRag: mocks.preindexMeetingRag,
 }));
 
 vi.mock("@/inngest/renew-abacatepay-subscription", () => ({
@@ -73,6 +78,7 @@ describe("/api/inngest route", () => {
         mocks.handleProcessMeetingFailure,
         mocks.answerMeetingChat,
         mocks.dispatchMeetingChatOutbox,
+        mocks.preindexMeetingRag,
         mocks.renewAbacatePaySubscription,
         mocks.applyAbacatePayRenewal,
       ])

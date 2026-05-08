@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,9 @@ export default function SignupPage() {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/onboarding` },
+        options: {
+          redirectTo: buildOAuthCallbackUrl(window.location.origin, "/onboarding"),
+        },
       });
       if (oauthError) setError(oauthError.message);
     } catch {

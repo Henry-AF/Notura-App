@@ -25,3 +25,5 @@ export type {
   MeetingArchivedChatsSheetProps,
   MeetingChatSheetProps,
 } from "./MeetingChatSheet";
+export { MeetingInlineChatPanel } from "./MeetingInlineChatPanel";
+export type { MeetingInlineChatPanelProps } from "./MeetingInlineChatPanel";

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, MessageSquare, Share2, Pencil, Trash2 } from "lucide-react";
+import { Calendar, MessageSquare, MoreHorizontal, Pencil, Share2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -9,6 +9,13 @@ import {
   StatusBadge,
   type PageHeaderBreadcrumb,
 } from "@/components/ui/app";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function statusLabel(
   status: MeetingHeaderProps["status"]
@@ -88,50 +95,45 @@ export function MeetingHeader({
       }
       descriptionClassName="max-w-none"
       actions={
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-          {onChat ? (
+        <span className="hidden md:block">
+          <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
-              variant="default"
+              variant="ghost"
               size="sm"
-              onClick={onChat}
-              className="w-full border-0 bg-[linear-gradient(135deg,rgba(94,76,235,0.92)_0%,rgba(59,130,246,0.82)_100%)] text-white shadow-[0_10px_24px_rgba(94,76,235,0.28),0_4px_12px_rgba(59,130,246,0.18)] transition-all duration-200 hover:scale-[0.99] hover:brightness-105 sm:w-auto"
+              className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              aria-label="Mais opções"
             >
-              <MessageSquare className="h-4 w-4" />
-              Chat
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onShare}
-            className="w-full sm:w-auto"
-          >
-            <Share2 className="h-4 w-4" />
-            Compartilhar
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            className="w-full sm:w-auto"
-          >
-            <Pencil className="h-4 w-4" />
-            Editar
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            onClick={onDelete}
-            className="w-full sm:w-auto"
-          >
-            <Trash2 className="h-4 w-4" />
-            Excluir
-          </Button>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {onChat ? (
+              <DropdownMenuItem onClick={onChat} className="cursor-pointer gap-2">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Chat com IA
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onClick={onShare} className="cursor-pointer gap-2">
+              <Share2 className="h-3.5 w-3.5" />
+              Compartilhar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onEdit} className="cursor-pointer gap-2">
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        </span>
       }
     />
   );

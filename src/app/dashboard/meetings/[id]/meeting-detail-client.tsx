@@ -1,17 +1,17 @@
 ﻿"use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, MessageSquare, MoreHorizontal, Pencil, Send, Share2, Sparkles, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   MeetingDeleteDialog,
   MeetingHeader,
   MeetingTabs,
   SmartSummaryCard,
-  KeyDecisionCard,
-  AlertPointCard,
-  MeetingChatSheet,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
+import { MeetingInlineChatPanel } from "@/components/meeting-detail/MeetingInlineChatPanel";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
 import type { Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
@@ -32,6 +32,359 @@ import {
   setMeetingTaskStatus,
   upsertMeetingTask,
 } from "./meeting-task-kanban";
+
+// ─── AI Workspace helpers ─────────────────────────────────────────────────────
+
+interface LocalParticipant {
+  id: string;
+  name: string;
+  initials: string;
+  isEditing: boolean;
+  draftName: string;
+}
+
+interface InsightRailProps {
+  participants: Array<{ name: string }>;
+  onOpenChat: () => void;
+}
+
+const AI_CHIP_PROMPTS = [
+  "Criar e-mail de follow-up",
+  "Listar próximos passos",
+  "Quais foram os riscos?",
+  "Resumir para o time",
+];
+
+function MeetingInsightRail({ participants, onOpenChat }: InsightRailProps) {
+  const [localParticipants, setLocalParticipants] = useState<LocalParticipant[]>(
+    () =>
+      participants.map((p, i) => ({
+        id: String(i),
+        name: p.name,
+        initials: p.name.charAt(0).toUpperCase(),
+        isEditing: false,
+        draftName: p.name,
+      }))
+  );
+  const [isAdding, setIsAdding] = useState(false);
+  const [addDraft, setAddDraft] = useState("");
+  const [aiInput, setAiInput] = useState("");
+
+  // Mobile focus: iOS won't honour autoFocus on dynamic inputs — do it manually
+  useEffect(() => {
+    const editing = localParticipants.find((p) => p.isEditing);
+    if (!editing) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        `[data-edit-id="${editing.id}"]`
+      );
+      el?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [localParticipants]);
+
+  function startEdit(id: string) {
+    setLocalParticipants((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isEditing: true, draftName: p.name } : p))
+    );
+  }
+
+  function saveEdit(id: string) {
+    setLocalParticipants((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const trimmed = p.draftName.trim();
+        if (!trimmed) return { ...p, isEditing: false };
+        return { ...p, name: trimmed, initials: trimmed.charAt(0).toUpperCase(), isEditing: false };
+      })
+    );
+  }
+
+  function cancelEdit(id: string) {
+    setLocalParticipants((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isEditing: false, draftName: p.name } : p))
+    );
+  }
+
+  function removeParticipant(id: string) {
+    setLocalParticipants((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function confirmAdd() {
+    const trimmed = addDraft.trim();
+    if (trimmed) {
+      setLocalParticipants((prev) => [
+        ...prev,
+        {
+          id: `p-${Date.now()}`,
+          name: trimmed,
+          initials: trimmed.charAt(0).toUpperCase(),
+          isEditing: false,
+          draftName: trimmed,
+        },
+      ]);
+    }
+    setAddDraft("");
+    setIsAdding(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* ── Participants card ── */}
+      <div className="rounded-2xl border border-border/50 bg-card/80 p-4">
+        <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Participantes
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {localParticipants.map((p) => (
+            <div key={p.id} className="group flex items-center gap-2.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                {p.initials}
+              </div>
+              {p.isEditing ? (
+                <input
+                  data-edit-id={p.id}
+                  className="flex-1 rounded-md border border-primary/30 bg-background px-2 py-0.5 text-foreground/80 outline-none focus:border-primary/60"
+                  style={{ fontSize: 16 }}
+                  value={p.draftName}
+                  onChange={(e) =>
+                    setLocalParticipants((prev) =>
+                      prev.map((x) => (x.id === p.id ? { ...x, draftName: e.target.value } : x))
+                    )
+                  }
+                  onBlur={() => saveEdit(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); saveEdit(p.id); }
+                    if (e.key === "Escape") cancelEdit(p.id);
+                  }}
+                />
+              ) : (
+                <>
+                  <span
+                    className="flex-1 cursor-pointer text-sm text-foreground/80"
+                    onClick={() => startEdit(p.id)}
+                    onTouchEnd={(e) => { e.preventDefault(); startEdit(p.id); }}
+                  >
+                    {p.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(p.id)}
+                    className="shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                    aria-label="Editar nome"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeParticipant(p.id)}
+                    className="shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                    aria-label="Remover participante"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+          {isAdding ? (
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground">
+                +
+              </div>
+              <input
+                autoFocus
+                className="flex-1 rounded-md border border-primary/30 bg-background px-2 py-0.5 text-foreground/80 outline-none focus:border-primary/60"
+                style={{ fontSize: 16 }}
+                value={addDraft}
+                placeholder="Nome do participante"
+                onChange={(e) => setAddDraft(e.target.value)}
+                onBlur={confirmAdd}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); confirmAdd(); }
+                  if (e.key === "Escape") { setIsAdding(false); setAddDraft(""); }
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAdding(true)}
+              className="mt-1 text-left text-[11px] text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            >
+              + Adicionar participante
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Ask AI card ── */}
+      <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/80">
+        <div className="p-4 pb-3">
+          <div className="mb-3 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-primary/70" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Perguntar à IA
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {AI_CHIP_PROMPTS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setAiInput(chip)}
+                className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] text-primary transition-all hover:border-primary/40 hover:bg-primary/20"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-border/40 bg-background/40 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1 bg-transparent text-sm text-foreground/80 outline-none placeholder:text-muted-foreground/50"
+              placeholder="Pergunte sobre esta reunião..."
+              value={aiInput}
+              onChange={(e) => setAiInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && aiInput.trim()) {
+                  onOpenChat();
+                  setAiInput("");
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (aiInput.trim()) {
+                  onOpenChat();
+                  setAiInput("");
+                }
+              }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+              aria-label="Enviar pergunta"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mobile bottom action bar ────────────────────────────────────────────────
+
+interface MobileActionsBarProps {
+  meetingId: string;
+  meetingStatus: "completed" | "processing" | "failed" | "scheduled";
+  onBack: () => void;
+  onShare: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function MobileActionsBar({
+  meetingId,
+  meetingStatus,
+  onBack,
+  onShare,
+  onEdit,
+  onDelete,
+}: MobileActionsBarProps) {
+  const router = useRouter();
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  return (
+    <>
+      {/* Fixed bottom bar — mobile only */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/40 bg-background/95 backdrop-blur-md md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="flex items-stretch divide-x divide-border/40">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex flex-1 flex-col items-center gap-0.5 px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            <ChevronLeft className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Voltar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="flex flex-1 flex-col items-center gap-0.5 px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            <MoreHorizontal className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Mais ações</span>
+          </button>
+
+          {meetingStatus === "completed" && (
+            <button
+              type="button"
+              onClick={() => router.push(`/dashboard/meetings/${meetingId}/chat`)}
+              className="flex flex-1 flex-col items-center gap-0.5 px-3 py-2.5 text-primary transition-colors hover:bg-primary/5"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-[10px] font-semibold">Chat com IA</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom sheet overlay */}
+      {sheetOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={() => setSheetOpen(false)}
+          />
+          {/* Sheet */}
+          <div
+            className="sheet-slide-up absolute bottom-0 left-0 right-0 rounded-t-2xl bg-background pb-[env(safe-area-inset-bottom)] shadow-2xl"
+          >
+            {/* Handle */}
+            <div className="flex justify-center py-3">
+              <div className="h-1 w-10 rounded-full bg-border" />
+            </div>
+
+            <div className="px-4 pb-6">
+              <button
+                type="button"
+                onClick={() => { onShare(); setSheetOpen(false); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors hover:bg-muted/60"
+              >
+                <Share2 className="h-5 w-5 text-muted-foreground" />
+                <span className="text-[15px] text-foreground">Compartilhar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { onEdit(); setSheetOpen(false); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors hover:bg-muted/60"
+              >
+                <Pencil className="h-5 w-5 text-muted-foreground" />
+                <span className="text-[15px] text-foreground">Editar</span>
+              </button>
+              <div className="my-1.5 h-px bg-border/50" />
+              <button
+                type="button"
+                onClick={() => { onDelete(); setSheetOpen(false); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-destructive transition-colors hover:bg-destructive/10"
+              >
+                <Trash2 className="h-5 w-5" />
+                <span className="text-[15px]">Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 // ─── Not found state ──────────────────────────────────────────────────────────
 
@@ -332,75 +685,22 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     switch (activeTab) {
       case "summary":
         return (
-          <div
-            className="summary-layout anim-in"
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                keyDecision || alertPoint
-                  ? "minmax(0, 1.9fr) minmax(240px, 1fr)"
-                  : "1fr",
-              gap: 16,
-              alignItems: "start",
-              animationDelay: "120ms",
-            }}
-          >
-            <SmartSummaryCard
-              summary={summary || "Resumo não disponível."}
-              nextSteps={nextStep}
-              onCopyToWhatsApp={() =>
-                show("Resumo copiado para WhatsApp!", "success")
-              }
-            />
-            {(keyDecision || alertPoint) && (
-              <div
-                className="decision-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                  gap: 16,
-                }}
-              >
-                {keyDecision && <KeyDecisionCard decision={keyDecision} />}
-                {alertPoint && <AlertPointCard alert={alertPoint} />}
-              </div>
-            )}
-          </div>
+          <SmartSummaryCard
+            summary={summary || "Resumo não disponível."}
+            nextSteps={nextStep}
+            onCopyToWhatsApp={() =>
+              show("Resumo copiado para WhatsApp!", "success")
+            }
+          />
         );
 
       case "transcript":
         return transcript ? (
-          <div
-            style={{
-              background: "rgb(var(--cn-card))",
-              border: "1px solid rgb(var(--cn-border))",
-              borderRadius: 14,
-              padding: "24px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgb(var(--cn-muted))",
-                marginBottom: 16,
-              }}
-            >
+          <div className="rounded-2xl border border-border/50 bg-card p-6">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Transcrição
             </p>
-            <pre
-              style={{
-                fontFamily: "Inter, monospace",
-                fontSize: 13,
-                color: "rgb(var(--cn-ink2))",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                margin: 0,
-                lineHeight: 1.7,
-              }}
-            >
+            <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-foreground/80">
               {transcript}
             </pre>
           </div>
@@ -410,24 +710,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
       case "tasks":
         return (
-          <div
-            style={{
-              background: "rgb(var(--cn-card))",
-              border: "1px solid rgb(var(--cn-border))",
-              borderRadius: 14,
-              padding: "24px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgb(var(--cn-muted))",
-                marginBottom: 16,
-              }}
-            >
+          <div className="rounded-2xl border border-border/50 bg-card p-6">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Tarefas ({tasks.length})
             </p>
             <KanbanBoard
@@ -444,52 +728,19 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
       case "decisions":
         return decisions.length > 0 ? (
-          <div
-            style={{
-              background: "rgb(var(--cn-card))",
-              border: "1px solid rgb(var(--cn-border))",
-              borderRadius: 14,
-              padding: "24px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgb(var(--cn-muted))",
-                marginBottom: 16,
-              }}
-            >
+          <div className="rounded-2xl border border-border/50 bg-card p-6">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Decisões ({decisions.length})
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="flex flex-col gap-2.5">
               {decisions.map((d) => (
                 <div
                   key={d.id}
-                  style={{
-                    padding: "12px 14px",
-                    background: "rgba(108,92,231,0.07)",
-                    border: "1px solid rgba(108,92,231,0.2)",
-                    borderRadius: 8,
-                  }}
+                  className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
                 >
-                  <p
-                    style={{ fontSize: 13, color: "rgb(var(--cn-ink))", margin: 0 }}
-                  >
-                    {d.description}
-                  </p>
+                  <p className="text-[13px] text-foreground">{d.description}</p>
                   {d.decided_by && (
-                    <p
-                      style={{
-                        fontSize: 11,
-                        color: "#A29BFE",
-                        margin: "4px 0 0",
-                      }}
-                    >
-                      Por: {d.decided_by}
-                    </p>
+                    <p className="mt-1 text-[11px] text-primary/60">Por: {d.decided_by}</p>
                   )}
                 </div>
               ))}
@@ -501,52 +752,19 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
       case "pending":
         return openItems.length > 0 ? (
-          <div
-            style={{
-              background: "rgb(var(--cn-card))",
-              border: "1px solid rgb(var(--cn-border))",
-              borderRadius: 14,
-              padding: "24px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgb(var(--cn-muted))",
-                marginBottom: 16,
-              }}
-            >
+          <div className="rounded-2xl border border-border/50 bg-card p-6">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Pendências ({openItems.length})
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="flex flex-col gap-2.5">
               {openItems.map((o) => (
                 <div
                   key={o.id}
-                  style={{
-                    padding: "12px 14px",
-                    background: "rgba(255,169,77,0.07)",
-                    border: "1px solid rgba(255,169,77,0.2)",
-                    borderRadius: 8,
-                  }}
+                  className="rounded-xl border border-amber-400/25 bg-amber-50/50 px-4 py-3 dark:bg-amber-950/15"
                 >
-                  <p
-                    style={{ fontSize: 13, color: "rgb(var(--cn-ink))", margin: 0 }}
-                  >
-                    {o.description}
-                  </p>
+                  <p className="text-[13px] text-foreground">{o.description}</p>
                   {o.context && (
-                    <p
-                      style={{
-                        fontSize: 11,
-                        color: "#FFA94D",
-                        margin: "4px 0 0",
-                      }}
-                    >
-                      {o.context}
-                    </p>
+                    <p className="mt-1 text-[11px] text-amber-600/70">{o.context}</p>
                   )}
                 </div>
               ))}
@@ -566,53 +784,112 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     <>
       <style>{`
         @keyframes fade-slide-up {
-          from { opacity: 0; transform: translateY(12px); }
+          from { opacity: 0; transform: translateY(10px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes chat-slide-in {
+          from { transform: translateX(100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes sheet-slide-up {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
         .anim-in {
-          animation: fade-slide-up 0.25s ease-out forwards;
+          animation: fade-slide-up 0.22s ease-out forwards;
           opacity: 0;
         }
-        @media (max-width: 980px) {
-          .summary-layout {
-            grid-template-columns: 1fr !important;
-          }
+        .chat-panel-anim {
+          animation: chat-slide-in 0.25s ease forwards;
         }
-        @media (max-width: 480px) {
-          .decision-grid {
-            grid-template-columns: 1fr !important;
-          }
+        .sheet-slide-up {
+          animation: sheet-slide-up 0.25s ease forwards;
         }
       `}</style>
 
-      <div className="anim-in" style={{ animationDelay: "0ms" }}>
-        <MeetingHeader
-          breadcrumbs={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: "Reuniões", href: "/dashboard/meetings" },
-            { label: "Detalhes" },
-          ]}
-          clientName={clientName}
-          date={meetingDate}
-          status={meetingStatus}
-          participants={participants}
-          onChat={
-            meetingStatus === "completed" ? () => setIsChatOpen(true) : undefined
-          }
-          onShare={handleShare}
-          onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
-          onDelete={() => setIsDeleteDialogOpen(true)}
-        />
+      {/* ── Workspace layout: main content + optional inline chat ── */}
+      <div className={cn("flex items-start", isChatOpen ? "gap-4 pb-4 md:pb-4" : "gap-6 pb-20 md:pb-6")}>
+
+        {/* ── Primary content column ─────────────────────────────── */}
+        <div className="min-w-0 flex-1">
+          <div className="anim-in" style={{ animationDelay: "0ms" }}>
+            <MeetingHeader
+              breadcrumbs={[
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Reuniões", href: "/dashboard/meetings" },
+                { label: "Detalhes" },
+              ]}
+              clientName={clientName}
+              date={meetingDate}
+              status={meetingStatus}
+              participants={participants}
+              onChat={
+                meetingStatus === "completed"
+                  ? () => setIsChatOpen((v) => !v)
+                  : undefined
+              }
+              onShare={handleShare}
+              onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
+              onDelete={() => setIsDeleteDialogOpen(true)}
+            />
+          </div>
+
+          <div className="anim-in mt-5" style={{ animationDelay: "40ms" }}>
+            <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
+          </div>
+
+          <div className="anim-in" style={{ animationDelay: "80ms", minWidth: 0 }}>
+            {renderMainContent()}
+          </div>
+        </div>
+
+        {/* ── Right insight rail (hidden when chat open on xl) ────── */}
+        {activeTab === "summary" && meetingStatus === "completed" && !isChatOpen && (
+          <aside
+            className="anim-in hidden w-72 shrink-0 xl:block"
+            style={{ animationDelay: "100ms", position: "sticky", top: "1.5rem" }}
+          >
+            <MeetingInsightRail
+              participants={participants}
+              onOpenChat={() => setIsChatOpen(true)}
+            />
+          </aside>
+        )}
+
+        {/* ── Desktop inline chat panel (xl+) ─────────────────────── */}
+        {isChatOpen && (
+          <aside
+            className="chat-panel-anim hidden xl:flex xl:w-[340px] xl:shrink-0"
+            style={{ position: "sticky", top: 0, height: "100vh" }}
+          >
+            <MeetingInlineChatPanel
+              meetingName={clientName}
+              onClose={() => setIsChatOpen(false)}
+            />
+          </aside>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
-        <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
-      </div>
-
-      <div style={{ minWidth: 0 }}>
-        {renderMainContent()}
-      </div>
+      {/* ── Tablet overlay chat (md → xl) ──────────────────── */}
+      {isChatOpen && (
+        <div
+          role="dialog"
+          aria-label="Chat com IA"
+          aria-modal="true"
+          className="fixed inset-0 z-40 hidden md:block xl:hidden"
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={() => setIsChatOpen(false)}
+          />
+          <div className="chat-panel-anim absolute bottom-0 right-0 top-0 w-full max-w-[340px] shadow-2xl">
+            <MeetingInlineChatPanel
+              meetingName={clientName}
+              onClose={() => setIsChatOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {editingTask && (
         <TaskEditModal
@@ -635,6 +912,16 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         />
       )}
 
+      {/* ── Mobile bottom action bar ────────────────────────── */}
+      <MobileActionsBar
+        meetingId={id}
+        meetingStatus={meetingStatus}
+        onBack={() => router.push("/dashboard/meetings")}
+        onShare={handleShare}
+        onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
+        onDelete={() => setIsDeleteDialogOpen(true)}
+      />
+
       <MeetingDeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
@@ -644,44 +931,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         onCopySummary={handleCopySummaryForDelete}
         onConfirmDelete={handleDeleteMeeting}
       />
-
-      {meetingStatus === "completed" && (
-        <MeetingChatSheet
-          meetingId={id}
-          open={isChatOpen}
-          onOpenChange={setIsChatOpen}
-        />
-      )}
-
-      {/* Export button via a portal-like approach — rendered as fixed button
-          top-right to supplement the existing topbar */}
-      <div
-        style={{
-          position: "fixed",
-          top: 12,
-          right: 16,
-          zIndex: 50,
-          display: "none", // Hidden; export button is in topbar slot via layout
-        }}
-      >
-        <button
-          type="button"
-          onClick={handleExport}
-          style={{
-            background: "#6C5CE7",
-            color: "#FFFFFF",
-            border: "none",
-            borderRadius: 999,
-            padding: "10px 24px",
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          Exportar
-        </button>
-      </div>
     </>
   );
 }

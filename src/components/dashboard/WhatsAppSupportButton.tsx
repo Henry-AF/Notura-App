@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircleQuestion, X } from "lucide-react";
 
 function useClickOutside(
@@ -13,13 +13,16 @@ function useClickOutside(
         onClose();
       }
     }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
       }
     }
+
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
@@ -27,34 +30,167 @@ function useClickOutside(
   }, [ref, onClose]);
 }
 
+const STORAGE_KEY = "notura:support-btn-pos";
+const BTN_SIZE = 52;
+const EDGE_GAP = 16;
+const DESKTOP_BOTTOM_GAP = 24;
+const MOBILE_BOTTOM_GAP = 96;
+const DRAG_THRESHOLD_PX = 6;
+
+function loadSavedPosition(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+      return { x: parsed.x, y: parsed.y };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function savePosition(pos: { x: number; y: number }) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+  } catch {
+    // ignore
+  }
+}
+
+function getBottomGap(): number {
+  if (typeof window === "undefined") return DESKTOP_BOTTOM_GAP;
+  return window.innerWidth < 768 ? MOBILE_BOTTOM_GAP : DESKTOP_BOTTOM_GAP;
+}
+
+function clamp(x: number, y: number): { x: number; y: number } {
+  const bottomGap = getBottomGap();
+  return {
+    x: Math.max(EDGE_GAP, Math.min(window.innerWidth - BTN_SIZE - EDGE_GAP, x)),
+    y: Math.max(
+      EDGE_GAP,
+      Math.min(window.innerHeight - BTN_SIZE - bottomGap, y)
+    ),
+  };
+}
+
 export function WhatsAppSupportButton() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
-  const handleClose = React.useCallback(() => setOpen(false), []);
+  const drag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startBtnX: number;
+    startBtnY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
+
+  useEffect(() => {
+    const saved = loadSavedPosition();
+    if (saved) {
+      setPos(clamp(saved.x, saved.y));
+      return;
+    }
+    const bottomGap = getBottomGap();
+    setPos({
+      x: window.innerWidth - BTN_SIZE - DESKTOP_BOTTOM_GAP,
+      y: window.innerHeight - BTN_SIZE - bottomGap,
+    });
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setPos((current) => (current ? clamp(current.x, current.y) : current));
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handleClose = useCallback(() => setOpen(false), []);
   useClickOutside(containerRef, handleClose);
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!pos) return;
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    suppressClick.current = false;
+    drag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startBtnX: pos.x,
+      startBtnY: pos.y,
+      moved: false,
+    };
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    d.moved = true;
+    setPos(clamp(d.startBtnX + dx, d.startBtnY + dy));
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    if (d.moved) {
+      suppressClick.current = true;
+      setPos((current) => {
+        if (current) savePosition(current);
+        return current;
+      });
+    }
+    drag.current = null;
+  }
+
+  const popupAbove = pos ? pos.y > window.innerHeight / 2 : true;
+  const popupLeft = pos ? pos.x > 150 : false;
+
+  const popupStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 280,
+    borderRadius: 16,
+    background: "rgb(var(--cn-bg2))",
+    border: "1px solid rgba(var(--cn-surface2), 0.6)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+    padding: "20px",
+    ...(popupAbove ? { bottom: BTN_SIZE + 12 } : { top: BTN_SIZE + 12 }),
+    ...(popupLeft ? { right: 0 } : { left: 0 }),
+  };
+
+  if (!pos) return null;
 
   return (
     <div
       ref={containerRef}
-      style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50 }}
+      style={{
+        position: "fixed",
+        left: pos.x,
+        top: pos.y,
+        zIndex: 50,
+        touchAction: "none",
+        userSelect: "none",
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     >
       {open && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Contato via WhatsApp"
-          style={{
-            position: "absolute",
-            bottom: 68,
-            right: 0,
-            width: 280,
-            borderRadius: 16,
-            background: "rgb(var(--cn-bg2))",
-            border: "1px solid rgba(var(--cn-surface2), 0.6)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-            padding: "20px",
-          }}
+          style={popupStyle}
         >
           <button
             type="button"
@@ -192,10 +328,16 @@ export function WhatsAppSupportButton() {
         type="button"
         aria-label="Entrar em contato"
         title="Fale conosco"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            return;
+          }
+          setOpen((v) => !v);
+        }}
         style={{
-          width: 52,
-          height: 52,
+          width: BTN_SIZE,
+          height: BTN_SIZE,
           borderRadius: "50%",
           background: "#6851FF",
           color: "#fff",

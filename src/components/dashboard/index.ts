@@ -1,4 +1,5 @@
 export { BannerCarousel } from "./BannerCarousel";
+export { DashboardCalendarPanel } from "./DashboardCalendarPanel";
 export { DashboardHeader } from "./DashboardHeader";
 export type { DashboardHeaderProps } from "./DashboardHeader";
 export { NewMeetingDropdown } from "./DashboardHeader";

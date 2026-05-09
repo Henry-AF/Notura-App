@@ -26,7 +26,7 @@ function PageHeaderBreadcrumbs({
   return (
     <nav
       aria-label="Breadcrumb"
-      className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+      className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
     >
       {breadcrumbs.map((item, index) => {
         const isLast = index === breadcrumbs.length - 1;
@@ -70,11 +70,11 @@ export function PageHeader({
       {breadcrumbs?.length ? (
         <PageHeaderBreadcrumbs breadcrumbs={breadcrumbs} />
       ) : null}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1.5">
           <h1
             className={cn(
-              "font-display text-3xl font-extrabold text-foreground",
+              "font-display break-words text-2xl font-extrabold text-foreground sm:text-3xl",
               titleClassName
             )}
           >
@@ -83,7 +83,7 @@ export function PageHeader({
           {description ? (
             <div
               className={cn(
-                "max-w-lg text-sm text-muted-foreground",
+                "max-w-lg break-words text-sm text-muted-foreground",
                 descriptionClassName
               )}
             >
@@ -91,7 +91,7 @@ export function PageHeader({
             </div>
           ) : null}
         </div>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
+        {actions ? <div className="w-full min-w-0 sm:w-auto sm:shrink-0">{actions}</div> : null}
       </div>
     </header>
   );

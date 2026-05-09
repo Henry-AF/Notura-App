@@ -9,8 +9,42 @@ import { cn } from "@/lib/utils";
 export interface DashboardHeaderProps {
   userName: string;
   meetingsProcessedToday: number;
-  onNewMeeting: () => void;
+  onRecord: () => void;
   onUpload: () => void;
+}
+
+function QuickActionButton({
+  icon,
+  label,
+  onClick,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  tone: "upload" | "record";
+}) {
+  const toneClassName =
+    tone === "upload"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+      : "border-rose-500/30 bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300";
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={onClick}
+      className={cn(
+        "h-11 min-w-0 flex-1 justify-center rounded-full px-4 text-sm font-semibold sm:h-11 sm:flex-none",
+        toneClassName
+      )}
+      aria-label={label}
+    >
+      <span className="flex items-center justify-center">{icon}</span>
+      <span>{label}</span>
+    </Button>
+  );
 }
 
 function getGreeting(): { text: string; emoji: string } {
@@ -18,6 +52,33 @@ function getGreeting(): { text: string; emoji: string } {
   if (hour >= 5 && hour < 12) return { text: "Bom dia", emoji: "👋" };
   if (hour >= 12 && hour < 18) return { text: "Boa tarde", emoji: "☀️" };
   return { text: "Boa noite", emoji: "🌙" };
+}
+
+function useDismissibleDropdown(
+  isOpen: boolean,
+  ref: React.RefObject<HTMLDivElement>,
+  onClose: () => void
+) {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose, ref]);
 }
 
 export function NewMeetingDropdown({
@@ -29,42 +90,19 @@ export function NewMeetingDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
   const close = useCallback(() => setOpen(false), []);
 
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        close();
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") close();
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open, close]);
+  useDismissibleDropdown(open, ref, close);
 
   return (
     <div ref={ref} className="relative">
       <Button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         size="lg"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={cn(
-          "rounded-full px-6 transition-all",
-          open && "ring-2 ring-primary/40"
-        )}
+        className={cn("rounded-full px-6 transition-all", open && "ring-2 ring-primary/40")}
       >
         <Plus className="h-[18px] w-[18px]" />
         Nova reunião
@@ -76,7 +114,7 @@ export function NewMeetingDropdown({
         />
       </Button>
 
-      {open && (
+      {open ? (
         <div
           role="menu"
           className="animate-slide-down absolute right-0 top-full z-50 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-border bg-card shadow-xl"
@@ -96,9 +134,7 @@ export function NewMeetingDropdown({
             </div>
             <div className="text-left">
               <p className="font-medium text-foreground">Nova reunião</p>
-              <p className="text-xs text-muted-foreground">
-                Gravar ou iniciar reunião
-              </p>
+              <p className="text-xs text-muted-foreground">Gravar ou iniciar reunião</p>
             </div>
           </button>
 
@@ -119,13 +155,11 @@ export function NewMeetingDropdown({
             </div>
             <div className="text-left">
               <p className="font-medium text-foreground">Upload de arquivo</p>
-              <p className="text-xs text-muted-foreground">
-                Enviar áudio ou vídeo
-              </p>
+              <p className="text-xs text-muted-foreground">Enviar áudio ou vídeo</p>
             </div>
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -133,7 +167,7 @@ export function NewMeetingDropdown({
 export function DashboardHeader({
   userName,
   meetingsProcessedToday,
-  onNewMeeting,
+  onRecord,
   onUpload,
 }: DashboardHeaderProps) {
   const greeting = useMemo(() => getGreeting(), []);
@@ -153,7 +187,20 @@ export function DashboardHeader({
       }
       descriptionClassName="max-w-none"
       actions={
-        <NewMeetingDropdown onNewMeeting={onNewMeeting} onUpload={onUpload} />
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
+          <QuickActionButton
+            icon={<UploadCloud className="h-[18px] w-[18px]" />}
+            label="Fazer upload"
+            onClick={onUpload}
+            tone="upload"
+          />
+          <QuickActionButton
+            icon={<Mic className="h-[18px] w-[18px] text-red-500" />}
+            label="Iniciar gravação"
+            onClick={onRecord}
+            tone="record"
+          />
+        </div>
       }
     />
   );

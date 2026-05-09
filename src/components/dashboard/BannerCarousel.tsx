@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface StaticBanner {
   src: string;
+  mobileSrc?: string;
   alt: string;
   href: string;
   external?: boolean;
@@ -18,16 +19,19 @@ interface StaticBanner {
 const BANNERS: StaticBanner[] = [
   {
     src: "/banners/banner-plano-pro.png",
+    mobileSrc: "/banners/banner-plano-pro.png",
     alt: "Teste o plano Pro",
     href: "/planos",
   },
   {
     src: "/banners/banner-integracoes.png",
+    mobileSrc: "/banners/banner-integracoes.png",
     alt: "Quero receber novidades sobre integrações",
     href: "/novidades",
   },
   {
     src: "/banners/banner-atendimento.png",
+    mobileSrc: "/banners/banner-atendimento.png",
     alt: "Nossa equipe de desenvolvimento atende você diretamente",
     href: "https://wa.me/",
     external: true,
@@ -129,12 +133,14 @@ export function BannerCarousel() {
         onTouchEnd={handleTouchEnd}
         style={{
           position: "relative",
+          width: "100%",
           overflow: "hidden",
         }}
-        className="banner-carousel-root shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+        className="banner-carousel-root banner-container shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
       >
         {/* Sliding strip */}
         <div
+          className="banner-track"
           style={{
             display: "flex",
             transform: `translateX(-${current * 100}%)`,
@@ -147,25 +153,34 @@ export function BannerCarousel() {
               href={banner.href}
               target={banner.external ? "_blank" : undefined}
               rel={banner.external ? "noopener noreferrer" : undefined}
+              className="banner-slide"
               style={{
                 flex: "0 0 100%",
                 display: "block",
+                height: "100%",
                 textDecoration: "none",
                 lineHeight: 0,
               }}
               draggable={false}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={banner.src}
-                alt={banner.alt}
-                style={{
-                  width: "100%",
-                  display: "block",
-                  pointerEvents: "none",
-                }}
-                draggable={false}
-              />
+              <picture>
+                <source media="(max-width: 767px)" srcSet={banner.mobileSrc ?? banner.src} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={banner.src}
+                  alt={banner.alt}
+                  className="banner-image"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    objectPosition: "center",
+                    display: "block",
+                    pointerEvents: "none",
+                  }}
+                  draggable={false}
+                />
+              </picture>
             </a>
           ))}
         </div>

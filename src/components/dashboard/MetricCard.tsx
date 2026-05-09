@@ -87,6 +87,7 @@ export function MetricCard({
 
   return (
     <div
+      className="min-w-0"
       style={{
         background: "rgb(var(--cn-card))",
         boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
@@ -95,7 +96,7 @@ export function MetricCard({
       }}
     >
       {/* Top row: icon + trend */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div
           style={{
             width: 40,
@@ -116,6 +117,7 @@ export function MetricCard({
 
       {/* Label */}
       <p
+        className="break-words"
         style={{
           fontFamily: "Inter, sans-serif",
           fontWeight: 400,
@@ -130,10 +132,10 @@ export function MetricCard({
 
       {/* Value */}
       <p
+        className="break-words text-[30px] sm:text-[36px]"
         style={{
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           fontWeight: 800,
-          fontSize: "36px",
           color: "rgb(var(--cn-ink))",
           lineHeight: 1,
         }}

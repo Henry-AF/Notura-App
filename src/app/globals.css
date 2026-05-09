@@ -188,9 +188,176 @@
     @apply inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-3 py-1 text-xs font-medium uppercase tracking-wider text-notura-primary;
   }
 
+  .banner-container {
+    width: 100%;
+    overflow: hidden;
+    min-height: clamp(180px, 24vw, 280px);
+    aspect-ratio: 920 / 280;
+  }
+
+  .banner-track,
+  .banner-slide {
+    height: 100%;
+  }
+
+  .banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+
+  .calendar-wrapper {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: center;
+    background: rgb(var(--cn-card));
+    border-color: rgb(var(--cn-border));
+  }
+
+  .calendar-header {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .calendar-title {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .calendar-root {
+    width: 100%;
+  }
+
+  .calendar-month-grid {
+    width: 100%;
+    table-layout: fixed;
+    text-align: center;
+  }
+
+  .calendar-weekdays,
+  .calendar-week {
+    width: 100%;
+  }
+
+  .calendar-weekday {
+    height: 2rem;
+    text-align: center;
+  }
+
+  .calendar-week-grid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    place-items: center;
+    gap: 0.5rem;
+  }
+
+  .calendar-toggle-pill,
+  .calendar-nav-button,
+  .calendar-day {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .calendar-day {
+    width: 14.285%;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .calendar-day-button {
+    display: flex;
+    margin: 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    aspect-ratio: 1;
+  }
+
+  html[data-theme="dark"] .calendar-toggle-pill:not(.active),
+  html[data-theme="dark"] .calendar-nav-button,
+  html[data-theme="dark"] .calendar-day:not(.has-meeting) {
+    background: rgba(var(--cn-bg), 0.92);
+    border-color: rgba(var(--cn-border), 0.9);
+  }
+
+  html[data-theme="dark"] .calendar-day.other-month {
+    color: rgba(var(--foreground), 0.38);
+  }
+
+  html[data-theme="dark"] .calendar-day.has-meeting {
+    box-shadow: 0 10px 24px rgba(var(--primary), 0.22);
+  }
+
   /* BannerCarousel — responsive border-radius and proportional scaling */
   .banner-carousel-root {
+    width: 100%;
     border-radius: 14px; /* mobile: less aggressive curvature */
+  }
+  @media (max-width: 767px) {
+    .banner-container {
+      aspect-ratio: 16 / 11;
+      min-height: 180px;
+    }
+  }
+  @media (max-width: 1024px) {
+    .calendar-wrapper {
+      max-width: 320px;
+      margin: 0 auto;
+      font-size: 13px;
+    }
+
+    .calendar-day-button {
+      width: 32px;
+      height: 32px;
+      font-size: 12px;
+    }
+
+    .calendar-week-day {
+      max-width: 40px;
+      min-height: 40px;
+      padding: 4px;
+    }
+  }
+  @media (max-width: 767px) {
+    .calendar-wrapper {
+      max-width: 100%;
+      font-size: 12px;
+    }
+
+    .calendar-day-button {
+      width: 28px;
+      height: 28px;
+      font-size: 11px;
+    }
+
+    .calendar-week-grid {
+      gap: 0.25rem;
+    }
+
+    .calendar-week-day {
+      max-width: 36px;
+      min-height: 36px;
+      border-radius: 0.875rem;
+      padding: 2px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .banner-container {
+      min-height: 300px;
+    }
   }
   @media (min-width: 640px) {
     .banner-carousel-root {

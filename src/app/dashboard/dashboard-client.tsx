@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BannerCarousel,
+  DashboardCalendarPanel,
   DashboardHeader,
   MetricsRow,
   RecentMeetingsTable,
@@ -64,7 +65,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <DashboardHeader
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
-          onNewMeeting={() => router.push("/dashboard/recording")}
+          onRecord={() => router.push("/dashboard/recording")}
           onUpload={() => router.push("/dashboard/new")}
         />
       </div>
@@ -73,7 +74,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <BannerCarousel />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
         <div className="min-w-0">
           <div className="animate-fade-in [animation-delay:60ms]">
             <MetricsRow metrics={metrics} />
@@ -82,16 +83,15 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
           <div className="mt-6 animate-fade-in [animation-delay:120ms]">
             <RecentMeetingsTable
               meetings={meetings}
-              onViewAll={() => router.push("/dashboard/meetings")}
+              viewAllHref="/dashboard/meetings"
               onRetry={handleRetry}
               onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}
               onRowClick={(id) => router.push(`/dashboard/meetings/${id}`)}
-              onNewMeeting={() => router.push("/dashboard/recording")}
             />
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-4">
+        <div className="min-w-0 flex flex-col gap-4">
           <div className="animate-fade-in [animation-delay:80ms]">
             <InsightCard
               title="Dicas de produtividade"
@@ -108,6 +108,9 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
               />
             </div>
           )}
+          <div className="animate-fade-in [animation-delay:180ms]">
+            <DashboardCalendarPanel />
+          </div>
         </div>
       </div>
     </PageShell>

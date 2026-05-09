@@ -86,6 +86,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
               onRetry={handleRetry}
               onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}
               onRowClick={(id) => router.push(`/dashboard/meetings/${id}`)}
+              onNewMeeting={() => router.push("/dashboard/recording")}
             />
           </div>
         </div>

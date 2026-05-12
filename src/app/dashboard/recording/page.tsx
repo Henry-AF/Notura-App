@@ -7,13 +7,21 @@ import { AiInsightTip, ToastProvider, useToast } from "@/components/upload";
 import {
   RecordingOverlay,
   RecordingSetupCard,
+  type RecordingMode,
   type RecordingOverlayStage,
   type RecordingSetupValues,
 } from "@/components/recording";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState, PageHeader } from "@/components/ui/app";
-import { formatRecordingDuration, getPreferredRecordingMimeType } from "@/lib/meetings/recording-session";
+import {
+  RemoteDisplayAudioMissingError,
+  createMicrophoneRecordingCapture,
+  createRemoteMeetingRecordingCapture,
+  formatRecordingDuration,
+  getPreferredRecordingMimeType,
+  type MeetingRecordingCapture,
+} from "@/lib/meetings/recording-session";
 import {
   fetchRecordingDefaults,
   submitRecordedMeeting,
@@ -22,6 +30,43 @@ import {
 interface MeetingDraft {
   clientName: string;
   whatsappNumber: string;
+}
+
+function createRecordingMediaRecorder(stream: MediaStream): MediaRecorder {
+  const mimeType = getPreferredRecordingMimeType((candidate) =>
+    MediaRecorder.isTypeSupported(candidate)
+  );
+
+  return mimeType
+    ? new MediaRecorder(stream, { mimeType })
+    : new MediaRecorder(stream);
+}
+
+async function createRecordingCapture(
+  mode: RecordingMode
+): Promise<MeetingRecordingCapture> {
+  if (mode === "remote") {
+    return await createRemoteMeetingRecordingCapture();
+  }
+
+  return await createMicrophoneRecordingCapture();
+}
+
+function getStartRecordingErrorMessage(
+  error: unknown,
+  mode: RecordingMode
+): string {
+  if (error instanceof RemoteDisplayAudioMissingError) {
+    return "Selecione uma aba, janela ou tela com áudio compartilhado para gravar reunião remota.";
+  }
+
+  if (mode === "remote") {
+    return error instanceof Error
+      ? error.message
+      : "Não foi possível iniciar a gravação remota.";
+  }
+
+  return "Permissão de microfone negada. Habilite o acesso e tente novamente.";
 }
 
 function RecordingPageInner() {
@@ -42,6 +87,7 @@ function RecordingPageInner() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const captureCleanupRef = useRef<(() => void) | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -55,7 +101,8 @@ function RecordingPageInner() {
   const cleanupRecorderResources = useCallback(() => {
     clearTimer();
     mediaRecorderRef.current = null;
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    captureCleanupRef.current?.();
+    captureCleanupRef.current = null;
     mediaStreamRef.current = null;
   }, [clearTimer]);
 
@@ -133,39 +180,45 @@ function RecordingPageInner() {
       setOverlayError(null);
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false,
+        let capture: MeetingRecordingCapture | null = null;
+
+        try {
+          capture = await createRecordingCapture(
+            values.recordingMode === "remote" ? "remote" : "in-person"
+          );
+          const recorder = createRecordingMediaRecorder(capture.stream);
+
+          captureCleanupRef.current = capture.cleanup;
+          mediaStreamRef.current = capture.stream;
+          mediaRecorderRef.current = recorder;
+          recordedChunksRef.current = [];
+
+          recorder.addEventListener("dataavailable", (event) => {
+            if (event.data.size > 0) {
+              recordedChunksRef.current.push(event.data);
+            }
+          });
+
+          recorder.start(1000);
+        } catch (error) {
+          capture?.cleanup();
+          captureCleanupRef.current = null;
+          mediaStreamRef.current = null;
+          mediaRecorderRef.current = null;
+          throw error;
+        }
+
+        setMeetingDraft({
+          clientName: values.clientName,
+          whatsappNumber: values.whatsappNumber,
         });
-        const mimeType = getPreferredRecordingMimeType((candidate) =>
-          MediaRecorder.isTypeSupported(candidate)
-        );
-        const recorder = mimeType
-          ? new MediaRecorder(stream, { mimeType })
-          : new MediaRecorder(stream);
-
-        mediaStreamRef.current = stream;
-        mediaRecorderRef.current = recorder;
-        recordedChunksRef.current = [];
-
-        recorder.addEventListener("dataavailable", (event) => {
-          if (event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
-          }
-        });
-
-        recorder.start(1000);
-        setMeetingDraft(values);
         setElapsedSeconds(0);
         setRecordedBlob(null);
         setRecordedAt(null);
         setUploadProgress(0);
         setOverlayStage("recording");
-      } catch {
-        show(
-          "Permissão de microfone negada. Habilite o acesso e tente novamente.",
-          "error"
-        );
+      } catch (error) {
+        show(getStartRecordingErrorMessage(error, values.recordingMode), "error");
       } finally {
         setIsStarting(false);
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Loader2, MessageSquare, Mic, User } from "lucide-react";
+import { Loader2, MessageSquare, Mic, MonitorUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,12 @@ import {
 } from "@/lib/meetings/whatsapp-number";
 
 type WhatsappNumberSource = "account" | "custom";
+export type RecordingMode = "in-person" | "remote";
 
 export interface RecordingSetupValues {
   clientName: string;
   whatsappNumber: string;
+  recordingMode: RecordingMode;
 }
 
 interface RecordingSetupCardProps {
@@ -43,6 +45,7 @@ export function RecordingSetupCard({
   onValidationError,
 }: RecordingSetupCardProps) {
   const [clientName, setClientName] = useState("");
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>("in-person");
   const [whatsappSource, setWhatsappSource] =
     useState<WhatsappNumberSource>("account");
   const [customWhatsappNumber, setCustomWhatsappNumber] = useState("");
@@ -89,8 +92,12 @@ export function RecordingSetupCard({
     onStart({
       clientName: clientName.trim(),
       whatsappNumber: normalizeWhatsappNumber(selectedWhatsappRaw),
+      recordingMode,
     });
   }
+
+  const isRemoteRecording = recordingMode === "remote";
+  const StartIcon = isRemoteRecording ? MonitorUp : Mic;
 
   return (
     <Card className="rounded-2xl border-border/80 bg-card/95 shadow-sm">
@@ -105,6 +112,27 @@ export function RecordingSetupCard({
 
       <CardContent className="pt-0">
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <div>
+            <label className={labelClassName}>Modo da reunião</label>
+            <Select
+              value={recordingMode}
+              onValueChange={(value) => setRecordingMode(value as RecordingMode)}
+            >
+              <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="animate-none">
+                <SelectItem value="in-person">Presencial</SelectItem>
+                <SelectItem value="remote">Remota</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {isRemoteRecording
+                ? "Escolha a aba da chamada e habilite o áudio compartilhado."
+                : "Use o microfone deste dispositivo para capturar a conversa."}
+            </p>
+          </div>
+
           <div>
             <label className={labelClassName}>Nome do cliente</label>
             <div className="relative">
@@ -171,12 +199,14 @@ export function RecordingSetupCard({
             {isStarting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Conectando microfone...
+                {isRemoteRecording
+                  ? "Preparando captura remota..."
+                  : "Conectando microfone..."}
               </>
             ) : (
               <>
-                <Mic className="h-4 w-4" />
-                Iniciar gravação
+                <StartIcon className="h-4 w-4" />
+                {isRemoteRecording ? "Selecionar aba e iniciar" : "Iniciar gravação"}
               </>
             )}
           </Button>

@@ -84,27 +84,29 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         />
       </div>
 
-      <div className="mt-6 animate-fade-in [animation-delay:40ms]">
-        <BannerCarousel />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="min-w-0">
-          {/* Quick action cards — same width column as the meetings table */}
-          <div className="grid grid-cols-3 gap-3 animate-fade-in [animation-delay:55ms]">
-            {QUICK_ACTIONS.map((action) => (
-              <QuickActionCard key={action.href} {...action} />
-            ))}
+          <div className="animate-fade-in [animation-delay:40ms]">
+            <BannerCarousel />
           </div>
 
-          <div className="mt-4 animate-fade-in [animation-delay:120ms]">
-            <RecentMeetingsTable
-              meetings={meetings}
-              onViewAll={() => router.push("/dashboard/meetings")}
-              onRetry={handleRetry}
-              onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}
-              onRowClick={(id) => router.push(`/dashboard/meetings/${id}`)}
-            />
+          <div className="mt-6">
+            {/* Quick action cards — same width column as the meetings table */}
+            <div className="grid grid-cols-3 gap-3 animate-fade-in [animation-delay:55ms]">
+              {QUICK_ACTIONS.map((action) => (
+                <QuickActionCard key={action.href} {...action} />
+              ))}
+            </div>
+
+            <div className="mt-4 animate-fade-in [animation-delay:120ms]">
+              <RecentMeetingsTable
+                meetings={meetings}
+                onViewAll={() => router.push("/dashboard/meetings")}
+                onRetry={handleRetry}
+                onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}
+                onRowClick={(id) => router.push(`/dashboard/meetings/${id}`)}
+              />
+            </div>
           </div>
         </div>
 

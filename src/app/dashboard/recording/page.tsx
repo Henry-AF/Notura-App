@@ -362,52 +362,6 @@ function RecordingPageInner() {
               onStart={handleStartRecording}
               onValidationError={(message) => show(message, "warning")}
             />
-
-            <Card className="rounded-2xl border-border/80 bg-card/95 shadow-sm">
-              <CardContent className="flex flex-col gap-4 px-5 py-5 sm:px-6">
-                <div className="flex items-center gap-2">
-                  <Badge variant="processing" className="rounded-full px-3 py-1 text-xs">
-                    Fluxo simples
-                  </Badge>
-                  <Badge variant="default" className="rounded-full px-3 py-1 text-xs">
-                    Mobile-first
-                  </Badge>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    {
-                      icon: Mic,
-                      title: "Grave direto no navegador",
-                      body: "Sem participantes nem campos extras: só cliente, WhatsApp e iniciar.",
-                    },
-                    {
-                      icon: ShieldCheck,
-                      title: "Confirme antes de enviar",
-                      body: "Ao encerrar, você escolhe entre descartar a gravação ou gerar o sumário.",
-                    },
-                    {
-                      icon: Sparkles,
-                      title: "Siga para o processing",
-                      body: "Depois do upload, a reunião entra no mesmo pipeline da tela de envio.",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.title}
-                      className="rounded-2xl border border-border/70 bg-background px-4 py-4"
-                    >
-                      <item.icon className="h-4 w-4 text-primary" />
-                      <p className="mt-3 text-sm font-semibold text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {item.body}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="w-full shrink-0 lg:w-[340px]">

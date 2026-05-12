@@ -89,7 +89,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
       </div>
 
       {/* Quick action cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 animate-fade-in [animation-delay:55ms] sm:grid-cols-3">
+      <div className="mt-6 flex flex-wrap gap-3 animate-fade-in [animation-delay:55ms]">
         {QUICK_ACTIONS.map((action) => (
           <QuickActionCard key={action.href} {...action} />
         ))}

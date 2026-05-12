@@ -25,7 +25,7 @@ export function QuickActionCard({ label, href, colors }: QuickActionCardProps) {
   return (
     <Link
       href={href}
-      className="group relative flex min-h-[110px] flex-col justify-end overflow-hidden rounded-2xl p-5 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      className="group relative flex aspect-square w-40 flex-col justify-end overflow-hidden rounded-xl border border-white/20 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
     >
       {/* Grainient background fills the card */}
       <div className="absolute inset-0">
@@ -43,11 +43,11 @@ export function QuickActionCard({ label, href, colors }: QuickActionCardProps) {
       </div>
 
       {/* Label + animated arrow */}
-      <div className="relative z-10 flex items-end justify-between gap-3">
-        <p className="text-[15px] font-bold leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.4)]">
+      <div className="relative z-10 flex items-end justify-between gap-2">
+        <p className="text-[13px] font-bold leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.4)]">
           {label}
         </p>
-        <ArrowRight className="h-5 w-5 shrink-0 text-white/80 transition-transform duration-200 group-hover:translate-x-1.5" />
+        <ArrowRight className="h-4 w-4 shrink-0 text-white/80 transition-transform duration-200 group-hover:translate-x-1" />
       </div>
     </Link>
   );

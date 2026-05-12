@@ -69,6 +69,57 @@ function getStartRecordingErrorMessage(
   return "Permissão de microfone negada. Habilite o acesso e tente novamente.";
 }
 
+function GrainOverlay() {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      aria-hidden="true"
+      preserveAspectRatio="none"
+    >
+      <filter id="rp-grain-filter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#rp-grain-filter)" opacity="0.07" />
+    </svg>
+  );
+}
+
+function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
+  const isRemote = mode === "remote";
+  const title = isRemote ? "Gravar Reunião Remota" : "Gravar Reunião Presencial";
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl px-6 pb-8 pt-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/10 to-transparent transition-opacity duration-500"
+        style={{ opacity: isRemote ? 0 : 1 }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/25 via-emerald-500/10 to-transparent transition-opacity duration-500"
+        style={{ opacity: isRemote ? 1 : 0 }}
+      />
+      <GrainOverlay />
+      <div className="relative z-10">
+        <PageHeader
+          breadcrumbs={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Gravação ao vivo" },
+          ]}
+          title={
+            <span key={mode} className="animate-fade-in inline-block">
+              {title}
+            </span>
+          }
+          description="Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto."
+        />
+      </div>
+    </div>
+  );
+}
+
 function RecordingPageInner() {
   const router = useRouter();
   const { show } = useToast();
@@ -76,6 +127,7 @@ function RecordingPageInner() {
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>("in-person");
   const [overlayStage, setOverlayStage] =
     useState<RecordingOverlayStage | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -183,9 +235,7 @@ function RecordingPageInner() {
         let capture: MeetingRecordingCapture | null = null;
 
         try {
-          capture = await createRecordingCapture(
-            values.recordingMode === "remote" ? "remote" : "in-person"
-          );
+          capture = await createRecordingCapture(values.recordingMode);
           const recorder = createRecordingMediaRecorder(capture.stream);
 
           captureCleanupRef.current = capture.cleanup;
@@ -345,20 +395,15 @@ function RecordingPageInner() {
   return (
     <>
       <div className="animate-fade-in min-h-full">
-        <PageHeader
-          breadcrumbs={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: "Gravação ao vivo" },
-          ]}
-          title="Gravar reunião"
-          description="Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto."
-        />
+        <RecordingPageHeader mode={recordingMode} />
 
         <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <RecordingSetupCard
               accountWhatsappNumber={accountWhatsappNumber}
               isStarting={isStarting}
+              recordingMode={recordingMode}
+              onRecordingModeChange={setRecordingMode}
               onStart={handleStartRecording}
               onValidationError={(message) => show(message, "warning")}
             />

@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import type { SegmentedControlOption } from "@/components/ui/segmented-control";
+import { getRecordingTheme } from "./recording-theme";
 import {
   formatWhatsappNumberForDisplay,
   getWhatsappNumberValidationError,
@@ -31,9 +34,16 @@ export interface RecordingSetupValues {
 interface RecordingSetupCardProps {
   accountWhatsappNumber?: string;
   isStarting: boolean;
+  recordingMode: RecordingMode;
+  onRecordingModeChange: (mode: RecordingMode) => void;
   onStart: (values: RecordingSetupValues) => void;
   onValidationError: (message: string) => void;
 }
+
+const RECORDING_MODE_OPTIONS: SegmentedControlOption<RecordingMode>[] = [
+  { value: "in-person", label: "Presencial", icon: <Mic className="h-3.5 w-3.5" /> },
+  { value: "remote", label: "Remota", icon: <MonitorUp className="h-3.5 w-3.5" /> },
+];
 
 const labelClassName =
   "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
@@ -41,11 +51,12 @@ const labelClassName =
 export function RecordingSetupCard({
   accountWhatsappNumber = "",
   isStarting,
+  recordingMode,
+  onRecordingModeChange,
   onStart,
   onValidationError,
 }: RecordingSetupCardProps) {
   const [clientName, setClientName] = useState("");
-  const [recordingMode, setRecordingMode] = useState<RecordingMode>("in-person");
   const [whatsappSource, setWhatsappSource] =
     useState<WhatsappNumberSource>("account");
   const [customWhatsappNumber, setCustomWhatsappNumber] = useState("");
@@ -98,6 +109,7 @@ export function RecordingSetupCard({
 
   const isRemoteRecording = recordingMode === "remote";
   const StartIcon = isRemoteRecording ? MonitorUp : Mic;
+  const theme = getRecordingTheme(recordingMode);
 
   return (
     <Card className="rounded-2xl border-border/80 bg-card/95 shadow-sm">
@@ -114,21 +126,15 @@ export function RecordingSetupCard({
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <label className={labelClassName}>Modo da reunião</label>
-            <Select
+            <SegmentedControl
+              options={RECORDING_MODE_OPTIONS}
               value={recordingMode}
-              onValueChange={(value) => setRecordingMode(value as RecordingMode)}
-            >
-              <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="animate-none">
-                <SelectItem value="in-person">Presencial</SelectItem>
-                <SelectItem value="remote">Remota</SelectItem>
-              </SelectContent>
-            </Select>
+              onChange={onRecordingModeChange}
+              activeClassName={theme.segmentActiveClass}
+            />
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               {isRemoteRecording
-                ? "Escolha a aba da chamada e habilite o áudio compartilhado."
+                ? "Compartilhe a aba com áudio e permita o microfone quando solicitado."
                 : "Use o microfone deste dispositivo para capturar a conversa."}
             </p>
           </div>
@@ -194,7 +200,7 @@ export function RecordingSetupCard({
           <Button
             type="submit"
             disabled={isStarting}
-            className="h-11 w-full rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className={`h-11 w-full rounded-full transition-colors duration-300 ${theme.buttonClass}`}
           >
             {isStarting ? (
               <>

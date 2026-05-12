@@ -30,7 +30,11 @@ type MicrophoneCaptureMediaDevices = Pick<MediaDevices, "getUserMedia">;
 
 type RemoteCaptureAudioContext = Pick<
   AudioContext,
-  "close" | "createMediaStreamDestination" | "createMediaStreamSource"
+  | "close"
+  | "createMediaStreamDestination"
+  | "createMediaStreamSource"
+  | "resume"
+  | "state"
 >;
 
 interface RemoteMeetingRecordingCaptureDependencies {
@@ -141,6 +145,7 @@ export async function createRemoteMeetingRecordingCapture(
       video: false,
     });
     audioContext = (dependencies.createAudioContext ?? createBrowserAudioContext)();
+    await resumeAudioContextIfSuspended(audioContext);
     const destination = audioContext.createMediaStreamDestination();
 
     audioContext.createMediaStreamSource(displayStream).connect(destination);
@@ -221,6 +226,14 @@ function stopAudioTracks(stream: MediaStream): void {
 
 function stopVideoTracks(stream: MediaStream): void {
   stream.getVideoTracks().forEach((track) => track.stop());
+}
+
+async function resumeAudioContextIfSuspended(
+  audioContext: RemoteCaptureAudioContext
+): Promise<void> {
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
 }
 
 function getBrowserMicrophoneMediaDevices(): MicrophoneCaptureMediaDevices {

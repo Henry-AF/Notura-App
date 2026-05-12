@@ -164,4 +164,43 @@ describe("recording session helpers", () => {
     expect(mixedAudioTrack.stop).toHaveBeenCalledTimes(1);
     expect(audioContext.close).toHaveBeenCalledTimes(1);
   });
+
+  it("resumes a suspended audio context before mixing remote audio", async () => {
+    const displayAudioTrack = createTrack("display-audio");
+    const microphoneTrack = createTrack("microphone-audio");
+    const mixedAudioTrack = createTrack("mixed-audio");
+    const displayStream = createStream([displayAudioTrack]);
+    const microphoneStream = createStream([microphoneTrack]);
+    const destinationStream = createStream([mixedAudioTrack]);
+    const combinedStream = createStream([mixedAudioTrack]);
+    const displaySource = { connect: vi.fn() };
+    const microphoneSource = { connect: vi.fn() };
+    const destination = { stream: destinationStream };
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const createMediaStreamSource = vi
+      .fn()
+      .mockReturnValueOnce(displaySource)
+      .mockReturnValueOnce(microphoneSource);
+    const audioContext = {
+      state: "suspended",
+      resume,
+      createMediaStreamDestination: vi.fn(() => destination),
+      createMediaStreamSource,
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await createRemoteMeetingRecordingCapture({
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(displayStream),
+        getUserMedia: vi.fn().mockResolvedValue(microphoneStream),
+      },
+      createAudioContext: vi.fn(() => audioContext),
+      createMediaStream: vi.fn(() => combinedStream),
+    });
+
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(resume.mock.invocationCallOrder[0]).toBeLessThan(
+      createMediaStreamSource.mock.invocationCallOrder[0]
+    );
+  });
 });

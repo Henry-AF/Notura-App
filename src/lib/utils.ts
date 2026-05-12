@@ -28,6 +28,21 @@ export function formatDuration(seconds: number | null): string {
 }
 
 export function formatRelativeTime(dateStr: string): string {
+  // Date-only strings (YYYY-MM-DD) are always parsed as UTC midnight by the JS engine,
+  // which causes a systematic offset equal to the local timezone. Compare as calendar
+  // days instead to avoid the false "19 horas atrás" on meetings created today.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split("-").map(Number);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const targetStart = new Date(year, month - 1, day).getTime();
+    const diffDays = Math.floor((todayStart - targetStart) / 86400000);
+    if (diffDays <= 0) return "hoje";
+    if (diffDays === 1) return "ontem";
+    if (diffDays < 7) return `${diffDays}d atrás`;
+    return formatDate(dateStr);
+  }
+
   const now = new Date();
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();

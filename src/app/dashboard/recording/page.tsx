@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mic, ShieldCheck, Sparkles } from "lucide-react";
+import { ChevronRight, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { AiInsightTip, ToastProvider, useToast } from "@/components/upload";
 import {
   RecordingOverlay,
@@ -13,7 +14,7 @@ import {
 } from "@/components/recording";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { LoadingState, PageHeader } from "@/components/ui/app";
+import { LoadingState } from "@/components/ui/app";
 import { Grainient } from "@/components/ui/grainient";
 import {
   RemoteDisplayAudioMissingError,
@@ -95,19 +96,25 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
           saturation={0.9}
         />
       </div>
-      <div className="relative z-10 px-6 pb-8 pt-6">
-        <PageHeader
-          breadcrumbs={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: "Gravação ao vivo" },
-          ]}
-          title={
-            <span key={mode} className="animate-fade-in inline-block">
-              {title}
-            </span>
-          }
-          description="Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto."
-        />
+      <div className="relative z-10 px-6 pb-14 pt-10">
+        <nav
+          aria-label="Breadcrumb"
+          className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/60"
+        >
+          <Link href="/dashboard" className="transition-colors hover:text-white/90">
+            Dashboard
+          </Link>
+          <ChevronRight className="h-3 w-3 text-white/40" />
+          <span className="text-white/80">Gravação ao vivo</span>
+        </nav>
+        <h1 className="font-display text-3xl font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)]">
+          <span key={mode} className="animate-fade-in inline-block">
+            {title}
+          </span>
+        </h1>
+        <p className="mt-1.5 max-w-lg text-sm text-white/75 [text-shadow:0_1px_4px_rgba(0,0,0,0.25)]">
+          Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto.
+        </p>
       </div>
     </div>
   );

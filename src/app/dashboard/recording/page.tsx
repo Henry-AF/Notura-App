@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState, PageHeader } from "@/components/ui/app";
+import { Grainient } from "@/components/ui/grainient";
 import {
   RemoteDisplayAudioMissingError,
   createMicrophoneRecordingCapture,
@@ -69,40 +70,32 @@ function getStartRecordingErrorMessage(
   return "Permissão de microfone negada. Habilite o acesso e tente novamente.";
 }
 
-function GrainOverlay() {
-  return (
-    <svg
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      aria-hidden="true"
-      preserveAspectRatio="none"
-    >
-      <filter id="rp-grain-filter">
-        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-        <feColorMatrix type="saturate" values="0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#rp-grain-filter)" opacity="0.07" />
-    </svg>
-  );
-}
+const GRAINIENT_COLORS = {
+  "in-person": { color1: "#6851FF", color2: "#9B87FF", color3: "#1A0F4E" },
+  remote: { color1: "#059669", color2: "#34D399", color3: "#022C22" },
+} as const;
 
 function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
   const isRemote = mode === "remote";
   const title = isRemote ? "Gravar Reunião Remota" : "Gravar Reunião Presencial";
+  const colors = GRAINIENT_COLORS[mode];
 
   return (
-    <div className="relative overflow-hidden rounded-2xl px-6 pb-8 pt-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/10 to-transparent transition-opacity duration-500"
-        style={{ opacity: isRemote ? 0 : 1 }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/25 via-emerald-500/10 to-transparent transition-opacity duration-500"
-        style={{ opacity: isRemote ? 1 : 0 }}
-      />
-      <GrainOverlay />
-      <div className="relative z-10">
+    <div className="relative overflow-hidden rounded-2xl">
+      <div className="absolute inset-0">
+        <Grainient
+          color1={colors.color1}
+          color2={colors.color2}
+          color3={colors.color3}
+          timeSpeed={0.15}
+          grainAmount={0.06}
+          zoom={0.85}
+          warpStrength={0.8}
+          contrast={1.2}
+          saturation={0.9}
+        />
+      </div>
+      <div className="relative z-10 px-6 pb-8 pt-6">
         <PageHeader
           breadcrumbs={[
             { label: "Dashboard", href: "/dashboard" },

@@ -111,6 +111,28 @@ describe("recording session helpers", () => {
     expect(displayVideoTrack.stop).toHaveBeenCalledTimes(1);
   });
 
+  it("stops the display stream when microphone permission is denied", async () => {
+    const displayAudioTrack = createTrack("display-audio");
+    const displayVideoTrack = createTrack("display-video");
+    const displayStream = createStream([displayAudioTrack], [displayVideoTrack]);
+    const getDisplayMedia = vi.fn().mockResolvedValue(displayStream);
+    const getUserMedia = vi.fn().mockRejectedValue(new Error("permission denied"));
+    const createAudioContext = vi.fn();
+
+    await expect(
+      createRemoteMeetingRecordingCapture({
+        mediaDevices: { getDisplayMedia, getUserMedia },
+        createAudioContext,
+        createMediaStream: vi.fn(),
+      })
+    ).rejects.toThrow("permission denied");
+
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: true, video: false });
+    expect(createAudioContext).not.toHaveBeenCalled();
+    expect(displayAudioTrack.stop).toHaveBeenCalledTimes(1);
+    expect(displayVideoTrack.stop).toHaveBeenCalledTimes(1);
+  });
+
   it("mixes shared display audio with microphone audio in one recording stream", async () => {
     const displayAudioTrack = createTrack("display-audio");
     const displayVideoTrack = createTrack("display-video");

@@ -137,6 +137,35 @@ function resolveChatPollDelayMs(
   return Math.min(initialIntervalMs * 2 ** attempt, maxIntervalMs);
 }
 
+// ─── Meeting status & retry ───────────────────────────────────────────────────
+
+export interface MeetingStatusResponse {
+  id: string;
+  status: string;
+  taskCount: number;
+  decisionCount: number;
+}
+
+export async function fetchMeetingStatus(id: string): Promise<MeetingStatusResponse> {
+  const response = await fetch(`/api/meetings/${id}/status`);
+  const body = await parseJson<MeetingStatusResponse & { error?: string }>(response);
+
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao verificar status da reunião."));
+  }
+
+  return body;
+}
+
+export async function retryMeetingProcessing(id: string): Promise<void> {
+  const response = await fetch(`/api/meetings/${id}/retry`, { method: "POST" });
+  const body = await parseJson<{ success?: boolean; error?: string }>(response);
+
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao reprocessar reunião."));
+  }
+}
+
 // ─── Meeting delete ───────────────────────────────────────────────────────────
 
 interface MeetingDeleteResponse {

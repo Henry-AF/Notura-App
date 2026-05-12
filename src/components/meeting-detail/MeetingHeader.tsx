@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, MessageSquare, Share2, Pencil, Trash2 } from "lucide-react";
+import { Calendar, MessageSquare, RefreshCw, Share2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -56,6 +56,8 @@ export interface MeetingHeaderProps {
   status: "completed" | "processing" | "failed" | "scheduled";
   participants: Array<{ name: string; avatarUrl?: string }>;
   onChat?: () => void;
+  onRetry?: () => void;
+  isRetrying?: boolean;
   onShare: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -68,6 +70,8 @@ export function MeetingHeader({
   status,
   participants,
   onChat,
+  onRetry,
+  isRetrying = false,
   onShare,
   onEdit,
   onDelete,
@@ -89,6 +93,19 @@ export function MeetingHeader({
       descriptionClassName="max-w-none"
       actions={
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          {onRetry ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              disabled={isRetrying}
+              className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950 sm:w-auto"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+              {isRetrying ? "Reprocessando..." : "Reprocessar"}
+            </Button>
+          ) : null}
           {onChat ? (
             <Button
               type="button"

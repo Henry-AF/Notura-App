@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Mic, ShieldCheck, Sparkles } from "lucide-react";
 import { AiInsightTip, ToastProvider, useToast } from "@/components/upload";
 import {
@@ -122,12 +122,15 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
 
 function RecordingPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { show } = useToast();
 
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
-  const [recordingMode, setRecordingMode] = useState<RecordingMode>("in-person");
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>(
+    searchParams.get("mode") === "remote" ? "remote" : "in-person"
+  );
   const [overlayStage, setOverlayStage] =
     useState<RecordingOverlayStage | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);

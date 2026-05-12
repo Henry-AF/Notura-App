@@ -5,16 +5,38 @@ import { useRouter } from "next/navigation";
 import {
   BannerCarousel,
   DashboardHeader,
-  MetricsRow,
+  QuickActionCard,
   RecentMeetingsTable,
   InsightCard,
   UpgradeCard,
 } from "@/components/dashboard";
-import type { MetricCardProps, Meeting } from "@/components/dashboard";
+import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
 import { getPlanTitle } from "@/lib/plans";
 import type { DashboardOverviewData } from "./dashboard-types";
+
+// ─── Quick action cards ───────────────────────────────────────────────────────
+
+const QUICK_ACTIONS: QuickActionCardProps[] = [
+  {
+    label: "Gravar Reunião Presencial",
+    href: "/dashboard/recording",
+    colors: { color1: "#6851FF", color2: "#9B87FF", color3: "#1A0F4E" },
+  },
+  {
+    label: "Gravar Reunião Remota",
+    href: "/dashboard/recording?mode=remote",
+    colors: { color1: "#059669", color2: "#34D399", color3: "#022C22" },
+  },
+  {
+    label: "Processar Reunião Gravada",
+    href: "/dashboard/new",
+    colors: { color1: "#F59E0B", color2: "#FCD34D", color3: "#451A03" },
+  },
+];
+
+// ─── Client ───────────────────────────────────────────────────────────────────
 
 export interface DashboardClientProps {
   initialOverview: DashboardOverviewData;
@@ -24,9 +46,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   const router = useRouter();
   const { show } = useToast();
 
-  const [metrics, setMetrics] = useState<MetricCardProps[]>(
-    initialOverview.metrics
-  );
   const [meetings, setMeetings] = useState<Meeting[]>(initialOverview.meetings);
 
   const handleRetry = useCallback(
@@ -49,13 +68,9 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   );
 
   useEffect(() => {
-    const prefetchSafely = (href: string) => {
-      router.prefetch(href);
-    };
-
-    prefetchSafely("/dashboard/recording");
-    prefetchSafely("/dashboard/new");
-    prefetchSafely("/dashboard/meetings");
+    router.prefetch("/dashboard/recording");
+    router.prefetch("/dashboard/new");
+    router.prefetch("/dashboard/meetings");
   }, [router]);
 
   return (
@@ -73,13 +88,16 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <BannerCarousel />
       </div>
 
+      {/* Quick action cards */}
+      <div className="mt-6 grid grid-cols-1 gap-4 animate-fade-in [animation-delay:55ms] sm:grid-cols-3">
+        {QUICK_ACTIONS.map((action) => (
+          <QuickActionCard key={action.href} {...action} />
+        ))}
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="min-w-0">
-          <div className="animate-fade-in [animation-delay:60ms]">
-            <MetricsRow metrics={metrics} />
-          </div>
-
-          <div className="mt-6 animate-fade-in [animation-delay:120ms]">
+          <div className="animate-fade-in [animation-delay:120ms]">
             <RecentMeetingsTable
               meetings={meetings}
               onViewAll={() => router.push("/dashboard/meetings")}

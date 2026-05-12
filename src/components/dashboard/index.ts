@@ -1,3 +1,5 @@
+export { QuickActionCard } from "./QuickActionCard";
+export type { QuickActionCardProps, QuickActionCardColors } from "./QuickActionCard";
 export { BannerCarousel } from "./BannerCarousel";
 export { DashboardHeader } from "./DashboardHeader";
 export type { DashboardHeaderProps } from "./DashboardHeader";

@@ -378,13 +378,15 @@ function RecordingPageInner() {
 
       router.push(`/dashboard/processing?id=${meetingId}`);
     } catch (error) {
-      const message =
+      const technicalMessage =
         error instanceof Error
           ? error.message
-          : "Erro ao salvar a gravação. Tente novamente.";
-      setOverlayError(message);
+          : "Erro ao salvar a gravação.";
+      const userMessage =
+        "Sua gravação foi salva. Houve um erro no processamento, mas você pode tentar novamente na tela de reuniões.";
+      setOverlayError(userMessage);
       setOverlayStage("confirm");
-      show(message, "error");
+      show(technicalMessage, "error");
     }
   }, [meetingDraft, recordedAt, recordedBlob, router, show]);
 

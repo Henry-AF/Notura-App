@@ -11,8 +11,8 @@ const THEMES: Record<RecordingMode, RecordingTheme> = {
     buttonClass: "bg-primary hover:bg-primary/90 text-primary-foreground",
   },
   remote: {
-    segmentActiveClass: "bg-emerald-600 text-white",
-    buttonClass: "bg-emerald-600 hover:bg-emerald-500 text-white",
+    segmentActiveClass: "bg-emerald-500 text-white",
+    buttonClass: "bg-emerald-500 hover:bg-emerald-500 text-white",
   },
 };
 

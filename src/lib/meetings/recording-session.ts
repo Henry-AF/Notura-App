@@ -130,6 +130,8 @@ export async function createRemoteMeetingRecordingCapture(
     throw new RemoteDisplayAudioMissingError();
   }
 
+  stopVideoTracks(displayStream);
+
   let microphoneStream: MediaStream | null = null;
   let audioContext: RemoteCaptureAudioContext | null = null;
 
@@ -159,7 +161,7 @@ export async function createRemoteMeetingRecordingCapture(
       }),
     };
   } catch (error) {
-    stopStreamTracks(displayStream);
+    stopAudioTracks(displayStream);
     if (microphoneStream) {
       stopStreamTracks(microphoneStream);
     }
@@ -189,7 +191,7 @@ function createRemoteCaptureCleanup({
     }
 
     hasCleanedUp = true;
-    stopStreamTracks(displayStream);
+    stopAudioTracks(displayStream);
     stopStreamTracks(microphoneStream);
     stopStreamTracks(recordingStream);
     void audioContext.close();
@@ -211,6 +213,14 @@ function createStreamCleanup(stream: MediaStream): () => void {
 
 function stopStreamTracks(stream: MediaStream): void {
   stream.getTracks().forEach((track) => track.stop());
+}
+
+function stopAudioTracks(stream: MediaStream): void {
+  stream.getAudioTracks().forEach((track) => track.stop());
+}
+
+function stopVideoTracks(stream: MediaStream): void {
+  stream.getVideoTracks().forEach((track) => track.stop());
 }
 
 function getBrowserMicrophoneMediaDevices(): MicrophoneCaptureMediaDevices {

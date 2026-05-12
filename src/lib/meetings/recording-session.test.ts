@@ -154,6 +154,7 @@ describe("recording session helpers", () => {
     expect(microphoneSource.connect).toHaveBeenCalledWith(destination);
     expect(createMediaStream).toHaveBeenCalledWith([mixedAudioTrack]);
     expect(capture.stream).toBe(combinedStream);
+    expect(displayVideoTrack.stop).toHaveBeenCalledTimes(1);
 
     capture.cleanup();
 

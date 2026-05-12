@@ -426,6 +426,7 @@ function RecordingPageInner() {
           onStop={handleStopRecording}
           onDiscard={resetRecordingState}
           onSave={handleSaveRecording}
+          onClose={overlayError ? resetRecordingState : undefined}
         />
       ) : null}
     </>

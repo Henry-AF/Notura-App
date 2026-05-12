@@ -88,16 +88,16 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <BannerCarousel />
       </div>
 
-      {/* Quick action cards */}
-      <div className="mt-6 flex flex-wrap gap-3 animate-fade-in [animation-delay:55ms]">
-        {QUICK_ACTIONS.map((action) => (
-          <QuickActionCard key={action.href} {...action} />
-        ))}
-      </div>
-
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="min-w-0">
-          <div className="animate-fade-in [animation-delay:120ms]">
+          {/* Quick action cards — same width column as the meetings table */}
+          <div className="grid grid-cols-3 gap-3 animate-fade-in [animation-delay:55ms]">
+            {QUICK_ACTIONS.map((action) => (
+              <QuickActionCard key={action.href} {...action} />
+            ))}
+          </div>
+
+          <div className="mt-4 animate-fade-in [animation-delay:120ms]">
             <RecentMeetingsTable
               meetings={meetings}
               onViewAll={() => router.push("/dashboard/meetings")}

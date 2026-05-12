@@ -25,7 +25,7 @@ export function QuickActionCard({ label, href, colors }: QuickActionCardProps) {
   return (
     <Link
       href={href}
-      className="group relative flex aspect-square w-40 flex-col justify-end overflow-hidden rounded-xl border border-white/20 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      className="group relative flex aspect-square w-full flex-col justify-end overflow-hidden rounded-xl border border-white/20 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
     >
       {/* Grainient background fills the card */}
       <div className="absolute inset-0">

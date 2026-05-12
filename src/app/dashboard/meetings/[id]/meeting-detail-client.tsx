@@ -67,7 +67,7 @@ function FailedState({ onRetry, isRetrying }: { onRetry: () => void; isRetrying:
     <SectionCard className="rounded-xl px-6 py-12 text-center">
       <p className="text-sm font-semibold text-destructive">Falha no processamento</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        O arquivo foi salvo. Clique em "Reprocessar" no cabeçalho para tentar novamente.
+        O arquivo foi salvo. Clique em &quot;Reprocessar&quot; no cabeçalho para tentar novamente.
       </p>
       <Button
         type="button"

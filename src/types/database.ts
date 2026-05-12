@@ -633,6 +633,86 @@ export interface Database {
           }
         ]
       }
+      meeting_summary_ai_metrics: {
+        Row: {
+          id: string
+          meeting_id: string
+          user_id: string
+          status: "processing" | "completed" | "failed"
+          request_id: string | null
+          stage: string
+          error_message: string | null
+          primary_model: string
+          fallback_model: string | null
+          summary_model: string
+          used_fallback: boolean
+          prompt_version: string
+          transcript_tokens_estimated: number
+          summary_tokens_estimated: number
+          generation_duration_ms: number | null
+          total_duration_ms: number
+          estimated_cost_usd: number
+          started_at: string | null
+          completed_at: string | null
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          user_id: string
+          status: "processing" | "completed" | "failed"
+          request_id?: string | null
+          stage?: string
+          error_message?: string | null
+          primary_model: string
+          fallback_model?: string | null
+          summary_model: string
+          used_fallback?: boolean
+          prompt_version: string
+          transcript_tokens_estimated?: number
+          summary_tokens_estimated?: number
+          generation_duration_ms?: number | null
+          total_duration_ms: number
+          estimated_cost_usd?: number
+          started_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          user_id?: string
+          status?: "processing" | "completed" | "failed"
+          request_id?: string | null
+          stage?: string
+          error_message?: string | null
+          primary_model?: string
+          fallback_model?: string | null
+          summary_model?: string
+          used_fallback?: boolean
+          prompt_version?: string
+          transcript_tokens_estimated?: number
+          summary_tokens_estimated?: number
+          generation_duration_ms?: number | null
+          total_duration_ms?: number
+          estimated_cost_usd?: number
+          started_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_summary_ai_metrics_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       ai_usage_daily: {
         Row: {
           user_id: string
@@ -823,6 +903,8 @@ export type MeetingTranscriptChunk =
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 export type MeetingChatAiMetric =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
+export type MeetingSummaryAiMetric =
+  Database["public"]["Tables"]["meeting_summary_ai_metrics"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

@@ -39,10 +39,13 @@ vi.mock("@/lib/gemini", () => ({
   generateEmbedding: mocks.generateEmbedding,
   generateMeetingSummary: mocks.generateMeetingSummary,
   PROMPT_VERSION: "1.1.0",
+  GEMINI_TEXT_MODEL_NAME: "gemini-3.1-flash-lite-preview",
+  GEMINI_TEXT_FALLBACK_MODEL_NAME: "gemini-2.5-flash-lite",
 }));
 
 vi.mock("@/lib/meetings/rag", () => ({
   indexMeetingTranscriptChunks: mocks.indexMeetingTranscriptChunks,
+  estimateTokenCount: (text: string) => text.trim().split(/\s+/).filter(Boolean).length,
 }));
 
 vi.mock("@/lib/observability", () => ({
@@ -98,8 +101,9 @@ function createSummaryJson() {
 }
 
 function createSupabaseMock() {
+  const inserts: Record<string, unknown[]> = {};
   const single = vi.fn().mockResolvedValue({
-    data: { status: "pending" },
+    data: { id: "metric-1", status: "pending" },
     error: null,
   });
   const selectEq = vi.fn(() => ({ single }));
@@ -107,9 +111,19 @@ function createSupabaseMock() {
   const updateEq = vi.fn().mockResolvedValue({ error: null });
   const update = vi.fn(() => ({ eq: updateEq }));
   const upsert = vi.fn().mockResolvedValue({ error: null });
-  const from = vi.fn(() => ({ select, update, upsert }));
+  const from = vi.fn((table: string) => ({
+    select,
+    update,
+    upsert,
+    insert: vi.fn((payload: unknown) => {
+      inserts[table] = [...(inserts[table] ?? []), payload];
+      return {
+        select: vi.fn(() => ({ single })),
+      };
+    }),
+  }));
 
-  return { from };
+  return { from, inserts };
 }
 
 describe("processMeeting", () => {
@@ -125,6 +139,7 @@ describe("processMeeting", () => {
     mocks.generateMeetingSummary.mockResolvedValue({
       summaryWhatsapp: "Resumo pronto",
       summaryJson: createSummaryJson(),
+      modelName: "gemini-3.1-flash-lite-preview",
     });
     mocks.generateEmbedding.mockResolvedValue(Array.from({ length: 768 }, () => 0.1));
     mocks.indexMeetingTranscriptChunks.mockResolvedValue([]);
@@ -203,5 +218,50 @@ describe("processMeeting", () => {
       ],
       embedText: mocks.generateEmbedding,
     });
+  });
+
+  it("records summary AI metrics with the model that generated the summary", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.generateMeetingSummary.mockResolvedValueOnce({
+      summaryWhatsapp: "Resumo pronto",
+      summaryJson: createSummaryJson(),
+      modelName: "gemini-2.5-flash-lite",
+    });
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(supabase.inserts.meeting_summary_ai_metrics?.[0]).toEqual(
+      expect.objectContaining({
+        meeting_id: "meeting-1",
+        user_id: "user-1",
+        request_id: "event-1",
+        status: "completed",
+        stage: "completed",
+        primary_model: "gemini-3.1-flash-lite-preview",
+        fallback_model: "gemini-2.5-flash-lite",
+        summary_model: "gemini-2.5-flash-lite",
+        used_fallback: true,
+        prompt_version: "1.1.0",
+        generation_duration_ms: expect.any(Number),
+        total_duration_ms: expect.any(Number),
+      })
+    );
   });
 });

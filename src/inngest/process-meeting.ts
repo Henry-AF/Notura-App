@@ -21,6 +21,10 @@ import {
   generateMeetingSummary,
   PROMPT_VERSION,
 } from "@/lib/gemini";
+import {
+  buildMeetingSummaryAiMetric,
+  insertMeetingSummaryAiMetric,
+} from "@/lib/ai/meeting-summary-metrics";
 import { indexMeetingTranscriptChunks } from "@/lib/meetings/rag";
 import {
   captureObservedError,
@@ -46,6 +50,21 @@ interface MeetingProcessEventData {
 }
 
 type SummaryItemKind = "task" | "decision" | "open_item";
+
+interface RecordMeetingSummaryAiMetricInput {
+  supabase: ReturnType<typeof createServiceRoleClient>;
+  requestId: string;
+  startedAt: number;
+  meetingId: string;
+  userId: string;
+  transcript: string;
+  summaryWhatsapp: string;
+  summaryJson: MeetingJSON;
+  summaryModel: string;
+  generationDurationMs: number;
+  summaryStartedAt: string;
+  summaryCompletedAt: string;
+}
 
 function readRequiredEventString(
   payload: Record<string, unknown>,
@@ -132,6 +151,64 @@ function resolveInngestRequestId(eventId: unknown): string {
   if (typeof eventId !== "string") return createTraceId();
   const trimmed = eventId.trim();
   return trimmed.length > 0 ? trimmed : createTraceId();
+}
+
+async function recordMeetingSummaryAiMetric(
+  input: RecordMeetingSummaryAiMetricInput
+): Promise<void> {
+  try {
+    const metric = buildCompletedMeetingSummaryAiMetric(input);
+    await insertMeetingSummaryAiMetric(input.supabase, metric);
+  } catch (error) {
+    logMeetingSummaryAiMetricPersistFailure(error, input);
+  }
+}
+
+function buildCompletedMeetingSummaryAiMetric(
+  input: RecordMeetingSummaryAiMetricInput
+) {
+  return buildMeetingSummaryAiMetric({
+    meetingId: input.meetingId,
+    userId: input.userId,
+    requestId: input.requestId,
+    stage: "completed",
+    status: "completed",
+    errorMessage: null,
+    transcript: input.transcript,
+    summaryWhatsapp: input.summaryWhatsapp,
+    summaryJson: input.summaryJson,
+    summaryModel: input.summaryModel,
+    promptVersion: PROMPT_VERSION,
+    generationDurationMs: input.generationDurationMs,
+    totalDurationMs: input.generationDurationMs,
+    startedAt: input.summaryStartedAt,
+    completedAt: input.summaryCompletedAt,
+  });
+}
+
+function logMeetingSummaryAiMetricPersistFailure(
+  error: unknown,
+  input: RecordMeetingSummaryAiMetricInput
+): void {
+  const durationMs = Date.now() - input.startedAt;
+  logStructured("error", {
+    event: "meeting.summary.ai_metrics.persist_failed",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs,
+    status: "metrics_failed",
+    errorMessage: getErrorMessage(error),
+  });
+  captureObservedError(error, {
+    event: "meeting.summary.ai_metrics.persist_failed",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs,
+    status: "metrics_failed",
+    extra: { meetingId: input.meetingId },
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,16 +403,47 @@ export const processMeeting = inngest.createFunction(
       });
 
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
-      const { summaryWhatsapp, summaryJson } = await step.run(
+      const {
+        summaryWhatsapp,
+        summaryJson,
+        modelName: summaryModel,
+        generationDurationMs,
+        summaryStartedAt,
+        summaryCompletedAt,
+      } = await step.run(
         "summarize-meeting",
         async () => {
+          const summaryStartedAtMs = Date.now();
           try {
-            return await generateMeetingSummary(transcript, durationSeconds);
+            const summary = await generateMeetingSummary(transcript, durationSeconds);
+            return {
+              ...summary,
+              generationDurationMs: Date.now() - summaryStartedAtMs,
+              summaryStartedAt: new Date(summaryStartedAtMs).toISOString(),
+              summaryCompletedAt: new Date().toISOString(),
+            };
           } catch (error) {
             throw toProviderQueueError("gemini", error);
           }
         }
       );
+
+      await step.run("record-summary-ai-metric", async () => {
+        await recordMeetingSummaryAiMetric({
+          supabase,
+          requestId,
+          startedAt,
+          meetingId,
+          userId,
+          transcript,
+          summaryWhatsapp,
+          summaryJson,
+          summaryModel,
+          generationDurationMs,
+          summaryStartedAt,
+          summaryCompletedAt,
+        });
+      });
 
       // ── Step 4: Save results to Supabase ───────────────────────────────
       await step.run("save-results", async () => {

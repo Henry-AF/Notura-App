@@ -74,6 +74,7 @@ type UnprocessableTranscriptPayload = {
 export interface MeetingSummaryResult {
   summaryWhatsapp: string;
   summaryJson: MeetingJSON;
+  modelName: string;
 }
 
 export interface GenerateEmbeddingOptions {
@@ -627,6 +628,7 @@ export async function generateMeetingSummary(
   return {
     summaryWhatsapp: parsed.summary_whatsapp,
     summaryJson: parsed.summary_json,
+    modelName: generation.modelName,
   };
 }
 

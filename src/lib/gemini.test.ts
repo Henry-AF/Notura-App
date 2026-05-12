@@ -108,6 +108,7 @@ describe("generateMeetingSummary retry policy", () => {
     const result = await mod.generateMeetingSummary("transcript");
 
     expect(result.summaryWhatsapp).toBe("Resumo pronto para WhatsApp");
+    expect(result.modelName).toBe("gemini-2.5-flash-lite");
     expect(getGenerativeModelMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ model: "gemini-3.1-flash-lite-preview" })

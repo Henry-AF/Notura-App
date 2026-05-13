@@ -6,14 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
-  ChevronDown,
   LayoutGrid,
   LogOut,
   Menu,
-  Mic,
   Plus,
   Settings,
-  UploadCloud,
   Users,
   Video,
   X,
@@ -98,87 +95,29 @@ function useDismissibleLayer(
   }, [open, onClose, ref]);
 }
 
-function CreateDropdown({ onNavigate, collapsible }: { onNavigate?: () => void; collapsible?: boolean }) {
-  const router = useRouter();
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-
-  useDismissibleLayer(open, ref, () => setOpen(false));
-
-  function handleNavigate(href: string) {
-    setOpen(false);
-    onNavigate?.();
-    router.push(href);
-  }
-
+function CreateButton({ onNavigate, collapsible }: { onNavigate?: () => void; collapsible?: boolean }) {
   return (
-    <div ref={ref} className="relative mb-2 px-3">
+    <div className="mb-2 px-3">
       {collapsible && (
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
+        <Link
+          href="/dashboard/recording"
+          onClick={onNavigate}
           className="flex w-full items-center justify-center rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 p-2.5 text-white transition-all active:scale-[0.98] group-hover:hidden"
         >
           <Plus className="h-4 w-4" />
-        </button>
+        </Link>
       )}
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
+      <Link
+        href="/dashboard/recording"
+        onClick={onNavigate}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]",
+          "flex w-full items-center gap-2 rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98]",
           collapsible && "hidden group-hover:flex"
         )}
       >
-        <span className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Criar
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 transition-transform duration-200",
-            open ? "rotate-180" : "rotate-0"
-          )}
-        />
-      </button>
-
-      {open && (
-        <div className="animate-slide-down absolute left-3 right-3 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-          <button
-            type="button"
-            onClick={() => handleNavigate("/dashboard/recording")}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-              <Mic className="h-3.5 w-3.5 text-[#6C5CE7]" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-foreground">Nova reunião</p>
-              <p className="text-xs text-muted-foreground">
-                Gravar ou iniciar reunião
-              </p>
-            </div>
-          </button>
-
-          <div className="mx-3 h-px bg-border" />
-
-          <button
-            type="button"
-            onClick={() => handleNavigate("/dashboard/recording?mode=upload")}
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
-              <UploadCloud className="h-3.5 w-3.5 text-[#4ECB71]" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-foreground">Upload de arquivo</p>
-              <p className="text-xs text-muted-foreground">
-                Enviar áudio ou vídeo
-              </p>
-            </div>
-          </button>
-        </div>
-      )}
+        <Plus className="h-4 w-4" />
+        Nova reunião
+      </Link>
     </div>
   );
 }
@@ -439,7 +378,7 @@ function SidebarContent({
         </Link>
       </div>
 
-      <CreateDropdown onNavigate={onNavigate} collapsible={collapsible} />
+      <CreateButton onNavigate={onNavigate} collapsible={collapsible} />
       <SidebarNavigation onNavigate={onNavigate} collapsible={collapsible} />
       <SidebarFooter
         user={user}

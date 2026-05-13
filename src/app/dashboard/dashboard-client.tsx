@@ -92,6 +92,9 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
 
           <div className="mt-6">
             {/* Quick action cards — same width column as the meetings table */}
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              Como sua reunião vai ser feita hoje?
+            </p>
             <div className="grid grid-cols-3 gap-3 animate-fade-in [animation-delay:55ms]">
               {QUICK_ACTIONS.map((action) => (
                 <QuickActionCard key={action.href} {...action} />

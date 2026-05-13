@@ -2,9 +2,15 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Mic, ShieldCheck, Sparkles } from "lucide-react";
-import { AiInsightTip, ToastProvider, useToast } from "@/components/upload";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import {
+  AiInsightTip,
+  DropZone,
+  ToastProvider,
+  UploadProgressCard,
+  useToast,
+} from "@/components/upload";
 import {
   RecordingOverlay,
   RecordingSetupCard,
@@ -12,8 +18,6 @@ import {
   type RecordingOverlayStage,
   type RecordingSetupValues,
 } from "@/components/recording";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState } from "@/components/ui/app";
 import { Grainient } from "@/components/ui/grainient";
 import {
@@ -28,6 +32,7 @@ import {
   fetchRecordingDefaults,
   submitRecordedMeeting,
 } from "./recording-api";
+import { submitUploadedMeeting } from "./recording-upload-api";
 
 interface MeetingDraft {
   clientName: string;
@@ -54,6 +59,12 @@ async function createRecordingCapture(
   return await createMicrophoneRecordingCapture();
 }
 
+function getInitialRecordingMode(mode: string | null): RecordingMode {
+  if (mode === "remote") return "remote";
+  if (mode === "upload") return "upload";
+  return "in-person";
+}
+
 function getStartRecordingErrorMessage(
   error: unknown,
   mode: RecordingMode
@@ -74,11 +85,21 @@ function getStartRecordingErrorMessage(
 const GRAINIENT_COLORS = {
   "in-person": { color1: "#6851FF", color2: "#9B87FF", color3: "#1A0F4E" },
   remote: { color1: "#059669", color2: "#34D399", color3: "#022C22" },
+  upload: { color1: "#D97706", color2: "#F59E0B", color3: "#78350F" },
 } as const;
 
 function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
   const isRemote = mode === "remote";
-  const title = isRemote ? "Gravar Reunião Remota" : "Gravar Reunião Presencial";
+  const isUpload = mode === "upload";
+  const title = isUpload
+    ? "Enviar Arquivo de Reunião"
+    : isRemote
+      ? "Gravar Reunião Remota"
+      : "Gravar Reunião Presencial";
+  const breadcrumb = isUpload ? "Upload de arquivo" : "Gravação ao vivo";
+  const description = isUpload
+    ? "Envie o áudio ou vídeo da reunião e deixe que a IA cuide do resto."
+    : "Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto.";
   const colors = GRAINIENT_COLORS[mode];
 
   return (
@@ -96,24 +117,24 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
           saturation={0.9}
         />
       </div>
-      <div className="relative z-10 px-6 pb-14 pt-10">
+      <div className="relative z-10 px-4 pb-8 pt-7 sm:px-6 sm:pb-14 sm:pt-10">
         <nav
           aria-label="Breadcrumb"
-          className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/60"
+          className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-white/60 sm:mb-3 sm:text-[11px]"
         >
           <Link href="/dashboard" className="transition-colors hover:text-white/90">
             Dashboard
           </Link>
           <ChevronRight className="h-3 w-3 text-white/40" />
-          <span className="text-white/80">Gravação ao vivo</span>
+          <span className="text-white/80">{breadcrumb}</span>
         </nav>
-        <h1 className="font-display text-3xl font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)]">
+        <h1 className="font-display text-[28px] font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)] sm:text-3xl">
           <span key={mode} className="animate-fade-in inline-block">
             {title}
           </span>
         </h1>
-        <p className="mt-1.5 max-w-lg text-sm text-white/75 [text-shadow:0_1px_4px_rgba(0,0,0,0.25)]">
-          Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto.
+        <p className="mt-1 max-w-lg text-[13px] text-white/75 [text-shadow:0_1px_4px_rgba(0,0,0,0.25)] sm:mt-1.5 sm:text-sm">
+          {description}
         </p>
       </div>
     </div>
@@ -121,6 +142,7 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
 }
 
 function RecordingPageInner() {
+  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { show } = useToast();
@@ -129,7 +151,7 @@ function RecordingPageInner() {
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(
-    searchParams.get("mode") === "remote" ? "remote" : "in-person"
+    getInitialRecordingMode(searchParams.get("mode"))
   );
   const [overlayStage, setOverlayStage] =
     useState<RecordingOverlayStage | null>(null);
@@ -137,6 +159,9 @@ function RecordingPageInner() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedAt, setRecordedAt] = useState<Date | null>(null);
   const [meetingDraft, setMeetingDraft] = useState<MeetingDraft | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreviewProgress, setUploadPreviewProgress] = useState(0);
+  const [uploadTimeRemaining, setUploadTimeRemaining] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [overlayError, setOverlayError] = useState<string | null>(null);
 
@@ -145,6 +170,8 @@ function RecordingPageInner() {
   const captureCleanupRef = useRef<(() => void) | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadStartTimeRef = useRef<number>(0);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -161,6 +188,13 @@ function RecordingPageInner() {
     mediaStreamRef.current = null;
   }, [clearTimer]);
 
+  const clearUploadPreviewTimer = useCallback(() => {
+    if (uploadTimerRef.current) {
+      clearInterval(uploadTimerRef.current);
+      uploadTimerRef.current = null;
+    }
+  }, []);
+
   const resetRecordingState = useCallback(() => {
     cleanupRecorderResources();
     recordedChunksRef.current = [];
@@ -172,6 +206,30 @@ function RecordingPageInner() {
     setOverlayError(null);
     setOverlayStage(null);
   }, [cleanupRecorderResources]);
+
+  const resetUploadState = useCallback(() => {
+    clearUploadPreviewTimer();
+    setUploadFile(null);
+    setUploadPreviewProgress(0);
+    setUploadTimeRemaining("");
+    setUploadProgress(0);
+  }, [clearUploadPreviewTimer]);
+
+  const updateModeUrl = useCallback(
+    (mode: RecordingMode) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+
+      if (mode === "in-person") {
+        nextParams.delete("mode");
+      } else {
+        nextParams.set("mode", mode);
+      }
+
+      const nextQuery = nextParams.toString();
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+    },
+    [pathname, router, searchParams]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -203,8 +261,13 @@ function RecordingPageInner() {
     return () => {
       cancelled = true;
       cleanupRecorderResources();
+      clearUploadPreviewTimer();
     };
-  }, [cleanupRecorderResources, show]);
+  }, [cleanupRecorderResources, clearUploadPreviewTimer, show]);
+
+  useEffect(() => {
+    setRecordingMode(getInitialRecordingMode(searchParams.get("mode")));
+  }, [searchParams]);
 
   useEffect(() => {
     if (overlayStage !== "recording") {
@@ -219,8 +282,72 @@ function RecordingPageInner() {
     return () => clearTimer();
   }, [clearTimer, overlayStage]);
 
+  const startUploadPreviewProgress = useCallback(() => {
+    clearUploadPreviewTimer();
+    uploadStartTimeRef.current = Date.now();
+    setUploadPreviewProgress(0);
+    setUploadTimeRemaining("");
+
+    uploadTimerRef.current = setInterval(() => {
+      setUploadPreviewProgress((current) => {
+        const next = Math.min(current + Math.random() * 8 + 6, 100);
+        const elapsed = (Date.now() - uploadStartTimeRef.current) / 1000;
+        const rate = next / elapsed;
+        const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
+        setUploadTimeRemaining(next >= 100 ? "" : `${remaining}s restantes`);
+
+        if (next >= 100) {
+          clearUploadPreviewTimer();
+        }
+
+        return next;
+      });
+    }, 200);
+  }, [clearUploadPreviewTimer]);
+
+  const handleFile = useCallback(
+    (file: File) => {
+      setUploadFile(file);
+      startUploadPreviewProgress();
+    },
+    [startUploadPreviewProgress]
+  );
+
   const handleStartRecording = useCallback(
     async (values: RecordingSetupValues) => {
+      if (values.recordingMode === "upload") {
+        if (!uploadFile || !values.meetingDate) {
+          return;
+        }
+
+        setIsStarting(true);
+        setUploadProgress(0);
+        setOverlayError(null);
+
+        try {
+          const meetingId = await submitUploadedMeeting({
+            clientName: values.clientName,
+            meetingDate: values.meetingDate,
+            whatsappNumber: values.whatsappNumber,
+            file: uploadFile,
+            onUploadProgress: setUploadProgress,
+          });
+
+          router.push(`/dashboard/processing?id=${meetingId}`);
+        } catch (error) {
+          show(
+            error instanceof Error ? error.message : "Erro ao processar upload.",
+            "error"
+          );
+        } finally {
+          setIsStarting(false);
+        }
+
+        return;
+      }
+
+      const isRemoteMode = values.recordingMode === "remote";
+
       if (
         typeof window === "undefined" ||
         typeof navigator === "undefined" ||
@@ -238,7 +365,9 @@ function RecordingPageInner() {
         let capture: MeetingRecordingCapture | null = null;
 
         try {
-          capture = await createRecordingCapture(values.recordingMode);
+          capture = await createRecordingCapture(
+            isRemoteMode ? "remote" : "in-person"
+          );
           const recorder = createRecordingMediaRecorder(capture.stream);
 
           captureCleanupRef.current = capture.cleanup;
@@ -276,7 +405,7 @@ function RecordingPageInner() {
         setIsStarting(false);
       }
     },
-    [show]
+    [router, show, uploadFile]
   );
 
   const stopActiveRecording = useCallback(async (): Promise<Blob> => {
@@ -300,14 +429,7 @@ function RecordingPageInner() {
         resolve(nextBlob);
       };
 
-      recorder.addEventListener(
-        "stop",
-        () => {
-          finalizeBlob();
-        },
-        { once: true }
-      );
-
+      recorder.addEventListener("stop", finalizeBlob, { once: true });
       recorder.addEventListener(
         "error",
         () => {
@@ -393,6 +515,25 @@ function RecordingPageInner() {
     }
   }, [meetingDraft, recordedAt, recordedBlob, router, show]);
 
+  const handleRecordingModeChange = useCallback(
+    (mode: RecordingMode) => {
+      if (overlayStage || isStarting) {
+        show(
+          "Finalize ou descarte a gravação atual antes de trocar de modo.",
+          "warning"
+        );
+        return;
+      }
+
+      setRecordingMode(mode);
+      if (mode !== "upload") {
+        resetUploadState();
+      }
+      updateModeUrl(mode);
+    },
+    [isStarting, overlayStage, resetUploadState, show, updateModeUrl]
+  );
+
   if (isLoadingDefaults) {
     return <LoadingState label="Carregando opções da gravação..." />;
   }
@@ -406,11 +547,32 @@ function RecordingPageInner() {
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <RecordingSetupCard
               accountWhatsappNumber={accountWhatsappNumber}
+              hasUploadFile={!!uploadFile}
               isStarting={isStarting}
               recordingMode={recordingMode}
-              onRecordingModeChange={setRecordingMode}
+              onRecordingModeChange={handleRecordingModeChange}
               onStart={handleStartRecording}
               onValidationError={(message) => show(message, "warning")}
+              uploadField={
+                recordingMode === "upload"
+                  ? uploadFile
+                    ? (
+                        <UploadProgressCard
+                          file={uploadFile}
+                          progress={uploadPreviewProgress}
+                          timeRemaining={uploadTimeRemaining}
+                          onRemove={resetUploadState}
+                        />
+                      )
+                    : (
+                        <DropZone
+                          onFile={handleFile}
+                          onError={(message) => show(message, "error")}
+                          compact
+                        />
+                      )
+                : undefined
+              }
             />
           </div>
 
@@ -420,7 +582,7 @@ function RecordingPageInner() {
         </div>
       </div>
 
-      {overlayStage ? (
+      {recordingMode !== "upload" && overlayStage ? (
         <RecordingOverlay
           stage={overlayStage}
           elapsedLabel={formatRecordingDuration(elapsedSeconds)}

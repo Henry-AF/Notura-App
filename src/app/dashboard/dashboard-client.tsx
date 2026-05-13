@@ -31,7 +31,7 @@ const QUICK_ACTIONS: QuickActionCardProps[] = [
   },
   {
     label: "Processar Reunião Gravada",
-    href: "/dashboard/new",
+    href: "/dashboard/recording?mode=upload",
     colors: { color1: "#F59E0B", color2: "#FCD34D", color3: "#451A03" },
   },
 ];
@@ -69,7 +69,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
 
   useEffect(() => {
     router.prefetch("/dashboard/recording");
-    router.prefetch("/dashboard/new");
+    router.prefetch("/dashboard/recording?mode=upload");
     router.prefetch("/dashboard/meetings");
   }, [router]);
 
@@ -80,7 +80,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
           onNewMeeting={() => router.push("/dashboard/recording")}
-          onUpload={() => router.push("/dashboard/new")}
+          onUpload={() => router.push("/dashboard/recording?mode=upload")}
         />
       </div>
 

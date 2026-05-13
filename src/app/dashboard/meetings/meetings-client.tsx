@@ -176,7 +176,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         actions={
           <NewMeetingDropdown
             onNewMeeting={() => router.push("/dashboard/recording")}
-            onUpload={() => router.push("/dashboard/new")}
+            onUpload={() => router.push("/dashboard/recording?mode=upload")}
           />
         }
       />

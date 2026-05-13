@@ -23,11 +23,12 @@ const MAX_SIZE = 500 * 1024 * 1024; // 500 MB
 interface DropZoneProps {
   onFile: (file: File) => void;
   onError: (message: string) => void;
+  compact?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function DropZone({ onFile, onError }: DropZoneProps) {
+export function DropZone({ onFile, onError, compact = false }: DropZoneProps) {
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +85,8 @@ export function DropZone({ onFile, onError }: DropZoneProps) {
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
       className={cn(
-        "flex min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-12 text-center transition-all duration-150 focus:outline-none",
+        "flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition-all duration-150 focus:outline-none",
+        compact ? "min-h-[180px] px-5 py-6" : "min-h-[280px] px-8 py-12",
         dragActive
           ? "border-[#6851FF] bg-[#6851FF]/[0.06]"
           : "border-[#E5E7EB] bg-white hover:border-[#6851FF]/50 hover:bg-[#6851FF]/[0.03]"
@@ -92,22 +94,40 @@ export function DropZone({ onFile, onError }: DropZoneProps) {
     >
       {/* Cloud icon */}
       <div
-        className="flex h-14 w-14 items-center justify-center"
+        className={cn(
+          "flex items-center justify-center",
+          compact ? "h-11 w-11" : "h-14 w-14"
+        )}
         style={{
           background: "rgba(104,81,255,0.15)",
-          borderRadius: "14px",
+          borderRadius: compact ? "12px" : "14px",
         }}
       >
-        <CloudUpload className="h-7 w-7 text-[#6851FF]" />
+        <CloudUpload
+          className={cn(
+            "text-[#6851FF]",
+            compact ? "h-5 w-5" : "h-7 w-7"
+          )}
+        />
       </div>
 
       {/* Headline */}
-      <p className="mt-5 font-display text-lg font-bold text-[#191c1e]">
+      <p
+        className={cn(
+          "font-display font-bold text-[#191c1e]",
+          compact ? "mt-4 text-base" : "mt-5 text-lg"
+        )}
+      >
         Arraste e solte o áudio ou vídeo aqui
       </p>
 
       {/* Supported formats */}
-      <p className="mt-2 text-[13px] leading-relaxed text-[#6b7280]">
+      <p
+        className={cn(
+          "leading-relaxed text-[#6b7280]",
+          compact ? "mt-1.5 text-xs" : "mt-2 text-[13px]"
+        )}
+      >
         Formatos suportados: MP3, WAV, M4A ou MP4.
         <br />
         Tamanho máximo: 500MB.
@@ -120,7 +140,10 @@ export function DropZone({ onFile, onError }: DropZoneProps) {
           e.stopPropagation();
           inputRef.current?.click();
         }}
-        className="mt-6 rounded-lg border border-[#E5E7EB] bg-white px-6 py-2.5 text-sm font-medium text-[#4b5563] transition-all active:scale-[0.98] hover:border-[#6851FF]/40 hover:bg-[#6851FF]/[0.04]"
+        className={cn(
+          "rounded-lg border border-[#E5E7EB] bg-white font-medium text-[#4b5563] transition-all active:scale-[0.98] hover:border-[#6851FF]/40 hover:bg-[#6851FF]/[0.04]",
+          compact ? "mt-4 px-4 py-2 text-xs" : "mt-6 px-6 py-2.5 text-sm"
+        )}
       >
         Selecionar arquivo do computador
       </button>

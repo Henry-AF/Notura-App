@@ -164,7 +164,7 @@ function CreateDropdown({ onNavigate, collapsible }: { onNavigate?: () => void; 
 
           <button
             type="button"
-            onClick={() => handleNavigate("/dashboard/new")}
+            onClick={() => handleNavigate("/dashboard/recording?mode=upload")}
             className="flex w-full items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
           >
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">

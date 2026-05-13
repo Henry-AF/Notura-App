@@ -14,6 +14,10 @@ const THEMES: Record<RecordingMode, RecordingTheme> = {
     segmentActiveClass: "bg-emerald-500 text-white",
     buttonClass: "bg-emerald-500 hover:bg-emerald-500 text-white",
   },
+  upload: {
+    segmentActiveClass: "bg-amber-400 text-slate-950",
+    buttonClass: "bg-amber-400 hover:bg-amber-300 text-slate-950",
+  },
 };
 
 export function getRecordingTheme(mode: RecordingMode): RecordingTheme {

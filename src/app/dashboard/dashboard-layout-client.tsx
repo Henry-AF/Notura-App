@@ -504,6 +504,7 @@ export function DashboardLayoutClient({
   children,
   initialUser,
 }: DashboardLayoutClientProps) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -572,7 +573,12 @@ export function DashboardLayoutClient({
           </Link>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main
+          className={cn(
+            "flex-1 overflow-y-auto",
+            pathname.startsWith("/dashboard/recording") && "overscroll-y-none"
+          )}
+        >
           <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </div>

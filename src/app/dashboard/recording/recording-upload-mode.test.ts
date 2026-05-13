@@ -24,12 +24,19 @@ describe("recording page upload mode", () => {
 
   it("supports mode=upload in the recording page", () => {
     const source = readSource("src/app/dashboard/recording/page.tsx");
+    const layoutSource = readSource(
+      "src/app/dashboard/dashboard-layout-client.tsx"
+    );
 
     expect(source).toContain('getInitialRecordingMode(searchParams.get("mode"))');
     expect(source).toContain('recordingMode === "upload"');
     expect(source).toContain('lg:flex-row');
     expect(source).toContain('lg:w-[340px]');
     expect(source).toContain('px-4 pb-8 pt-7 sm:px-6 sm:pb-14 sm:pt-10');
+    expect(source).toContain('document.querySelector("main")');
+    expect(source).toContain('main.scrollTo({ top: 0, behavior: "auto" })');
+    expect(layoutSource).toContain('pathname.startsWith("/dashboard/recording")');
+    expect(layoutSource).toContain('overscroll-y-none');
     expect(source).not.toContain("Informações da Reunião");
   });
 

@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   MessageSquareText,
   Sparkles,
   Trash2,
@@ -30,11 +32,11 @@ import {
 import {
   EmptyState,
   FilterBar,
-  PageHeader,
   PageShell,
   SectionCard,
 } from "@/components/ui/app";
 import { MeetingArchivedChatsSheet } from "@/components/meeting-detail";
+import { Silk } from "@/components/ui/silk";
 import { cn, getInitials } from "@/lib/utils";
 import type {
   AiChatItem,
@@ -87,10 +89,38 @@ function buildMeetingOptions(chats: AiChatItem[]): AiChatMeetingOption[] {
   return Array.from(optionsByMeeting.values());
 }
 
+function AiChatsPageHeader({ chatCount }: { chatCount: number }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <div className="absolute inset-0">
+        <Silk speed={10} scale={1} noiseIntensity={2} color="#6851FF" />
+      </div>
+      <div className="relative z-10 px-4 pb-8 pt-7 sm:px-6 sm:pb-14 sm:pt-10">
+        <nav
+          aria-label="Breadcrumb"
+          className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-white/60 sm:mb-3 sm:text-[11px]"
+        >
+          <Link href="/dashboard" className="transition-colors hover:text-white/90">
+            Dashboard
+          </Link>
+          <ChevronRight className="h-3 w-3 text-white/40" />
+          <span className="text-white/80">Chats IA</span>
+        </nav>
+        <h1 className="font-display text-[28px] font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)] sm:text-3xl">
+          Chats IA
+        </h1>
+        <p className="mt-1 max-w-lg text-[13px] text-white/75 [text-shadow:0_1px_4px_rgba(0,0,0,0.25)] sm:mt-1.5 sm:text-sm">
+          {chatCount} {chatCount === 1 ? "chat arquivado" : "chats arquivados"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function QuotaCard({ quota }: { quota: AiChatQuota }) {
   return (
     <section className="overflow-hidden rounded-xl bg-gradient-to-br from-[#5341CD] via-[#6851FF] to-[#8B7AFF] p-5 text-white shadow-glow">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/75">
             <Sparkles className="h-4 w-4" />
@@ -108,8 +138,7 @@ function QuotaCard({ quota }: { quota: AiChatQuota }) {
             {quota.remaining} {quota.remaining === 1 ? "chat restante" : "chats restantes"} hoje
           </p>
         </div>
-
-        <div className="w-full min-w-[180px] sm:w-64">
+        <div>
           <div className="mb-2 flex items-center justify-between text-xs font-medium text-white/75">
             <span>Uso</span>
             <span>{quota.percentage}%</span>
@@ -432,35 +461,37 @@ export function AiChatsClient({ initialData }: AiChatsClientProps) {
 
   return (
     <PageShell>
-      <PageHeader
-        breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Chats IA" }]}
-        title="Chats IA"
-        description={`${state.chats.length} ${
-          state.chats.length === 1 ? "chat arquivado" : "chats arquivados"
-        }`}
-      />
+      <AiChatsPageHeader chatCount={state.chats.length} />
 
-      <QuotaCard quota={initialData.quota} />
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* Left column: filter + list */}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <AiChatsFilter
+            meetingOptions={state.meetingOptions}
+            selectedMeetingId={state.selectedMeetingId}
+            onChange={state.setSelectedMeetingId}
+          />
 
-      <AiChatsFilter
-        meetingOptions={state.meetingOptions}
-        selectedMeetingId={state.selectedMeetingId}
-        onChange={state.setSelectedMeetingId}
-      />
+          {state.deleteError ? (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {state.deleteError}
+            </div>
+          ) : null}
 
-      {state.deleteError ? (
-        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {state.deleteError}
+          <AiChatsListSection
+            chats={state.filteredChats}
+            selectedChatId={state.selectedChatId}
+            selectedMeetingId={state.selectedMeetingId}
+            onOpenChat={(chat) => state.setSelectedChatId(chat.id)}
+            onDeleteChat={state.setDeleteTarget}
+          />
         </div>
-      ) : null}
 
-      <AiChatsListSection
-        chats={state.filteredChats}
-        selectedChatId={state.selectedChatId}
-        selectedMeetingId={state.selectedMeetingId}
-        onOpenChat={(chat) => state.setSelectedChatId(chat.id)}
-        onDeleteChat={state.setDeleteTarget}
-      />
+        {/* Right column: quota card */}
+        <div className="w-full lg:w-72 lg:shrink-0">
+          <QuotaCard quota={initialData.quota} />
+        </div>
+      </div>
 
       <MeetingArchivedChatsSheet
         meetingId={state.selectedChat?.meetingId ?? ""}

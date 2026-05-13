@@ -93,7 +93,11 @@ function AiChatsPageHeader({ chatCount }: { chatCount: number }) {
   return (
     <div className="relative overflow-hidden rounded-2xl">
       <div className="absolute inset-0">
-        <Silk speed={4} scale={0.8} noiseIntensity={2} color="#6851FF" />
+        <Silk 
+          speed={2}
+          scale={0.8}
+          noiseIntensity={0.5}
+          color="#6851FF" />
       </div>
       <div className="relative z-10 px-4 pb-8 pt-7 sm:px-6 sm:pb-14 sm:pt-10">
         <nav

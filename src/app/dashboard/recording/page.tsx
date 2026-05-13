@@ -117,7 +117,7 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
           saturation={0.9}
         />
       </div>
-      <div className="relative z-10 px-4 pb-8 pt-7 sm:px-6 sm:pb-14 sm:pt-10">
+      <div className="relative z-10 min-h-[160px] px-4 pb-8 pt-7 sm:min-h-[200px] sm:px-6 sm:pb-14 sm:pt-10">
         <nav
           aria-label="Breadcrumb"
           className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-white/60 sm:mb-3 sm:text-[11px]"

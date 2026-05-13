@@ -113,9 +113,9 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
           color1={colors.color1}
           color2={colors.color2}
           color3={colors.color3}
-          timeSpeed={0.5}
+          timeSpeed={0.95}
           grainAmount={0.06}
-          zoom={0.85}
+          zoom={0.8}
           warpStrength={0.8}
           contrast={1.2}
           saturation={0.9}

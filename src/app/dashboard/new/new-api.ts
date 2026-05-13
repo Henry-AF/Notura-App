@@ -1,11 +1,11 @@
 export {
-  fetchMeetingIntakeDefaults as fetchNewMeetingDefaults,
+  fetchMeetingUploadDefaults as fetchNewMeetingDefaults,
   initMeetingUpload,
   processUploadedMeeting,
-} from "@/lib/meetings/meeting-intake-client";
+} from "@/lib/meetings/meeting-upload-client";
 
 export type {
-  MeetingIntakeDefaults as NewMeetingDefaults,
+  MeetingUploadDefaults as NewMeetingDefaults,
   InitMeetingUploadInput,
   ProcessMeetingUploadInput,
-} from "@/lib/meetings/meeting-intake-client";
+} from "@/lib/meetings/meeting-upload-client";

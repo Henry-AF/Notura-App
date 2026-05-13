@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Sparkles, Square, TimerReset, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, Sparkles, Square, TimerReset, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ interface RecordingOverlayProps {
   onStop: () => void;
   onDiscard: () => void;
   onSave: () => void;
+  onClose?: () => void;
 }
 
 export function RecordingOverlay({
@@ -27,14 +29,29 @@ export function RecordingOverlay({
   onStop,
   onDiscard,
   onSave,
+  onClose,
 }: RecordingOverlayProps) {
   const isRecording = stage === "recording";
   const isSaving = stage === "saving";
+  const hasError = !!errorMessage;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm sm:items-center sm:p-6">
       <Card className="h-full w-full rounded-none border-0 bg-card sm:h-auto sm:max-w-xl sm:rounded-3xl sm:border sm:border-border/80">
         <CardContent className="flex h-full flex-col justify-center px-6 py-10 sm:px-8">
+          {hasError && onClose ? (
+            <div className="mb-4 flex justify-end sm:-mt-4">
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={onClose}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          ) : null}
+
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6 text-center">
             <Badge
               variant={isSaving ? "processing" : "recording"}
@@ -93,9 +110,15 @@ export function RecordingOverlay({
             ) : null}
 
             {errorMessage ? (
-              <p className="w-full rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {errorMessage}
-              </p>
+              <div className="w-full rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-left text-sm text-destructive">
+                <p>{errorMessage}</p>
+                <Link
+                  href="/dashboard/meetings"
+                  className="mt-1.5 inline-block font-medium underline underline-offset-2 hover:opacity-80"
+                >
+                  Ir para a tela de reuniões →
+                </Link>
+              </div>
             ) : null}
 
             {isRecording ? (

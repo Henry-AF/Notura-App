@@ -1,12 +1,14 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchMeetingIntakeDefaults = vi.fn();
+const fetchMeetingUploadDefaults = vi.fn();
 const initMeetingUpload = vi.fn();
 const processUploadedMeeting = vi.fn();
 const uploadFileToSignedUrl = vi.fn();
 
-vi.mock("@/lib/meetings/meeting-intake-client", () => ({
-  fetchMeetingIntakeDefaults,
+vi.mock("@/lib/meetings/meeting-upload-client", () => ({
+  fetchMeetingUploadDefaults,
   initMeetingUpload,
   processUploadedMeeting,
 }));
@@ -15,14 +17,24 @@ vi.mock("@/lib/meetings/upload-client", () => ({
   uploadFileToSignedUrl,
 }));
 
+function readSource(path: string): string {
+  return readFileSync(resolve(process.cwd(), path), "utf8");
+}
+
 describe("recording page api client", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
   });
 
+  it("depends on the shared upload client for defaults and upload processing", () => {
+    const source = readSource("src/app/dashboard/recording/recording-api.ts");
+
+    expect(source).toContain('@/lib/meetings/meeting-upload-client');
+  });
+
   it("loads recording defaults from the shared meeting intake client", async () => {
-    fetchMeetingIntakeDefaults.mockResolvedValue({
+    fetchMeetingUploadDefaults.mockResolvedValue({
       accountWhatsappNumber: "5511999999999",
     });
 
@@ -32,7 +44,7 @@ describe("recording page api client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
     });
-    expect(fetchMeetingIntakeDefaults).toHaveBeenCalledTimes(1);
+    expect(fetchMeetingUploadDefaults).toHaveBeenCalledTimes(1);
   });
 
   it("uploads the recorded file and queues processing with today's meeting date", async () => {

@@ -1,8 +1,8 @@
 import {
-  fetchMeetingIntakeDefaults,
+  fetchMeetingUploadDefaults,
   initMeetingUpload,
   processUploadedMeeting,
-} from "@/lib/meetings/meeting-intake-client";
+} from "@/lib/meetings/meeting-upload-client";
 import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 export interface RecordingDefaults {
@@ -47,7 +47,7 @@ function getRecordedFileMetadata(recording: Blob, recordedAt: Date) {
 }
 
 export async function fetchRecordingDefaults(): Promise<RecordingDefaults> {
-  return await fetchMeetingIntakeDefaults();
+  return await fetchMeetingUploadDefaults();
 }
 
 export async function submitRecordedMeeting(

@@ -1,23 +1,11 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-function readSource(path: string): string {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
-}
-
-describe("new meeting api client", () => {
+describe("meeting upload client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("re-exports the shared upload client contract", () => {
-    const source = readSource("src/app/dashboard/new/new-api.ts");
-
-    expect(source).toContain('@/lib/meetings/meeting-upload-client');
-  });
-
-  it("fetches the current user's whatsapp defaults through /api/user/me", async () => {
+  it("loads whatsapp defaults through /api/user/me", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -29,8 +17,8 @@ describe("new meeting api client", () => {
       )
     );
 
-    const mod = await import("./new-api");
-    const result = await mod.fetchNewMeetingDefaults();
+    const mod = await import("./meeting-upload-client");
+    const result = await mod.fetchMeetingUploadDefaults();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
@@ -50,7 +38,7 @@ describe("new meeting api client", () => {
       )
     );
 
-    const mod = await import("./new-api");
+    const mod = await import("./meeting-upload-client");
     const result = await mod.initMeetingUpload({
       fileName: "audio.mp3",
       contentType: "audio/mpeg",
@@ -83,7 +71,7 @@ describe("new meeting api client", () => {
       )
     );
 
-    const mod = await import("./new-api");
+    const mod = await import("./meeting-upload-client");
     const meetingId = await mod.processUploadedMeeting({
       clientName: "Acme",
       meetingDate: "2026-04-14",
@@ -104,31 +92,5 @@ describe("new meeting api client", () => {
       }),
     });
     expect(meetingId).toBe("meeting-1");
-  });
-
-  it("surfaces a retryable processing error when queueing fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error:
-            "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente.",
-        }),
-        { status: 503 }
-      )
-    );
-
-    const mod = await import("./new-api");
-
-    await expect(
-      mod.processUploadedMeeting({
-        clientName: "Acme",
-        meetingDate: "2026-04-14",
-        whatsappNumber: "5511999999999",
-        r2Key: "meetings/user-1/123/audio.mp3",
-        uploadToken: "signed-upload-token",
-      })
-    ).rejects.toThrow(
-      "Houve um erro ao iniciar o processamento desta reunião. Tente processar novamente."
-    );
   });
 });

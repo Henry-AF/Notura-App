@@ -16,6 +16,6 @@ describe("meetings client presentation", () => {
     expect(source).toContain("NewMeetingDropdown");
     expect(source).toContain("actions={");
     expect(source).toContain('router.push("/dashboard/recording")');
-    expect(source).toContain('router.push("/dashboard/new")');
+    expect(source).toContain('router.push("/dashboard/recording?mode=upload")');
   });
 });

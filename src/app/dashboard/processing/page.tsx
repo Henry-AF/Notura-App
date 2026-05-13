@@ -362,7 +362,7 @@ function ProcessingPageContent() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link href="/dashboard/new">
+          <Link href="/dashboard/recording?mode=upload">
             <button
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white"
               style={{ background: "linear-gradient(135deg, #6851FF, #8B7AFF)" }}

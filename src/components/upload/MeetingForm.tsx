@@ -32,6 +32,7 @@ interface MeetingFormProps {
   isSubmitting: boolean;
   hasFile: boolean;
   accountWhatsappNumber?: string;
+  fileField?: React.ReactNode;
 }
 
 type WhatsappNumberSource = "account" | "custom";
@@ -58,6 +59,7 @@ export function MeetingForm({
   isSubmitting,
   hasFile,
   accountWhatsappNumber = "",
+  fileField,
 }: MeetingFormProps) {
   const [clientName, setClientName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
@@ -137,6 +139,8 @@ export function MeetingForm({
       <h2 className="font-display text-[15px] font-bold text-foreground">
         Informações da Reunião
       </h2>
+
+      {fileField ? <div>{fileField}</div> : null}
 
       {/* Client name */}
       <div>

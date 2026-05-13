@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MeetingDeleteDialog,
@@ -23,7 +23,7 @@ import {
   deleteTaskById,
   updateTaskById,
 } from "@/app/dashboard/tasks/tasks-api";
-import { deleteMeetingById } from "./meeting-client-api";
+import { deleteMeetingById, fetchMeetingStatus, retryMeetingProcessing } from "./meeting-client-api";
 import type { MeetingDetailData } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
@@ -56,6 +56,29 @@ function ProcessingState({ clientName }: { clientName: string }) {
       <p className="mt-1 text-xs text-muted-foreground">
         O resumo e as tarefas serão gerados em instantes.
       </p>
+    </SectionCard>
+  );
+}
+
+// ─── Failed state ─────────────────────────────────────────────────────────────
+
+function FailedState({ onRetry, isRetrying }: { onRetry: () => void; isRetrying: boolean }) {
+  return (
+    <SectionCard className="rounded-xl px-6 py-12 text-center">
+      <p className="text-sm font-semibold text-destructive">Falha no processamento</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        O arquivo foi salvo. Clique em &quot;Reprocessar&quot; no cabeçalho para tentar novamente.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onRetry}
+        disabled={isRetrying}
+        className="mt-4 border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
+      >
+        {isRetrying ? "Reprocessando..." : "Reprocessar"}
+      </Button>
     </SectionCard>
   );
 }
@@ -124,9 +147,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   // Meeting info
   const [clientName] = useState(meeting.clientName);
   const [meetingDate] = useState(meeting.meetingDate);
-  const [meetingStatus] = useState<
+  const [meetingStatus, setMeetingStatus] = useState<
     "completed" | "processing" | "failed" | "scheduled"
   >(meeting.meetingStatus);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [participants] = useState<Array<{ name: string }>>(meeting.participants);
 
   // Summary content
@@ -156,6 +180,44 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     () => [{ id, label: clientName || "Reunião atual" }],
     [clientName, id]
   );
+
+  // ─── Polling: refresh status every 30s while processing ──────────────────
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (meetingStatus !== "processing") return;
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const result = await fetchMeetingStatus(id);
+        if (result.status !== "processing") {
+          window.location.reload();
+        }
+      } catch {
+        // silent — will retry on next interval
+      }
+    }, 30_000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [id, meetingStatus]);
+
+  const handleRetry = useCallback(async () => {
+    setIsRetrying(true);
+    try {
+      await retryMeetingProcessing(id);
+      setMeetingStatus("processing");
+      show("Reunião colocada em fila de reprocessamento.", "success");
+    } catch (error) {
+      show(
+        error instanceof Error ? error.message : "Erro ao reprocessar reunião.",
+        "error"
+      );
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [id, show]);
 
   // ─── Decisions & open items for tabs ─────────────────────────────────────
   const [decisions] = useState(meeting.decisions);
@@ -325,6 +387,12 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
 
   // ─── Main content per active tab ──────────────────────────────────────────
   function renderMainContent() {
+    if (meetingStatus === "processing") {
+      return <ProcessingState clientName={clientName} />;
+    }
+    if (meetingStatus === "failed") {
+      return <FailedState onRetry={handleRetry} isRetrying={isRetrying} />;
+    }
     if (meetingStatus !== "completed") {
       return <ProcessingState clientName={clientName} />;
     }
@@ -596,6 +664,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           date={meetingDate}
           status={meetingStatus}
           participants={participants}
+          onRetry={meetingStatus === "failed" ? handleRetry : undefined}
+          isRetrying={isRetrying}
           onChat={
             meetingStatus === "completed" ? () => setIsChatOpen(true) : undefined
           }

@@ -1,31 +1,27 @@
-import { LoadingState } from "./loading-state";
+import { Loader2 } from "lucide-react";
 import { PageShell } from "./page-shell";
-import { SectionCard } from "./section-card";
 
 interface RouteLoadingProps {
   label?: string;
   withPageShell?: boolean;
 }
 
-function RouteLoadingContent({ label }: { label: string }) {
+function RouteLoadingContent() {
   return (
-    <SectionCard className="rounded-xl border-0 bg-transparent p-0">
-      <LoadingState label={label} className="min-h-[220px]" />
-    </SectionCard>
+    <div className="flex h-full min-h-[40vh] flex-1 items-center justify-center">
+      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+    </div>
   );
 }
 
-export function RouteLoading({
-  label = "Carregando...",
-  withPageShell = false,
-}: RouteLoadingProps) {
+export function RouteLoading({ withPageShell = false }: RouteLoadingProps) {
   if (withPageShell) {
     return (
       <PageShell>
-        <RouteLoadingContent label={label} />
+        <RouteLoadingContent />
       </PageShell>
     );
   }
 
-  return <RouteLoadingContent label={label} />;
+  return <RouteLoadingContent />;
 }

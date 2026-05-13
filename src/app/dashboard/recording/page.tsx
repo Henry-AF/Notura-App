@@ -102,6 +102,10 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
     : "Inicie a gravação, confirme ao encerrar e deixe que a IA cuide do resto.";
   const colors = GRAINIENT_COLORS[mode];
 
+  const words = title.split(" ");
+  const lastWord = words[words.length - 1];
+  const restOfTitle = words.slice(0, -1).join(" ");
+
   return (
     <div className="relative overflow-hidden rounded-2xl">
       <div className="absolute inset-0">
@@ -130,7 +134,9 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
         </nav>
         <h1 className="font-display text-[28px] font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)] sm:text-3xl">
           <span key={mode} className="animate-fade-in inline-block">
-            {title}
+            {restOfTitle}
+            <br />
+            {lastWord}
           </span>
         </h1>
         <p className="mt-1 max-w-lg text-[13px] text-white/75 [text-shadow:0_1px_4px_rgba(0,0,0,0.25)] sm:mt-1.5 sm:text-sm">

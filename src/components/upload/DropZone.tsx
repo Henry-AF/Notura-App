@@ -88,24 +88,20 @@ export function DropZone({ onFile, onError, compact = false }: DropZoneProps) {
         "flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition-all duration-150 focus:outline-none",
         compact ? "min-h-[180px] px-5 py-6" : "min-h-[280px] px-8 py-12",
         dragActive
-          ? "border-[#6851FF] bg-[#6851FF]/[0.06]"
-          : "border-[#E5E7EB] bg-white hover:border-[#6851FF]/50 hover:bg-[#6851FF]/[0.03]"
+          ? "border-primary bg-primary/[0.06]"
+          : "border-border bg-transparent hover:border-primary/50 hover:bg-primary/[0.03]"
       )}
     >
       {/* Cloud icon */}
       <div
         className={cn(
-          "flex items-center justify-center",
-          compact ? "h-11 w-11" : "h-14 w-14"
+          "flex items-center justify-center rounded-[12px] bg-primary/15",
+          compact ? "h-11 w-11 rounded-xl" : "h-14 w-14 rounded-[14px]"
         )}
-        style={{
-          background: "rgba(104,81,255,0.15)",
-          borderRadius: compact ? "12px" : "14px",
-        }}
       >
         <CloudUpload
           className={cn(
-            "text-[#6851FF]",
+            "text-primary",
             compact ? "h-5 w-5" : "h-7 w-7"
           )}
         />
@@ -114,7 +110,7 @@ export function DropZone({ onFile, onError, compact = false }: DropZoneProps) {
       {/* Headline */}
       <p
         className={cn(
-          "font-display font-bold text-[#191c1e]",
+          "font-display font-bold text-foreground",
           compact ? "mt-4 text-base" : "mt-5 text-lg"
         )}
       >
@@ -124,7 +120,7 @@ export function DropZone({ onFile, onError, compact = false }: DropZoneProps) {
       {/* Supported formats */}
       <p
         className={cn(
-          "leading-relaxed text-[#6b7280]",
+          "leading-relaxed text-muted-foreground",
           compact ? "mt-1.5 text-xs" : "mt-2 text-[13px]"
         )}
       >
@@ -141,7 +137,7 @@ export function DropZone({ onFile, onError, compact = false }: DropZoneProps) {
           inputRef.current?.click();
         }}
         className={cn(
-          "rounded-lg border border-[#E5E7EB] bg-white font-medium text-[#4b5563] transition-all active:scale-[0.98] hover:border-[#6851FF]/40 hover:bg-[#6851FF]/[0.04]",
+          "rounded-lg border border-border bg-transparent font-medium text-muted-foreground transition-all active:scale-[0.98] hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground",
           compact ? "mt-4 px-4 py-2 text-xs" : "mt-6 px-6 py-2.5 text-sm"
         )}
       >

@@ -68,8 +68,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   );
 
   useEffect(() => {
-    router.prefetch("/dashboard/recording");
-    router.prefetch("/dashboard/recording?mode=upload");
     router.prefetch("/dashboard/meetings");
   }, [router]);
 
@@ -79,8 +77,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
         <DashboardHeader
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
-          onNewMeeting={() => router.push("/dashboard/recording")}
-          onUpload={() => router.push("/dashboard/recording?mode=upload")}
         />
       </div>
 

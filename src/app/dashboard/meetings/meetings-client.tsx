@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Search, Sparkles, X } from "lucide-react";
-import { NewMeetingDropdown } from "@/components/dashboard";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import {
   EmptyState,
@@ -174,10 +174,12 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         title="Reuniões"
         description={`${meetings.length} ${meetings.length !== 1 ? "reuniões" : "reunião"} no total`}
         actions={
-          <NewMeetingDropdown
-            onNewMeeting={() => router.push("/dashboard/recording")}
-            onUpload={() => router.push("/dashboard/recording?mode=upload")}
-          />
+          <Button asChild size="lg" className="rounded-full px-6">
+            <Link href="/dashboard/recording">
+              <Plus className="h-[18px] w-[18px]" />
+              Nova reunião
+            </Link>
+          </Button>
         }
       />
 

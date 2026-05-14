@@ -98,6 +98,11 @@ function createSummaryJson() {
 }
 
 function createSupabaseMock() {
+  const writes = {
+    inserts: [] as Array<{ table: string; payload: unknown }>,
+    updates: [] as Array<{ table: string; payload: unknown }>,
+    upserts: [] as Array<{ table: string; payload: unknown }>,
+  };
   const single = vi.fn().mockResolvedValue({
     data: { status: "pending" },
     error: null,
@@ -105,11 +110,30 @@ function createSupabaseMock() {
   const selectEq = vi.fn(() => ({ single }));
   const select = vi.fn(() => ({ eq: selectEq }));
   const updateEq = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn(() => ({ eq: updateEq }));
-  const upsert = vi.fn().mockResolvedValue({ error: null });
-  const from = vi.fn(() => ({ select, update, upsert }));
+  const update = vi.fn((payload: unknown) => {
+    writes.updates.push({ table: currentTable, payload });
+    return { eq: updateEq };
+  });
+  const upsert = vi.fn((payload: unknown) => {
+    writes.upserts.push({ table: currentTable, payload });
+    return Promise.resolve({ error: null });
+  });
+  const insertSingle = vi.fn().mockResolvedValue({
+    data: { id: "job-1" },
+    error: null,
+  });
+  const insertSelect = vi.fn(() => ({ single: insertSingle }));
+  const insert = vi.fn((payload: unknown) => {
+    writes.inserts.push({ table: currentTable, payload });
+    return { select: insertSelect };
+  });
+  let currentTable = "";
+  const from = vi.fn((table: string) => {
+    currentTable = table;
+    return { select, update, upsert, insert };
+  });
 
-  return { from };
+  return { from, writes };
 }
 
 describe("processMeeting", () => {
@@ -203,5 +227,91 @@ describe("processMeeting", () => {
       ],
       embedText: mocks.generateEmbedding,
     });
+  });
+
+  it("records the current Inngest processing step in the meeting job", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(supabase.writes.inserts).toContainEqual({
+      table: "jobs",
+      payload: {
+        meeting_id: "meeting-1",
+        status: "processing",
+        current_step: "update-status-processing",
+        error_message: null,
+      },
+    });
+    expect(supabase.writes.updates).toEqual(
+      expect.arrayContaining([
+        {
+          table: "jobs",
+          payload: {
+            status: "processing",
+            current_step: "transcribe",
+            error_message: null,
+          },
+        },
+        {
+          table: "jobs",
+          payload: {
+            status: "processing",
+            current_step: "index-transcript-chunks",
+            error_message: null,
+          },
+        },
+        {
+          table: "jobs",
+          payload: {
+            status: "processing",
+            current_step: "summarize-meeting",
+            error_message: null,
+          },
+        },
+        {
+          table: "jobs",
+          payload: {
+            status: "processing",
+            current_step: "save-results",
+            error_message: null,
+          },
+        },
+        {
+          table: "jobs",
+          payload: {
+            status: "processing",
+            current_step: "send-whatsapp",
+            error_message: null,
+          },
+        },
+        {
+          table: "jobs",
+          payload: {
+            status: "completed",
+            current_step: "cleanup",
+            error_message: null,
+            completed_at: expect.any(String),
+          },
+        },
+      ])
+    );
   });
 });

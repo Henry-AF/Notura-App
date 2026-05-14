@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { Suspense, useState, useEffect, useRef } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -19,44 +19,71 @@ import { fetchMeetingStatus } from "./processing-api";
 // ─── Processing steps ─────────────────────────────────────────────────────────
 
 interface Step {
-  id: string;
+  id: ProcessingStepId;
   icon: React.ElementType;
   label: string;
   sublabel: string;
-  /** min ms before advancing to next step (fallback timer) */
-  minMs: number;
 }
+
+type ProcessingStepId =
+  | "update-status-processing"
+  | "transcribe"
+  | "index-transcript-chunks"
+  | "summarize-meeting"
+  | "save-results"
+  | "send-whatsapp"
+  | "cleanup";
 
 const STEPS: Step[] = [
   {
-    id: "upload",
+    id: "update-status-processing",
     icon: FileAudio,
-    label: "Áudio recebido",
-    sublabel: "Arquivo enviado e armazenado com segurança",
-    minMs: 1500,
+    label: "Preparando job",
+    sublabel: "Validando arquivo e iniciando o processamento",
   },
   {
     id: "transcribe",
     icon: Wand2,
     label: "Transcrevendo",
     sublabel: "Convertendo fala em texto com AssemblyAI",
-    minMs: 20000,
   },
   {
-    id: "analyze",
+    id: "index-transcript-chunks",
+    icon: FileAudio,
+    label: "Indexando transcrição",
+    sublabel: "Preparando trechos para busca e chats da reunião",
+  },
+  {
+    id: "summarize-meeting",
     icon: Sparkles,
     label: "Analisando com IA",
     sublabel: "Identificando decisões, tarefas e resumo",
-    minMs: 15000,
   },
   {
-    id: "whatsapp",
+    id: "save-results",
+    icon: CheckCircle,
+    label: "Salvando resultados",
+    sublabel: "Gravando resumo, tarefas e decisões",
+  },
+  {
+    id: "send-whatsapp",
     icon: MessageCircle,
     label: "Enviando no WhatsApp",
     sublabel: "Entregando resumo para você",
-    minMs: 3000,
+  },
+  {
+    id: "cleanup",
+    icon: CheckCircle,
+    label: "Finalizando",
+    sublabel: "Concluindo o job e removendo o áudio temporário",
   },
 ];
+
+function findStepIndex(processingStep: string | null): number {
+  if (!processingStep) return 0;
+  const index = STEPS.findIndex((step) => step.id === processingStep);
+  return index >= 0 ? index : 0;
+}
 
 function LoadingState() {
   return (
@@ -119,24 +146,26 @@ function SpinningRing({ done }: { done: boolean }) {
         fill="none"
       >
         <circle cx="50" cy="50" r="44" stroke="rgba(58,61,74,0.4)" strokeWidth="5" />
-        <circle
-          cx="50" cy="50" r="44"
-          stroke="url(#ringGrad)"
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeDasharray="276.46"
-          strokeDashoffset={done ? 0 : undefined}
-          className={done ? "transition-all duration-700" : "animate-spin"}
-          style={
-            done
-              ? { strokeDashoffset: 0 }
-              : {
-                  strokeDasharray: "60 216.46",
-                  animationDuration: "1.4s",
-                  animationTimingFunction: "linear",
-                }
-          }
-        />
+        <g
+          style={{
+            animation: done ? undefined : "processingRingSpin 1.4s linear infinite",
+            transformOrigin: "50% 50%",
+            transformBox: "fill-box",
+          }}
+        >
+          <circle
+            cx="50" cy="50" r="44"
+            stroke="url(#ringGrad)"
+            strokeWidth="5"
+            strokeLinecap="round"
+            className="transition-all duration-700"
+            style={
+              done
+                ? { strokeDasharray: "276.46", strokeDashoffset: 0 }
+                : { strokeDasharray: "60 216.46" }
+            }
+          />
+        </g>
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#6851FF" />
@@ -269,19 +298,6 @@ function ProcessingPageContent() {
   const [elapsed, setElapsed] = useState(0);
   const [meta, setMeta] = useState<MeetingMeta>({ title: null, taskCount: 0, decisionCount: 0 });
 
-  // Step timer — advances through steps at minimum intervals as a fallback UX
-  const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (done || failed || currentStep >= STEPS.length) return;
-    stepTimerRef.current = setTimeout(() => {
-      setCurrentStep((s) => s + 1);
-    }, STEPS[currentStep].minMs);
-    return () => {
-      if (stepTimerRef.current) clearTimeout(stepTimerRef.current);
-    };
-  }, [currentStep, done, failed]);
-
   // Wall-clock elapsed counter
   useEffect(() => {
     if (done || failed) return;
@@ -302,24 +318,23 @@ function ProcessingPageContent() {
         const data = await fetchMeetingStatus(currentMeetingId);
         if (cancelled) return;
 
+        setMeta({
+          title: data.title ?? null,
+          taskCount: data.taskCount,
+          decisionCount: data.decisionCount,
+        });
+
         if (data.status === "completed") {
-          // Mark all steps done
           setCurrentStep(STEPS.length);
           setDone(true);
-          setMeta({
-            title: data.title ?? null,
-            taskCount: data.taskCount,
-            decisionCount: data.decisionCount,
-          });
-          // Navigate after a short celebration delay
           setTimeout(() => {
             router.push(`/dashboard/meetings/${currentMeetingId}`);
           }, 3000);
         } else if (data.status === "failed") {
+          setCurrentStep(findStepIndex(data.processingStep));
           setFailed(true);
-        } else if (data.status === "processing") {
-          // Ensure we're at least on step 1 (transcribing)
-          setCurrentStep((prev) => Math.max(prev, 1));
+        } else {
+          setCurrentStep(findStepIndex(data.processingStep));
         }
       } catch {
         // ignore transient network errors
@@ -342,7 +357,7 @@ function ProcessingPageContent() {
 
   const progress = done
     ? 100
-    : Math.min(Math.round((currentStep / STEPS.length) * 100), 99);
+    : Math.min(Math.round(((currentStep + 1) / STEPS.length) * 100), 99);
 
   // ── Error state ───────────────────────────────────────────────────────────
 
@@ -529,6 +544,10 @@ function ProcessingPageContent() {
       )}
 
       <style>{`
+        @keyframes processingRingSpin {
+          to { transform: rotate(360deg); }
+        }
+
         @keyframes dotBounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
           40%            { transform: translateY(-3px); opacity: 1; }

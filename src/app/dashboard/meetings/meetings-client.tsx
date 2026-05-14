@@ -84,7 +84,7 @@ function MeetingRow({
       onKeyDown={(event) => {
         if (event.key === "Enter") onOpen(meeting.id);
       }}
-      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-3.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_70px] sm:gap-2 sm:py-3"
+      className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_70px] sm:gap-2 sm:px-3 sm:py-3"
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────── */}
       <Avatar className="h-9 w-9 shrink-0 sm:hidden">
@@ -224,7 +224,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         }
       />
 
-      <SectionCard className="rounded-xl">
+      <SectionCard className="rounded-xl" contentClassName="p-3 pt-3 sm:p-6 sm:pt-6">
         <div className="hidden grid-cols-[1fr_120px_140px_70px] gap-2 border-b px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
           <p>Cliente / Titulo</p>
           <p>Data</p>

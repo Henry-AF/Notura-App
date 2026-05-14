@@ -242,7 +242,7 @@ function ChatRow({
         if (event.key === "Enter") onOpen(chat);
       }}
       className={cn(
-        "grid cursor-pointer gap-3 rounded-xl px-3 py-3.5 transition-all duration-200 sm:grid-cols-[1fr_160px_128px_48px] sm:items-center",
+        "grid cursor-pointer gap-2 rounded-xl px-2 py-2.5 transition-all duration-200 sm:grid-cols-[1fr_160px_128px_48px] sm:items-center sm:px-3 sm:py-3.5",
         active ? "bg-primary/10 shadow-sm" : "hover:bg-accent/45"
       )}
     >
@@ -334,7 +334,7 @@ function AiChatsListSection({
   onDeleteChat: (chat: AiChatItem) => void;
 }) {
   return (
-    <SectionCard className="rounded-xl">
+    <SectionCard className="rounded-xl" contentClassName="p-3 pt-3 sm:p-6 sm:pt-6">
       <div className="hidden grid-cols-[1fr_160px_128px_48px] gap-3 border-b px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
         <p>Chat / reunião</p>
         <p>Data</p>

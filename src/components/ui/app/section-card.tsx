@@ -6,6 +6,7 @@ interface SectionCardProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   description?: string;
   actions?: React.ReactNode;
+  contentClassName?: string;
 }
 
 export function SectionCard({
@@ -13,6 +14,7 @@ export function SectionCard({
   description,
   actions,
   className,
+  contentClassName,
   children,
   ...props
 }: SectionCardProps) {
@@ -37,7 +39,7 @@ export function SectionCard({
           </div>
         </CardHeader>
       )}
-      <CardContent className={cn(hasHeader ? "pt-0" : "pt-6")}>{children}</CardContent>
+      <CardContent className={cn(hasHeader ? "pt-0" : "pt-6", contentClassName)}>{children}</CardContent>
     </Card>
   );
 }

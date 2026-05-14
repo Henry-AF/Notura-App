@@ -113,7 +113,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
       tabIndex={0}
       onClick={() => onClick(meeting.id)}
       onKeyDown={(e) => e.key === "Enter" && onClick(meeting.id)}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3.5 transition-colors hover:bg-[rgb(var(--cn-card2))] sm:grid sm:grid-cols-[1fr_120px_140px_60px] sm:gap-2 sm:py-3"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-[rgb(var(--cn-card2))] sm:grid sm:grid-cols-[1fr_120px_140px_60px] sm:gap-2 sm:px-3 sm:py-3"
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────────── */}
       <div
@@ -210,7 +210,7 @@ export function RecentMeetingsTable({
 }: RecentMeetingsTableProps) {
   return (
     <div
-      className="rounded-[14px] p-4 sm:p-5"
+      className="rounded-[14px] p-3 sm:p-5"
       style={{
         background: "rgb(var(--cn-card))",
         boxShadow: "0 2px 8px rgba(0,0,0,0.06)",

@@ -32,6 +32,7 @@ interface MeetingFormProps {
   isSubmitting: boolean;
   hasFile: boolean;
   accountWhatsappNumber?: string;
+  canSendWhatsAppSummary?: boolean;
   fileField?: React.ReactNode;
 }
 
@@ -59,6 +60,7 @@ export function MeetingForm({
   isSubmitting,
   hasFile,
   accountWhatsappNumber = "",
+  canSendWhatsAppSummary = true,
   fileField,
 }: MeetingFormProps) {
   const [clientName, setClientName] = useState("");
@@ -79,6 +81,8 @@ export function MeetingForm({
   );
 
   useEffect(() => {
+    if (!canSendWhatsAppSummary) return;
+
     if (!hasAccountWhatsappNumber && whatsappSource === "account") {
       setWhatsappSource("custom");
       return;
@@ -87,7 +91,12 @@ export function MeetingForm({
     if (hasAccountWhatsappNumber && !hasTouchedWhatsappSource) {
       setWhatsappSource("account");
     }
-  }, [hasAccountWhatsappNumber, hasTouchedWhatsappSource, whatsappSource]);
+  }, [
+    canSendWhatsAppSummary,
+    hasAccountWhatsappNumber,
+    hasTouchedWhatsappSource,
+    whatsappSource,
+  ]);
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedMeetingDate(date);
@@ -120,15 +129,17 @@ export function MeetingForm({
       onValidationError(meetingDateError);
       return;
     }
-    const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
-    if (whatsappError) {
-      onValidationError(whatsappError);
-      return;
+    if (canSendWhatsAppSummary) {
+      const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
+      if (whatsappError) {
+        onValidationError(whatsappError);
+        return;
+      }
     }
     onSubmit({
       clientName: clientName.trim(),
       meetingDate,
-      whatsappNumber: selectedWhatsappNormalized,
+      whatsappNumber: canSendWhatsAppSummary ? selectedWhatsappNormalized : "",
     });
   };
 
@@ -168,46 +179,47 @@ export function MeetingForm({
         />
       </div>
 
-      {/* WhatsApp number */}
-      <div>
-        <label className={labelCls}>Número WhatsApp para resumo</label>
-        <Select
-          value={whatsappSource}
-          onValueChange={(value) => {
-            setHasTouchedWhatsappSource(true);
-            setWhatsappSource(value as WhatsappNumberSource);
-          }}
-        >
-          <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="animate-none">
-            <SelectItem value="account" disabled={!hasAccountWhatsappNumber}>
-              {hasAccountWhatsappNumber
-                ? accountWhatsappDisplay
-                : "Número da conta (não configurado)"}
-            </SelectItem>
-            <SelectItem value="custom">Número personalizado</SelectItem>
-          </SelectContent>
-        </Select>
-        {whatsappSource === "custom" ? (
-          <div className="relative">
-            <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="tel"
-              placeholder="(00) 00000-0000"
-              value={customWhatsappNumber}
-              onChange={(event) =>
-                handleCustomWhatsappChange(event.target.value)
-              }
-              className={`${inputCls} mt-2 pl-9`}
-            />
-          </div>
-        ) : null}
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Enviaremos os insights e próximos passos automaticamente.
-        </p>
-      </div>
+      {canSendWhatsAppSummary ? (
+        <div>
+          <label className={labelCls}>Número WhatsApp para resumo</label>
+          <Select
+            value={whatsappSource}
+            onValueChange={(value) => {
+              setHasTouchedWhatsappSource(true);
+              setWhatsappSource(value as WhatsappNumberSource);
+            }}
+          >
+            <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="animate-none">
+              <SelectItem value="account" disabled={!hasAccountWhatsappNumber}>
+                {hasAccountWhatsappNumber
+                  ? accountWhatsappDisplay
+                  : "Número da conta (não configurado)"}
+              </SelectItem>
+              <SelectItem value="custom">Número personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+          {whatsappSource === "custom" ? (
+            <div className="relative">
+              <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="tel"
+                placeholder="(00) 00000-0000"
+                value={customWhatsappNumber}
+                onChange={(event) =>
+                  handleCustomWhatsappChange(event.target.value)
+                }
+                className={`${inputCls} mt-2 pl-9`}
+              />
+            </div>
+          ) : null}
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Enviaremos os insights e próximos passos automaticamente.
+          </p>
+        </div>
+      ) : null}
 
       {/* Submit button */}
       <div className="pt-1">

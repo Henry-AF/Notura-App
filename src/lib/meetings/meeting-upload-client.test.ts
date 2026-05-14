@@ -11,6 +11,7 @@ describe("meeting upload client", () => {
         JSON.stringify({
           user: {
             whatsappNumber: "+55 (11) 99999-9999",
+            canSendWhatsAppSummary: true,
           },
         }),
         { status: 200 }
@@ -23,6 +24,7 @@ describe("meeting upload client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: true,
     });
   });
 

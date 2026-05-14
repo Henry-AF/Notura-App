@@ -1,4 +1,5 @@
 import { getBillingStatus } from "@/lib/billing";
+import { isPaidPlan } from "@/lib/plans";
 import {
   createServerSupabase,
   createServiceRoleClient,
@@ -38,6 +39,7 @@ export async function getCurrentUserForIdentity(
 ): Promise<CurrentUser> {
   const { profile, billingStatus } = await loadCurrentUserData(identity.id);
   const billingAccount = billingStatus.billingAccount;
+  const plan = billingAccount.plan as Plan;
   const usesStripe = Boolean(billingAccount.stripe_subscription_id);
   const autoRenewEnabled = usesStripe
     ? billingAccount.stripe_auto_renew_enabled ?? true
@@ -52,7 +54,8 @@ export async function getCurrentUserForIdentity(
     name: toUserName(profile?.name, identity.email),
     company: profile?.company ?? "",
     whatsappNumber: profile?.whatsapp_number ?? "",
-    plan: billingAccount.plan as Plan,
+    plan,
+    canSendWhatsAppSummary: isPaidPlan(plan),
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
     currentPeriodEnd: billingAccount.current_period_end ?? null,

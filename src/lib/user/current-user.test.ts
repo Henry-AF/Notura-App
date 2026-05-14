@@ -57,9 +57,32 @@ describe("current user server mapper", () => {
     expect(user).toMatchObject({
       id: "user-1",
       plan: "pro",
+      canSendWhatsAppSummary: true,
       currentPeriodEnd: "2026-05-27T12:00:00.000Z",
       abacatepayAutoRenewEnabled: false,
       abacatepayRenewalStatus: "active",
+    });
+  });
+
+  it("exposes WhatsApp summary access as false for free users", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        current_period_end: null,
+      },
+      meetingsThisMonth: 1,
+      monthlyLimit: 3,
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      plan: "free",
+      canSendWhatsAppSummary: false,
     });
   });
 

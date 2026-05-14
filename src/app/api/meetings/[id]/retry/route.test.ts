@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
+const getWhatsAppSummaryAccess = vi.fn();
+
+const paidPlanMessage =
+  "Envio do resumo pelo WhatsApp está disponível apenas para assinantes dos planos Pro e Platinum.";
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -14,6 +18,11 @@ vi.mock("@/lib/inngest", () => ({
   inngest: {
     send: inngestSend,
   },
+}));
+
+vi.mock("@/lib/billing/whatsapp-summary-access", () => ({
+  WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE: paidPlanMessage,
+  getWhatsAppSummaryAccess,
 }));
 
 function createServerClient(user: { id: string } | null) {
@@ -65,6 +74,7 @@ describe("POST /api/meetings/[id]/retry", () => {
 
     createServerSupabase.mockReturnValue(createServerClient({ id: "user-1" }));
     inngestSend.mockResolvedValue(undefined);
+    getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
   });
 
   it("returns 409 when meeting is pending to avoid duplicate queueing", async () => {
@@ -111,5 +121,28 @@ describe("POST /api/meetings/[id]/retry", () => {
       status: "pending",
       error_message: null,
     });
+  });
+
+  it("blocks manual retry from triggering WhatsApp processing for free users", async () => {
+    const adminClient = createRetryAdminClient("failed");
+    createServiceRoleClient.mockReturnValue(adminClient);
+    getWhatsAppSummaryAccess.mockResolvedValue({ canSend: false, plan: "free" });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/meeting-1/retry", {
+        method: "POST",
+      }) as NextRequest,
+      { params: { id: "meeting-1" } }
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: paidPlanMessage });
+    expect(getWhatsAppSummaryAccess).toHaveBeenCalledWith(
+      "user-1",
+      expect.any(Object)
+    );
+    expect(adminClient.update).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
   });
 });

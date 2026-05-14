@@ -336,6 +336,7 @@ function RecordingPageInner() {
   const { show } = useToast();
 
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
+  const [canSendWhatsAppSummary, setCanSendWhatsAppSummary] = useState(false);
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(
@@ -433,6 +434,7 @@ function RecordingPageInner() {
         const defaults = await fetchRecordingDefaults();
         if (!cancelled) {
           setAccountWhatsappNumber(defaults.accountWhatsappNumber);
+          setCanSendWhatsAppSummary(defaults.canSendWhatsAppSummary);
         }
       } catch (error) {
         if (!cancelled) {
@@ -811,6 +813,7 @@ function RecordingPageInner() {
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <RecordingSetupCard
               accountWhatsappNumber={accountWhatsappNumber}
+              canSendWhatsAppSummary={canSendWhatsAppSummary}
               hasUploadFile={!!uploadFile}
               isStarting={isStarting}
               recordingMode={recordingMode}

@@ -7,6 +7,7 @@ import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 export interface RecordingDefaults {
   accountWhatsappNumber: string;
+  canSendWhatsAppSummary: boolean;
 }
 
 export interface SubmitRecordedMeetingInput {

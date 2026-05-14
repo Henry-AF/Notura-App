@@ -8,6 +8,7 @@ const getBillingStatus = vi.fn();
 const consumeMeetingQuota = vi.fn();
 const refundMeetingQuota = vi.fn();
 const incrementMeetingsThisMonth = vi.fn();
+const getWhatsAppSummaryAccess = vi.fn();
 const meetingsInsert = vi.fn();
 const meetingsSelect = vi.fn();
 const meetingsSelectEq = vi.fn();
@@ -36,6 +37,10 @@ vi.mock("@/lib/billing", () => ({
   consumeMeetingQuota,
   refundMeetingQuota,
   incrementMeetingsThisMonth,
+}));
+
+vi.mock("@/lib/billing/whatsapp-summary-access", () => ({
+  getWhatsAppSummaryAccess,
 }));
 
 vi.mock("@/lib/meetings/upload-token", () => ({
@@ -116,6 +121,7 @@ describe("POST /api/meetings/process", () => {
         quotaLimit: 30,
       },
     });
+    getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
     consumeMeetingQuota.mockResolvedValue({ meetingsUsed: 4, plan: "pro" });
     refundMeetingQuota.mockResolvedValue(undefined);
     incrementMeetingsThisMonth.mockResolvedValue(4);
@@ -317,6 +323,83 @@ describe("POST /api/meetings/process", () => {
     expect(consumeMeetingQuota).toHaveBeenCalledWith("user-1");
     expect(refundMeetingQuota).not.toHaveBeenCalled();
     expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
+  });
+
+  it("creates a free meeting without a WhatsApp recipient and queues processing without relying on payload plan", async () => {
+    getBillingStatus.mockResolvedValue({
+      billingAccount: { plan: "free", meetings_used: 1 },
+      meetingsThisMonth: 1,
+      meetingsUsed: 1,
+      monthlyLimit: 3,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 1,
+        quotaLimit: 3,
+      },
+    });
+    getWhatsAppSummaryAccess.mockResolvedValue({ canSend: false, plan: "free" });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          uploadToken: "valid-token",
+          plan: "team",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(201);
+    expect(getWhatsAppSummaryAccess).toHaveBeenCalledWith(
+      "user-1",
+      expect.any(Object)
+    );
+    expect(meetingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        whatsapp_number: "",
+      })
+    );
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          whatsappNumber: "",
+          userId: "user-1",
+        }),
+      })
+    );
+  });
+
+  it("still requires a WhatsApp recipient for paid users", async () => {
+    getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          uploadToken: "valid-token",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      error: "Número de WhatsApp é obrigatório.",
+    });
+    expect(meetingsInsert).not.toHaveBeenCalled();
+    expect(inngestSend).not.toHaveBeenCalled();
   });
 
   it("returns queue error and marks meeting as failed when enqueueing fails", async () => {

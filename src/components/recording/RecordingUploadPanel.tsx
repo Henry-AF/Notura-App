@@ -13,6 +13,7 @@ import { submitUploadedMeeting } from "@/app/dashboard/recording/recording-uploa
 
 interface RecordingUploadPanelProps {
   accountWhatsappNumber: string;
+  canSendWhatsAppSummary?: boolean;
   onValidationError: (message: string) => void;
   onUnexpectedError: (message: string) => void;
   onUploadComplete: (meetingId: string) => void;
@@ -148,6 +149,7 @@ function clearIntervalRef(
 
 export function RecordingUploadPanel({
   accountWhatsappNumber,
+  canSendWhatsAppSummary = true,
   onValidationError,
   onUnexpectedError,
   onUploadComplete,
@@ -256,6 +258,7 @@ export function RecordingUploadPanel({
               isSubmitting={false}
               hasFile={!!file}
               accountWhatsappNumber={accountWhatsappNumber}
+              canSendWhatsAppSummary={canSendWhatsAppSummary}
               fileField={
                 file ? (
                   <UploadProgressCard

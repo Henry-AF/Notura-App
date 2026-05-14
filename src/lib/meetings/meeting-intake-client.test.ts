@@ -11,6 +11,7 @@ describe("meeting intake client", () => {
         JSON.stringify({
           user: {
             whatsappNumber: "+55 (11) 99999-9999",
+            canSendWhatsAppSummary: true,
           },
         }),
         { status: 200 }
@@ -23,6 +24,29 @@ describe("meeting intake client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: true,
+    });
+  });
+
+  it("keeps WhatsApp summary disabled in defaults for non-paying users", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          user: {
+            whatsappNumber: "+55 (11) 99999-9999",
+            canSendWhatsAppSummary: false,
+          },
+        }),
+        { status: 200 }
+      )
+    );
+
+    const mod = await import("./meeting-intake-client");
+    const result = await mod.fetchMeetingIntakeDefaults();
+
+    expect(result).toEqual({
+      accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: false,
     });
   });
 

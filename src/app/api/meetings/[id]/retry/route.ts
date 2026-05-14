@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
+import {
+  getWhatsAppSummaryAccess,
+  WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE,
+} from "@/lib/billing/whatsapp-summary-access";
 import { inngest } from "@/lib/inngest";
 
 // POST /api/meetings/:id/retry — Re-enqueue processing for a failed meeting
@@ -36,6 +40,14 @@ export const POST = withAuth<{ id: string }>(async (
 
   if (!meeting.audio_r2_key) {
     return NextResponse.json({ error: "Arquivo de áudio não encontrado para esta reunião." }, { status: 422 });
+  }
+
+  const whatsappAccess = await getWhatsAppSummaryAccess(auth.user.id, supabase);
+  if (!whatsappAccess.canSend) {
+    return NextResponse.json(
+      { error: WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE },
+      { status: 403 }
+    );
   }
 
   // ── Reset status to pending ───────────────────────────────────────────────

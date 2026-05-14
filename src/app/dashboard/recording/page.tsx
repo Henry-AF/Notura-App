@@ -276,14 +276,6 @@ function RecordingPageInner() {
   }, [searchParams]);
 
   useEffect(() => {
-    const main = document.querySelector("main");
-
-    if (main instanceof HTMLElement) {
-      main.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [recordingMode]);
-
-  useEffect(() => {
     if (overlayStage !== "recording") {
       clearTimer();
       return;

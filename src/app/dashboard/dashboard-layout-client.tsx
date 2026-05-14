@@ -443,7 +443,6 @@ export function DashboardLayoutClient({
   children,
   initialUser,
 }: DashboardLayoutClientProps) {
-  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -474,7 +473,7 @@ export function DashboardLayoutClient({
   }, [refreshUser]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-notura-bg">
+    <div className="fixed inset-0 flex overflow-hidden bg-notura-bg">
       <aside className="group hidden w-16 shrink-0 overflow-hidden border-r border-notura-border/50 bg-notura-bg-secondary transition-[width] duration-[250ms] ease-in-out hover:w-60 lg:block">
         <SidebarContent
           user={user}
@@ -498,7 +497,7 @@ export function DashboardLayoutClient({
         }}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center gap-3 border-b border-notura-border/50 bg-notura-bg-secondary px-4 lg:hidden">
           <button
             type="button"
@@ -512,12 +511,7 @@ export function DashboardLayoutClient({
           </Link>
         </header>
 
-        <main
-          className={cn(
-            "flex-1 overflow-y-auto",
-            pathname.startsWith("/dashboard/recording") && "overscroll-y-none"
-          )}
-        >
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
           <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </div>

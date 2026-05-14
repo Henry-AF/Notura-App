@@ -6,37 +6,50 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface StaticBanner {
-  src: string;
+  desktopSrc: string;
+  mobileSrc: string;
   alt: string;
-  href: string;
-  external?: boolean;
+  desktopHref: string;
+  desktopExternal?: boolean;
+  mobileHref?: string;
+  mobileExternal?: boolean;
 }
 
 const BANNERS: StaticBanner[] = [
   {
-    src: "/banners/banner-plano-pro.png",
+    desktopSrc: "/banners/banner-plano-pro.png",
+    mobileSrc: "/banners/banner-plano-pro-mobile.png",
     alt: "Teste o plano Pro",
-    href: "/planos",
+    desktopHref: "/planos",
+    mobileHref: "/dashboard/settings",
   },
   {
-    src: "/banners/banner-integracoes.png",
+    desktopSrc: "/banners/banner-integracoes.png",
+    mobileSrc: "/banners/banner-integracoes-mobile.png",
     alt: "Quero receber novidades sobre integrações",
-    href: "/novidades",
+    desktopHref: "/novidades",
+    mobileHref: "https://notura-lp2.pages.dev",
+    mobileExternal: true,
   },
   {
-    src: "/banners/banner-atendimento.png",
+    desktopSrc: "/banners/banner-atendimento.png",
+    mobileSrc: "/banners/banner-atendimento-mobile.png",
     alt: "Nossa equipe de desenvolvimento atende você diretamente",
-    href: "https://wa.me/",
-    external: true,
+    desktopHref: "https://wa.me/",
+    desktopExternal: true,
+    mobileHref: "https://wa.me/5513996495858",
+    mobileExternal: true,
   },
 ];
 
 const INTERVAL_MS = 6000;
 
 export function BannerCarousel() {
+  const router = useRouter();
   const count = BANNERS.length;
   const [current, setCurrent] = useState(0);
   const [hovered, setHovered] = useState(false);
@@ -96,6 +109,20 @@ export function BannerCarousel() {
     delta < 0 ? handleNext() : handlePrev();
   };
 
+  const handleMobileBannerAction = useCallback(
+    (banner: StaticBanner) => {
+      if (banner.mobileHref) {
+        if (banner.mobileExternal) {
+          window.open(banner.mobileHref, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        router.push(banner.mobileHref);
+      }
+    },
+    [router]
+  );
+
   const arrowBase: React.CSSProperties = {
     position: "absolute",
     top: "50%",
@@ -142,31 +169,61 @@ export function BannerCarousel() {
           }}
         >
           {BANNERS.map((banner) => (
-            <a
-              key={banner.src}
-              href={banner.href}
-              target={banner.external ? "_blank" : undefined}
-              rel={banner.external ? "noopener noreferrer" : undefined}
+            <div
+              key={banner.desktopSrc}
               style={{
                 flex: "0 0 100%",
-                display: "block",
-                textDecoration: "none",
                 lineHeight: 0,
               }}
-              draggable={false}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={banner.src}
-                alt={banner.alt}
+              <a
+                href={banner.desktopHref}
+                target={banner.desktopExternal ? "_blank" : undefined}
+                rel={banner.desktopExternal ? "noopener noreferrer" : undefined}
+                className="hidden md:block"
                 style={{
-                  width: "100%",
-                  display: "block",
-                  pointerEvents: "none",
+                  textDecoration: "none",
                 }}
                 draggable={false}
-              />
-            </a>
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={banner.desktopSrc}
+                  alt={banner.alt}
+                  style={{
+                    width: "100%",
+                    display: "block",
+                    pointerEvents: "none",
+                  }}
+                  draggable={false}
+                />
+              </a>
+
+              <button
+                type="button"
+                aria-label={banner.alt}
+                className="block w-full md:hidden"
+                onClick={() => handleMobileBannerAction(banner)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={banner.mobileSrc}
+                  alt={banner.alt}
+                  style={{
+                    width: "100%",
+                    display: "block",
+                    pointerEvents: "none",
+                  }}
+                  draggable={false}
+                />
+              </button>
+            </div>
           ))}
         </div>
 

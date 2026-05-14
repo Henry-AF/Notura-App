@@ -487,8 +487,7 @@ function ProcessingPageContent() {
                   Processando insights com IA
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-notura-ink-secondary">
-                  Isso geralmente leva de 2 a 5 minutos. Pode fechar esta
-                  aba — você será notificado quando estiver pronto.
+                  Isso geralmente leva de 2 a 5 minutos. Pode sair dessa página se quiser — você será notificado quando estiver pronto.
                 </p>
               </div>
 

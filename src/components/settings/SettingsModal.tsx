@@ -12,13 +12,13 @@ import {
   X,
 } from "lucide-react";
 import { AutoRenewControl } from "@/components/settings/AutoRenewControl";
-import { updateAbacatePayAutoRenew } from "@/lib/abacatepay-auto-renew-client";
+import { updateBillingAutoRenew } from "@/lib/billing-auto-renew-client";
 import { useTheme, useThemeColors } from "@/lib/theme-context";
 import {
   logoutCurrentUser,
   updateCurrentUser,
 } from "@/lib/user/current-user-client";
-import { prewarmAbacatePayCustomerInBackground } from "@/lib/abacatepay-customer-client";
+import { prewarmBillingCustomerInBackground } from "@/lib/billing-customer-client";
 import { getPlanTitle } from "@/lib/plans";
 import type { CurrentUser } from "@/lib/user/current-user-types";
 
@@ -30,8 +30,8 @@ interface UserData {
   meetingsUsed: number;
   monthlyLimit: number | null;
   currentPeriodEnd: string | null;
-  abacatepayAutoRenewEnabled: boolean;
-  abacatepayRenewalStatus: string;
+  autoRenewEnabled: boolean;
+  renewalStatus: string;
 }
 
 type Tab = "profile" | "preferences" | "plan";
@@ -53,8 +53,8 @@ function buildUserData(user: CurrentUser): UserData {
     meetingsUsed: user.meetingsThisMonth,
     monthlyLimit: user.monthlyLimit,
     currentPeriodEnd: user.currentPeriodEnd ?? null,
-    abacatepayAutoRenewEnabled: user.abacatepayAutoRenewEnabled ?? true,
-    abacatepayRenewalStatus: user.abacatepayRenewalStatus ?? "idle",
+    autoRenewEnabled: user.autoRenewEnabled ?? true,
+    renewalStatus: user.renewalStatus ?? "idle",
   };
 }
 
@@ -144,7 +144,7 @@ export function SettingsModal({
       setName(nextData.name);
       setCompany(nextData.company);
       onUserChange?.(updatedUser);
-      prewarmAbacatePayCustomerInBackground("settings");
+      prewarmBillingCustomerInBackground("settings");
     } finally {
       setSaving(false);
     }
@@ -164,16 +164,18 @@ export function SettingsModal({
     setAutoRenewSaving(true);
 
     try {
-      const status = await updateAbacatePayAutoRenew(enabled);
+      const status = await updateBillingAutoRenew(enabled);
       setData((previous) => ({
         ...previous,
         currentPeriodEnd: status.currentPeriodEnd,
-        abacatepayAutoRenewEnabled: status.autoRenewEnabled,
-        abacatepayRenewalStatus: status.renewalStatus,
+        autoRenewEnabled: status.autoRenewEnabled,
+        renewalStatus: status.renewalStatus,
       }));
       onUserChange?.({
         ...currentUser,
         currentPeriodEnd: status.currentPeriodEnd,
+        autoRenewEnabled: status.autoRenewEnabled,
+        renewalStatus: status.renewalStatus,
         abacatepayAutoRenewEnabled: status.autoRenewEnabled,
         abacatepayRenewalStatus: status.renewalStatus,
       });
@@ -599,8 +601,8 @@ export function SettingsModal({
                 <AutoRenewControl
                   plan={data.plan}
                   currentPeriodEnd={data.currentPeriodEnd}
-                  autoRenewEnabled={data.abacatepayAutoRenewEnabled}
-                  renewalStatus={data.abacatepayRenewalStatus}
+                  autoRenewEnabled={data.autoRenewEnabled}
+                  renewalStatus={data.renewalStatus}
                   pending={autoRenewSaving}
                   onChange={(enabled) => void handleAutoRenewChange(enabled)}
                 />

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ensureAbacatepayCustomer,
+  ensureOnboardingBillingCustomer,
   startOnboardingCheckout,
   verifyOnboardingPayment,
 } from "./onboarding-api";
@@ -15,10 +15,10 @@ describe("onboarding api client", () => {
       new Response(null, { status: 202 })
     );
 
-    const result = await ensureAbacatepayCustomer();
+    const result = await ensureOnboardingBillingCustomer();
 
     expect(result).toBe(false);
-    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/customer/ensure", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,7 +43,7 @@ describe("onboarding api client", () => {
       checkoutUrl: "https://checkout.example.com/session",
       alreadyActive: false,
     });
-    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/checkout", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,5 +83,21 @@ describe("onboarding api client", () => {
     await expect(verifyOnboardingPayment()).rejects.toThrow(
       "Pagamento pendente."
     );
+  });
+
+  it("sends the checkout session id when verifying Stripe payments", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 })
+    );
+
+    await verifyOnboardingPayment("cs_test_123");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId: "cs_test_123" }),
+    });
   });
 });

@@ -8,7 +8,7 @@ import {
   getPlanMonthlyLimit,
   getPlanPriceLabel,
 } from "@/lib/plans";
-import { prewarmAbacatePayCustomer } from "@/lib/abacatepay-customer-client";
+import { prewarmBillingCustomer } from "@/lib/billing-customer-client";
 import { useThemeColors } from "@/lib/theme-context";
 import type { Plan } from "@/types/database";
 
@@ -124,6 +124,17 @@ export function createSettingsCheckoutPayload(plan: "pro" | "team") {
   };
 }
 
+export function createSettingsCheckoutRequest(plan: "pro" | "team") {
+  return {
+    url: "/api/billing/checkout",
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createSettingsCheckoutPayload(plan)),
+    },
+  };
+}
+
 export function isSettingsCheckoutDisabled(input: {
   currentPlan: string;
   isLoading: boolean;
@@ -152,7 +163,7 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
     let retryTimeout: number | null = null;
 
     async function runPrewarm() {
-      const ready = await prewarmAbacatePayCustomer("settings").catch(() => false);
+      const ready = await prewarmBillingCustomer("settings").catch(() => false);
       if (cancelled) return;
 
       setPrewarmReady(ready);
@@ -189,26 +200,8 @@ export function PlanModal({ currentPlan, onClose, onSuccess }: PlanModalProps) {
     setError(null);
 
     try {
-      // Try AbacatePay first (Brazilian payment), fall back to Stripe
-      let res = await fetch("/api/abacatepay/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createSettingsCheckoutPayload(plan)),
-      });
-
-      // If AbacatePay not configured, try Stripe
-      if (res.status === 500 || res.status === 400) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        if ((err.error ?? "").includes("ABACATEPAY") || (err.error ?? "").includes("Missing")) {
-          res = await fetch("/api/stripe/checkout", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plan }),
-          });
-        } else {
-          throw new Error(err.error ?? "Erro ao iniciar checkout.");
-        }
-      }
+      const request = createSettingsCheckoutRequest(plan);
+      const res = await fetch(request.url, request.init);
 
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };

@@ -155,6 +155,24 @@ describe("critical API routes rate limiting", () => {
             headers: { "content-type": "application/json" },
           }),
       },
+      {
+        routePath: "./billing/checkout/route",
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/billing/checkout?i=${idx}`, {
+            method: "POST",
+            body: JSON.stringify({ plan: "free" }),
+            headers: { "content-type": "application/json" },
+          }),
+      },
+      {
+        routePath: "./billing/checkout/verify/route",
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/billing/checkout/verify?i=${idx}`, {
+            method: "POST",
+            body: JSON.stringify({}),
+            headers: { "content-type": "application/json" },
+          }),
+      },
     ] as const;
 
     for (let index = 0; index < authenticatedCases.length; index += 1) {

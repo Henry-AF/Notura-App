@@ -62,4 +62,34 @@ describe("current user server mapper", () => {
       abacatepayRenewalStatus: "active",
     });
   });
+
+  it("prefers Stripe renewal state when the active subscription is on Stripe", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "pro",
+        current_period_end: "2026-05-27T12:00:00.000Z",
+        stripe_subscription_id: "sub_123",
+        stripe_auto_renew_enabled: false,
+        stripe_renewal_status: "canceling",
+        abacatepay_auto_renew_enabled: true,
+        abacatepay_renewal_status: "active",
+      },
+      meetingsThisMonth: 12,
+      monthlyLimit: 30,
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      billingProvider: "stripe",
+      autoRenewEnabled: false,
+      renewalStatus: "canceling",
+      abacatepayAutoRenewEnabled: false,
+      abacatepayRenewalStatus: "canceling",
+    });
+  });
 });

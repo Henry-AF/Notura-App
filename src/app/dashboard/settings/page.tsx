@@ -17,9 +17,9 @@ import { useTheme } from "@/lib/theme-context";
 import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
   fetchCurrentUser,
-  prewarmAbacatePayCustomerInBackground,
+  prewarmBillingCustomerInBackground,
   updateCurrentUser,
-  updateAbacatePayAutoRenew,
+  updateBillingAutoRenew,
   verifySettingsPayment,
   type CurrentUser,
 } from "./settings-api";
@@ -105,8 +105,8 @@ function SettingsPageInner() {
     setMeetingsUsed(user.meetingsThisMonth);
     setMeetingsTotal(user.monthlyLimit);
     setCurrentPeriodEnd(user.currentPeriodEnd ?? null);
-    setAutoRenewEnabled(user.abacatepayAutoRenewEnabled ?? true);
-    setRenewalStatus(user.abacatepayRenewalStatus ?? "idle");
+    setAutoRenewEnabled(user.autoRenewEnabled ?? true);
+    setRenewalStatus(user.renewalStatus ?? "idle");
     setIntegrations([
       {
         id: "whatsapp",
@@ -134,14 +134,15 @@ function SettingsPageInner() {
   }, [loadUser]);
 
   useEffect(() => {
-    prewarmAbacatePayCustomerInBackground();
+    prewarmBillingCustomerInBackground();
   }, []);
 
   useEffect(() => {
     const payment = searchParams.get("payment");
     const provider = searchParams.get("provider");
+    const sessionId = searchParams.get("session_id");
 
-    if (provider !== "abacatepay") return;
+    if (provider && provider !== "abacatepay" && provider !== "stripe") return;
 
     if (payment === "canceled") {
       show("Pagamento cancelado.", "warning");
@@ -157,7 +158,7 @@ function SettingsPageInner() {
       setLoading(true);
 
       try {
-        await verifySettingsPayment();
+        await verifySettingsPayment(sessionId);
         const user = await fetchCurrentUser();
 
         if (!cancelled) {
@@ -200,7 +201,7 @@ function SettingsPageInner() {
         });
         applyUser(user);
         notifyUserUpdated();
-        prewarmAbacatePayCustomerInBackground();
+        prewarmBillingCustomerInBackground();
         show("Perfil atualizado.", "success");
       } catch {
         show("Erro ao salvar perfil.", "error");
@@ -233,7 +234,7 @@ function SettingsPageInner() {
           const user = await updateCurrentUser({ whatsappNumber: phone });
           applyUser(user);
           notifyUserUpdated();
-          prewarmAbacatePayCustomerInBackground();
+          prewarmBillingCustomerInBackground();
         } catch {
           show("Erro ao conectar WhatsApp.", "error");
           return;
@@ -263,7 +264,7 @@ function SettingsPageInner() {
       setAutoRenewSaving(true);
 
       try {
-        const status = await updateAbacatePayAutoRenew(enabled);
+        const status = await updateBillingAutoRenew(enabled);
         setAutoRenewEnabled(status.autoRenewEnabled);
         setCurrentPeriodEnd(status.currentPeriodEnd);
         setRenewalStatus(status.renewalStatus);

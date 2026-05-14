@@ -18,6 +18,38 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
+function readStripeId(value: string | { id?: unknown } | null): string | null {
+  if (typeof value === "string") return value;
+  return typeof value?.id === "string" ? value.id : null;
+}
+
+function getSubscriptionStatus(subscription: Stripe.Subscription): string {
+  if (subscription.cancel_at_period_end) return "canceling";
+  return subscription.status || "active";
+}
+
+async function syncStripeSubscriptionState(
+  subscription: Stripe.Subscription,
+  supabase: ReturnType<typeof createServiceRoleClient>
+): Promise<void> {
+  const subscriptionId = subscription.id;
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from("billing_accounts")
+    .update({
+      stripe_subscription_id: subscriptionId,
+      stripe_auto_renew_enabled: !subscription.cancel_at_period_end,
+      stripe_auto_renew_updated_at: nowIso,
+      stripe_renewal_status: getSubscriptionStatus(subscription),
+      updated_at: nowIso,
+    })
+    .eq("stripe_subscription_id", subscriptionId);
+
+  if (error) {
+    throw new Error(`Failed to sync Stripe subscription state: ${error.message}`);
+  }
+}
+
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.stripeWebhook,
   async (request: NextRequest) => {
@@ -64,10 +96,8 @@ export const POST = withPublicRateLimit<NextRequest>(
         }
 
         const plan: Plan = planId === "team" ? "team" : "pro";
-        const stripeCustomerId =
-          typeof session.customer === "string"
-            ? session.customer
-            : session.customer?.id ?? null;
+        const stripeCustomerId = readStripeId(session.customer);
+        const stripeSubscriptionId = readStripeId(session.subscription);
 
         const { data: existingBilling, error: existingBillingError } = await supabase
           .from("billing_accounts")
@@ -87,6 +117,7 @@ export const POST = withPublicRateLimit<NextRequest>(
             userId,
             plan,
             stripeCustomerId: existingBilling?.stripe_customer_id ?? stripeCustomerId ?? undefined,
+            stripeSubscriptionId: stripeSubscriptionId ?? undefined,
           },
           supabase
         );
@@ -115,13 +146,18 @@ export const POST = withPublicRateLimit<NextRequest>(
         break;
       }
 
+      // ── Subscription updated → sync cancellation/renewal state ───────
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await syncStripeSubscriptionState(subscription, supabase);
+        console.log(`[stripe-webhook] Synced subscription ${subscription.id}`);
+        break;
+      }
+
       // ── Subscription deleted → downgrade to free ─────────────────────
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const customerId =
-          typeof subscription.customer === "string"
-            ? subscription.customer
-            : subscription.customer?.id ?? null;
+        const customerId = readStripeId(subscription.customer);
 
         if (!customerId) {
           console.warn("[stripe-webhook] customer.subscription.deleted missing customer ID");

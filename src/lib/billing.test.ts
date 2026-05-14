@@ -292,6 +292,38 @@ describe("billing helpers", () => {
     });
   });
 
+  it("stores Stripe subscription renewal state without scheduling Notura renewal jobs", async () => {
+    const { client, update, updateEq } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "pro",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: "pro",
+        stripe_customer_id: "cus-1",
+        stripe_subscription_id: "sub-1",
+        stripe_auto_renew_enabled: true,
+        stripe_renewal_status: "active",
+      })
+    );
+    expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
   it("clamps subscription period end when renewal starts at the end of a month", async () => {
     const { client, update } = createBillingClient({
       existingAccount: {

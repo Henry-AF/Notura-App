@@ -10,6 +10,9 @@ export interface CurrentUser {
   meetingsThisMonth: number;
   monthlyLimit: number | null;
   currentPeriodEnd: string | null;
+  billingProvider: "stripe" | "abacatepay";
+  autoRenewEnabled: boolean;
+  renewalStatus: string;
   abacatepayAutoRenewEnabled: boolean;
   abacatepayRenewalStatus: string;
 }

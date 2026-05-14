@@ -43,6 +43,10 @@ export interface Database {
           meetings_this_month: number
           meetings_used: number
           stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          stripe_auto_renew_enabled: boolean
+          stripe_auto_renew_updated_at: string | null
+          stripe_renewal_status: string
           abacatepay_customer_id: string | null
           abacatepay_subscription_id: string | null
           abacatepay_auto_renew_enabled: boolean
@@ -66,6 +70,10 @@ export interface Database {
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_auto_renew_enabled?: boolean
+          stripe_auto_renew_updated_at?: string | null
+          stripe_renewal_status?: string
           abacatepay_customer_id?: string | null
           abacatepay_subscription_id?: string | null
           abacatepay_auto_renew_enabled?: boolean
@@ -89,6 +97,10 @@ export interface Database {
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_auto_renew_enabled?: boolean
+          stripe_auto_renew_updated_at?: string | null
+          stripe_renewal_status?: string
           abacatepay_customer_id?: string | null
           abacatepay_subscription_id?: string | null
           abacatepay_auto_renew_enabled?: boolean

@@ -1,5 +1,5 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
-import { prewarmAbacatePayCustomer } from "@/lib/abacatepay-customer-client";
+import { prewarmBillingCustomer } from "@/lib/billing-customer-client";
 import type { Plan } from "@/types/database";
 
 interface StartCheckoutResponse {
@@ -17,14 +17,14 @@ export interface OnboardingCheckoutResult {
   alreadyActive: boolean;
 }
 
-export async function ensureAbacatepayCustomer(): Promise<boolean> {
-  return prewarmAbacatePayCustomer("onboarding");
+export async function ensureOnboardingBillingCustomer(): Promise<boolean> {
+  return prewarmBillingCustomer("onboarding");
 }
 
 export async function startOnboardingCheckout(
   plan: Plan
 ): Promise<OnboardingCheckoutResult> {
-  const response = await fetch("/api/abacatepay/checkout", {
+  const response = await fetch("/api/billing/checkout", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -51,9 +51,15 @@ export async function startOnboardingCheckout(
   };
 }
 
-export async function verifyOnboardingPayment(): Promise<void> {
-  const response = await fetch("/api/abacatepay/checkout/verify", {
+export async function verifyOnboardingPayment(
+  sessionId?: string | null
+): Promise<void> {
+  const response = await fetch("/api/billing/checkout/verify", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(sessionId ? { sessionId } : {}),
   });
   const body = await parseJson<VerifyPaymentResponse>(response);
 

@@ -37,6 +37,14 @@ export async function getCurrentUserForIdentity(
   identity: CurrentUserIdentity
 ): Promise<CurrentUser> {
   const { profile, billingStatus } = await loadCurrentUserData(identity.id);
+  const billingAccount = billingStatus.billingAccount;
+  const usesStripe = Boolean(billingAccount.stripe_subscription_id);
+  const autoRenewEnabled = usesStripe
+    ? billingAccount.stripe_auto_renew_enabled ?? true
+    : billingAccount.abacatepay_auto_renew_enabled ?? true;
+  const renewalStatus = usesStripe
+    ? billingAccount.stripe_renewal_status ?? "idle"
+    : billingAccount.abacatepay_renewal_status ?? "idle";
 
   return {
     id: identity.id,
@@ -44,14 +52,15 @@ export async function getCurrentUserForIdentity(
     name: toUserName(profile?.name, identity.email),
     company: profile?.company ?? "",
     whatsappNumber: profile?.whatsapp_number ?? "",
-    plan: billingStatus.billingAccount.plan as Plan,
+    plan: billingAccount.plan as Plan,
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
-    currentPeriodEnd: billingStatus.billingAccount.current_period_end ?? null,
-    abacatepayAutoRenewEnabled:
-      billingStatus.billingAccount.abacatepay_auto_renew_enabled ?? true,
-    abacatepayRenewalStatus:
-      billingStatus.billingAccount.abacatepay_renewal_status ?? "idle",
+    currentPeriodEnd: billingAccount.current_period_end ?? null,
+    billingProvider: usesStripe ? "stripe" : "abacatepay",
+    autoRenewEnabled,
+    renewalStatus,
+    abacatepayAutoRenewEnabled: autoRenewEnabled,
+    abacatepayRenewalStatus: renewalStatus,
   };
 }
 

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  type HTMLMotionProps,
   motion,
   useAnimationFrame,
   useMotionValue,
@@ -12,7 +13,8 @@ import { cn } from "@/lib/utils";
 type GradientDirection = "horizontal" | "vertical" | "diagonal";
 
 export interface GradientTextProps
-  extends React.HTMLAttributes<HTMLSpanElement> {
+  extends Omit<HTMLMotionProps<"span">, "children"> {
+  children?: React.ReactNode;
   colors?: string[];
   animationSpeed?: number;
   direction?: GradientDirection;

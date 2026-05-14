@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight, X } from "lucide-react";
 import {
   AiInsightTip,
   DropZone,
@@ -20,6 +20,7 @@ import {
 } from "@/components/recording";
 import { LoadingState } from "@/components/ui/app";
 import { Grainient } from "@/components/ui/grainient";
+import { useThemeColors } from "@/lib/theme-context";
 import {
   RemoteDisplayAudioMissingError,
   createMicrophoneRecordingCapture,
@@ -38,6 +39,9 @@ interface MeetingDraft {
   clientName: string;
   whatsappNumber: string;
 }
+
+const UPLOAD_LEAVE_WARNING_MESSAGE =
+  "Você perderá o arquivo selecionado se sair agora.";
 
 function createRecordingMediaRecorder(stream: MediaStream): MediaRecorder {
   const mimeType = getPreferredRecordingMimeType((candidate) =>
@@ -147,6 +151,184 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
   );
 }
 
+function UploadLeaveWarningDialog({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const c = useThemeColors();
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel, open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/55 px-3 pb-0 backdrop-blur-[3px] sm:items-center sm:p-4"
+      onClick={(event) => {
+        if (event.target === overlayRef.current) {
+          onCancel();
+        }
+      }}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-leave-warning-title"
+        aria-describedby="upload-leave-warning-description"
+        className="upload-leave-modal-panel relative w-full overflow-hidden rounded-t-[28px] shadow-2xl sm:max-w-md sm:rounded-[22px]"
+        style={{
+          background: c.card,
+          border: `1px solid ${c.border}`,
+          boxShadow: "0 20px 44px rgba(0,0,0,0.22)",
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          className="mx-auto mb-2 mt-3 h-1 w-10 shrink-0 rounded-full sm:hidden"
+          style={{ background: c.border }}
+        />
+
+        <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-4 sm:px-6 sm:pt-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px]"
+              style={{
+                background: "rgba(104,81,255,0.12)",
+                color: "#6851FF",
+              }}
+            >
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2
+                id="upload-leave-warning-title"
+                className="font-display text-[17px] font-semibold leading-tight"
+                style={{ color: c.ink }}
+              >
+                Sair sem processar?
+              </h2>
+              <p
+                id="upload-leave-warning-description"
+                className="mt-0.5 text-[13px] leading-relaxed"
+                style={{ color: c.ink2 }}
+              >
+                {UPLOAD_LEAVE_WARNING_MESSAGE}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Fechar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+            style={{ background: c.card2, color: c.ink2 }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4 px-5 pb-6 sm:px-6">
+          <div
+            className="rounded-[14px] p-4"
+            style={{
+              background: c.card2,
+              border: `1px solid ${c.border}`,
+            }}
+          >
+            <p className="text-[13px] font-semibold" style={{ color: c.ink }}>
+              Arquivo ainda não enviado
+            </p>
+            <p className="mt-0.5 text-[12px] leading-relaxed" style={{ color: c.ink2 }}>
+              Ao sair desta tela, será necessário selecionar o arquivo novamente
+              antes de iniciar o processamento.
+            </p>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+              style={{
+                background: "#6851FF",
+                color: "#FFFFFF",
+              }}
+            >
+              Continuar aqui
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors"
+              style={{
+                background: "transparent",
+                borderColor: "#FF6B6B",
+                color: "#FF6B6B",
+              }}
+            >
+              Continuar e sair
+            </button>
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes uploadLeaveModalIn {
+            from {
+              opacity: 0;
+              transform: scale(0.98);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+
+          @keyframes uploadLeaveModalSlideUp {
+            from {
+              opacity: 0;
+              transform: translateY(18px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .upload-leave-modal-panel {
+            animation: uploadLeaveModalSlideUp 0.2s ease-out forwards;
+          }
+
+          @media (min-width: 640px) {
+            .upload-leave-modal-panel {
+              animation-name: uploadLeaveModalIn;
+            }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
 function RecordingPageInner() {
   const pathname = usePathname();
   const router = useRouter();
@@ -170,6 +352,9 @@ function RecordingPageInner() {
   const [uploadTimeRemaining, setUploadTimeRemaining] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [pendingNavigationHref, setPendingNavigationHref] = useState<
+    string | null
+  >(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -220,6 +405,9 @@ function RecordingPageInner() {
     setUploadTimeRemaining("");
     setUploadProgress(0);
   }, [clearUploadPreviewTimer]);
+
+  const hasSelectedUploadFile =
+    recordingMode === "upload" && Boolean(uploadFile) && !isStarting;
 
   const updateModeUrl = useCallback(
     (mode: RecordingMode) => {
@@ -288,6 +476,18 @@ function RecordingPageInner() {
     return () => clearTimer();
   }, [clearTimer, overlayStage]);
 
+  useEffect(() => {
+    if (!hasSelectedUploadFile) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = UPLOAD_LEAVE_WARNING_MESSAGE;
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasSelectedUploadFile]);
+
   const startUploadPreviewProgress = useCallback(() => {
     clearUploadPreviewTimer();
     uploadStartTimeRef.current = Date.now();
@@ -318,6 +518,64 @@ function RecordingPageInner() {
     },
     [startUploadPreviewProgress]
   );
+
+  const handlePageClickCapture = useCallback(
+    (event: MouseEvent) => {
+      if (!hasSelectedUploadFile || event.defaultPrevented || event.button !== 0) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#")) return;
+
+      const nextUrl = new URL(href, window.location.href);
+      if (nextUrl.href === window.location.href) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingNavigationHref(nextUrl.href);
+    },
+    [hasSelectedUploadFile]
+  );
+
+  useEffect(() => {
+    if (!hasSelectedUploadFile) return;
+
+    document.addEventListener("click", handlePageClickCapture, true);
+    return () => document.removeEventListener("click", handlePageClickCapture, true);
+  }, [handlePageClickCapture, hasSelectedUploadFile]);
+
+  const handleCancelPendingNavigation = useCallback(() => {
+    setPendingNavigationHref(null);
+  }, []);
+
+  const handleConfirmPendingNavigation = useCallback(() => {
+    if (!pendingNavigationHref) return;
+
+    const nextHref = pendingNavigationHref;
+    setPendingNavigationHref(null);
+    resetUploadState();
+
+    const nextUrl = new URL(nextHref, window.location.href);
+    if (nextUrl.origin === window.location.origin) {
+      router.push(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      return;
+    }
+
+    window.location.assign(nextUrl.href);
+  }, [pendingNavigationHref, resetUploadState, router]);
 
   const handleStartRecording = useCallback(
     async (values: RecordingSetupValues) => {
@@ -600,6 +858,12 @@ function RecordingPageInner() {
           onClose={overlayError ? resetRecordingState : undefined}
         />
       ) : null}
+
+      <UploadLeaveWarningDialog
+        open={Boolean(pendingNavigationHref)}
+        onCancel={handleCancelPendingNavigation}
+        onConfirm={handleConfirmPendingNavigation}
+      />
     </>
   );
 }

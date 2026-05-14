@@ -49,15 +49,27 @@ describe("recording page upload mode", () => {
     const dashboardSource = readSource(
       "src/app/dashboard/dashboard-client.tsx"
     );
-    const layoutSource = readSource(
-      "src/app/dashboard/dashboard-layout-client.tsx"
-    );
     const processingSource = readSource(
       "src/app/dashboard/processing/page.tsx"
     );
 
     expect(dashboardSource).toContain("/dashboard/recording?mode=upload");
-    expect(layoutSource).toContain("/dashboard/recording?mode=upload");
     expect(processingSource).toContain("/dashboard/recording?mode=upload");
+  });
+
+  it("warns before leaving upload mode with a selected file", () => {
+    const source = readSource("src/app/dashboard/recording/page.tsx");
+
+    expect(source).toContain("Você perderá o arquivo selecionado se sair agora.");
+    expect(source).toContain("handlePageClickCapture");
+    expect(source).toContain('document.addEventListener("click"');
+    expect(source).toContain("beforeunload");
+    expect(source).toContain("pendingNavigationHref");
+    expect(source).toContain("window.location.assign");
+    expect(source).toContain("upload-leave-modal-panel");
+    expect(source).toContain("fixed inset-0 z-[200] flex items-end justify-center");
+    expect(source).toContain("sm:items-center");
+    expect(source).not.toContain("DialogContent");
+    expect(source).toContain("Continuar e sair");
   });
 });

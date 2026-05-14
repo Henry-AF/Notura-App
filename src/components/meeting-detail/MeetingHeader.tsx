@@ -116,6 +116,9 @@ export function MeetingHeader({
             >
               <MessageSquare className="h-4 w-4" />
               Perguntar para a IA
+              <span className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-white/20 text-white/90">
+                BETA
+              </span>
             </Button>
           ) : null}
           <Button

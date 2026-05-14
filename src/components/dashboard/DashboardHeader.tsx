@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/app";
+import GradientText from "@/components/ui/gradient-text";
+import SplitText from "@/components/ui/split-text";
 
 export interface DashboardHeaderProps {
   userName: string;
@@ -27,7 +29,31 @@ export function DashboardHeader({
   return (
     <PageHeader
       breadcrumbs={[{ label: "Dashboard" }]}
-      title={`${greeting.text}, ${userName} ${greeting.emoji}`}
+      title={
+        <SplitText
+          tag="span"
+          splitType="words"
+          delay={80}
+          duration={0.6}
+          ease="power3.out"
+          from={{ opacity: 0, y: 20 }}
+          to={{ opacity: 1, y: 0 }}
+          textAlign="left"
+          className="align-top"
+        >
+          <>
+            {`${greeting.text}, `}
+            <GradientText
+              colors={["#7C3AED", "#A855F7", "#C084FC", "#A855F7", "#7C3AED"]}
+              animationSpeed={4}
+              showBorder={false}
+            >
+              {userName}
+            </GradientText>{" "}
+            {greeting.emoji}
+          </>
+        </SplitText>
+      }
       description={
         <>
           Sua inteligência fluida processou{" "}

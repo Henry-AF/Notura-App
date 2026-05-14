@@ -13,6 +13,7 @@ import {
 import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
+import TextType from "@/components/ui/text-type";
 import { getPlanTitle } from "@/lib/plans";
 import type { DashboardOverviewData } from "./dashboard-types";
 
@@ -88,9 +89,16 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
 
           <div className="mt-6">
             {/* Quick action cards — same width column as the meetings table */}
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              Como sua reunião vai ser feita hoje?
-            </p>
+            <TextType
+              as="p"
+              text={["Como sua reunião vai ser feita hoje?"]}
+              typingSpeed={45}
+              pauseDuration={99999}
+              loop={false}
+              showCursor
+              cursorCharacter="|"
+              className="mb-3 text-2xl font-semibold text-foreground"
+            />
             <div className="grid grid-cols-3 gap-3 animate-fade-in [animation-delay:55ms]">
               {QUICK_ACTIONS.map((action) => (
                 <QuickActionCard key={action.href} {...action} />

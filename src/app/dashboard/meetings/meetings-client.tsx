@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import {
+  DashboardListSection,
   EmptyState,
   FilterBar,
   PageHeader,
   PageShell,
-  SectionCard,
   StatusBadge,
 } from "@/components/ui/app";
 import {
@@ -88,19 +88,21 @@ function MeetingRow({
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────── */}
       <Avatar className="h-9 w-9 shrink-0 sm:hidden">
-        <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
+        <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
       </Avatar>
 
-      {/* ── Column 1: client + title ────────────────────────────────── */}
+      {/* ── Column 1: title ─────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
         {/* Desktop avatar (inside column 1) */}
         <Avatar className="hidden h-8 w-8 shrink-0 sm:flex">
-          <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
+          <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
         </Avatar>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{meeting.clientName}</p>
-          <p className="truncate text-xs text-muted-foreground">{meeting.title}</p>
+          <p className="truncate text-sm font-semibold text-foreground">{meeting.title}</p>
+          {meeting.groupName ? (
+            <p className="truncate text-xs text-muted-foreground">{meeting.groupName}</p>
+          ) : null}
         </div>
 
         {/* Mobile-only: date + status below the name */}
@@ -155,7 +157,6 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
     return meetings.filter((meeting) => {
       const matchesQuery =
         !query ||
-        meeting.clientName.toLowerCase().includes(query) ||
         meeting.title.toLowerCase().includes(query) ||
         meeting.date.toLowerCase().includes(query);
       const matchesStatus = statusFilter === "all" || meeting.status === statusFilter;
@@ -189,7 +190,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Buscar por cliente ou título..."
+              placeholder="Buscar por título..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="pl-9 pr-9"
@@ -224,26 +225,31 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         }
       />
 
-      <SectionCard className="rounded-xl" contentClassName="p-3 pt-3 sm:p-6 sm:pt-6">
-        <div className="hidden grid-cols-[1fr_120px_140px_70px] gap-2 border-b px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
-          <p>Cliente / Titulo</p>
-          <p>Data</p>
-          <p>Status</p>
-          <p className="text-right">Ações</p>
-        </div>
-
-        {filtered.length === 0 ? (
-          <EmptyState
-            className="mt-3 min-h-[180px] border-0 bg-transparent"
-            title="Nenhuma reunião encontrada"
-            description={
-              search || statusFilter !== "all"
-                ? "Tente ajustar os filtros para encontrar reuniões."
-                : "Você ainda não possui reuniões nesta conta."
-            }
-          />
-        ) : null}
-
+      <DashboardListSection
+        className="rounded-xl"
+        contentClassName="p-3 pt-3 sm:p-6 sm:pt-6"
+        header={
+          <div className="grid grid-cols-[1fr_120px_140px_70px] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <p>Título</p>
+            <p>Data</p>
+            <p>Status</p>
+            <p className="text-right">Ações</p>
+          </div>
+        }
+        emptyState={
+          filtered.length === 0 ? (
+            <EmptyState
+              className="mt-3 min-h-[180px] border-0 bg-transparent"
+              title="Nenhuma reunião encontrada"
+              description={
+                search || statusFilter !== "all"
+                  ? "Tente ajustar os filtros para encontrar reuniões."
+                  : "Você ainda não possui reuniões nesta conta."
+              }
+            />
+          ) : undefined
+        }
+      >
         {filtered.map((meeting) => (
           <MeetingRow
             key={meeting.id}
@@ -253,7 +259,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
             onOpen={(id) => router.push(`/dashboard/meetings/${id}`)}
           />
         ))}
-      </SectionCard>
+      </DashboardListSection>
     </PageShell>
   );
 }

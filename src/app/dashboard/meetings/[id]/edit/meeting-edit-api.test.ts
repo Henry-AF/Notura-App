@@ -4,9 +4,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const getOwnedMeetingForEdit = vi.fn();
+const getOwnedMeetingGroupsSnapshot = vi.fn();
 
 vi.mock("@/lib/meetings/edit", () => ({
   getOwnedMeetingForEdit,
+}));
+
+vi.mock("@/lib/meeting-groups", () => ({
+  getOwnedMeetingGroupsSnapshot,
 }));
 
 describe("meeting edit api helper", () => {
@@ -14,6 +19,7 @@ describe("meeting edit api helper", () => {
     vi.resetModules();
     vi.restoreAllMocks();
     getOwnedMeetingForEdit.mockReset();
+    getOwnedMeetingGroupsSnapshot.mockReset();
   });
 
   it("loads edit data from shared server helper without fetching /api internally", async () => {
@@ -26,7 +32,20 @@ describe("meeting edit api helper", () => {
       title: "Kickoff",
       client_name: "Acme",
       meeting_date: "2026-04-10",
+      group_id: "group-1",
       created_at: "2026-04-10T10:00:00.000Z",
+    });
+    getOwnedMeetingGroupsSnapshot.mockResolvedValue({
+      groups: [
+        {
+          id: "group-1",
+          name: "Acme",
+          created_at: "2026-04-01T10:00:00.000Z",
+          updated_at: "2026-04-01T10:00:00.000Z",
+          meetings_count: 1,
+        },
+      ],
+      meetings: [],
     });
 
     const mod = await import("./meeting-edit-api");
@@ -37,19 +56,20 @@ describe("meeting edit api helper", () => {
     expect(data).toEqual({
       id: "meeting-1",
       title: "Kickoff",
-      company: "Acme",
       meetingDate: "2026-04-10",
+      groupId: "group-1",
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });
 
-  it("updates editable fields through PATCH /api/meetings/:id", async () => {
+  it("updates editable fields without sending client name through PATCH /api/meetings/:id", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
           id: "meeting-1",
           title: "Novo título",
-          clientName: "Nova empresa",
           meetingDate: "2026-04-09",
+          groupId: "group-1",
         }),
         { status: 200 }
       )
@@ -58,7 +78,6 @@ describe("meeting edit api helper", () => {
     const mod = await import("./meeting-edit-client-api");
     const updated = await mod.updateMeetingEditableFields("meeting-1", {
       title: "Novo título",
-      company: "Nova empresa",
       meetingDate: "2026-04-09",
     });
 
@@ -67,7 +86,6 @@ describe("meeting edit api helper", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: "Novo título",
-        clientName: "Nova empresa",
         meetingDate: "2026-04-09",
       }),
     });
@@ -75,8 +93,9 @@ describe("meeting edit api helper", () => {
     expect(updated).toEqual({
       id: "meeting-1",
       title: "Novo título",
-      company: "Nova empresa",
       meetingDate: "2026-04-09",
+      groupId: "group-1",
+      meetingGroups: [],
     });
   });
 

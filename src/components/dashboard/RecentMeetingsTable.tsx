@@ -7,10 +7,10 @@ import { RefreshCw, Sparkles } from "lucide-react";
 
 export interface Meeting {
   id: string;
-  clientName: string;
   title: string;
   date: string;
   status: "completed" | "processing" | "failed";
+  groupName?: string | null;
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -74,8 +74,8 @@ interface MeetingRowProps {
 }
 
 export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: MeetingRowProps) {
-  const avatarStyle = getAvatarStyle(meeting.clientName);
-  const initial = meeting.clientName.trim()[0]?.toUpperCase() ?? "?";
+  const avatarStyle = getAvatarStyle(meeting.title);
+  const initial = meeting.title.trim()[0]?.toUpperCase() ?? "?";
 
   const actionButton = (
     <div
@@ -131,7 +131,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
         {initial}
       </div>
 
-      {/* ── Column 1: client + title ────────────────────────────────────── */}
+      {/* ── Column 1: title ─────────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
         {/* Desktop avatar (inside column 1) */}
         <div
@@ -153,14 +153,13 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
 
         <div className="min-w-0 flex-1">
           <p style={{ fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))" }}>
-            {meeting.clientName}
-          </p>
-          <p
-            className="truncate"
-            style={{ fontSize: "12px", color: "rgb(var(--cn-muted))", maxWidth: "220px" }}
-          >
             {meeting.title}
           </p>
+          {meeting.groupName ? (
+            <p style={{ fontSize: "11px", color: "rgb(var(--cn-ink3))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {meeting.groupName}
+            </p>
+          ) : null}
         </div>
 
         {/* Mobile-only: date + status below the name */}
@@ -241,7 +240,7 @@ export function RecentMeetingsTable({
           color: "rgb(var(--cn-muted))",
         }}
       >
-        <p>Cliente / Título</p>
+        <p>Título</p>
         <p>Data</p>
         <p>Status</p>
         <p className="text-right">Ações</p>

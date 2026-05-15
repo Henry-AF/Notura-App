@@ -11,6 +11,7 @@ export interface DashboardMeetingResponse {
   title: string | null;
   createdAt: string;
   status: string;
+  groupName: string | null;
 }
 
 export interface DashboardTaskResponse {
@@ -152,7 +153,7 @@ async function fetchDashboardQueryResults(userId: string, startOfDay: string) {
     getBillingStatus(userId),
     supabase
       .from("meetings")
-      .select("id, title, client_name, status, created_at")
+      .select("id, title, client_name, status, created_at, meeting_groups(name)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -229,6 +230,7 @@ function mapDashboardOverview(
       clientName: meeting.client_name,
       createdAt: meeting.created_at,
       status: meeting.status,
+      groupName: (meeting.meeting_groups as { name: string } | null)?.name ?? null,
     })),
     openTasks: (results.openTasksResult.data ?? []).map((task) => ({
       id: task.id,

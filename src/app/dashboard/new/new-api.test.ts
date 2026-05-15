@@ -18,15 +18,23 @@ describe("new meeting api client", () => {
   });
 
   it("fetches the current user's whatsapp defaults through /api/user/me", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          user: {
-            whatsappNumber: "+55 (11) 99999-9999",
-          },
-        }),
-        { status: 200 }
-      )
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (input) => {
+        if (input === "/api/user/me") {
+          return new Response(
+            JSON.stringify({
+              user: {
+                whatsappNumber: "+55 (11) 99999-9999",
+              },
+            }),
+            { status: 200 }
+          );
+        }
+
+        return new Response(JSON.stringify({ groups: [], meetings: [] }), {
+          status: 200,
+        });
+      }
     );
 
     const mod = await import("./new-api");
@@ -35,6 +43,7 @@ describe("new meeting api client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      meetingGroups: [],
     });
   });
 
@@ -85,7 +94,6 @@ describe("new meeting api client", () => {
 
     const mod = await import("./new-api");
     const meetingId = await mod.processUploadedMeeting({
-      clientName: "Acme",
       meetingDate: "2026-04-14",
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/audio.mp3",
@@ -96,7 +104,6 @@ describe("new meeting api client", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        clientName: "Acme",
         meetingDate: "2026-04-14",
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",
@@ -121,7 +128,6 @@ describe("new meeting api client", () => {
 
     await expect(
       mod.processUploadedMeeting({
-        clientName: "Acme",
         meetingDate: "2026-04-14",
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",

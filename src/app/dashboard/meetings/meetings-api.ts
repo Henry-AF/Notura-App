@@ -13,11 +13,11 @@ export function mapMeetingsResponse(
 ): MeetingsPageMeeting[] {
   return meetings.map((meeting) => ({
     id: meeting.id,
-    clientName: meeting.client_name ?? meeting.title ?? "—",
     title: meeting.title ?? "—",
     date: formatRelativeTime(meeting.created_at),
     rawDate: meeting.created_at,
     status: normalizeMeetingsStatus(meeting.status),
+    groupName: meeting.group_name,
   }));
 }
 

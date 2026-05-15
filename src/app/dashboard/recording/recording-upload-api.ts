@@ -5,10 +5,10 @@ import {
 import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 export interface SubmitUploadedMeetingInput {
-  clientName: string;
   meetingDate: string;
   whatsappNumber: string;
   file: File;
+  groupId?: string | null;
   onUploadProgress?: (pct: number) => void;
 }
 
@@ -36,11 +36,11 @@ export async function submitUploadedMeeting(
     );
 
     return await processUploadedMeeting({
-      clientName: input.clientName,
       meetingDate: input.meetingDate,
       whatsappNumber: input.whatsappNumber,
       r2Key,
       uploadToken,
+      groupId: input.groupId,
     });
   })();
 

@@ -1,6 +1,7 @@
 export interface MeetingEditData {
   id: string;
   title: string;
-  company: string;
   meetingDate: string;
+  groupId: string | null;
+  meetingGroups: Array<{ id: string; name: string }>;
 }

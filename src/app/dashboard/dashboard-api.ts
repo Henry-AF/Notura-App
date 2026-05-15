@@ -18,10 +18,10 @@ export function mapDashboardOverview(
 ): DashboardOverviewData {
   const meetings = response.recentMeetings.map((meeting) => ({
     id: meeting.id,
-    clientName: meeting.clientName ?? meeting.title ?? "—",
     title: meeting.title ?? "—",
     date: formatRelativeTime(meeting.createdAt),
     status: normalizeDashboardMeetingStatus(meeting.status),
+    groupName: meeting.groupName,
   }));
 
   return {

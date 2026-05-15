@@ -8,6 +8,7 @@ export interface MeetingsListItem {
   id: string;
   title: string | null;
   client_name: string | null;
+  group_name: string | null;
   status: string;
   created_at: string;
 }
@@ -18,7 +19,7 @@ async function fetchMeetingsForUser(
 ): Promise<MeetingsListItem[]> {
   const { data, error } = await supabaseAdmin
     .from("meetings")
-    .select("id, title, client_name, status, created_at")
+    .select("id, title, client_name, status, created_at, meeting_groups(name)")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -30,6 +31,7 @@ async function fetchMeetingsForUser(
     id: meeting.id,
     title: meeting.title,
     client_name: meeting.client_name,
+    group_name: (meeting.meeting_groups as { name: string } | null)?.name ?? null,
     status: meeting.status,
     created_at: meeting.created_at,
   }));

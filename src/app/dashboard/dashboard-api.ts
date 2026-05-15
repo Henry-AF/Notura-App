@@ -21,6 +21,7 @@ export function mapDashboardOverview(
     title: meeting.title ?? "—",
     date: formatRelativeTime(meeting.createdAt),
     status: normalizeDashboardMeetingStatus(meeting.status),
+    groupName: meeting.groupName,
   }));
 
   return {

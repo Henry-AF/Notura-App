@@ -10,6 +10,7 @@ export interface Meeting {
   title: string;
   date: string;
   status: "completed" | "processing" | "failed";
+  groupName?: string | null;
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -154,6 +155,11 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
           <p style={{ fontWeight: 600, fontSize: "14px", color: "rgb(var(--cn-ink))" }}>
             {meeting.title}
           </p>
+          {meeting.groupName ? (
+            <p style={{ fontSize: "11px", color: "rgb(var(--cn-ink3))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {meeting.groupName}
+            </p>
+          ) : null}
         </div>
 
         {/* Mobile-only: date + status below the name */}

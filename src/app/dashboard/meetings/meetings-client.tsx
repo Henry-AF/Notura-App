@@ -100,6 +100,9 @@ function MeetingRow({
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">{meeting.title}</p>
+          {meeting.groupName ? (
+            <p className="truncate text-xs text-muted-foreground">{meeting.groupName}</p>
+          ) : null}
         </div>
 
         {/* Mobile-only: date + status below the name */}

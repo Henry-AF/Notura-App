@@ -6,4 +6,5 @@ export interface MeetingsPageMeeting {
   date: string;
   rawDate: string;
   status: MeetingsPageStatus;
+  groupName: string | null;
 }

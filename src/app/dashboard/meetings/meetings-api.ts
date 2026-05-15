@@ -17,6 +17,7 @@ export function mapMeetingsResponse(
     date: formatRelativeTime(meeting.created_at),
     rawDate: meeting.created_at,
     status: normalizeMeetingsStatus(meeting.status),
+    groupName: meeting.group_name,
   }));
 }
 

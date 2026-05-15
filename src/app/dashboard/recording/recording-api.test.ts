@@ -36,6 +36,7 @@ describe("recording page api client", () => {
   it("loads recording defaults from the shared meeting intake client", async () => {
     fetchMeetingUploadDefaults.mockResolvedValue({
       accountWhatsappNumber: "5511999999999",
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
 
     const mod = await import("./recording-api");
@@ -43,6 +44,7 @@ describe("recording page api client", () => {
 
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
     expect(fetchMeetingUploadDefaults).toHaveBeenCalledTimes(1);
   });
@@ -61,6 +63,7 @@ describe("recording page api client", () => {
     const meetingId = await mod.submitRecordedMeeting({
       clientName: "Acme",
       whatsappNumber: "5511999999999",
+      groupId: "group-1",
       recording: new Blob(["recording"], { type: "video/mp4" }),
       recordedAt: new Date(2026, 3, 16, 14, 30, 0),
       onUploadProgress: progressSpy,
@@ -83,6 +86,7 @@ describe("recording page api client", () => {
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/recording.mp4",
       uploadToken: "signed-upload-token",
+      groupId: "group-1",
     });
     expect(meetingId).toBe("meeting-1");
   });
@@ -94,7 +98,7 @@ describe("recording page api client", () => {
       uploadToken: "signed-upload-token",
     });
 
-    let resolveUpload: (() => void) | null = null;
+    let resolveUpload!: () => void;
     uploadFileToSignedUrl.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
@@ -119,7 +123,7 @@ describe("recording page api client", () => {
       expect(uploadFileToSignedUrl).toHaveBeenCalledTimes(1);
     });
 
-    resolveUpload?.();
+    resolveUpload();
 
     const [firstMeetingId, secondMeetingId] = await Promise.all([
       firstSubmission,

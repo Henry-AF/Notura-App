@@ -6,16 +6,38 @@ describe("meeting intake client", () => {
   });
 
   it("fetches the current user's whatsapp defaults through /api/user/me", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          user: {
-            whatsappNumber: "+55 (11) 99999-9999",
-          },
-        }),
-        { status: 200 }
-      )
-    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (input === "/api/meeting-groups") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              groups: [
+                {
+                  id: "group-1",
+                  name: "Acme",
+                  created_at: "2026-04-16T12:00:00Z",
+                  updated_at: "2026-04-16T12:00:00Z",
+                  meetings_count: 0,
+                },
+              ],
+              meetings: [],
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            user: {
+              whatsappNumber: "+55 (11) 99999-9999",
+            },
+          }),
+          { status: 200 }
+        )
+      );
+    });
 
     const mod = await import("./meeting-intake-client");
     const result = await mod.fetchMeetingIntakeDefaults();
@@ -23,6 +45,7 @@ describe("meeting intake client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });
 
@@ -78,6 +101,7 @@ describe("meeting intake client", () => {
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/audio.mp3",
       uploadToken: "signed-upload-token",
+      groupId: "group-1",
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/meetings/process", {
@@ -89,6 +113,7 @@ describe("meeting intake client", () => {
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",
         uploadToken: "signed-upload-token",
+        groupId: "group-1",
       }),
     });
     expect(meetingId).toBe("meeting-1");

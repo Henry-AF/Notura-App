@@ -108,10 +108,35 @@ export interface Database {
         }
         Relationships: []
       }
+      meeting_groups: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meetings: {
         Row: {
           id: string
           user_id: string
+          group_id: string | null
           title: string | null
           client_name: string | null
           meeting_date: string | null
@@ -134,6 +159,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
+          group_id?: string | null
           title?: string | null
           client_name?: string | null
           meeting_date?: string | null
@@ -156,6 +182,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
+          group_id?: string | null
           title?: string | null
           client_name?: string | null
           meeting_date?: string | null
@@ -175,7 +202,15 @@ export interface Database {
           created_at?: string
           completed_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meetings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_groups"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       tasks: {
         Row: {
@@ -813,6 +848,7 @@ export type Confidence = "alta" | "média"
 // ── Row shorthand aliases ─────────────────────────────────────────────────────
 
 export type Meeting = Database["public"]["Tables"]["meetings"]["Row"]
+export type MeetingGroup = Database["public"]["Tables"]["meeting_groups"]["Row"]
 export type Task = Database["public"]["Tables"]["tasks"]["Row"]
 export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]

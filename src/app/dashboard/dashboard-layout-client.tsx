@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
+  FolderKanban,
   LayoutGrid,
   LogOut,
   Menu,
@@ -45,6 +46,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
+  { href: "/dashboard/groups", label: "Grupos", icon: FolderKanban },
   { href: "/dashboard/ai-chats", label: "Chats", icon: Bot, badge: "BETA" },
   // { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];

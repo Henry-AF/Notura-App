@@ -30,6 +30,10 @@ import {
   type MeetingRecordingCapture,
 } from "@/lib/meetings/recording-session";
 import {
+  createMeetingGroup,
+  type MeetingGroupOption,
+} from "@/lib/meeting-groups-client";
+import {
   fetchRecordingDefaults,
   submitRecordedMeeting,
 } from "./recording-api";
@@ -38,6 +42,7 @@ import { submitUploadedMeeting } from "./recording-upload-api";
 interface MeetingDraft {
   clientName: string;
   whatsappNumber: string;
+  groupId: string | null;
 }
 
 const UPLOAD_LEAVE_WARNING_MESSAGE =
@@ -336,6 +341,8 @@ function RecordingPageInner() {
   const { show } = useToast();
 
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
+  const [meetingGroups, setMeetingGroups] = useState<MeetingGroupOption[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(
@@ -433,6 +440,7 @@ function RecordingPageInner() {
         const defaults = await fetchRecordingDefaults();
         if (!cancelled) {
           setAccountWhatsappNumber(defaults.accountWhatsappNumber);
+          setMeetingGroups(defaults.meetingGroups);
         }
       } catch (error) {
         if (!cancelled) {
@@ -594,6 +602,7 @@ function RecordingPageInner() {
             meetingDate: values.meetingDate,
             whatsappNumber: values.whatsappNumber,
             file: uploadFile,
+            groupId: values.groupId,
             onUploadProgress: setUploadProgress,
           });
 
@@ -657,6 +666,7 @@ function RecordingPageInner() {
         setMeetingDraft({
           clientName: values.clientName,
           whatsappNumber: values.whatsappNumber,
+          groupId: values.groupId ?? null,
         });
         setElapsedSeconds(0);
         setRecordedBlob(null);
@@ -760,6 +770,7 @@ function RecordingPageInner() {
       const meetingId = await submitRecordedMeeting({
         clientName: meetingDraft.clientName,
         whatsappNumber: meetingDraft.whatsappNumber,
+        groupId: meetingDraft.groupId,
         recording: recordedBlob,
         recordedAt: recordedAt ?? new Date(),
         onUploadProgress: setUploadProgress,
@@ -798,6 +809,16 @@ function RecordingPageInner() {
     [isStarting, overlayStage, resetUploadState, show, updateModeUrl]
   );
 
+  const handleCreateGroup = useCallback(
+    async (name: string) => {
+      const group = await createMeetingGroup(name);
+      const option = { id: group.id, name: group.name };
+      setMeetingGroups((current) => [option, ...current]);
+      return option;
+    },
+    []
+  );
+
   if (isLoadingDefaults) {
     return <LoadingState label="Carregando opções da gravação..." />;
   }
@@ -814,7 +835,11 @@ function RecordingPageInner() {
               hasUploadFile={!!uploadFile}
               isStarting={isStarting}
               recordingMode={recordingMode}
+              meetingGroups={meetingGroups}
+              selectedGroupId={selectedGroupId}
               onRecordingModeChange={handleRecordingModeChange}
+              onGroupIdChange={setSelectedGroupId}
+              onCreateGroup={handleCreateGroup}
               onStart={handleStartRecording}
               onValidationError={(message) => show(message, "warning")}
               uploadField={

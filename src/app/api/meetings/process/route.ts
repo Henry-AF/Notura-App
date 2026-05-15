@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireOwnership } from "@/lib/api/auth";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -23,6 +24,16 @@ import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/datab
 // processing. Expects the R2 key from a prior upload step.
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
+
+function parseOptionalGroupId(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw new Error("Grupo invalido.");
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
@@ -63,6 +74,13 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const normalizedWhatsappNumber = normalizeWhatsappNumber(data.whatsappNumber);
     const requestedR2Key = data.r2Key.trim();
     const requestedUploadToken = data.uploadToken.trim();
+    let requestedGroupId: string | null = null;
+
+    try {
+      requestedGroupId = parseOptionalGroupId(data.groupId);
+    } catch {
+      return NextResponse.json({ error: "Grupo invalido." }, { status: 422 });
+    }
 
     let uploadToken;
     try {
@@ -79,6 +97,15 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     }
 
     const supabase = createServiceRoleClient();
+
+    if (requestedGroupId) {
+      await requireOwnership(
+        supabase,
+        "meeting_groups",
+        requestedGroupId,
+        auth.user.id
+      );
+    }
 
     const { data: existingMeeting, error: existingMeetingError } = await supabase
       .from("meetings")
@@ -189,6 +216,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
         client_name: data.clientName.trim(),
         meeting_date: data.meetingDate,
         audio_r2_key: uploadToken.r2Key,
+        group_id: requestedGroupId,
         whatsapp_number: normalizedWhatsappNumber,
         status: "pending" as MeetingStatus,
         whatsapp_status: "pending" as WhatsAppStatus,

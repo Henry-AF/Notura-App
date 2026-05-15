@@ -9,6 +9,7 @@ export interface SubmitUploadedMeetingInput {
   meetingDate: string;
   whatsappNumber: string;
   file: File;
+  groupId?: string | null;
   onUploadProgress?: (pct: number) => void;
 }
 
@@ -41,6 +42,7 @@ export async function submitUploadedMeeting(
       whatsappNumber: input.whatsappNumber,
       r2Key,
       uploadToken,
+      groupId: input.groupId,
     });
   })();
 

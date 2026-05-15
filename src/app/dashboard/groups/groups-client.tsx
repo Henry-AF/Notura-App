@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  FolderPlus,
   Pencil,
   Plus,
   RefreshCw,
@@ -34,7 +33,9 @@ import {
   PageHeader,
   PageShell,
   SectionCard,
+  StatusBadge,
 } from "@/components/ui/app";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   createGroup,
@@ -213,23 +214,47 @@ function MeetingRow({
   onRemove: (meetingId: string) => void;
 }) {
   return (
-    <article className="flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-accent/40">
-      <div className="min-w-0 flex-1">
-        <Link
-          href={`/dashboard/meetings/${meeting.id}`}
-          className="truncate text-sm font-semibold text-foreground hover:text-primary"
-        >
-          {meeting.clientName}
-        </Link>
-        <p className="truncate text-xs text-muted-foreground">
-          {meeting.title} - {formatRelativeTime(meeting.createdAt)}
-        </p>
+    <article className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_120px_48px] sm:gap-2 sm:px-3 sm:py-3">
+      <Avatar className="h-9 w-9 shrink-0 sm:hidden">
+        <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
+      </Avatar>
+
+      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+        <Avatar className="hidden h-8 w-8 shrink-0 sm:flex">
+          <AvatarFallback name={meeting.clientName} className="text-[11px] font-semibold" />
+        </Avatar>
+
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/dashboard/meetings/${meeting.id}`}
+            className="block truncate text-sm font-semibold text-foreground hover:text-primary"
+          >
+            {meeting.clientName}
+          </Link>
+          <p className="truncate text-xs text-muted-foreground">{meeting.title}</p>
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:hidden">
+          <span className="text-[11px] text-muted-foreground">
+            {formatRelativeTime(meeting.createdAt)}
+          </span>
+          <StatusBadge status={meeting.status} />
+        </div>
       </div>
+
+      <p className="hidden text-xs text-muted-foreground sm:block">
+        {formatRelativeTime(meeting.createdAt)}
+      </p>
+
+      <div className="hidden sm:block">
+        <StatusBadge status={meeting.status} />
+      </div>
+
       <Button
         type="button"
         size="sm"
         variant="ghost"
-        className="h-8 w-8 rounded-md p-0"
+        className="h-8 w-8 rounded-md p-0 sm:justify-self-end"
         onClick={() => onRemove(meeting.id)}
         aria-label="Remover do grupo"
       >
@@ -258,45 +283,49 @@ function SelectedGroupPanel({
 }) {
   if (!group) {
     return (
-      <EmptyState
-        className="min-h-[360px] border-0 bg-transparent"
-        title="Selecione um grupo"
-        description="Escolha um grupo para ver e controlar as reunioes nele."
-      />
+      <Card className="border-0 shadow-[0_2px_8px_rgba(0,0,0,0.06)] bg-card/95">
+        <CardContent className="pt-6">
+          <EmptyState
+            className="min-h-[360px] border-0 bg-transparent"
+            title="Selecione um grupo"
+            description="Escolha um grupo para ver e controlar as reunioes nele."
+          />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <GroupAvatar name={group.name} />
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-foreground">
-              {group.name}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {meetings.length} reunioes neste grupo
-            </p>
-          </div>
+    <SectionCard contentClassName="px-3 pb-3 pt-3 sm:px-6 sm:pb-6 sm:pt-6">
+      {/* Cabeçalho: info do grupo + botões de ação */}
+      <div className="mb-3 flex min-w-0 items-center gap-3">
+        <GroupAvatar name={group.name} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {group.name}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {meetings.length} reunioes neste grupo
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-1.5">
           <Button type="button" variant="outline" size="sm" onClick={() => onEdit(group)}>
             <Pencil className="h-4 w-4" />
-            Editar
+            <span className="hidden sm:inline">Editar</span>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => onDelete(group)}>
             <Trash2 className="h-4 w-4" />
-            Deletar
+            <span className="hidden sm:inline">Deletar</span>
           </Button>
         </div>
       </div>
 
+      {/* Select para adicionar reunião */}
       <Select
         value={SELECT_PLACEHOLDER}
         onValueChange={(meetingId) => onAddMeeting(meetingId)}
       >
-        <SelectTrigger className="h-10 rounded-lg">
+        <SelectTrigger className="mb-3 h-10 w-full rounded-lg" disabled={addableMeetings.length === 0}>
           <SelectValue placeholder="Adicionar reuniao" />
         </SelectTrigger>
         <SelectContent className="animate-none">
@@ -311,6 +340,14 @@ function SelectedGroupPanel({
         </SelectContent>
       </Select>
 
+      {/* Cabeçalho das colunas — apenas desktop */}
+      <div className="hidden border-b pb-3 sm:grid sm:grid-cols-[1fr_120px_120px_48px] sm:gap-2 sm:px-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Cliente / Titulo</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Data</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Status</p>
+        <p className="text-right text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Ações</p>
+      </div>
+
       {meetings.length === 0 ? (
         <EmptyState
           className="min-h-[220px] border-0 bg-transparent"
@@ -318,7 +355,7 @@ function SelectedGroupPanel({
           description="Adicione reunioes existentes ou escolha este grupo ao criar uma nova reuniao."
         />
       ) : (
-        <div className="divide-y">
+        <div>
           {meetings.map((meeting) => (
             <MeetingRow
               key={meeting.id}
@@ -328,7 +365,7 @@ function SelectedGroupPanel({
           ))}
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -435,20 +472,15 @@ export function GroupsClient() {
           />
         </SectionCard>
 
-        <SectionCard
-          title="Reunioes do grupo"
-          contentClassName="p-4 pt-4 sm:p-6 sm:pt-6"
-        >
-          <SelectedGroupPanel
-            group={selectedGroup}
-            meetings={selectedMeetings}
-            addableMeetings={addableMeetings}
-            onEdit={setEditingGroup}
-            onDelete={setDeleteTarget}
-            onAddMeeting={(meetingId) => void handleMoveMeeting(meetingId, selectedGroupId)}
-            onRemoveMeeting={(meetingId) => void handleMoveMeeting(meetingId, null)}
-          />
-        </SectionCard>
+        <SelectedGroupPanel
+          group={selectedGroup}
+          meetings={selectedMeetings}
+          addableMeetings={addableMeetings}
+          onEdit={setEditingGroup}
+          onDelete={setDeleteTarget}
+          onAddMeeting={(meetingId) => void handleMoveMeeting(meetingId, selectedGroupId)}
+          onRemoveMeeting={(meetingId) => void handleMoveMeeting(meetingId, null)}
+        />
       </div>
 
       <GroupDialog

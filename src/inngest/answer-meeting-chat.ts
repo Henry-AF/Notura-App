@@ -686,13 +686,32 @@ export const answerMeetingChat = inngest.createFunction(
         state: metricState,
       });
 
-      captureObservedError(error, {
-        event: "inngest.job.failed",
+      logStructured("error", {
+        event: "meeting.chat.answer.failed",
         requestId,
         userId: data.userId,
         route: "inngest/answer-meeting-chat",
         durationMs: Date.now() - startedAt,
         status: "failed",
+        chatId: data.chatId,
+        meetingId: data.meetingId,
+        errorMessage: rawMessage,
+      });
+
+      captureObservedError(error, {
+        event: "meeting.chat.answer.failed",
+        requestId,
+        userId: data.userId,
+        route: "inngest/answer-meeting-chat",
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        extra: {
+          functionId: "answer-meeting-chat",
+          eventName: event.name,
+          chatId: data.chatId,
+          meetingId: data.meetingId,
+          metricId,
+        },
       });
 
       return { chatId: data.chatId, status: "failed" };

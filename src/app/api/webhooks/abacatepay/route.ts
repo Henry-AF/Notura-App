@@ -14,6 +14,12 @@ import {
   resetSubscriptionPeriod,
 } from "@/lib/billing";
 import { inngest } from "@/lib/inngest";
+import {
+  captureObservedError,
+  createTraceId,
+  getErrorMessage,
+  logStructured,
+} from "@/lib/observability";
 import type { Plan } from "@/types/database";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
@@ -179,9 +185,63 @@ function resolveUsablePeriodEnd(
   return currentPeriodEnd;
 }
 
+function isAbacatePayFailureEvent(eventType: string): boolean {
+  const normalized = eventType.toLowerCase();
+  const isBillingEvent =
+    normalized.includes("billing") ||
+    normalized.includes("payment") ||
+    normalized.includes("subscription") ||
+    normalized.includes("checkout");
+  const isFailure =
+    normalized.includes("failed") ||
+    normalized.includes("failure") ||
+    normalized.includes("expired") ||
+    normalized.includes("overdue");
+
+  return isBillingEvent && isFailure;
+}
+
+function captureAbacatePayWebhookFailure(
+  eventType: string,
+  data: AbacatePayWebhookEvent["data"],
+  requestId: string,
+  startedAt: number
+): void {
+  const externalId = readEventExternalId(data);
+  const customerId = readEventCustomerId(data);
+  const error = new Error(`AbacatePay billing failure event received: ${eventType}`);
+
+  logStructured("error", {
+    event: "billing.abacatepay.payment_failed",
+    requestId,
+    route: "/api/webhooks/abacatepay",
+    durationMs: Date.now() - startedAt,
+    status: "payment_failed",
+    abacatepayEventType: eventType,
+    abacatepayCustomerId: customerId,
+  });
+  captureObservedError(error, {
+    event: "billing.abacatepay.payment_failed",
+    requestId,
+    route: "/api/webhooks/abacatepay",
+    durationMs: Date.now() - startedAt,
+    status: "payment_failed",
+    extra: {
+      abacatepayEventType: eventType,
+      externalId,
+      customerId,
+      paymentId: data.payment?.id,
+      checkoutId: data.checkout?.id,
+      subscriptionId: data.subscription?.id ?? data.id,
+    },
+  });
+}
+
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayWebhook,
   async (request: NextRequest): Promise<NextResponse> => {
+  const startedAt = Date.now();
+  const requestId = createTraceId();
   const incomingSecret =
     new URL(request.url).searchParams.get("webhookSecret") ?? "";
   if (!WEBHOOK_SECRET || !safeEqual(incomingSecret, WEBHOOK_SECRET)) {
@@ -202,6 +262,11 @@ export const POST = withPublicRateLimit<NextRequest>(
   }
 
   const { event: eventType, data } = event;
+
+  if (isAbacatePayFailureEvent(eventType)) {
+    captureAbacatePayWebhookFailure(eventType, data, requestId, startedAt);
+    return NextResponse.json({ received: true });
+  }
 
   if (eventType === "billing.paid" || eventType === "subscription.completed") {
     return handleBillingPaid(data);
@@ -242,8 +307,23 @@ async function handleBillingPaid(
   try {
     await resetSubscriptionPeriod(params, supabase);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
+    const requestId = createTraceId();
+    const message = getErrorMessage(error);
     console.error("[webhook-abacatepay] billing.paid update failed:", message);
+    captureObservedError(error, {
+      event: "billing.abacatepay.webhook_apply.failed",
+      requestId,
+      userId: parsed.userId,
+      route: "/api/webhooks/abacatepay",
+      durationMs: 0,
+      status: 500,
+      extra: {
+        abacatepayEventType: "billing.paid",
+        plan: parsed.plan,
+        customerId,
+        subscriptionId,
+      },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
@@ -262,8 +342,20 @@ async function handleSubscriptionCanceled(
       try {
         await downgradeToFree({ userId: parsed.userId }, supabase);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown error";
+        const requestId = createTraceId();
+        const message = getErrorMessage(error);
         console.error("[webhook-abacatepay] subscription.canceled by userId failed:", message);
+        captureObservedError(error, {
+          event: "billing.abacatepay.subscription_cancel.failed",
+          requestId,
+          userId: parsed.userId,
+          route: "/api/webhooks/abacatepay",
+          durationMs: 0,
+          status: 500,
+          extra: {
+            abacatepayEventType: "subscription.canceled",
+          },
+        });
         return NextResponse.json({ error: message }, { status: 500 });
       }
 
@@ -277,8 +369,20 @@ async function handleSubscriptionCanceled(
     try {
       await downgradeToFree({ abacatepayCustomerId: customerId }, supabase);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
+      const requestId = createTraceId();
+      const message = getErrorMessage(error);
       console.error("[webhook-abacatepay] subscription.canceled by customerId failed:", message);
+      captureObservedError(error, {
+        event: "billing.abacatepay.subscription_cancel.failed",
+        requestId,
+        route: "/api/webhooks/abacatepay",
+        durationMs: 0,
+        status: 500,
+        extra: {
+          abacatepayEventType: "subscription.canceled",
+          customerId,
+        },
+      });
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
@@ -375,8 +479,21 @@ async function handleSubscriptionRenewed(
     });
     console.log(`[webhook-abacatepay] subscription.renewed eventId=${eventId}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
+    const requestId = createTraceId();
+    const message = getErrorMessage(error);
     console.error("[webhook-abacatepay] subscription.renewed enqueue failed:", message);
+    captureObservedError(error, {
+      event: "billing.abacatepay.renewal_enqueue.failed",
+      requestId,
+      route: "/api/webhooks/abacatepay",
+      durationMs: 0,
+      status: 500,
+      extra: {
+        abacatepayEventType: "subscription.renewed",
+        externalId: readEventExternalId(data),
+        customerId: readEventCustomerId(data),
+      },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 

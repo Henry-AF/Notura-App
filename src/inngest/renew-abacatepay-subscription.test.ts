@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  captureObservedError: vi.fn(),
   createAbacatePaySubscriptionCheckout: vi.fn(),
   createFunction: vi.fn(),
   createServiceRoleClient: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("@/lib/abacatepay", () => ({
 }));
 
 vi.mock("@/lib/observability", () => ({
+  captureObservedError: mocks.captureObservedError,
   createTraceId: () => "trace-id",
   getErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : String(error),

@@ -17,7 +17,12 @@ import {
   MeetingChatValidationError,
   validateMeetingChatQuestion,
 } from "@/lib/meetings/rag";
-import { createTraceId, getErrorMessage, logStructured } from "@/lib/observability";
+import {
+  captureObservedError,
+  createTraceId,
+  getErrorMessage,
+  logStructured,
+} from "@/lib/observability";
 import type { MeetingChat } from "@/types/database";
 
 type MeetingChatListRow = Pick<
@@ -52,6 +57,8 @@ interface DispatchWarningInput {
   userId: string;
   route: string;
   startedAt: number;
+  chatId?: string;
+  meetingId?: string;
 }
 
 function mapChat(chat: MeetingChatListRow) {
@@ -76,15 +83,34 @@ function logDispatchWarning({
   userId,
   route,
   startedAt,
+  chatId,
+  meetingId,
 }: DispatchWarningInput): void {
+  const durationMs = Date.now() - startedAt;
+
   logStructured("warn", {
     event,
     requestId,
     userId,
     route,
-    durationMs: Date.now() - startedAt,
+    durationMs,
     status: 202,
     errorMessage: getErrorMessage(error),
+    chatId,
+    meetingId,
+  });
+
+  captureObservedError(error, {
+    event,
+    requestId,
+    userId,
+    route,
+    durationMs,
+    status: 202,
+    extra: {
+      chatId,
+      meetingId,
+    },
   });
 }
 
@@ -121,7 +147,7 @@ async function kickMeetingChatOutboxDispatcher({
 }
 
 async function kickOutboxAfterDirectDispatchFailure(
-  input: Omit<DispatchMeetingChatAnswerInput, "supabase" | "chatId">,
+  input: Omit<DispatchMeetingChatAnswerInput, "supabase">,
   error: unknown
 ): Promise<void> {
   logDispatchWarning({
@@ -131,6 +157,8 @@ async function kickOutboxAfterDirectDispatchFailure(
     userId: input.userId,
     route: input.route,
     startedAt: input.startedAt,
+    chatId: input.chatId,
+    meetingId: input.meetingId,
   });
 
   try {
@@ -143,6 +171,8 @@ async function kickOutboxAfterDirectDispatchFailure(
       userId: input.userId,
       route: input.route,
       startedAt: input.startedAt,
+      chatId: input.chatId,
+      meetingId: input.meetingId,
     });
   }
 }
@@ -166,6 +196,7 @@ async function dispatchMeetingChatAnswerImmediately({
       {
         meetingId,
         userId,
+        chatId,
         requestId,
         route,
         startedAt,
@@ -185,6 +216,8 @@ async function dispatchMeetingChatAnswerImmediately({
       userId,
       route,
       startedAt,
+      chatId,
+      meetingId,
     });
   }
 }

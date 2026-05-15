@@ -6,6 +6,7 @@ import {
 } from "@/lib/abacatepay";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
+  captureObservedError,
   createTraceId,
   getErrorMessage,
   logStructured,
@@ -246,12 +247,38 @@ export const renewAbacatePaySubscription = inngest.createFunction(
       return { status: "checkout-created" };
     } catch (error) {
       const message = getErrorMessage(error);
+      const failureStatus =
+        attempt >= MAX_RENEWAL_ATTEMPTS ? "suspended" : "retrying";
 
       if (attempt >= MAX_RENEWAL_ATTEMPTS) {
         await step.run("mark-renewal-suspended", () =>
           markRenewalFailure(supabase, userId, attempt, "suspended", message, null)
         );
-        return { status: "suspended", attempt };
+        logStructured("error", {
+          event: "billing.abacatepay.renewal.failed",
+          requestId,
+          userId,
+          route: "inngest/renew-abacatepay-subscription",
+          durationMs: Date.now() - startedAt,
+          status: failureStatus,
+          errorMessage: message,
+        });
+        captureObservedError(error, {
+          event: "billing.abacatepay.renewal.failed",
+          requestId,
+          userId,
+          route: "inngest/renew-abacatepay-subscription",
+          durationMs: Date.now() - startedAt,
+          status: failureStatus,
+          extra: {
+            functionId: "renew-abacatepay-subscription",
+            eventName: event.name,
+            attempt,
+            maxAttempts: MAX_RENEWAL_ATTEMPTS,
+            plan,
+          },
+        });
+        return { status: failureStatus, attempt };
       }
 
       const retryDelayMs = RETRY_DELAYS_MS[attempt] ?? RETRY_DELAYS_MS[2];
@@ -273,7 +300,33 @@ export const renewAbacatePaySubscription = inngest.createFunction(
         ts: nextAttemptAt.getTime(),
       });
 
-      return { status: "retrying", attempt };
+      logStructured("error", {
+        event: "billing.abacatepay.renewal.failed",
+        requestId,
+        userId,
+        route: "inngest/renew-abacatepay-subscription",
+        durationMs: Date.now() - startedAt,
+        status: failureStatus,
+        errorMessage: message,
+      });
+      captureObservedError(error, {
+        event: "billing.abacatepay.renewal.failed",
+        requestId,
+        userId,
+        route: "inngest/renew-abacatepay-subscription",
+        durationMs: Date.now() - startedAt,
+        status: failureStatus,
+        extra: {
+          functionId: "renew-abacatepay-subscription",
+          eventName: event.name,
+          attempt,
+          maxAttempts: MAX_RENEWAL_ATTEMPTS,
+          nextAttemptAt: nextAttemptAt.toISOString(),
+          plan,
+        },
+      });
+
+      return { status: failureStatus, attempt };
     }
   }
 );

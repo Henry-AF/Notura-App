@@ -13,6 +13,7 @@ import {
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
 import { withBillingSpan } from "@/lib/billing-observability";
+import { captureObservedError, createTraceId, getErrorMessage } from "@/lib/observability";
 import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
@@ -45,6 +46,8 @@ function resolveCheckoutCustomerId(
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayCheckout,
   async (request: NextRequest, { auth }) => {
+  const startedAt = Date.now();
+  const requestId = createTraceId();
   let userIdForLog = "anonymous";
   let planForLog: Plan | null = null;
 
@@ -174,8 +177,19 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = getErrorMessage(error);
     console.error("[abacatepay-checkout] Failed to create checkout session:", message);
+    captureObservedError(error, {
+      event: "billing.abacatepay.checkout.failed",
+      requestId,
+      userId: userIdForLog,
+      route: "/api/abacatepay/checkout",
+      durationMs: Date.now() - startedAt,
+      status: 500,
+      extra: {
+        plan: planForLog,
+      },
+    });
 
     return NextResponse.json(
       {

@@ -45,7 +45,6 @@ describe("groups page api", () => {
         {
           id: "meeting-1",
           title: "Reuniao - Acme",
-          clientName: "Acme",
           status: "completed",
           createdAt: apiMeeting.created_at,
           groupId: "group-1",
@@ -71,7 +70,7 @@ describe("groups page api", () => {
       method: "GET",
     });
     expect(result.groups[0].meetingsCount).toBe(2);
-    expect(result.meetings[0].clientName).toBe("Acme");
+    expect(result.meetings[0].title).toBe("Reuniao - Acme");
   });
 
   it("creates, renames, deletes and moves through API routes", async () => {

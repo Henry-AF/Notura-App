@@ -11,7 +11,6 @@ export interface RecordingDefaults {
 }
 
 export interface SubmitRecordedMeetingInput {
-  clientName: string;
   whatsappNumber: string;
   recording: Blob;
   recordedAt?: Date;
@@ -79,7 +78,6 @@ export async function submitRecordedMeeting(
     );
 
     return await processUploadedMeeting({
-      clientName: input.clientName,
       meetingDate: formatDateToYmd(recordedAt),
       whatsappNumber: input.whatsappNumber,
       r2Key,

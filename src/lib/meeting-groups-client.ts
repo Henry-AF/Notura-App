@@ -14,8 +14,7 @@ export interface MeetingGroupClientItem extends MeetingGroupOption {
 export interface MeetingGroupClientMeeting {
   id: string;
   title: string;
-  clientName: string;
-  status: string;
+  status: MeetingGroupStatus;
   createdAt: string;
   groupId: string | null;
 }
@@ -48,6 +47,13 @@ interface MeetingGroupsApiResponse {
   error?: string;
 }
 
+type MeetingGroupStatus =
+  | "completed"
+  | "processing"
+  | "failed"
+  | "scheduled"
+  | "pending";
+
 interface MeetingGroupMutationResponse {
   group?: MeetingGroupsApiGroup;
   error?: string;
@@ -63,12 +69,19 @@ function mapGroup(group: MeetingGroupsApiGroup): MeetingGroupClientItem {
   };
 }
 
+function mapMeetingStatus(status: string): MeetingGroupStatus {
+  if (status === "completed") return "completed";
+  if (status === "processing") return "processing";
+  if (status === "failed") return "failed";
+  if (status === "scheduled") return "scheduled";
+  return "pending";
+}
+
 function mapMeeting(meeting: MeetingGroupsApiMeeting): MeetingGroupClientMeeting {
   return {
     id: meeting.id,
     title: meeting.title ?? "Reuniao sem titulo",
-    clientName: meeting.client_name ?? meeting.title ?? "Sem cliente",
-    status: meeting.status,
+    status: mapMeetingStatus(meeting.status),
     createdAt: meeting.created_at,
     groupId: meeting.group_id,
   };

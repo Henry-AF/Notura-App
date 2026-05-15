@@ -8,7 +8,6 @@ import {
   MonitorUp,
   FolderPlus,
   UploadCloud,
-  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +44,6 @@ type WhatsappNumberSource = "account" | "custom";
 export type RecordingMode = "in-person" | "remote" | "upload";
 
 export interface RecordingSetupValues {
-  clientName: string;
   whatsappNumber: string;
   recordingMode: RecordingMode;
   groupId?: string | null;
@@ -92,7 +90,6 @@ export function RecordingSetupCard({
   onValidationError,
   uploadField,
 }: RecordingSetupCardProps) {
-  const [clientName, setClientName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [selectedMeetingDate, setSelectedMeetingDate] = useState<Date | undefined>();
   const [whatsappSource, setWhatsappSource] =
@@ -143,11 +140,6 @@ export function RecordingSetupCard({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!clientName.trim()) {
-      onValidationError("Preencha o nome do cliente.");
-      return;
-    }
-
     const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
     if (whatsappError) {
       onValidationError(whatsappError);
@@ -173,7 +165,6 @@ export function RecordingSetupCard({
     }
 
     onStart({
-      clientName: clientName.trim(),
       whatsappNumber: normalizeWhatsappNumber(selectedWhatsappRaw),
       recordingMode,
       groupId: selectedGroupId,
@@ -248,20 +239,6 @@ export function RecordingSetupCard({
           </div>
 
           {isUploadMode && uploadField ? <div>{uploadField}</div> : null}
-
-          <div>
-            <label className={labelClassName}>Nome do cliente</label>
-            <div className="relative">
-              <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Ex: Tech Solutions Inc."
-                value={clientName}
-                onChange={(event) => setClientName(event.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
 
           <div>
             <label className={labelClassName}>Grupo</label>

@@ -39,7 +39,6 @@ export interface InitMeetingUploadInput {
 }
 
 export interface ProcessMeetingUploadInput {
-  clientName: string;
   meetingDate: string;
   whatsappNumber: string;
   r2Key: string;
@@ -99,7 +98,6 @@ export async function processUploadedMeeting(
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      clientName: input.clientName,
       meetingDate: input.meetingDate,
       whatsappNumber: input.whatsappNumber,
       r2Key: input.r2Key,

@@ -35,6 +35,10 @@ function parseOptionalGroupId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function buildDefaultMeetingTitle(meetingDate: string): string {
+  return `Reunião ${meetingDate}`;
+}
+
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
   async (req: NextRequest, { auth }) => {
@@ -48,9 +52,6 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     const data = body as Record<string, unknown>;
 
-    if (!data.clientName || typeof data.clientName !== "string" || !data.clientName.trim()) {
-      return NextResponse.json({ error: "Nome do cliente é obrigatório." }, { status: 422 });
-    }
     if (!data.meetingDate || typeof data.meetingDate !== "string") {
       return NextResponse.json({ error: "Data da reunião é obrigatória." }, { status: 422 });
     }
@@ -212,8 +213,8 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       .from("meetings")
       .insert({
         user_id: auth.user.id,
-        title: `Reunião — ${data.clientName.trim()}`,
-        client_name: data.clientName.trim(),
+        title: buildDefaultMeetingTitle(data.meetingDate),
+        client_name: null,
         meeting_date: data.meetingDate,
         audio_r2_key: uploadToken.r2Key,
         group_id: requestedGroupId,

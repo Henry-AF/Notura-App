@@ -40,7 +40,6 @@ import {
 import { submitUploadedMeeting } from "./recording-upload-api";
 
 interface MeetingDraft {
-  clientName: string;
   whatsappNumber: string;
   groupId: string | null;
 }
@@ -598,7 +597,6 @@ function RecordingPageInner() {
 
         try {
           const meetingId = await submitUploadedMeeting({
-            clientName: values.clientName,
             meetingDate: values.meetingDate,
             whatsappNumber: values.whatsappNumber,
             file: uploadFile,
@@ -664,7 +662,6 @@ function RecordingPageInner() {
         }
 
         setMeetingDraft({
-          clientName: values.clientName,
           whatsappNumber: values.whatsappNumber,
           groupId: values.groupId ?? null,
         });
@@ -768,7 +765,6 @@ function RecordingPageInner() {
 
     try {
       const meetingId = await submitRecordedMeeting({
-        clientName: meetingDraft.clientName,
         whatsappNumber: meetingDraft.whatsappNumber,
         groupId: meetingDraft.groupId,
         recording: recordedBlob,

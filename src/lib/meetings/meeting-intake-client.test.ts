@@ -96,7 +96,6 @@ describe("meeting intake client", () => {
 
     const mod = await import("./meeting-intake-client");
     const meetingId = await mod.processUploadedMeeting({
-      clientName: "Acme",
       meetingDate: "2026-04-16",
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/audio.mp3",
@@ -108,7 +107,6 @@ describe("meeting intake client", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        clientName: "Acme",
         meetingDate: "2026-04-16",
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",

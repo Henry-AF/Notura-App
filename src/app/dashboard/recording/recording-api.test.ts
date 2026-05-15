@@ -61,7 +61,6 @@ describe("recording page api client", () => {
     const mod = await import("./recording-api");
     const progressSpy = vi.fn();
     const meetingId = await mod.submitRecordedMeeting({
-      clientName: "Acme",
       whatsappNumber: "5511999999999",
       groupId: "group-1",
       recording: new Blob(["recording"], { type: "video/mp4" }),
@@ -81,7 +80,6 @@ describe("recording page api client", () => {
       progressSpy
     );
     expect(processUploadedMeeting).toHaveBeenCalledWith({
-      clientName: "Acme",
       meetingDate: "2026-04-16",
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/recording.mp4",
@@ -109,7 +107,6 @@ describe("recording page api client", () => {
 
     const mod = await import("./recording-api");
     const payload = {
-      clientName: "Acme",
       whatsappNumber: "5511999999999",
       recording: new Blob(["recording"], { type: "video/mp4" }),
       recordedAt: new Date(2026, 3, 16, 14, 30, 0),

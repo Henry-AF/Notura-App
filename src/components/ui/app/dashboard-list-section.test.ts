@@ -19,6 +19,8 @@ describe("dashboard list section", () => {
     expect(source).toContain("SectionCard");
     expect(source).toContain("header ? (");
     expect(source).toContain("emptyState");
+    expect(source).toContain("min-w-0 max-w-full");
+    expect(source).toContain("w-full min-w-0 sm:w-auto");
     expect(barrel).toContain('export { DashboardListSection } from "./dashboard-list-section";');
   });
 });

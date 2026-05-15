@@ -29,13 +29,17 @@ export function DashboardListSection({
     <SectionCard
       title={title}
       description={description}
-      className={className}
+      className={cn("min-w-0 max-w-full overflow-hidden", className)}
       contentClassName={contentClassName}
     >
       {context || actions ? (
-        <div className="mb-3 flex flex-col gap-3 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">{context}</div>
-          {actions ? <div className="shrink-0">{actions}</div> : null}
+        <div className="mb-3 flex min-w-0 flex-col gap-3 sm:mb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">{context}</div>
+          {actions ? (
+            <div className="w-full min-w-0 sm:w-auto sm:shrink-0">
+              {actions}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

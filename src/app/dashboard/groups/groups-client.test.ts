@@ -19,4 +19,13 @@ describe("groups client presentation", () => {
     expect(source).toContain('title="Grupo vazio"');
     expect(source).toContain('title="Selecione um grupo"');
   });
+
+  it("keeps group panels constrained on mobile widths", () => {
+    const source = readSource();
+
+    expect(source).toContain('className="grid min-w-0 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]"');
+    expect(source).toContain('className="min-w-0"');
+    expect(source).toContain('className="min-w-0 overflow-hidden"');
+    expect(source).toContain('className="h-10 w-full min-w-0 rounded-lg sm:min-w-[220px]"');
+  });
 });

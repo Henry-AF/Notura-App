@@ -306,12 +306,12 @@ function SelectedGroupPanel({
         </div>
       }
       actions={
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Select
             value={SELECT_PLACEHOLDER}
             onValueChange={(meetingId) => onAddMeeting(meetingId)}
           >
-            <SelectTrigger className="h-10 min-w-[220px] rounded-lg" disabled={addableMeetings.length === 0}>
+            <SelectTrigger className="h-10 w-full min-w-0 rounded-lg sm:min-w-[220px]" disabled={addableMeetings.length === 0}>
               <SelectValue placeholder="Adicionar reuniao" />
             </SelectTrigger>
             <SelectContent className="animate-none">
@@ -353,6 +353,7 @@ function SelectedGroupPanel({
         ) : undefined
       }
       contentClassName="px-3 pb-3 pt-3 sm:px-6 sm:pb-6 sm:pt-6"
+      className="min-w-0 overflow-hidden"
     >
       {meetings.map((meeting) => (
         <MeetingRow
@@ -459,8 +460,8 @@ export function GroupsClient() {
         </div>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-        <SectionCard title="Seus grupos" contentClassName="p-3 pt-3">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <SectionCard title="Seus grupos" className="min-w-0" contentClassName="p-3 pt-3">
           <GroupList
             groups={data.groups}
             selectedId={selectedGroupId}

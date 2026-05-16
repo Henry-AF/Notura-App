@@ -86,10 +86,30 @@ describe("settings api client", () => {
     );
 
     const mod = await import("./settings-api");
-    await mod.verifySettingsPayment();
+    await mod.verifySettingsPayment({ provider: "abacatepay" });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/checkout/verify", {
       method: "POST",
+    });
+  });
+
+  it("verifies a Stripe settings checkout through the stripe verify endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, plan: "pro" }), {
+        status: 200,
+      })
+    );
+
+    const mod = await import("./settings-api");
+    await mod.verifySettingsPayment({
+      provider: "stripe",
+      sessionId: "cs_test_123",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/stripe/checkout/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: "cs_test_123" }),
     });
   });
 

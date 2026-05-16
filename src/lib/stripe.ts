@@ -1,11 +1,17 @@
 import Stripe from "stripe";
-import type { Plan } from "@/types/database";
+import type { BillingCycle, CheckoutPlanType } from "@/lib/pricing";
 
 export { getAppBaseUrl } from "@/lib/app-url";
 
-const STRIPE_PRICE_IDS: Partial<Record<Plan, string>> = {
-  pro: process.env.STRIPE_PRO_PRICE_ID,
-  team: process.env.STRIPE_TEAM_PRICE_ID,
+const STRIPE_PRICE_IDS: Record<CheckoutPlanType, Partial<Record<BillingCycle, string>>> = {
+  starter: {
+    monthly: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID || process.env.STRIPE_PRO_PRICE_ID,
+    yearly: process.env.STRIPE_STARTER_YEARLY_PRICE_ID,
+  },
+  pro: {
+    monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || process.env.STRIPE_TEAM_PRICE_ID,
+    yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+  },
 };
 
 export function getStripe() {
@@ -17,14 +23,12 @@ export function getStripe() {
   return new Stripe(secretKey);
 }
 
-export function getStripePriceId(plan: Plan): string {
-  if (plan === "free") {
-    throw new Error("Free plan does not use Stripe Checkout");
-  }
-
-  const priceId = STRIPE_PRICE_IDS[plan];
+export function getStripePriceId(plan: CheckoutPlanType, billingCycle: BillingCycle): string {
+  const priceId = STRIPE_PRICE_IDS[plan]?.[billingCycle];
   if (!priceId) {
-    throw new Error(`Missing Stripe price ID for plan '${plan}'`);
+    throw new Error(
+      `Missing Stripe price ID for plan '${plan}' with billing cycle '${billingCycle}'`
+    );
   }
 
   return priceId;

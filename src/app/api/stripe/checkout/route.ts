@@ -3,14 +3,20 @@ import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { getOrCreateBillingAccount } from "@/lib/billing";
 import { getAppBaseUrl, getStripe, getStripePriceId } from "@/lib/stripe";
-import type { Plan } from "@/types/database";
+import {
+  getPlanPrice,
+  isBillingCycle,
+  isCheckoutPlan,
+  resolveInternalPlanForCheckout,
+  type BillingCycle,
+  type CheckoutPlanType,
+} from "@/lib/pricing";
 
 interface CreateCheckoutBody {
-  plan?: Plan;
-}
-
-function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
-  return plan === "pro" || plan === "team";
+  plan?: CheckoutPlanType;
+  billingCycle?: BillingCycle;
+  price?: number;
+  source?: "onboarding" | "settings";
 }
 
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
@@ -19,16 +25,26 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   try {
     const body = (await request.json()) as CreateCheckoutBody;
     const plan = body.plan;
+    const billingCycle = body.billingCycle;
 
-    if (!plan || !isPaidPlan(plan)) {
+    if (!plan || !isCheckoutPlan(plan) || !billingCycle || !isBillingCycle(billingCycle)) {
       return NextResponse.json(
         { error: "Plano inválido para checkout." },
         { status: 400 }
       );
     }
 
+    if (typeof body.price === "number" && body.price !== getPlanPrice(plan, billingCycle)) {
+      return NextResponse.json(
+        { error: "Preço inválido para o plano selecionado." },
+        { status: 400 }
+      );
+    }
+
+    const internalPlan = resolveInternalPlanForCheckout(plan);
+
     const billingAccount = await getOrCreateBillingAccount(auth.user.id);
-    if (billingAccount.plan === plan) {
+    if (billingAccount.plan === internalPlan) {
       return NextResponse.json({
         alreadyActive: true,
         plan,
@@ -45,15 +61,20 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const stripe = getStripe();
     const origin = new URL(request.url).origin;
     const appBaseUrl = getAppBaseUrl(origin);
-    const priceId = getStripePriceId(plan);
-    const successUrl = new URL("/onboarding", appBaseUrl);
+    const priceId = getStripePriceId(plan, billingCycle);
+    const checkoutPath = body.source === "settings" ? "/dashboard/settings" : "/onboarding";
+    const successUrl = new URL(checkoutPath, appBaseUrl);
     successUrl.searchParams.set("payment", "success");
+    successUrl.searchParams.set("provider", "stripe");
     successUrl.searchParams.set("plan", plan);
+    successUrl.searchParams.set("billingCycle", billingCycle);
     successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
-    const cancelUrl = new URL("/onboarding", appBaseUrl);
+    const cancelUrl = new URL(checkoutPath, appBaseUrl);
     cancelUrl.searchParams.set("payment", "canceled");
+    cancelUrl.searchParams.set("provider", "stripe");
     cancelUrl.searchParams.set("plan", plan);
+    cancelUrl.searchParams.set("billingCycle", billingCycle);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -64,6 +85,9 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       metadata: {
         user_id: auth.user.id,
         plan,
+        internal_plan: internalPlan,
+        billing_cycle: billingCycle,
+        stripe_price_id: priceId,
       },
       ...(billingAccount.stripe_customer_id
         ? { customer: billingAccount.stripe_customer_id }

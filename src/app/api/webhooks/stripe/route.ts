@@ -12,6 +12,7 @@ import {
   getOrCreateBillingAccount,
   resetSubscriptionPeriod,
 } from "@/lib/billing";
+import { resolveInternalPlanForCheckout } from "@/lib/pricing";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
@@ -56,14 +57,20 @@ export const POST = withPublicRateLimit<NextRequest>(
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.user_id;
-        const planId = session.metadata?.plan as Plan | undefined;
+        const internalPlanId = session.metadata?.internal_plan as Plan | undefined;
+        const planId = session.metadata?.plan as "starter" | "pro" | undefined;
 
         if (!userId) {
           console.warn("[stripe-webhook] checkout.session.completed missing user_id in metadata");
           break;
         }
 
-        const plan: Plan = planId === "team" ? "team" : "pro";
+        const plan: Plan =
+          internalPlanId === "team" || internalPlanId === "pro"
+            ? internalPlanId
+            : planId
+              ? resolveInternalPlanForCheckout(planId)
+              : "pro";
         const stripeCustomerId =
           typeof session.customer === "string"
             ? session.customer

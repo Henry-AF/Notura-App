@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { getStripe, isPaidCheckoutSession } from "@/lib/stripe";
-import type { Plan } from "@/types/database";
+import { isBillingCycle, isCheckoutPlan, type BillingCycle, type CheckoutPlanType } from "@/lib/pricing";
 
 interface VerifyCheckoutBody {
   sessionId?: string;
@@ -25,7 +25,8 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const sessionUserId = session.metadata?.user_id;
-    const plan = session.metadata?.plan as Plan | undefined;
+    const plan = session.metadata?.plan as CheckoutPlanType | undefined;
+    const billingCycle = session.metadata?.billing_cycle as BillingCycle | undefined;
 
     if (sessionUserId !== auth.user.id || session.client_reference_id !== auth.user.id) {
       return NextResponse.json(
@@ -34,9 +35,16 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       );
     }
 
-    if (!plan || (plan !== "pro" && plan !== "team")) {
+    if (!plan || !isCheckoutPlan(plan)) {
       return NextResponse.json(
         { error: "Plano inválido na sessão de checkout." },
+        { status: 400 }
+      );
+    }
+
+    if (!billingCycle || !isBillingCycle(billingCycle)) {
+      return NextResponse.json(
+        { error: "Ciclo de cobrança inválido na sessão de checkout." },
         { status: 400 }
       );
     }
@@ -58,6 +66,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     return NextResponse.json({
       success: true,
       plan,
+      billingCycle,
       paymentStatus: session.payment_status,
     });
   } catch (error) {

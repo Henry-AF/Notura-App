@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createOptionalServerSupabase } from "@/lib/supabase/server";
 import { normalizeBrazilianPhone } from "@/lib/utils";
 
 interface SaveOnboardingProfileInput {
@@ -15,7 +15,15 @@ interface SaveOnboardingProfileResult {
 export async function saveOnboardingProfile(
   input: SaveOnboardingProfileInput
 ): Promise<SaveOnboardingProfileResult> {
-  const supabase = createServerSupabase();
+  const supabase = createOptionalServerSupabase();
+
+  if (!supabase) {
+    return {
+      success: false,
+      error: "Supabase não está configurado. Defina as variáveis em .env.local e reinicie o servidor.",
+    };
+  }
+
   const {
     data: { user },
     error: authError,

@@ -139,9 +139,12 @@ function SettingsPageInner() {
 
   useEffect(() => {
     const payment = searchParams.get("payment");
-    const provider = searchParams.get("provider");
-
-    if (provider !== "abacatepay") return;
+    const providerParam = searchParams.get("provider");
+    const sessionId = searchParams.get("session_id");
+    const provider =
+      providerParam === "stripe" || sessionId
+        ? "stripe"
+        : "abacatepay";
 
     if (payment === "canceled") {
       show("Pagamento cancelado.", "warning");
@@ -157,7 +160,10 @@ function SettingsPageInner() {
       setLoading(true);
 
       try {
-        await verifySettingsPayment();
+        await verifySettingsPayment({
+          provider,
+          sessionId,
+        });
         const user = await fetchCurrentUser();
 
         if (!cancelled) {

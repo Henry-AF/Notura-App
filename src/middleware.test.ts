@@ -1,5 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+
+const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+afterEach(() => {
+  if (typeof originalSupabaseUrl === "undefined") {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  } else {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+  }
+
+  if (typeof originalSupabaseAnonKey === "undefined") {
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  } else {
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
+  }
+
+  vi.restoreAllMocks();
+});
 
 describe("middleware CORS (API)", () => {
   it("returns 204 for OPTIONS from allowed origin", async () => {
@@ -49,5 +68,24 @@ describe("middleware CORS (API)", () => {
 
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:11000");
     expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+  });
+});
+
+describe("middleware Supabase fallback", () => {
+  it("returns NextResponse.next for dashboard routes when Supabase envs are missing", async () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/dashboard");
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[supabase] middleware: Missing environment variables NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY."),
+    );
   });
 });

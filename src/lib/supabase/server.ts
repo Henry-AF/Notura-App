@@ -1,15 +1,27 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { getSupabaseBrowserConfig, getSupabaseServiceRoleKey } from "@/lib/env";
+import {
+  formatMissingEnvMessage,
+  getMissingSupabaseEnvVars,
+  getMissingSupabaseServiceEnvVars,
+  getOptionalSupabaseBrowserConfig,
+  getSupabaseBrowserConfig,
+  getSupabaseServiceRoleKey,
+} from "@/lib/env";
 import type { Database } from "@/types/database";
 
-export function createServerSupabase() {
+export function createOptionalServerSupabase() {
   const cookieStore = cookies();
-  const { url, anonKey } = getSupabaseBrowserConfig();
+  const config = getOptionalSupabaseBrowserConfig();
+
+  if (!config) {
+    return null;
+  }
+
   return createServerClient<Database>(
-    url,
-    anonKey,
+    config.url,
+    config.anonKey,
     {
       cookies: {
         getAll() {
@@ -29,11 +41,26 @@ export function createServerSupabase() {
   );
 }
 
-export function createServiceRoleClient() {
-  const { url } = getSupabaseBrowserConfig();
-  const serviceRoleKey = getSupabaseServiceRoleKey();
+export function createServerSupabase() {
+  const supabase = createOptionalServerSupabase();
+
+  if (!supabase) {
+    throw new Error(formatMissingEnvMessage(getMissingSupabaseEnvVars()));
+  }
+
+  return supabase;
+}
+
+export function createOptionalServiceRoleClient() {
+  const config = getOptionalSupabaseBrowserConfig();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!config || !serviceRoleKey) {
+    return null;
+  }
+
   return createClient<Database>(
-    url,
+    config.url,
     serviceRoleKey,
     {
       auth: {
@@ -42,4 +69,14 @@ export function createServiceRoleClient() {
       },
     }
   );
+}
+
+export function createServiceRoleClient() {
+  const supabase = createOptionalServiceRoleClient();
+
+  if (!supabase) {
+    throw new Error(formatMissingEnvMessage(getMissingSupabaseServiceEnvVars()));
+  }
+
+  return supabase;
 }

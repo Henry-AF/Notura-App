@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { normalizeAuthNextPath } from "@/lib/auth-redirect";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createOptionalServerSupabase } from "@/lib/supabase/server";
 
 function redirectToLogin(requestUrl: URL) {
   const loginUrl = new URL("/login", requestUrl.origin);
@@ -16,7 +16,12 @@ export async function GET(request: Request) {
     return redirectToLogin(requestUrl);
   }
 
-  const supabase = createServerSupabase();
+  const supabase = createOptionalServerSupabase();
+
+  if (!supabase) {
+    return redirectToLogin(requestUrl);
+  }
+
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {

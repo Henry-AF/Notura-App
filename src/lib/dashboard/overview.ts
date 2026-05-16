@@ -1,6 +1,6 @@
 import { getBillingStatus } from "@/lib/billing";
 import {
-  createServerSupabase,
+  createOptionalServerSupabase,
   createServiceRoleClient,
 } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
@@ -73,7 +73,12 @@ function getStartOfDayIso(now: Date): string {
 }
 
 async function getAuthenticatedUser() {
-  const supabaseAuth = createServerSupabase();
+  const supabaseAuth = createOptionalServerSupabase();
+
+  if (!supabaseAuth) {
+    throw new DashboardUnauthorizedError();
+  }
+
   const {
     data: { user },
     error,

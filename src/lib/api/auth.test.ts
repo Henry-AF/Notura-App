@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServerSupabase = vi.fn();
+const createOptionalServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
+const createOptionalServiceRoleClient = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
+  createOptionalServerSupabase,
   createServiceRoleClient,
+  createOptionalServiceRoleClient,
 }));
 
 function createServerClient(
@@ -45,8 +49,8 @@ describe("route auth helper", () => {
   });
 
   it("returns 401 when there is no authenticated user", async () => {
-    createServerSupabase.mockReturnValue(createServerClient(null));
-    createServiceRoleClient.mockReturnValue({});
+    createOptionalServerSupabase.mockReturnValue(createServerClient(null));
+    createOptionalServiceRoleClient.mockReturnValue({});
 
     const mod = await import("./auth");
     const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));
@@ -60,12 +64,12 @@ describe("route auth helper", () => {
   });
 
   it("injects auth into the wrapped handler", async () => {
-    createServerSupabase.mockReturnValue(
+    createOptionalServerSupabase.mockReturnValue(
       createServerClient({ id: "user-1", email: "user@example.com" })
     );
 
     const supabaseAdmin = { from: vi.fn() } as never;
-    createServiceRoleClient.mockReturnValue(supabaseAdmin);
+    createOptionalServiceRoleClient.mockReturnValue(supabaseAdmin);
 
     const mod = await import("./auth");
     const handler = mod.withAuth(async (_request, { auth, params }) =>
@@ -97,10 +101,10 @@ describe("route auth helper", () => {
       id: "mobile-user",
       email: "mobile@example.com",
     });
-    createServerSupabase.mockReturnValue(supabase);
+    createOptionalServerSupabase.mockReturnValue(supabase);
 
     const supabaseAdmin = { from: vi.fn() } as never;
-    createServiceRoleClient.mockReturnValue(supabaseAdmin);
+    createOptionalServiceRoleClient.mockReturnValue(supabaseAdmin);
 
     const mod = await import("./auth");
     const handler = mod.withAuth(async (_request, { auth }) =>
@@ -129,8 +133,8 @@ describe("route auth helper", () => {
 
   it("returns 401 when a Bearer token is rejected by Supabase", async () => {
     const supabase = createServerClient(null, { message: "Invalid JWT" });
-    createServerSupabase.mockReturnValue(supabase);
-    createServiceRoleClient.mockReturnValue({});
+    createOptionalServerSupabase.mockReturnValue(supabase);
+    createOptionalServiceRoleClient.mockReturnValue({});
 
     const mod = await import("./auth");
     const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));

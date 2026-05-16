@@ -23,6 +23,13 @@ interface VerifySettingsPaymentResponse {
   error?: string;
 }
 
+type CheckoutProvider = "abacatepay" | "stripe";
+
+interface VerifySettingsPaymentInput {
+  provider: CheckoutProvider;
+  sessionId?: string | null;
+}
+
 export function prewarmAbacatePayCustomer(): Promise<boolean> {
   return prewarmAbacatePayCustomerRequest("settings");
 }
@@ -31,10 +38,19 @@ export function prewarmAbacatePayCustomerInBackground(): void {
   prewarmAbacatePayCustomerRequestInBackground("settings");
 }
 
-export async function verifySettingsPayment(): Promise<void> {
-  const response = await fetch("/api/abacatepay/checkout/verify", {
-    method: "POST",
-  });
+export async function verifySettingsPayment(
+  input: VerifySettingsPaymentInput
+): Promise<void> {
+  const response =
+    input.provider === "stripe"
+      ? await fetch("/api/stripe/checkout/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: input.sessionId }),
+        })
+      : await fetch("/api/abacatepay/checkout/verify", {
+          method: "POST",
+        });
   const body = await parseJson<VerifySettingsPaymentResponse>(response);
 
   if (!response.ok) {

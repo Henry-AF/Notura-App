@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { createServerSupabase, createServiceRoleClient } from "@/lib/supabase/server";
+import { createOptionalServerSupabase, createOptionalServiceRoleClient } from "@/lib/supabase/server";
+import { formatMissingEnvMessage, getMissingSupabaseServiceEnvVars } from "@/lib/env";
 import {
   captureObservedError,
   createRequestId,
@@ -49,6 +50,15 @@ function forbiddenResponse() {
   return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
 }
 
+function supabaseUnavailableResponse() {
+  return NextResponse.json(
+    {
+      error: formatMissingEnvMessage(getMissingSupabaseServiceEnvVars()),
+    },
+    { status: 503 }
+  );
+}
+
 function readBearerAccessToken(request: Request): string | null {
   const authorization = request.headers.get("authorization");
   if (!authorization) return null;
@@ -64,7 +74,13 @@ function readBearerAccessToken(request: Request): string | null {
 }
 
 export async function requireAuth(request?: Request): Promise<RouteAuthContext> {
-  const supabase = createServerSupabase();
+  const supabase = createOptionalServerSupabase();
+  const supabaseAdmin = createOptionalServiceRoleClient();
+
+  if (!supabase || !supabaseAdmin) {
+    throw supabaseUnavailableResponse();
+  }
+
   const bearerAccessToken = request ? readBearerAccessToken(request) : null;
   const {
     data: { user },
@@ -80,7 +96,7 @@ export async function requireAuth(request?: Request): Promise<RouteAuthContext> 
   return {
     user,
     supabase,
-    supabaseAdmin: createServiceRoleClient(),
+    supabaseAdmin,
   };
 }
 

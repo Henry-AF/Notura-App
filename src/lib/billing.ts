@@ -76,7 +76,7 @@ export function getMonthlyMeetingLimit(plan: Plan): number | null {
 }
 
 function getMeetingQuotaLimit(plan: Plan): number {
-  return getPlanMonthlyLimit(plan) ?? 100;
+  return getPlanMonthlyLimit(plan) ?? Number.POSITIVE_INFINITY;
 }
 
 function addOneMonth(date: Date): Date {
@@ -100,16 +100,21 @@ function getQuotaMessage(
   code: MeetingQuotaBlockCode,
   quotaLimit?: number
 ): string {
+  const finiteQuotaLimit =
+    typeof quotaLimit === "number" && Number.isFinite(quotaLimit)
+      ? quotaLimit
+      : undefined;
+
   if (code === "subscription_expired") {
     return "Sua assinatura expirou. Renove o plano para processar novas reuniões.";
   }
   if (code === "lifetime_quota_exceeded") {
     return "Você atingiu o limite lifetime do plano Free. Faça upgrade para processar mais reuniões.";
   }
-  if (quotaLimit === undefined) {
+  if (finiteQuotaLimit === undefined) {
     return "Você atingiu o limite de reuniões do período atual do seu plano.";
   }
-  return `Você atingiu o limite de reuniões do período atual do seu plano (${quotaLimit} reuniões).`;
+  return `Você atingiu o limite de reuniões do período atual do seu plano (${finiteQuotaLimit} reuniões).`;
 }
 
 export function resolveQuotaErrorCode(error: {

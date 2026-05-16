@@ -48,7 +48,12 @@ describe("onboarding api client", () => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ plan: "pro" }),
+      body: JSON.stringify({
+        plan: "pro",
+        billingCycle: "monthly",
+        price: 99,
+        source: "onboarding",
+      }),
     });
   });
 
@@ -73,6 +78,27 @@ describe("onboarding api client", () => {
     );
   });
 
+  it("verifies Stripe payments with the checkout session id", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
+      })
+    );
+
+    await verifyOnboardingPayment({
+      provider: "stripe",
+      sessionId: "cs_test_123",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/stripe/checkout/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId: "cs_test_123" }),
+    });
+  });
+
   it("throws the API error when payment verification fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "Pagamento pendente." }), {
@@ -80,7 +106,11 @@ describe("onboarding api client", () => {
       })
     );
 
-    await expect(verifyOnboardingPayment()).rejects.toThrow(
+    await expect(
+      verifyOnboardingPayment({
+        provider: "abacatepay",
+      })
+    ).rejects.toThrow(
       "Pagamento pendente."
     );
   });

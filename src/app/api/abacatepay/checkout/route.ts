@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   createAbacatePaySubscriptionCheckout,
   getAbacatePayCheckoutExternalId,
-  getAbacatePayProductId,
+  getAbacatePayProductIdForCheckout,
   isAbacatePayTimeoutError,
 } from "@/lib/abacatepay";
 import {
@@ -13,15 +13,21 @@ import {
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
 import { withBillingSpan } from "@/lib/billing-observability";
+import {
+  getPlanPrice,
+  isBillingCycle,
+  isCheckoutPlan,
+  resolveInternalPlanForCheckout,
+  type BillingCycle,
+  type CheckoutPlanType,
+} from "@/lib/pricing";
 import type { Plan } from "@/types/database";
 
 interface CreateCheckoutBody {
-  plan?: Plan;
+  plan?: CheckoutPlanType;
+  billingCycle?: BillingCycle;
+  price?: number;
   source?: "onboarding" | "settings";
-}
-
-function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
-  return plan === "pro" || plan === "team";
 }
 
 type AbacatePayCustomerContext = Awaited<
@@ -54,22 +60,32 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     userIdForLog = auth.user.id;
     const plan = body.plan;
+    const billingCycle = body.billingCycle;
     const source = body.source === "settings" ? "settings" : "onboarding";
     planForLog = plan ?? null;
 
-    if (!plan || !isPaidPlan(plan)) {
+    if (!plan || !isCheckoutPlan(plan) || !billingCycle || !isBillingCycle(billingCycle)) {
       return NextResponse.json(
         { error: "Plano invalido para checkout." },
         { status: 400 }
       );
     }
 
+    if (typeof body.price === "number" && body.price !== getPlanPrice(plan, billingCycle)) {
+      return NextResponse.json(
+        { error: "Preco invalido para o plano selecionado." },
+        { status: 400 }
+      );
+    }
+
+    const internalPlan = resolveInternalPlanForCheckout(plan);
+
     const customerContext = await loadAbacatePayCustomerContext(
       db,
       auth.user.id,
       source
     );
-    if (customerContext.billingAccount.plan === plan) {
+    if (customerContext.billingAccount.plan === internalPlan) {
       return NextResponse.json({
         alreadyActive: true,
         plan,
@@ -88,11 +104,13 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const returnUrl = new URL(returnPath, appBaseUrl);
     returnUrl.searchParams.set("payment", "canceled");
     returnUrl.searchParams.set("plan", plan);
+    returnUrl.searchParams.set("billingCycle", billingCycle);
     returnUrl.searchParams.set("provider", "abacatepay");
 
     const completionUrl = new URL(returnPath, appBaseUrl);
     completionUrl.searchParams.set("payment", "success");
     completionUrl.searchParams.set("plan", plan);
+    completionUrl.searchParams.set("billingCycle", billingCycle);
     completionUrl.searchParams.set("provider", "abacatepay");
 
     const subscription = await withBillingSpan(
@@ -108,14 +126,17 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       },
       () =>
         createAbacatePaySubscriptionCheckout({
-          productId: getAbacatePayProductId(plan),
+          productId: getAbacatePayProductIdForCheckout(plan, billingCycle),
           customerId,
-          externalId: getAbacatePayCheckoutExternalId(auth.user.id, plan),
+          externalId: getAbacatePayCheckoutExternalId(auth.user.id, internalPlan),
           returnUrl: returnUrl.toString(),
           completionUrl: completionUrl.toString(),
           metadata: {
             userId: auth.user.id,
             plan,
+            internalPlan,
+            billingCycle,
+            price: getPlanPrice(plan, billingCycle),
             origin: source,
           },
         })
@@ -145,7 +166,7 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
           .update({
             abacatepay_customer_id: customerId,
             abacatepay_pending_checkout_id: subscription.id,
-            abacatepay_pending_plan: plan,
+            abacatepay_pending_plan: internalPlan,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", auth.user.id)

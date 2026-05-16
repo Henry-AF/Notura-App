@@ -6,8 +6,10 @@ import {
 
 describe("PlanModal checkout payload", () => {
   it("marks dashboard plan changes as settings checkouts", () => {
-    expect(createSettingsCheckoutPayload("team")).toEqual({
-      plan: "team",
+    expect(createSettingsCheckoutPayload("pro", "yearly")).toEqual({
+      plan: "pro",
+      billingCycle: "yearly",
+      price: 69,
       source: "settings",
     });
   });
@@ -17,7 +19,7 @@ describe("PlanModal checkout payload", () => {
       isSettingsCheckoutDisabled({
         currentPlan: "free",
         isLoading: false,
-        planId: "pro",
+        planId: "starter",
         prewarmReady: false,
       })
     ).toBe(true);
@@ -26,7 +28,7 @@ describe("PlanModal checkout payload", () => {
       isSettingsCheckoutDisabled({
         currentPlan: "free",
         isLoading: false,
-        planId: "pro",
+        planId: "starter",
         prewarmReady: true,
       })
     ).toBe(false);

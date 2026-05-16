@@ -58,7 +58,7 @@ describe("POST /api/webhooks/stripe", () => {
       type: "checkout.session.completed",
       data: {
         object: {
-          metadata: { user_id: "user-1", plan: "team" },
+          metadata: { user_id: "user-1", plan: "pro", internal_plan: "team" },
           customer: "cus-1",
         },
       },

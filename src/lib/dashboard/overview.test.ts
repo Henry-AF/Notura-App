@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServerSupabase = vi.fn();
+const createOptionalServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
 const getBillingStatus = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
+  createOptionalServerSupabase,
   createServiceRoleClient,
 }));
 
@@ -109,7 +111,7 @@ describe("dashboard overview", () => {
   });
 
   it("loads completed duration with rpc aggregation instead of scanning all meetings", async () => {
-    createServerSupabase.mockReturnValue(
+    createOptionalServerSupabase.mockReturnValue(
       createServerClient({ id: "user-1", email: "ana@example.com" })
     );
     const { client, rpc } = createDashboardSupabaseClient();

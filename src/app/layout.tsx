@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
+import { BillingCycleProvider } from "@/components/pricing/BillingCycleProvider";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -44,7 +45,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        <BillingCycleProvider>{children}</BillingCycleProvider>
+      </body>
     </html>
   );
 }

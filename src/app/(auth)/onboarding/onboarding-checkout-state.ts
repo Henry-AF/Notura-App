@@ -1,14 +1,14 @@
-import type { Plan } from "@/types/database";
+import { isCheckoutPlan, type PricingPlanType } from "@/lib/pricing";
 
 export function isOnboardingCheckoutBlocked(input: {
   loading: boolean;
   paymentVerifying: boolean;
   prewarmReady: boolean;
-  selectedPlan: Plan;
+  selectedPlan: PricingPlanType;
 }): boolean {
   return (
     input.loading ||
     input.paymentVerifying ||
-    (input.selectedPlan !== "free" && !input.prewarmReady)
+    (isCheckoutPlan(input.selectedPlan) && !input.prewarmReady)
   );
 }

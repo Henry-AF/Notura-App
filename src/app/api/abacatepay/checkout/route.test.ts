@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServerSupabase = vi.fn();
+const createOptionalServerSupabase = vi.fn();
 const createServiceRoleClient = vi.fn();
+const createOptionalServiceRoleClient = vi.fn();
 const createAbacatePaySubscriptionCheckout = vi.fn();
 const getAbacatePayCheckoutExternalId = vi.fn();
-const getAbacatePayProductId = vi.fn();
+const getAbacatePayProductIdForCheckout = vi.fn();
 const isAbacatePayTimeoutError = vi.fn();
 const ensureAbacatePayCustomer = vi.fn();
 const loadAbacatePayCustomerContext = vi.fn();
@@ -14,13 +16,15 @@ const withBillingSpan = vi.fn((_options, callback) => {
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
+  createOptionalServerSupabase,
   createServiceRoleClient,
+  createOptionalServiceRoleClient,
 }));
 
 vi.mock("@/lib/abacatepay", () => ({
   createAbacatePaySubscriptionCheckout,
   getAbacatePayCheckoutExternalId,
-  getAbacatePayProductId,
+  getAbacatePayProductIdForCheckout,
   isAbacatePayTimeoutError,
 }));
 
@@ -72,17 +76,19 @@ describe("POST /api/abacatepay/checkout", () => {
     vi.clearAllMocks();
 
     createServerSupabase.mockReturnValue(createServerClient());
+    createOptionalServerSupabase.mockReturnValue(createServerClient());
     createServiceRoleClient.mockReturnValue(createAdminClient());
+    createOptionalServiceRoleClient.mockReturnValue(createAdminClient());
     loadAbacatePayCustomerContext.mockResolvedValue({
       billingAccount: {
-        plan: "pro",
+        plan: "free",
         abacatepay_customer_id: "customer-1",
       },
     });
     ensureAbacatePayCustomer.mockResolvedValue({
       customerId: "customer-1",
     });
-    getAbacatePayProductId.mockReturnValue("product-team");
+    getAbacatePayProductIdForCheckout.mockReturnValue("product-team");
     getAbacatePayCheckoutExternalId.mockReturnValue(
       "onboarding:user-1:team:nonce-1"
     );
@@ -100,7 +106,9 @@ describe("POST /api/abacatepay/checkout", () => {
       new Request("http://localhost/api/abacatepay/checkout", {
         method: "POST",
         body: JSON.stringify({
-          plan: "team",
+          plan: "pro",
+          billingCycle: "yearly",
+          price: 69,
           source: "settings",
         }),
       }) as never,
@@ -114,12 +122,15 @@ describe("POST /api/abacatepay/checkout", () => {
     expect(createAbacatePaySubscriptionCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
         returnUrl:
-          "http://localhost/dashboard/settings?payment=canceled&plan=team&provider=abacatepay",
+          "http://localhost/dashboard/settings?payment=canceled&plan=pro&billingCycle=yearly&provider=abacatepay",
         completionUrl:
-          "http://localhost/dashboard/settings?payment=success&plan=team&provider=abacatepay",
+          "http://localhost/dashboard/settings?payment=success&plan=pro&billingCycle=yearly&provider=abacatepay",
         metadata: expect.objectContaining({
           origin: "settings",
-          plan: "team",
+          plan: "pro",
+          internalPlan: "team",
+          billingCycle: "yearly",
+          price: 69,
           userId: "user-1",
         }),
       })
@@ -154,7 +165,7 @@ describe("POST /api/abacatepay/checkout", () => {
   it("uses an existing AbacatePay customer without ensuring during checkout", async () => {
     loadAbacatePayCustomerContext.mockResolvedValueOnce({
       billingAccount: {
-        plan: "pro",
+        plan: "free",
         abacatepay_customer_id: "customer-ready",
       },
     });
@@ -164,7 +175,9 @@ describe("POST /api/abacatepay/checkout", () => {
       new Request("http://localhost/api/abacatepay/checkout", {
         method: "POST",
         body: JSON.stringify({
-          plan: "team",
+          plan: "pro",
+          billingCycle: "yearly",
+          price: 69,
           source: "settings",
         }),
       }) as never,
@@ -183,7 +196,7 @@ describe("POST /api/abacatepay/checkout", () => {
   it("fails fast without starting checkout when no AbacatePay customer exists", async () => {
     loadAbacatePayCustomerContext.mockResolvedValueOnce({
       billingAccount: {
-        plan: "pro",
+        plan: "free",
         abacatepay_customer_id: null,
       },
     });
@@ -193,7 +206,9 @@ describe("POST /api/abacatepay/checkout", () => {
       new Request("http://localhost/api/abacatepay/checkout", {
         method: "POST",
         body: JSON.stringify({
-          plan: "team",
+          plan: "pro",
+          billingCycle: "yearly",
+          price: 69,
           source: "settings",
         }),
       }) as never,

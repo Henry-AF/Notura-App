@@ -1,3 +1,4 @@
+import type { BillingCycle, CheckoutPlanType } from "@/lib/pricing";
 import type { BillingAccount, Plan } from "@/types/database";
 
 const ABACATEPAY_API_BASE_URL = (
@@ -9,6 +10,26 @@ export const ABACATEPAY_REQUEST_TIMEOUT_MS = 5000;
 const ABACATEPAY_PLAN_PRODUCT_IDS: Record<Exclude<Plan, "free">, string> = {
   pro: process.env.ABACATEPAY_PRO_PRODUCT_ID || "",
   team: process.env.ABACATEPAY_PLATINUM_PRODUCT_ID || ""
+};
+
+const ABACATEPAY_CHECKOUT_PRODUCT_IDS: Record<
+  CheckoutPlanType,
+  Partial<Record<BillingCycle, string>>
+> = {
+  starter: {
+    monthly:
+      process.env.ABACATEPAY_STARTER_MONTHLY_PRODUCT_ID ||
+      process.env.ABACATEPAY_PRO_PRODUCT_ID ||
+      "",
+    yearly: process.env.ABACATEPAY_STARTER_YEARLY_PRODUCT_ID || "",
+  },
+  pro: {
+    monthly:
+      process.env.ABACATEPAY_PRO_MONTHLY_PRODUCT_ID ||
+      process.env.ABACATEPAY_PLATINUM_PRODUCT_ID ||
+      "",
+    yearly: process.env.ABACATEPAY_PRO_YEARLY_PRODUCT_ID || "",
+  },
 };
 
 interface AbacatePayEnvelope<T> {
@@ -130,6 +151,21 @@ export function getAbacatePayProductId(plan: Plan): string {
   const productId = ABACATEPAY_PLAN_PRODUCT_IDS[plan];
   if (!productId) {
     throw new Error(`Missing AbacatePay product ID for plan '${plan}'`);
+  }
+
+  return productId;
+}
+
+export function getAbacatePayProductIdForCheckout(
+  plan: CheckoutPlanType,
+  billingCycle: BillingCycle
+): string {
+  const productId = ABACATEPAY_CHECKOUT_PRODUCT_IDS[plan]?.[billingCycle];
+
+  if (!productId) {
+    throw new Error(
+      `Missing AbacatePay product ID for plan '${plan}' with billing cycle '${billingCycle}'`
+    );
   }
 
   return productId;

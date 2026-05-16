@@ -1,6 +1,6 @@
 import { getBillingStatus } from "@/lib/billing";
 import {
-  createServerSupabase,
+  createOptionalServerSupabase,
   createServiceRoleClient,
 } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
@@ -56,7 +56,12 @@ export async function getCurrentUserForIdentity(
 }
 
 export async function getCurrentUserFromRequest(): Promise<CurrentUser | null> {
-  const supabase = createServerSupabase();
+  const supabase = createOptionalServerSupabase();
+
+  if (!supabase) {
+    return null;
+  }
+
   const {
     data: { user },
     error,

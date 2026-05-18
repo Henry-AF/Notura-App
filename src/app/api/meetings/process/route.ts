@@ -16,6 +16,7 @@ import {
   getWhatsappNumberValidationError,
   normalizeWhatsappNumber,
 } from "@/lib/meetings/whatsapp-number";
+import { captureObservedError, createTraceId } from "@/lib/observability";
 import { getObjectMetadata } from "@/lib/r2";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
@@ -42,6 +43,8 @@ function buildDefaultMeetingTitle(meetingDate: string): string {
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
   async (req: NextRequest, { auth }) => {
+    const startedAt = Date.now();
+    const requestId = createTraceId();
     // ── Parse & validate body ────────────────────────────────────────────────
     let body: unknown;
     try {
@@ -253,6 +256,18 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
       });
     } catch (e) {
       console.error("[meetings/process] inngest send error:", e);
+      captureObservedError(e, {
+        event: "meeting.process.enqueue_failed",
+        requestId,
+        userId: auth.user.id,
+        route: "/api/meetings/process",
+        durationMs: Date.now() - startedAt,
+        status: 503,
+        extra: {
+          meetingId: meeting.id,
+          r2Key: uploadToken.r2Key,
+        },
+      });
       await refundConsumedQuota();
       const { error: markFailedError } = await supabase
         .from("meetings")

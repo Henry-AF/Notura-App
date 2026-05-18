@@ -27,8 +27,15 @@ function getSentryDsn(): string | null {
   return dsn && dsn.length > 0 ? dsn : null;
 }
 
+function isExplicitCaptureEnabled(): boolean {
+  return process.env.SENTRY_CAPTURE_OBSERVED_ERRORS?.trim().toLowerCase() === "true";
+}
+
 function shouldCaptureErrors(): boolean {
-  return process.env.NODE_ENV === "production" && getSentryDsn() !== null;
+  return (
+    (process.env.NODE_ENV === "production" || isExplicitCaptureEnabled()) &&
+    getSentryDsn() !== null
+  );
 }
 
 function ensureSentryInitialized() {

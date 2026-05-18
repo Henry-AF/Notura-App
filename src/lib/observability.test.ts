@@ -100,4 +100,23 @@ describe("observability helpers", () => {
 
     vi.unstubAllEnvs();
   });
+
+  it("captures non-production exceptions when explicitly enabled", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("SENTRY_CAPTURE_OBSERVED_ERRORS", "true");
+    process.env.SENTRY_DSN = "https://public@example.ingest.sentry.io/1";
+
+    const mod = await import("./observability");
+    mod.captureObservedError(new Error("local queue unavailable"), {
+      event: "meeting.process.enqueue_failed",
+      requestId: "req-local",
+      route: "/api/meetings/process",
+      durationMs: 30,
+      status: 503,
+    });
+
+    expect(sentryCaptureException).toHaveBeenCalledTimes(1);
+
+    vi.unstubAllEnvs();
+  });
 });

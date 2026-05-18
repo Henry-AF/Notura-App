@@ -8,6 +8,7 @@ import {
   parseAbacatePayOnboardingExternalId,
 } from "@/lib/abacatepay";
 import { getOrCreateBillingAccount, resetSubscriptionPeriod } from "@/lib/billing";
+import { captureObservedError, createTraceId, getErrorMessage } from "@/lib/observability";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
@@ -23,6 +24,8 @@ function readSubscriptionUserId(metadata: Record<string, unknown> | undefined): 
 export const POST = withAuthRateLimit(
   RATE_LIMIT_POLICIES.abacatepayCheckoutVerify,
   async (_request, { auth }) => {
+  const startedAt = Date.now();
+  const requestId = createTraceId();
   let userIdForLog = "anonymous";
 
   try {
@@ -117,7 +120,19 @@ export const POST = withAuthRateLimit(
         db
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
+      const message = getErrorMessage(error);
+      captureObservedError(error, {
+        event: "billing.abacatepay.checkout_apply.failed",
+        requestId,
+        userId: auth.user.id,
+        route: "/api/abacatepay/checkout/verify",
+        durationMs: Date.now() - startedAt,
+        status: 500,
+        extra: {
+          pendingPlan,
+          checkoutId: billingAccount.abacatepay_pending_checkout_id,
+        },
+      });
       return NextResponse.json(
         { error: `Nao foi possivel atualizar seu plano: ${message}` },
         { status: 500 }
@@ -133,8 +148,16 @@ export const POST = withAuthRateLimit(
       console.error(`[abacatepay-checkout-verify] verify timeout user=${userIdForLog}`);
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = getErrorMessage(error);
     console.error("[abacatepay-checkout-verify] Failed to verify checkout:", message);
+    captureObservedError(error, {
+      event: "billing.abacatepay.checkout_verify.failed",
+      requestId,
+      userId: userIdForLog,
+      route: "/api/abacatepay/checkout/verify",
+      durationMs: Date.now() - startedAt,
+      status: 500,
+    });
 
     return NextResponse.json(
       { error: "Falha ao verificar pagamento com AbacatePay." },

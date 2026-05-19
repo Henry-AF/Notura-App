@@ -52,6 +52,7 @@ export interface RecordingSetupValues {
 
 interface RecordingSetupCardProps {
   accountWhatsappNumber?: string;
+  canSendWhatsAppSummary?: boolean;
   isStarting: boolean;
   hasUploadFile?: boolean;
   recordingMode: RecordingMode;
@@ -78,6 +79,7 @@ const CREATE_GROUP_VALUE = "__create__";
 
 export function RecordingSetupCard({
   accountWhatsappNumber = "",
+  canSendWhatsAppSummary = true,
   isStarting,
   hasUploadFile = false,
   recordingMode,
@@ -110,6 +112,8 @@ export function RecordingSetupCard({
   const hasAccountWhatsappNumber = accountWhatsappDisplay.length > 0;
 
   useEffect(() => {
+    if (!canSendWhatsAppSummary) return;
+
     if (!hasAccountWhatsappNumber && whatsappSource === "account") {
       setWhatsappSource("custom");
       return;
@@ -118,7 +122,12 @@ export function RecordingSetupCard({
     if (hasAccountWhatsappNumber && !hasTouchedWhatsappSource) {
       setWhatsappSource("account");
     }
-  }, [hasAccountWhatsappNumber, hasTouchedWhatsappSource, whatsappSource]);
+  }, [
+    canSendWhatsAppSummary,
+    hasAccountWhatsappNumber,
+    hasTouchedWhatsappSource,
+    whatsappSource,
+  ]);
 
   const selectedWhatsappRaw =
     whatsappSource === "account"
@@ -140,10 +149,12 @@ export function RecordingSetupCard({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
-    if (whatsappError) {
-      onValidationError(whatsappError);
-      return;
+    if (canSendWhatsAppSummary) {
+      const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
+      if (whatsappError) {
+        onValidationError(whatsappError);
+        return;
+      }
     }
 
     if (isUploadMode && !hasUploadFile) {
@@ -165,7 +176,9 @@ export function RecordingSetupCard({
     }
 
     onStart({
-      whatsappNumber: normalizeWhatsappNumber(selectedWhatsappRaw),
+      whatsappNumber: canSendWhatsAppSummary
+        ? normalizeWhatsappNumber(selectedWhatsappRaw)
+        : "",
       recordingMode,
       groupId: selectedGroupId,
       meetingDate: isUploadMode ? meetingDate : undefined,
@@ -215,7 +228,9 @@ export function RecordingSetupCard({
         <p className="text-sm text-muted-foreground">
           {isUploadMode
             ? "Selecione o arquivo, informe os dados da reunião e inicie o processamento."
-            : "Defina quem vai receber o sumário e inicie a gravação quando estiver tudo pronto."}
+            : canSendWhatsAppSummary
+              ? "Defina quem vai receber o sumário e inicie a gravação quando estiver tudo pronto."
+              : "Informe os dados da reunião e inicie a gravação quando estiver tudo pronto."}
         </p>
       </CardHeader>
 
@@ -282,49 +297,51 @@ export function RecordingSetupCard({
             </div>
           ) : null}
 
-          <div>
-            <label className={labelClassName}>Número WhatsApp para resumo</label>
-            <Select
-              value={whatsappSource}
-              onValueChange={(value) => {
-                setHasTouchedWhatsappSource(true);
-                setWhatsappSource(value as WhatsappNumberSource);
-              }}
-            >
-              <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="animate-none">
-                <SelectItem value="account" disabled={!hasAccountWhatsappNumber}>
-                  {hasAccountWhatsappNumber
-                    ? accountWhatsappDisplay
-                    : "Número da conta (não configurado)"}
-                </SelectItem>
-                <SelectItem value="custom">Número personalizado</SelectItem>
-              </SelectContent>
-            </Select>
+          {canSendWhatsAppSummary ? (
+            <div>
+              <label className={labelClassName}>Número WhatsApp para resumo</label>
+              <Select
+                value={whatsappSource}
+                onValueChange={(value) => {
+                  setHasTouchedWhatsappSource(true);
+                  setWhatsappSource(value as WhatsappNumberSource);
+                }}
+              >
+                <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="animate-none">
+                  <SelectItem value="account" disabled={!hasAccountWhatsappNumber}>
+                    {hasAccountWhatsappNumber
+                      ? accountWhatsappDisplay
+                      : "Número da conta (não configurado)"}
+                  </SelectItem>
+                  <SelectItem value="custom">Número personalizado</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {whatsappSource === "custom" ? (
-              <div className="relative mt-2">
-                <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="(00) 00000-0000"
-                  value={customWhatsappNumber}
-                  onChange={(event) =>
-                    setCustomWhatsappNumber(
-                      maskBrazilianPhoneInput(event.target.value)
-                    )
-                  }
-                  className="pl-9"
-                />
-              </div>
-            ) : null}
+              {whatsappSource === "custom" ? (
+                <div className="relative mt-2">
+                  <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="(00) 00000-0000"
+                    value={customWhatsappNumber}
+                    onChange={(event) =>
+                      setCustomWhatsappNumber(
+                        maskBrazilianPhoneInput(event.target.value)
+                      )
+                    }
+                    className="pl-9"
+                  />
+                </div>
+              ) : null}
 
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              O número padrão da sua conta já vem selecionado, mas você pode enviar para outro contato.
-            </p>
-          </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                O número padrão da sua conta já vem selecionado, mas você pode enviar para outro contato.
+              </p>
+            </div>
+          ) : null}
 
           <Button
             type="submit"

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   deleteAudio: vi.fn(),
   generateEmbedding: vi.fn(),
   generateMeetingSummary: vi.fn(),
+  getWhatsAppSummaryAccess: vi.fn(),
   getPresignedDownloadUrl: vi.fn(),
   indexMeetingTranscriptChunks: vi.fn(),
   logStructured: vi.fn(),
@@ -33,6 +34,10 @@ vi.mock("@/lib/r2", () => ({
 vi.mock("@/lib/whatsapp", () => ({
   sendMeetingSummaryTemplate: mocks.sendMeetingSummaryTemplate,
   alertOperator: mocks.alertOperator,
+}));
+
+vi.mock("@/lib/billing/whatsapp-summary-access", () => ({
+  getWhatsAppSummaryAccess: mocks.getWhatsAppSummaryAccess,
 }));
 
 vi.mock("@/lib/gemini", () => ({
@@ -146,6 +151,7 @@ describe("processMeeting", () => {
     mocks.getPresignedDownloadUrl.mockResolvedValue("https://r2.example/audio.mp3");
     mocks.deleteAudio.mockResolvedValue(undefined);
     mocks.sendMeetingSummaryTemplate.mockResolvedValue({ success: true });
+    mocks.getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
     mocks.generateMeetingSummary.mockResolvedValue({
       summaryWhatsapp: "Resumo pronto",
       summaryJson: createSummaryJson(),
@@ -310,6 +316,46 @@ describe("processMeeting", () => {
             error_message: null,
             completed_at: expect.any(String),
           },
+        },
+      ])
+    );
+  });
+
+  it("skips the WhatsApp send step for users without a paid plan loaded from Supabase", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    mocks.getWhatsAppSummaryAccess.mockResolvedValue({ canSend: false, plan: "free" });
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(mocks.getWhatsAppSummaryAccess).toHaveBeenCalledWith(
+      "user-1",
+      expect.any(Object)
+    );
+    expect(mocks.sendMeetingSummaryTemplate).not.toHaveBeenCalled();
+    expect(supabase.writes.updates).not.toEqual(
+      expect.arrayContaining([
+        {
+          table: "jobs",
+          payload: expect.objectContaining({
+            current_step: "send-whatsapp",
+          }),
         },
       ])
     );

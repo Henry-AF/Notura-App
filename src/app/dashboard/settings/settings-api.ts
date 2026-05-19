@@ -1,14 +1,14 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
 import {
-  prewarmAbacatePayCustomer as prewarmAbacatePayCustomerRequest,
-  prewarmAbacatePayCustomerInBackground as prewarmAbacatePayCustomerRequestInBackground,
-} from "@/lib/abacatepay-customer-client";
+  prewarmBillingCustomer as prewarmBillingCustomerRequest,
+  prewarmBillingCustomerInBackground as prewarmBillingCustomerRequestInBackground,
+} from "@/lib/billing-customer-client";
 export {
-  updateAbacatePayAutoRenew,
-} from "@/lib/abacatepay-auto-renew-client";
+  updateBillingAutoRenew,
+} from "@/lib/billing-auto-renew-client";
 export type {
-  AbacatePayAutoRenewStatus,
-} from "@/lib/abacatepay-auto-renew-client";
+  BillingAutoRenewStatus,
+} from "@/lib/billing-auto-renew-client";
 
 export {
   fetchCurrentUser,
@@ -23,17 +23,22 @@ interface VerifySettingsPaymentResponse {
   error?: string;
 }
 
-export function prewarmAbacatePayCustomer(): Promise<boolean> {
-  return prewarmAbacatePayCustomerRequest("settings");
+export function prewarmBillingCustomer(): Promise<boolean> {
+  return prewarmBillingCustomerRequest("settings");
 }
 
-export function prewarmAbacatePayCustomerInBackground(): void {
-  prewarmAbacatePayCustomerRequestInBackground("settings");
+export function prewarmBillingCustomerInBackground(): void {
+  prewarmBillingCustomerRequestInBackground("settings");
 }
 
-export async function verifySettingsPayment(): Promise<void> {
-  const response = await fetch("/api/abacatepay/checkout/verify", {
+export async function verifySettingsPayment(
+  sessionId?: string | null
+): Promise<void> {
+  const payload = sessionId ? { sessionId } : {};
+  const response = await fetch("/api/billing/checkout/verify", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   const body = await parseJson<VerifySettingsPaymentResponse>(response);
 

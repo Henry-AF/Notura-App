@@ -11,6 +11,7 @@ import {
 interface CurrentUserDefaultsResponse {
   user?: {
     whatsappNumber?: string;
+    canSendWhatsAppSummary?: boolean;
   };
   error?: string;
 }
@@ -29,6 +30,7 @@ interface ProcessMeetingApiResponse {
 
 export interface MeetingIntakeDefaults {
   accountWhatsappNumber: string;
+  canSendWhatsAppSummary: boolean;
   meetingGroups: MeetingGroupOption[];
 }
 
@@ -60,6 +62,7 @@ export async function fetchMeetingIntakeDefaults(): Promise<MeetingIntakeDefault
   const normalized = normalizeWhatsappNumber(body.user.whatsappNumber ?? "");
   return {
     accountWhatsappNumber: isValidWhatsappNumber(normalized) ? normalized : "",
+    canSendWhatsAppSummary: Boolean(body.user.canSendWhatsAppSummary),
     meetingGroups,
   };
 }

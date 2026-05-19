@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
 import {
-  ensureAbacatepayCustomer,
+  ensureOnboardingBillingCustomer,
   startOnboardingCheckout,
   verifyOnboardingPayment,
 } from "./onboarding-api";
@@ -431,6 +431,7 @@ function usePaymentRedirect({
   useEffect(() => {
     const payment = searchParams.get("payment");
     const planParam = searchParams.get("plan");
+    const sessionId = searchParams.get("session_id");
 
     if (isPlan(planParam)) {
       setSelectedPlan(planParam);
@@ -456,7 +457,7 @@ function usePaymentRedirect({
       setError(null);
 
       try {
-        await verifyOnboardingPayment();
+        await verifyOnboardingPayment(sessionId);
 
         if (!cancelled) {
           setStep(3);
@@ -517,7 +518,7 @@ function useCheckoutPrewarm(step: OnboardingStep): boolean {
 
     async function runPrewarm() {
       try {
-        const ready = await ensureAbacatepayCustomer();
+        const ready = await ensureOnboardingBillingCustomer();
         if (ready) {
           if (!cancelled) {
             setPrewarmReady(true);

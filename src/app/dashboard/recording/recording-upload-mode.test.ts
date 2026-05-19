@@ -15,6 +15,7 @@ describe("recording page upload mode", () => {
     const dropZoneSource = readSource("src/components/upload/DropZone.tsx");
 
     expect(pageSource).toContain("submitUploadedMeeting");
+    expect(pageSource).toContain("canSendWhatsAppSummary");
     expect(pageSource).toContain("UploadProgressCard");
     expect(pageSource).toContain("handleFile");
     expect(setupSource).toContain("uploadField");

@@ -45,6 +45,7 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   now?: Date;
   clearAbacatePayPending?: boolean;
   abacatepaySubscriptionId?: string;
+  stripeSubscriptionId?: string;
   previousPeriodEnd?: Date | string | null;
 };
 
@@ -155,6 +156,10 @@ function shouldResetAbacatePayRenewal(params: ResetSubscriptionPeriodParams): bo
   );
 }
 
+function shouldResetStripeRenewal(params: ResetSubscriptionPeriodParams): boolean {
+  return Boolean(params.stripeSubscriptionId);
+}
+
 function resolveSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   account: BillingAccount | null,
@@ -206,6 +211,9 @@ function buildSubscriptionResetPayload(
   }
   if ("stripeCustomerId" in params) {
     updatePayload.stripe_customer_id = params.stripeCustomerId;
+  }
+  if (params.stripeSubscriptionId) {
+    updatePayload.stripe_subscription_id = params.stripeSubscriptionId;
   }
   if ("abacatepayCustomerId" in params) {
     updatePayload.abacatepay_customer_id = params.abacatepayCustomerId;
@@ -411,6 +419,11 @@ function applyResetPayloadOptions(
     updatePayload.abacatepay_next_renewal_attempt_at = null;
     updatePayload.abacatepay_last_renewal_error = null;
   }
+  if (shouldResetStripeRenewal(params)) {
+    updatePayload.stripe_auto_renew_enabled = true;
+    updatePayload.stripe_auto_renew_updated_at = new Date().toISOString();
+    updatePayload.stripe_renewal_status = "active";
+  }
 }
 
 export async function resetSubscriptionPeriod(
@@ -457,6 +470,10 @@ export async function downgradeToFree(
     plan: "free",
     current_period_start: null,
     current_period_end: null,
+    stripe_subscription_id: null,
+    stripe_auto_renew_enabled: true,
+    stripe_auto_renew_updated_at: now.toISOString(),
+    stripe_renewal_status: "idle",
     abacatepay_pending_checkout_id: null,
     abacatepay_pending_plan: null,
     abacatepay_renewal_period_end: null,

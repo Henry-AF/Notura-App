@@ -7,9 +7,13 @@ export interface CurrentUser {
   company: string;
   whatsappNumber: string;
   plan: Plan;
+  canSendWhatsAppSummary: boolean;
   meetingsThisMonth: number;
   monthlyLimit: number | null;
   currentPeriodEnd: string | null;
+  billingProvider: "stripe" | "abacatepay";
+  autoRenewEnabled: boolean;
+  renewalStatus: string;
   abacatepayAutoRenewEnabled: boolean;
   abacatepayRenewalStatus: string;
 }

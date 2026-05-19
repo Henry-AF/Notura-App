@@ -60,6 +60,7 @@ describe("POST /api/webhooks/stripe", () => {
         object: {
           metadata: { user_id: "user-1", plan: "team" },
           customer: "cus-1",
+          subscription: "sub-1",
         },
       },
     });
@@ -82,9 +83,46 @@ describe("POST /api/webhooks/stripe", () => {
         current_period_start: expect.any(String),
         current_period_end: expect.any(String),
         stripe_customer_id: "cus-1",
+        stripe_subscription_id: "sub-1",
+        stripe_auto_renew_enabled: true,
+        stripe_renewal_status: "active",
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("syncs Stripe subscription auto-renew status from subscription updates", async () => {
+    constructEvent.mockReturnValue({
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub-1",
+          customer: "cus-1",
+          cancel_at_period_end: true,
+          status: "active",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_subscription_id: "sub-1",
+        stripe_auto_renew_enabled: false,
+        stripe_renewal_status: "canceling",
+      })
+    );
+    expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_subscription_id", "sub-1");
   });
 
   it("resets quota period on paid subscription renewal invoices", async () => {

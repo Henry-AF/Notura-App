@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createSettingsCheckoutRequest,
   createSettingsCheckoutPayload,
   isSettingsCheckoutDisabled,
 } from "./PlanModal";
@@ -12,7 +13,18 @@ describe("PlanModal checkout payload", () => {
     });
   });
 
-  it("blocks paid checkout while AbacatePay customer prewarm is not ready", () => {
+  it("sends dashboard plan changes to the billing gateway endpoint", () => {
+    expect(createSettingsCheckoutRequest("pro")).toEqual({
+      url: "/api/billing/checkout",
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "pro", source: "settings" }),
+      },
+    });
+  });
+
+  it("blocks paid checkout while billing customer prewarm is not ready", () => {
     expect(
       isSettingsCheckoutDisabled({
         currentPlan: "free",

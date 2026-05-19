@@ -36,6 +36,7 @@ describe("recording page api client", () => {
   it("loads recording defaults from the shared meeting intake client", async () => {
     fetchMeetingUploadDefaults.mockResolvedValue({
       accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: true,
       meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
 
@@ -44,6 +45,7 @@ describe("recording page api client", () => {
 
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: true,
       meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
     expect(fetchMeetingUploadDefaults).toHaveBeenCalledTimes(1);

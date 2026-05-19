@@ -340,6 +340,7 @@ function RecordingPageInner() {
   const { show } = useToast();
 
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
+  const [canSendWhatsAppSummary, setCanSendWhatsAppSummary] = useState(false);
   const [meetingGroups, setMeetingGroups] = useState<MeetingGroupOption[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
@@ -439,6 +440,7 @@ function RecordingPageInner() {
         const defaults = await fetchRecordingDefaults();
         if (!cancelled) {
           setAccountWhatsappNumber(defaults.accountWhatsappNumber);
+          setCanSendWhatsAppSummary(defaults.canSendWhatsAppSummary);
           setMeetingGroups(defaults.meetingGroups);
         }
       } catch (error) {
@@ -828,6 +830,7 @@ function RecordingPageInner() {
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <RecordingSetupCard
               accountWhatsappNumber={accountWhatsappNumber}
+              canSendWhatsAppSummary={canSendWhatsAppSummary}
               hasUploadFile={!!uploadFile}
               isStarting={isStarting}
               recordingMode={recordingMode}

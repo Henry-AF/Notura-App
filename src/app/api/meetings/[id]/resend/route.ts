@@ -4,6 +4,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
+import {
+  getWhatsAppSummaryAccess,
+  WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE,
+} from "@/lib/billing/whatsapp-summary-access";
 import { sendMeetingSummaryTemplate } from "@/lib/whatsapp";
 import type { MeetingJSON, WhatsAppStatus } from "@/types/database";
 
@@ -27,6 +31,14 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
     if (meetingError || !meeting) {
       return NextResponse.json(
         { error: "Acesso negado." },
+        { status: 403 }
+      );
+    }
+
+    const whatsappAccess = await getWhatsAppSummaryAccess(auth.user.id, supabase);
+    if (!whatsappAccess.canSend) {
+      return NextResponse.json(
+        { error: WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE },
         { status: 403 }
       );
     }

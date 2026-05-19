@@ -78,7 +78,7 @@ describe("settings api client", () => {
     expect(user.name).toBe("Ana Clara");
   });
 
-  it("verifies an AbacatePay settings checkout through the checkout verify endpoint", async () => {
+  it("verifies a settings checkout through the billing gateway endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ success: true, plan: "team" }), {
         status: 200,
@@ -86,17 +86,20 @@ describe("settings api client", () => {
     );
 
     const mod = await import("./settings-api");
-    await mod.verifySettingsPayment();
+    await mod.verifySettingsPayment("cs_test_123");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/checkout/verify", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout/verify", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: "cs_test_123" }),
     });
   });
 
-  it("updates AbacatePay auto-renew through the settings helper", async () => {
+  it("updates billing auto-renew through the settings helper", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
+          provider: "stripe",
           autoRenewEnabled: false,
           currentPeriodEnd: "2026-05-27T12:00:00.000Z",
           renewalStatus: "active",
@@ -106,21 +109,22 @@ describe("settings api client", () => {
     );
 
     const mod = await import("./settings-api");
-    const result = await mod.updateAbacatePayAutoRenew(false);
+    const result = await mod.updateBillingAutoRenew(false);
 
     expect(result).toEqual({
+      provider: "stripe",
       autoRenewEnabled: false,
       currentPeriodEnd: "2026-05-27T12:00:00.000Z",
       renewalStatus: "active",
     });
-    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/auto-renew", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/auto-renew", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: false }),
     });
   });
 
-  it("prewarms the AbacatePay customer through the settings api helper", async () => {
+  it("prewarms the billing customer through the settings api helper", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ success: true, customerId: "customer-1" }), {
         status: 200,
@@ -128,10 +132,10 @@ describe("settings api client", () => {
     );
 
     const mod = await import("./settings-api");
-    const result = await mod.prewarmAbacatePayCustomer();
+    const result = await mod.prewarmBillingCustomer();
 
     expect(result).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith("/api/abacatepay/customer/ensure", {
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/customer/ensure", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

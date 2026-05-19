@@ -32,6 +32,7 @@ describe("meeting intake client", () => {
           JSON.stringify({
             user: {
               whatsappNumber: "+55 (11) 99999-9999",
+              canSendWhatsAppSummary: true,
             },
           }),
           { status: 200 }
@@ -45,6 +46,52 @@ describe("meeting intake client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: true,
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
+    });
+  });
+
+  it("keeps WhatsApp summary disabled in defaults for non-paying users without hiding groups", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (input === "/api/meeting-groups") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              groups: [
+                {
+                  id: "group-1",
+                  name: "Acme",
+                  created_at: "2026-04-16T12:00:00Z",
+                  updated_at: "2026-04-16T12:00:00Z",
+                  meetings_count: 0,
+                },
+              ],
+              meetings: [],
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            user: {
+              whatsappNumber: "+55 (11) 99999-9999",
+              canSendWhatsAppSummary: false,
+            },
+          }),
+          { status: 200 }
+        )
+      );
+    });
+
+    const mod = await import("./meeting-intake-client");
+    const result = await mod.fetchMeetingIntakeDefaults();
+
+    expect(result).toEqual({
+      accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: false,
       meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });

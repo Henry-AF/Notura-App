@@ -29,4 +29,12 @@ describe("RecordingSetupCard", () => {
     expect(source).toContain("upload:");
     expect(source).toContain("amber");
   });
+
+  it("can hide the WhatsApp recipient controls for non-paying users", () => {
+    const source = readSource("src/components/recording/RecordingSetupCard.tsx");
+
+    expect(source).toContain("canSendWhatsAppSummary");
+    expect(source).toContain("Número WhatsApp para resumo");
+    expect(source).toContain("whatsappNumber: canSendWhatsAppSummary");
+  });
 });

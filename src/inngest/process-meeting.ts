@@ -6,6 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { inngest } from "@/lib/inngest";
+import { getWhatsAppSummaryAccess } from "@/lib/billing/whatsapp-summary-access";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getPresignedDownloadUrl, deleteAudio } from "@/lib/r2";
 import { sendMeetingSummaryTemplate, alertOperator } from "@/lib/whatsapp";
@@ -80,10 +81,29 @@ function readRequiredEventString(
   return trimmed;
 }
 
+function readOptionalEventString(
+  payload: Record<string, unknown>,
+  field: keyof MeetingProcessEventData,
+  issues: string[]
+): string {
+  const value = payload[field];
+
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    issues.push(`${field} must be a string`);
+    return "";
+  }
+
+  return value.trim();
+}
+
 function parseMeetingProcessEventData(payload: unknown): MeetingProcessEventData {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error(
-      "Invalid meeting/process event payload: expected an object with meetingId, r2Key, whatsappNumber and userId."
+      "Invalid meeting/process event payload: expected an object with meetingId, r2Key and userId."
     );
   }
 
@@ -93,7 +113,7 @@ function parseMeetingProcessEventData(payload: unknown): MeetingProcessEventData
   const parsed = {
     meetingId: readRequiredEventString(record, "meetingId", issues),
     r2Key: readRequiredEventString(record, "r2Key", issues),
-    whatsappNumber: readRequiredEventString(record, "whatsappNumber", issues),
+    whatsappNumber: readOptionalEventString(record, "whatsappNumber", issues),
     userId: readRequiredEventString(record, "userId", issues),
   };
 
@@ -280,6 +300,9 @@ export const processMeeting = inngest.createFunction(
       userIdForLog = userId;
       meetingIdForLog = meetingId;
       const supabase = createServiceRoleClient();
+      const whatsappAccess = (await step.run("check-whatsapp-summary-access", () =>
+        getWhatsAppSummaryAccess(userId, supabase)
+      )) as Awaited<ReturnType<typeof getWhatsAppSummaryAccess>>;
 
       // ── Step 1: Mark as processing ─────────────────────────────────────
       currentStepForLog = "update-status-processing";
@@ -583,34 +606,51 @@ export const processMeeting = inngest.createFunction(
       });
 
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
-      currentStepForLog = "send-whatsapp";
-      await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
-        const result = await sendMeetingSummaryTemplate(
-          whatsappNumber,
-          summaryJson,
-          meetingId,
-          summaryJson.meeting?.title
-        );
+      if (whatsappAccess.canSend && whatsappNumber) {
+        currentStepForLog = "send-whatsapp";
+        await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
+          const result = await sendMeetingSummaryTemplate(
+            whatsappNumber,
+            summaryJson,
+            meetingId,
+            summaryJson.meeting?.title
+          );
 
-        const newStatus = result.success ? "sent" : "failed";
+          const newStatus = result.success ? "sent" : "failed";
+          await supabase
+            .from("meetings")
+            .update({
+              whatsapp_status: newStatus,
+              error_message: result.success
+                ? null
+                : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+            })
+            .eq("id", meetingId);
+
+          if (!result.success) {
+            console.error(
+              `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
+            );
+          }
+        });
+      } else if (whatsappAccess.canSend) {
         await supabase
           .from("meetings")
           .update({
-            whatsapp_status: newStatus,
-            error_message: result.success
-              ? null
-              : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+            whatsapp_status: "failed",
+            error_message: "Número de WhatsApp ausente para envio do resumo.",
           })
           .eq("id", meetingId);
-
-        if (!result.success) {
-          console.error(
-            `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
-          );
-          // Don't throw — WhatsApp failure shouldn't fail the whole pipeline
-          // User can resend manually
-        }
-      });
+      } else {
+        logStructured("info", {
+          event: "whatsapp.summary.skipped",
+          requestId,
+          userId,
+          route: "inngest/process-meeting",
+          durationMs: Date.now() - startedAt,
+          status: "skipped-free-plan",
+        });
+      }
 
       // ── Step 6: Cleanup — delete audio from R2 (LGPD) ─────────────────
       currentStepForLog = "cleanup";

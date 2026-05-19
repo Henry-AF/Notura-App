@@ -3,11 +3,13 @@ import {
   initMeetingUpload,
   processUploadedMeeting,
 } from "@/lib/meetings/meeting-upload-client";
+import type { MeetingGroupOption } from "@/lib/meeting-groups-client";
 import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 export interface RecordingDefaults {
   accountWhatsappNumber: string;
-  meetingGroups: import("@/lib/meeting-groups-client").MeetingGroupOption[];
+  canSendWhatsAppSummary: boolean;
+  meetingGroups: MeetingGroupOption[];
 }
 
 export interface SubmitRecordedMeetingInput {

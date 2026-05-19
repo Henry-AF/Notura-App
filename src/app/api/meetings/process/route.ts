@@ -10,6 +10,7 @@ import {
   getBillingStatus,
   refundMeetingQuota,
 } from "@/lib/billing";
+import { getWhatsAppSummaryAccess } from "@/lib/billing/whatsapp-summary-access";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import { verifyUploadToken } from "@/lib/meetings/upload-token";
 import {
@@ -68,14 +69,6 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     if (!data.uploadToken || typeof data.uploadToken !== "string" || !data.uploadToken.trim()) {
       return NextResponse.json({ error: "Token de upload é obrigatório." }, { status: 422 });
     }
-    if (!data.whatsappNumber || typeof data.whatsappNumber !== "string" || !data.whatsappNumber.trim()) {
-      return NextResponse.json({ error: "Número de WhatsApp é obrigatório." }, { status: 422 });
-    }
-    const whatsappNumberError = getWhatsappNumberValidationError(data.whatsappNumber);
-    if (whatsappNumberError) {
-      return NextResponse.json({ error: whatsappNumberError }, { status: 422 });
-    }
-    const normalizedWhatsappNumber = normalizeWhatsappNumber(data.whatsappNumber);
     const requestedR2Key = data.r2Key.trim();
     const requestedUploadToken = data.uploadToken.trim();
     let requestedGroupId: string | null = null;
@@ -142,6 +135,30 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
 
     if (!quotaStatus.allowed) {
       return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
+    }
+
+    let normalizedWhatsappNumber = "";
+    try {
+      const whatsappAccess = await getWhatsAppSummaryAccess(auth.user.id, supabase);
+
+      if (whatsappAccess.canSend) {
+        if (!data.whatsappNumber || typeof data.whatsappNumber !== "string" || !data.whatsappNumber.trim()) {
+          return NextResponse.json({ error: "Número de WhatsApp é obrigatório." }, { status: 422 });
+        }
+
+        const whatsappNumberError = getWhatsappNumberValidationError(data.whatsappNumber);
+        if (whatsappNumberError) {
+          return NextResponse.json({ error: whatsappNumberError }, { status: 422 });
+        }
+
+        normalizedWhatsappNumber = normalizeWhatsappNumber(data.whatsappNumber);
+      }
+    } catch (error) {
+      console.error("[meetings/process] failed to load WhatsApp summary access:", error);
+      return NextResponse.json(
+        { error: "Erro ao validar acesso ao envio por WhatsApp." },
+        { status: 500 }
+      );
     }
 
     const uploadMetadata = await getObjectMetadata(uploadToken.r2Key);

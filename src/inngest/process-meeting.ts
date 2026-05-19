@@ -607,33 +607,32 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
       if (whatsappAccess.canSend && whatsappNumber) {
-          currentStepForLog = "send-whatsapp";
-          await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
-            const result = await sendMeetingSummaryTemplate(
-              whatsappNumber,
-              summaryJson,
-              meetingId,
-              summaryJson.meeting?.title
+        currentStepForLog = "send-whatsapp";
+        await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
+          const result = await sendMeetingSummaryTemplate(
+            whatsappNumber,
+            summaryJson,
+            meetingId,
+            summaryJson.meeting?.title
+          );
+
+          const newStatus = result.success ? "sent" : "failed";
+          await supabase
+            .from("meetings")
+            .update({
+              whatsapp_status: newStatus,
+              error_message: result.success
+                ? null
+                : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+            })
+            .eq("id", meetingId);
+
+          if (!result.success) {
+            console.error(
+              `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
             );
-
-            const newStatus = result.success ? "sent" : "failed";
-            await supabase
-              .from("meetings")
-              .update({
-                whatsapp_status: newStatus,
-                error_message: result.success
-                  ? null
-                  : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
-              })
-              .eq("id", meetingId);
-
-            if (!result.success) {
-              console.error(
-                `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
-              );
-            }
-          });
-        }
+          }
+        });
       } else if (whatsappAccess.canSend) {
         await supabase
           .from("meetings")

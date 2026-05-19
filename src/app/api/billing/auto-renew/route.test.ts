@@ -65,6 +65,35 @@ describe("PATCH /api/billing/auto-renew", () => {
     });
   });
 
+  it("uses AbacatePay auto-renew when it is the active fallback provider", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      active_billing_provider: "abacatepay",
+      stripe_subscription_id: "sub_123",
+    });
+    updateBillingAutoRenew.mockResolvedValueOnce({
+      provider: "abacatepay",
+      autoRenewEnabled: false,
+      currentPeriodEnd: "2026-06-14T12:00:00.000Z",
+      renewalStatus: "active",
+    });
+    const mod = await import("./route");
+
+    const response = await mod.PATCH(
+      new Request("http://localhost/api/billing/auto-renew", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: false }),
+      }),
+      { params: {} }
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateBillingAutoRenew).toHaveBeenCalledWith({
+      userId: "user-1",
+      enabled: false,
+      stripeSubscriptionId: null,
+    });
+  });
+
   it("rejects non-boolean auto-renew payloads", async () => {
     const mod = await import("./route");
 

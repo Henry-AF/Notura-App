@@ -8,6 +8,7 @@ interface AutoRenewBody {
 }
 
 type StripeSubscriptionAccount = {
+  active_billing_provider?: string | null;
   stripe_subscription_id?: string | null;
 };
 
@@ -20,6 +21,7 @@ async function readAutoRenewBody(request: NextRequest): Promise<AutoRenewBody> {
 }
 
 function getStripeSubscriptionId(account: StripeSubscriptionAccount): string | null {
+  if (account.active_billing_provider === "abacatepay") return null;
   return account.stripe_subscription_id ?? null;
 }
 

@@ -90,6 +90,7 @@ describe("current user server mapper", () => {
     getBillingStatus.mockResolvedValueOnce({
       billingAccount: {
         plan: "pro",
+        active_billing_provider: "stripe",
         current_period_end: "2026-05-27T12:00:00.000Z",
         stripe_subscription_id: "sub_123",
         stripe_auto_renew_enabled: false,
@@ -113,6 +114,37 @@ describe("current user server mapper", () => {
       renewalStatus: "canceling",
       abacatepayAutoRenewEnabled: false,
       abacatepayRenewalStatus: "canceling",
+    });
+  });
+
+  it("uses AbacatePay renewal state when it is the active fallback provider", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "pro",
+        active_billing_provider: "abacatepay",
+        current_period_end: "2026-05-27T12:00:00.000Z",
+        stripe_subscription_id: "sub_123",
+        stripe_auto_renew_enabled: false,
+        stripe_renewal_status: "canceling",
+        abacatepay_auto_renew_enabled: true,
+        abacatepay_renewal_status: "active",
+      },
+      meetingsThisMonth: 12,
+      monthlyLimit: 30,
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      billingProvider: "abacatepay",
+      autoRenewEnabled: true,
+      renewalStatus: "active",
+      abacatepayAutoRenewEnabled: true,
+      abacatepayRenewalStatus: "active",
     });
   });
 });

@@ -219,6 +219,18 @@ function validateStripePendingCheckout(input: {
   }
 }
 
+function isAlreadyActiveStripeSession(input: {
+  billingAccount: Awaited<ReturnType<typeof getOrCreateBillingAccount>>;
+  plan: PaidPlan;
+  subscriptionId: string | undefined;
+}): boolean {
+  return (
+    input.billingAccount.active_billing_provider === "stripe" &&
+    input.billingAccount.plan === input.plan &&
+    input.billingAccount.stripe_subscription_id === input.subscriptionId
+  );
+}
+
 export async function createStripeCheckout(
   input: BillingCheckoutInput
 ): Promise<BillingCheckoutResult> {
@@ -319,10 +331,6 @@ export async function verifyStripeCheckout(
     sessionUserId: session.metadata?.user_id,
     clientReferenceId: session.client_reference_id,
   });
-  validateStripePendingCheckout({
-    pendingSessionId: billingAccount.stripe_pending_checkout_session_id,
-    sessionId: session.id,
-  });
 
   if (!isPaidPlan(plan)) {
     throw new BillingGatewayError("Plano inválido na sessão de checkout.", 400);
@@ -337,12 +345,35 @@ export async function verifyStripeCheckout(
     );
   }
 
+  const stripeCustomerId = readResourceId(session.customer);
+  const stripeSubscriptionId = readResourceId(session.subscription);
+  if (billingAccount.stripe_pending_checkout_session_id !== session.id) {
+    if (
+      isAlreadyActiveStripeSession({
+        billingAccount,
+        plan,
+        subscriptionId: stripeSubscriptionId,
+      })
+    ) {
+      return {
+        provider: "stripe",
+        success: true,
+        plan,
+        paymentStatus: session.payment_status,
+      };
+    }
+    validateStripePendingCheckout({
+      pendingSessionId: billingAccount.stripe_pending_checkout_session_id,
+      sessionId: session.id,
+    });
+  }
+
   await resetSubscriptionPeriod(
     {
       userId: input.userId,
       plan,
-      stripeCustomerId: readResourceId(session.customer),
-      stripeSubscriptionId: readResourceId(session.subscription),
+      stripeCustomerId,
+      stripeSubscriptionId,
     },
     db
   );

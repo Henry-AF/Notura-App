@@ -282,4 +282,27 @@ describe("billing gateway providers", () => {
       paymentStatus: "paid",
     });
   });
+
+  it("accepts Stripe verification after the webhook already activated the session", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "pro",
+      active_billing_provider: "stripe",
+      stripe_subscription_id: "sub_123",
+      stripe_pending_checkout_session_id: null,
+    });
+    const { verifyStripeCheckout } = await import("./billing-gateway-providers");
+
+    const result = await verifyStripeCheckout({
+      userId: "user-1",
+      sessionId: "cs_123",
+    });
+
+    expect(resetSubscriptionPeriod).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      provider: "stripe",
+      success: true,
+      plan: "pro",
+      paymentStatus: "paid",
+    });
+  });
 });

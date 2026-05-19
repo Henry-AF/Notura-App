@@ -34,13 +34,23 @@ async function loadCurrentUserData(userId: string) {
   };
 }
 
+function resolveBillingProvider(billingAccount: {
+  active_billing_provider?: string | null;
+  stripe_subscription_id?: string | null;
+}): "stripe" | "abacatepay" {
+  if (billingAccount.active_billing_provider === "stripe") return "stripe";
+  if (billingAccount.active_billing_provider === "abacatepay") return "abacatepay";
+  return billingAccount.stripe_subscription_id ? "stripe" : "abacatepay";
+}
+
 export async function getCurrentUserForIdentity(
   identity: CurrentUserIdentity
 ): Promise<CurrentUser> {
   const { profile, billingStatus } = await loadCurrentUserData(identity.id);
   const billingAccount = billingStatus.billingAccount;
   const plan = billingAccount.plan as Plan;
-  const usesStripe = Boolean(billingAccount.stripe_subscription_id);
+  const billingProvider = resolveBillingProvider(billingAccount);
+  const usesStripe = billingProvider === "stripe";
   const autoRenewEnabled = usesStripe
     ? billingAccount.stripe_auto_renew_enabled ?? true
     : billingAccount.abacatepay_auto_renew_enabled ?? true;
@@ -59,7 +69,7 @@ export async function getCurrentUserForIdentity(
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
     currentPeriodEnd: billingAccount.current_period_end ?? null,
-    billingProvider: usesStripe ? "stripe" : "abacatepay",
+    billingProvider,
     autoRenewEnabled,
     renewalStatus,
     abacatepayAutoRenewEnabled: autoRenewEnabled,

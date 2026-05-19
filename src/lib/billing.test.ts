@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
+const stripeExpire = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
@@ -11,6 +12,16 @@ vi.mock("@/lib/inngest", () => ({
   inngest: {
     send: inngestSend,
   },
+}));
+
+vi.mock("@/lib/stripe", () => ({
+  getStripe: () => ({
+    checkout: {
+      sessions: {
+        expire: stripeExpire,
+      },
+    },
+  }),
 }));
 
 function createBillingClient(options?: {
@@ -77,6 +88,7 @@ describe("billing helpers", () => {
     vi.resetModules();
     vi.clearAllMocks();
     inngestSend.mockResolvedValue(undefined);
+    stripeExpire.mockResolvedValue({});
   });
 
   it("uses billing_accounts.meetings_used as source of truth", async () => {
@@ -271,7 +283,10 @@ describe("billing helpers", () => {
 
     expect(update).toHaveBeenCalledWith({
       plan: "team",
+      active_billing_provider: "abacatepay",
       meetings_used: 0,
+      stripe_pending_checkout_session_id: null,
+      stripe_pending_plan: null,
       current_period_start: "2026-04-27T12:00:00.000Z",
       current_period_end: "2026-05-27T12:00:00.000Z",
       abacatepay_customer_id: "customer-1",
@@ -322,6 +337,86 @@ describe("billing helpers", () => {
     );
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
     expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("marks Stripe as the active billing provider when Stripe activates a plan", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "pro",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_billing_provider: "stripe",
+      })
+    );
+  });
+
+  it("marks AbacatePay as the active billing provider when AbacatePay activates a plan", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      abacatepayCustomerId: "customer-1",
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_billing_provider: "abacatepay",
+      })
+    );
+  });
+
+  it("expires a pending Stripe checkout when AbacatePay activates the plan", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+        stripe_pending_checkout_session_id: "cs_pending",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      abacatepayCustomerId: "customer-1",
+    });
+
+    expect(stripeExpire).toHaveBeenCalledWith("cs_pending");
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_billing_provider: "abacatepay",
+        stripe_pending_checkout_session_id: null,
+        stripe_pending_plan: null,
+      })
+    );
   });
 
   it("clamps subscription period end when renewal starts at the end of a month", async () => {
@@ -434,9 +529,34 @@ describe("billing helpers", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it("ignores Stripe renewal webhooks when AbacatePay is the active provider", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        active_billing_provider: "abacatepay",
+        current_period_end: "2026-04-27T11:59:59.000Z",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      stripeCustomerId: "cus-1",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+    });
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("downgrades to free without resetting consumed usage", async () => {
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const updateQuery = {
+      eq: vi.fn(),
+      then: vi.fn(),
+    };
+    updateQuery.eq.mockReturnValue(updateQuery);
+    updateQuery.then.mockImplementation((resolve) => resolve({ error: null }));
+    const update = vi.fn().mockReturnValue(updateQuery);
     const from = vi.fn().mockReturnValue({ update });
     createServiceRoleClient.mockReturnValue({ from });
 
@@ -448,6 +568,9 @@ describe("billing helpers", () => {
 
     expect(update).toHaveBeenCalledWith({
       plan: "free",
+      active_billing_provider: null,
+      stripe_pending_checkout_session_id: null,
+      stripe_pending_plan: null,
       current_period_start: null,
       current_period_end: null,
       stripe_subscription_id: null,
@@ -459,7 +582,53 @@ describe("billing helpers", () => {
       abacatepay_renewal_period_end: null,
       updated_at: "2026-04-27T12:00:00.000Z",
     });
-    expect(updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+    expect(updateQuery.eq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+
+  it("guards provider cancellation against the active billing provider", async () => {
+    const updateQuery = {
+      eq: vi.fn(),
+      then: vi.fn(),
+    };
+    updateQuery.eq.mockReturnValue(updateQuery);
+    updateQuery.then.mockImplementation((resolve) => resolve({ error: null }));
+    const update = vi.fn().mockReturnValue(updateQuery);
+    const from = vi.fn().mockReturnValue({ update });
+    createServiceRoleClient.mockReturnValue({ from });
+
+    const mod = await import("./billing");
+    await mod.downgradeToFree({
+      stripeCustomerId: "cus-1",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+    });
+
+    expect(updateQuery.eq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+    expect(updateQuery.eq).toHaveBeenCalledWith("active_billing_provider", "stripe");
+  });
+
+  it("guards user-scoped cancellations with the explicit provider", async () => {
+    const updateQuery = {
+      eq: vi.fn(),
+      then: vi.fn(),
+    };
+    updateQuery.eq.mockReturnValue(updateQuery);
+    updateQuery.then.mockImplementation((resolve) => resolve({ error: null }));
+    const update = vi.fn().mockReturnValue(updateQuery);
+    const from = vi.fn().mockReturnValue({ update });
+    createServiceRoleClient.mockReturnValue({ from });
+
+    const mod = await import("./billing");
+    await mod.downgradeToFree({
+      userId: "user-1",
+      activeProvider: "abacatepay",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+    });
+
+    expect(updateQuery.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(updateQuery.eq).toHaveBeenCalledWith(
+      "active_billing_provider",
+      "abacatepay"
+    );
   });
 
   it("toggles AbacatePay auto-renew without changing the active paid period", async () => {

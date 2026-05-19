@@ -6,6 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import {
+  captureObservedError,
+  createTraceId,
+  logStructured,
+} from "@/lib/observability";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   downgradeToFree,
@@ -109,7 +114,7 @@ export const POST = withPublicRateLimit<NextRequest>(
 
         const { data: existingBilling, error: existingBillingError } = await supabase
           .from("billing_accounts")
-          .select("stripe_customer_id")
+          .select("stripe_customer_id, stripe_pending_checkout_session_id")
           .eq("user_id", userId)
           .maybeSingle();
 
@@ -117,6 +122,13 @@ export const POST = withPublicRateLimit<NextRequest>(
           throw new Error(
             `Failed to load billing account before webhook upsert: ${existingBillingError.message}`
           );
+        }
+
+        if (existingBilling?.stripe_pending_checkout_session_id !== session.id) {
+          console.warn(
+            `[stripe-webhook] Ignored stale checkout session ${session.id} for user ${userId}`
+          );
+          break;
         }
 
         await getOrCreateBillingAccount(userId, supabase);
@@ -151,6 +163,43 @@ export const POST = withPublicRateLimit<NextRequest>(
           await resetSubscriptionPeriod({ stripeCustomerId: customerId }, supabase);
           console.log(`[stripe-webhook] Reset meeting quota for customer ${customerId}`);
         }
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === "string"
+            ? invoice.customer
+            : invoice.customer?.id ?? null;
+        const requestId = createTraceId();
+        const message = "Stripe invoice payment failed";
+
+        logStructured("error", {
+          event: "billing.stripe.payment_failed",
+          requestId,
+          route: "/api/webhooks/stripe",
+          durationMs: 0,
+          status: "payment_failed",
+          stripeEventId: event.id,
+          stripeEventType: event.type,
+          stripeCustomerId: customerId,
+          stripeInvoiceId: invoice.id,
+        });
+        captureObservedError(new Error(message), {
+          event: "billing.stripe.payment_failed",
+          requestId,
+          route: "/api/webhooks/stripe",
+          durationMs: 0,
+          status: "payment_failed",
+          extra: {
+            stripeEventId: event.id,
+            stripeEventType: event.type,
+            stripeCustomerId: customerId,
+            stripeInvoiceId: invoice.id,
+            billingReason: invoice.billing_reason,
+          },
+        });
         break;
       }
 

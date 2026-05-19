@@ -40,10 +40,13 @@ export interface Database {
         Row: {
           user_id: string
           plan: string
+          active_billing_provider: string | null
           meetings_this_month: number
           meetings_used: number
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          stripe_pending_checkout_session_id: string | null
+          stripe_pending_plan: string | null
           stripe_auto_renew_enabled: boolean
           stripe_auto_renew_updated_at: string | null
           stripe_renewal_status: string
@@ -67,10 +70,13 @@ export interface Database {
         Insert: {
           user_id: string
           plan?: string
+          active_billing_provider?: string | null
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_pending_checkout_session_id?: string | null
+          stripe_pending_plan?: string | null
           stripe_auto_renew_enabled?: boolean
           stripe_auto_renew_updated_at?: string | null
           stripe_renewal_status?: string
@@ -94,10 +100,13 @@ export interface Database {
         Update: {
           user_id?: string
           plan?: string
+          active_billing_provider?: string | null
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_pending_checkout_session_id?: string | null
+          stripe_pending_plan?: string | null
           stripe_auto_renew_enabled?: boolean
           stripe_auto_renew_updated_at?: string | null
           stripe_renewal_status?: string

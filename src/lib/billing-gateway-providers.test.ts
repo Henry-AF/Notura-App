@@ -76,6 +76,7 @@ describe("billing gateway providers", () => {
     getOrCreateBillingAccount.mockResolvedValue({
       plan: "free",
       stripe_customer_id: null,
+      stripe_pending_checkout_session_id: "cs_123",
       abacatepay_customer_id: "customer-1",
     });
     getStripePriceId.mockReturnValue("price_pro");
@@ -87,6 +88,7 @@ describe("billing gateway providers", () => {
       checkout: {
         sessions: {
           create: vi.fn().mockResolvedValue({
+            id: "cs_pending",
             url: "https://checkout.stripe.com/session",
           }),
           retrieve: vi.fn().mockResolvedValue({
@@ -169,6 +171,26 @@ describe("billing gateway providers", () => {
           source: "settings",
           user_id: "user-1",
         }),
+      })
+    );
+  });
+
+  it("stores pending Stripe checkout state for stale-session cleanup", async () => {
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+
+    await createStripeCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "pro",
+      source: "settings",
+      requestOrigin: "http://localhost",
+    });
+
+    const admin = createServiceRoleClient.mock.results[0]?.value;
+    expect(admin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_pending_checkout_session_id: "cs_pending",
+        stripe_pending_plan: "pro",
       })
     );
   });

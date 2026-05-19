@@ -109,6 +109,25 @@ async function saveStripeCustomerId(
   }
 }
 
+async function saveStripePendingCheckout(input: {
+  userId: string;
+  plan: PaidPlan;
+  sessionId: string;
+}): Promise<void> {
+  const { error } = await createServiceRoleClient()
+    .from("billing_accounts")
+    .update({
+      stripe_pending_checkout_session_id: input.sessionId,
+      stripe_pending_plan: input.plan,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", input.userId);
+
+  if (error) {
+    throw new Error(`Failed to persist pending Stripe checkout: ${error.message}`);
+  }
+}
+
 async function saveStripeAutoRenew(input: {
   userId: string;
   enabled: boolean;
@@ -188,6 +207,18 @@ function validateStripeSessionOwner(input: {
   }
 }
 
+function validateStripePendingCheckout(input: {
+  pendingSessionId: string | null | undefined;
+  sessionId: string;
+}): void {
+  if (input.pendingSessionId !== input.sessionId) {
+    throw new BillingGatewayError(
+      "Sessão de pagamento não está mais ativa.",
+      409
+    );
+  }
+}
+
 export async function createStripeCheckout(
   input: BillingCheckoutInput
 ): Promise<BillingCheckoutResult> {
@@ -215,6 +246,12 @@ export async function createStripeCheckout(
   if (!session.url) {
     throw new Error("Stripe não retornou uma URL de checkout.");
   }
+
+  await saveStripePendingCheckout({
+    userId: input.userId,
+    plan: input.plan,
+    sessionId: session.id,
+  });
 
   return {
     provider: "stripe",
@@ -273,6 +310,7 @@ export async function verifyStripeCheckout(
   input: VerifyBillingCheckoutInput & { sessionId: string }
 ): Promise<VerifyBillingCheckoutResult> {
   const db = createServiceRoleClient();
+  const billingAccount = await getOrCreateBillingAccount(input.userId, db);
   const session = await getStripe().checkout.sessions.retrieve(input.sessionId);
   const plan = session.metadata?.plan;
 
@@ -280,6 +318,10 @@ export async function verifyStripeCheckout(
     userId: input.userId,
     sessionUserId: session.metadata?.user_id,
     clientReferenceId: session.client_reference_id,
+  });
+  validateStripePendingCheckout({
+    pendingSessionId: billingAccount.stripe_pending_checkout_session_id,
+    sessionId: session.id,
   });
 
   if (!isPaidPlan(plan)) {

@@ -16,11 +16,21 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
 }));
 
-function createAdminClient() {
-  const updateEq = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn().mockReturnValue({ eq: updateEq });
+function createAdminClient(
+  billingAccount: Record<string, unknown> | null = {
+    stripe_customer_id: null,
+    stripe_pending_checkout_session_id: "cs-1",
+  }
+) {
+  const updateQuery = {
+    eq: vi.fn(),
+    then: vi.fn(),
+  };
+  updateQuery.eq.mockReturnValue(updateQuery);
+  updateQuery.then.mockImplementation((resolve) => resolve({ error: null }));
+  const update = vi.fn().mockReturnValue(updateQuery);
   const maybeSingle = vi.fn().mockResolvedValue({
-    data: { stripe_customer_id: null },
+    data: billingAccount,
     error: null,
   });
   const selectEq = vi.fn().mockReturnValue({ maybeSingle });
@@ -31,7 +41,7 @@ function createAdminClient() {
   return {
     from,
     update,
-    updateEq,
+    updateEq: updateQuery.eq,
     upsert,
   };
 }
@@ -58,6 +68,7 @@ describe("POST /api/webhooks/stripe", () => {
       type: "checkout.session.completed",
       data: {
         object: {
+          id: "cs-1",
           metadata: { user_id: "user-1", plan: "team" },
           customer: "cus-1",
           subscription: "sub-1",
@@ -89,6 +100,39 @@ describe("POST /api/webhooks/stripe", () => {
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("ignores stale checkout completions that are no longer pending", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        stripe_customer_id: null,
+        stripe_pending_checkout_session_id: null,
+      })
+    );
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs-stale",
+          metadata: { user_id: "user-1", plan: "team" },
+          customer: "cus-1",
+          subscription: "sub-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).not.toHaveBeenCalled();
   });
 
   it("syncs Stripe subscription auto-renew status from subscription updates", async () => {
@@ -155,6 +199,33 @@ describe("POST /api/webhooks/stripe", () => {
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+
+  it("acknowledges failed Stripe invoice payments for support observability", async () => {
+    constructEvent.mockReturnValue({
+      id: "evt-payment-failed",
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in-1",
+          customer: "cus-1",
+          billing_reason: "subscription_cycle",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).not.toHaveBeenCalled();
   });
 
   it("downgrades deleted subscriptions without resetting consumed usage", async () => {

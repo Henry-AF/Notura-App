@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMonths } from "date-fns/addMonths";
 import { inngest } from "@/lib/inngest";
+import {
+  captureObservedError,
+  createTraceId,
+  logStructured,
+} from "@/lib/observability";
 import { getPlanMonthlyLimit } from "@/lib/plans";
+import { getStripe } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingAccount, Database, Plan } from "@/types/database";
 
@@ -40,6 +46,8 @@ type BillingAccountLookup =
   | { stripeCustomerId: string }
   | { abacatepayCustomerId: string };
 
+type ActiveBillingProvider = "stripe" | "abacatepay";
+
 type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   plan?: Exclude<Plan, "free">;
   now?: Date;
@@ -51,6 +59,7 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
 
 type DowngradeToFreeParams = BillingAccountLookup & {
   now?: Date;
+  activeProvider?: ActiveBillingProvider;
 };
 
 interface ConsumedQuotaRow {
@@ -160,6 +169,35 @@ function shouldResetStripeRenewal(params: ResetSubscriptionPeriodParams): boolea
   return Boolean(params.stripeSubscriptionId);
 }
 
+function getLookupProvider(
+  lookup: BillingAccountLookup
+): ActiveBillingProvider | null {
+  if ("stripeCustomerId" in lookup) return "stripe";
+  if ("abacatepayCustomerId" in lookup) return "abacatepay";
+  return null;
+}
+
+function getResetProvider(
+  params: ResetSubscriptionPeriodParams
+): ActiveBillingProvider | null {
+  if (shouldResetStripeRenewal(params) || "stripeCustomerId" in params) {
+    return "stripe";
+  }
+  if (shouldResetAbacatePayRenewal(params)) {
+    return "abacatepay";
+  }
+  return null;
+}
+
+function isProviderMismatch(
+  account: BillingAccount | null,
+  provider: ActiveBillingProvider | null
+): boolean {
+  if (!account || !provider) return false;
+  if (!account.active_billing_provider) return false;
+  return account.active_billing_provider !== provider;
+}
+
 function resolveSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   account: BillingAccount | null,
@@ -221,6 +259,21 @@ function buildSubscriptionResetPayload(
   if (params.abacatepaySubscriptionId) {
     updatePayload.abacatepay_subscription_id = params.abacatepaySubscriptionId;
   }
+  const activeProvider = getResetProvider(params);
+  if (activeProvider) {
+    updatePayload.active_billing_provider = activeProvider;
+  }
+  if (activeProvider === "stripe") {
+    updatePayload.stripe_pending_checkout_session_id = null;
+    updatePayload.stripe_pending_plan = null;
+    updatePayload.abacatepay_pending_checkout_id = null;
+    updatePayload.abacatepay_pending_plan = null;
+    updatePayload.abacatepay_renewal_period_end = null;
+  }
+  if (activeProvider === "abacatepay") {
+    updatePayload.stripe_pending_checkout_session_id = null;
+    updatePayload.stripe_pending_plan = null;
+  }
   return updatePayload;
 }
 
@@ -237,6 +290,41 @@ async function scheduleAbacatePayRenewal(
     data: { userId, attempt: 1 },
     ts: currentPeriodEnd.getTime(),
   });
+}
+
+async function expirePendingStripeCheckout(
+  account: BillingAccount | null,
+  activeProvider: ActiveBillingProvider | null
+): Promise<void> {
+  const pendingSessionId = account?.stripe_pending_checkout_session_id;
+  if (activeProvider !== "abacatepay" || !pendingSessionId) return;
+
+  try {
+    await getStripe().checkout.sessions.expire(pendingSessionId);
+  } catch (error) {
+    const requestId = createTraceId();
+    logStructured("warn", {
+      event: "billing.stripe.pending_checkout_expire_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "stripe_expire_failed",
+      userId: account.user_id,
+      stripeCheckoutSessionId: pendingSessionId,
+    });
+    captureObservedError(error, {
+      event: "billing.stripe.pending_checkout_expire_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "stripe_expire_failed",
+      userId: account.user_id,
+      extra: {
+        stripeCheckoutSessionId: pendingSessionId,
+        activeProvider,
+      },
+    });
+  }
 }
 
 export async function getBillingRenewalContext(
@@ -433,6 +521,7 @@ export async function resetSubscriptionPeriod(
   const account = await loadResetAccount(params, supabase);
   if (!params.plan) {
     if (!account || account.plan === "free") return;
+    if (isProviderMismatch(account, getResetProvider(params))) return;
   }
 
   const now = params.now ?? new Date();
@@ -454,6 +543,8 @@ export async function resetSubscriptionPeriod(
     throw new Error(`Failed to reset subscription period: ${error.message}`);
   }
 
+  await expirePendingStripeCheckout(account, getResetProvider(params));
+
   if (shouldResetAbacatePayRenewal(params)) {
     const userId = "userId" in params ? params.userId : account?.user_id;
     await scheduleAbacatePayRenewal(userId, period.end);
@@ -466,8 +557,12 @@ export async function downgradeToFree(
   supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<void> {
   const now = params.now ?? new Date();
+  const activeProvider = params.activeProvider ?? getLookupProvider(params);
   const query = supabase.from("billing_accounts").update({
     plan: "free",
+    active_billing_provider: null,
+    stripe_pending_checkout_session_id: null,
+    stripe_pending_plan: null,
     current_period_start: null,
     current_period_end: null,
     stripe_subscription_id: null,
@@ -479,7 +574,11 @@ export async function downgradeToFree(
     abacatepay_renewal_period_end: null,
     updated_at: now.toISOString(),
   });
-  const { error } = await applyBillingAccountLookup(query, params);
+  const lookupQuery = applyBillingAccountLookup(query, params);
+  const guardedQuery = activeProvider
+    ? lookupQuery.eq("active_billing_provider", activeProvider)
+    : lookupQuery;
+  const { error } = await guardedQuery;
 
   if (error) {
     throw new Error(`Failed to downgrade billing account: ${error.message}`);

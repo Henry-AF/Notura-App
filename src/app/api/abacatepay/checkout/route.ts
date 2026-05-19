@@ -30,7 +30,7 @@ type AbacatePayCustomerContext = Awaited<
 >;
 
 function getCheckoutReturnPath(source: CreateCheckoutBody["source"]): string {
-  return source === "settings" ? "/dashboard/settings" : "/onboarding";
+  return source === "settings" ? "/dashboard" : "/onboarding";
 }
 
 function resolveCheckoutCustomerId(

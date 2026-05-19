@@ -67,12 +67,12 @@ function isPaidPlan(plan: string): plan is Exclude<Plan, "free"> {
 
 function buildRenewalUrls(plan: Exclude<Plan, "free">) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const returnUrl = new URL("/dashboard/settings", baseUrl);
+  const returnUrl = new URL("/dashboard", baseUrl);
   returnUrl.searchParams.set("payment", "canceled");
   returnUrl.searchParams.set("plan", plan);
   returnUrl.searchParams.set("provider", "abacatepay");
 
-  const completionUrl = new URL("/dashboard/settings", baseUrl);
+  const completionUrl = new URL("/dashboard", baseUrl);
   completionUrl.searchParams.set("payment", "success");
   completionUrl.searchParams.set("plan", plan);
   completionUrl.searchParams.set("provider", "abacatepay");

@@ -163,9 +163,9 @@ describe("billing gateway providers", () => {
         customer_email: "ana@example.com",
         line_items: [{ price: "price_pro", quantity: 1 }],
         success_url:
-          "http://localhost/dashboard/settings?payment=success&plan=pro&provider=stripe&session_id={CHECKOUT_SESSION_ID}",
+          "http://localhost/dashboard?payment=success&plan=pro&provider=stripe&session_id={CHECKOUT_SESSION_ID}",
         cancel_url:
-          "http://localhost/dashboard/settings?payment=canceled&plan=pro&provider=stripe",
+          "http://localhost/dashboard?payment=canceled&plan=pro&provider=stripe",
         metadata: expect.objectContaining({
           provider: "stripe",
           source: "settings",

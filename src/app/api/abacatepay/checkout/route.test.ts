@@ -93,7 +93,7 @@ describe("POST /api/abacatepay/checkout", () => {
     isAbacatePayTimeoutError.mockReturnValue(false);
   });
 
-  it("returns dashboard settings URLs for dashboard plan changes", async () => {
+  it("returns dashboard URLs for dashboard plan changes", async () => {
     const mod = await import("./route");
 
     const response = await mod.POST(
@@ -114,9 +114,9 @@ describe("POST /api/abacatepay/checkout", () => {
     expect(createAbacatePaySubscriptionCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
         returnUrl:
-          "http://localhost/dashboard/settings?payment=canceled&plan=team&provider=abacatepay",
+          "http://localhost/dashboard?payment=canceled&plan=team&provider=abacatepay",
         completionUrl:
-          "http://localhost/dashboard/settings?payment=success&plan=team&provider=abacatepay",
+          "http://localhost/dashboard?payment=success&plan=team&provider=abacatepay",
         metadata: expect.objectContaining({
           origin: "settings",
           plan: "team",

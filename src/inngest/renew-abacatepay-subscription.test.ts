@@ -164,9 +164,9 @@ describe("renewAbacatePaySubscription", () => {
       customerId: "customer-1",
       externalId: "onboarding:user-1:pro:renewal:2026-05-27T12:00:00.000Z",
       returnUrl:
-        "https://app.notura.com/dashboard/settings?payment=canceled&plan=pro&provider=abacatepay",
+        "https://app.notura.com/dashboard?payment=canceled&plan=pro&provider=abacatepay",
       completionUrl:
-        "https://app.notura.com/dashboard/settings?payment=success&plan=pro&provider=abacatepay",
+        "https://app.notura.com/dashboard?payment=success&plan=pro&provider=abacatepay",
       metadata: {
         userId: "user-1",
         plan: "pro",

@@ -39,7 +39,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 type PaidPlan = BillingCheckoutInput["plan"];
 
 function getCheckoutReturnPath(source: BillingCheckoutInput["source"]): string {
-  return source === "settings" ? "/dashboard/settings" : "/onboarding";
+  return source === "settings" ? "/dashboard" : "/onboarding";
 }
 
 function buildCheckoutUrl(

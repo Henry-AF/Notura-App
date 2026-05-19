@@ -150,6 +150,7 @@ describe("POST /api/webhooks/abacatepay", () => {
       user_id: "user-1",
       plan: "free",
       current_period_end: null,
+      abacatepay_pending_checkout_id: "subs-1",
     });
     createServiceRoleClient.mockReturnValue(adminClient);
 

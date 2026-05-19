@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import {
   createAbacatePaySubscriptionCheckout,
+  cancelAbacatePaySubscription,
   getAbacatePaySubscriptionById,
   getAbacatePayCheckoutExternalId,
   getAbacatePayProductId,
@@ -119,12 +120,37 @@ async function saveStripePendingCheckout(input: {
     .update({
       stripe_pending_checkout_session_id: input.sessionId,
       stripe_pending_plan: input.plan,
+      abacatepay_pending_checkout_id: null,
+      abacatepay_pending_plan: null,
+      abacatepay_renewal_period_end: null,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", input.userId);
 
   if (error) {
     throw new Error(`Failed to persist pending Stripe checkout: ${error.message}`);
+  }
+}
+
+async function expireStripeCheckoutIfPending(sessionId: string | null): Promise<void> {
+  if (!sessionId) return;
+
+  try {
+    await getStripe().checkout.sessions.expire(sessionId);
+  } catch (error) {
+    console.warn("[billing-gateway] Failed to expire pending Stripe checkout:", error);
+  }
+}
+
+async function cancelAbacatePayCheckoutIfPending(
+  checkoutId: string | null
+): Promise<void> {
+  if (!checkoutId) return;
+
+  try {
+    await cancelAbacatePaySubscription(checkoutId);
+  } catch (error) {
+    console.warn("[billing-gateway] Failed to cancel pending AbacatePay checkout:", error);
   }
 }
 
@@ -258,6 +284,15 @@ export async function createStripeCheckout(
   if (!session.url) {
     throw new Error("Stripe não retornou uma URL de checkout.");
   }
+
+  await Promise.all([
+    expireStripeCheckoutIfPending(
+      billingAccount.stripe_pending_checkout_session_id === session.id
+        ? null
+        : billingAccount.stripe_pending_checkout_session_id
+    ),
+    cancelAbacatePayCheckoutIfPending(billingAccount.abacatepay_pending_checkout_id),
+  ]);
 
   await saveStripePendingCheckout({
     userId: input.userId,
@@ -395,6 +430,14 @@ export async function createAbacatePayCheckout(
     return { provider: "abacatepay", alreadyActive: true, plan: input.plan };
   }
 
+  const existingCheckout = await getReusableAbacatePayCheckout(input, context);
+  if (existingCheckout) {
+    return {
+      provider: "abacatepay",
+      checkoutUrl: existingCheckout.url,
+    };
+  }
+
   const customer = await ensureProviderAbacatePayCustomer(
     db,
     { id: input.userId, email: input.userEmail },
@@ -402,6 +445,9 @@ export async function createAbacatePayCheckout(
     { source: input.source, waitForFreshLock: true }
   );
   const customerId = getAbacatePayCustomerId(customer);
+  await expireStripeCheckoutIfPending(
+    context.billingAccount.stripe_pending_checkout_session_id
+  );
   const subscription = await createAbacatePaySubscription(input, customerId);
   await saveAbacatePayPendingCheckout(input, customerId, subscription.id);
 
@@ -409,6 +455,30 @@ export async function createAbacatePayCheckout(
     provider: "abacatepay",
     checkoutUrl: subscription.url,
   };
+}
+
+async function getReusableAbacatePayCheckout(
+  input: BillingCheckoutInput,
+  context: Awaited<ReturnType<typeof loadAbacatePayCustomerContext>>
+): Promise<{ url: string } | null> {
+  const pendingCheckoutId = context.billingAccount.abacatepay_pending_checkout_id;
+  if (!pendingCheckoutId || context.billingAccount.abacatepay_pending_plan !== input.plan) {
+    return null;
+  }
+
+  try {
+    const subscription = await getAbacatePaySubscriptionById(pendingCheckoutId);
+    if (
+      subscription?.url &&
+      !isAbacatePaySubscriptionPaid(subscription)
+    ) {
+      return { url: subscription.url };
+    }
+  } catch (error) {
+    console.warn("[billing-gateway] Failed to load pending AbacatePay checkout:", error);
+  }
+
+  return null;
 }
 
 export async function ensureAbacatePayCustomer(
@@ -472,6 +542,7 @@ export async function verifyAbacatePayCheckout(
     {
       userId: input.userId,
       plan: pendingPlan,
+      abacatepayPendingCheckoutId: billingAccount.abacatepay_pending_checkout_id,
       abacatepayCustomerId:
         subscription.customerId ?? billingAccount.abacatepay_customer_id ?? undefined,
       clearAbacatePayPending: true,
@@ -564,6 +635,8 @@ async function saveAbacatePayPendingCheckout(
       abacatepay_customer_id: customerId,
       abacatepay_pending_checkout_id: checkoutId,
       abacatepay_pending_plan: input.plan as PaidPlan,
+      stripe_pending_checkout_session_id: null,
+      stripe_pending_plan: null,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", input.userId);

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
 const stripeExpire = vi.fn();
+const abacatepayCancel = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
@@ -22,6 +23,10 @@ vi.mock("@/lib/stripe", () => ({
       },
     },
   }),
+}));
+
+vi.mock("@/lib/abacatepay", () => ({
+  cancelAbacatePaySubscription: abacatepayCancel,
 }));
 
 function createBillingClient(options?: {
@@ -89,6 +94,7 @@ describe("billing helpers", () => {
     vi.clearAllMocks();
     inngestSend.mockResolvedValue(undefined);
     stripeExpire.mockResolvedValue({});
+    abacatepayCancel.mockResolvedValue(undefined);
   });
 
   it("uses billing_accounts.meetings_used as source of truth", async () => {
@@ -417,6 +423,61 @@ describe("billing helpers", () => {
         stripe_pending_plan: null,
       })
     );
+  });
+
+  it("cancels pending AbacatePay checkout when Stripe activates the plan", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+        abacatepay_pending_checkout_id: "abacatepay-pending-1",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+    });
+
+    expect(abacatepayCancel).toHaveBeenCalledWith("abacatepay-pending-1");
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_billing_provider: "stripe",
+        abacatepay_pending_checkout_id: null,
+        abacatepay_pending_plan: null,
+      })
+    );
+  });
+
+  it("ignores stale AbacatePay payments when checkout is no longer pending", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        active_billing_provider: "stripe",
+        current_period_end: "2026-05-27T12:00:00.000Z",
+        abacatepay_pending_checkout_id: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      abacatepayCustomerId: "customer-1",
+      abacatepayPendingCheckoutId: "stale-abacatepay-checkout",
+      clearAbacatePayPending: true,
+    });
+
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("clamps subscription period end when renewal starts at the end of a month", async () => {

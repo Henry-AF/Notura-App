@@ -11,8 +11,11 @@ const createServiceRoleClient = vi.fn();
 const loadAbacatePayCustomerContext = vi.fn();
 const ensureAbacatePayCustomer = vi.fn();
 const createAbacatePaySubscriptionCheckout = vi.fn();
+const cancelAbacatePaySubscription = vi.fn();
+const getAbacatePaySubscriptionById = vi.fn();
 const getAbacatePayCheckoutExternalId = vi.fn();
 const getAbacatePayProductId = vi.fn();
+const isAbacatePaySubscriptionPaid = vi.fn();
 const withBillingSpan = vi.fn((_options, callback) =>
   callback({ setAttribute: vi.fn() })
 );
@@ -46,8 +49,11 @@ vi.mock("@/lib/abacatepay-customer", () => ({
 
 vi.mock("@/lib/abacatepay", () => ({
   createAbacatePaySubscriptionCheckout,
+  cancelAbacatePaySubscription,
+  getAbacatePaySubscriptionById,
   getAbacatePayCheckoutExternalId,
   getAbacatePayProductId,
+  isAbacatePaySubscriptionPaid,
 }));
 
 vi.mock("@/lib/billing-observability", () => ({
@@ -77,6 +83,7 @@ describe("billing gateway providers", () => {
       plan: "free",
       stripe_customer_id: null,
       stripe_pending_checkout_session_id: "cs_123",
+      abacatepay_pending_checkout_id: null,
       abacatepay_customer_id: "customer-1",
     });
     getStripePriceId.mockReturnValue("price_pro");
@@ -91,6 +98,7 @@ describe("billing gateway providers", () => {
             id: "cs_pending",
             url: "https://checkout.stripe.com/session",
           }),
+          expire: vi.fn().mockResolvedValue({}),
           retrieve: vi.fn().mockResolvedValue({
             id: "cs_123",
             mode: "subscription",
@@ -134,6 +142,9 @@ describe("billing gateway providers", () => {
       id: "checkout-1",
       url: "https://pay.abacatepay.com/session",
     });
+    cancelAbacatePaySubscription.mockResolvedValue(undefined);
+    getAbacatePaySubscriptionById.mockResolvedValue(null);
+    isAbacatePaySubscriptionPaid.mockReturnValue(false);
     setAbacatePayAutoRenew.mockResolvedValue({
       autoRenewEnabled: false,
       currentPeriodEnd: "2026-06-14T12:00:00.000Z",
@@ -193,6 +204,29 @@ describe("billing gateway providers", () => {
         stripe_pending_plan: "pro",
       })
     );
+  });
+
+  it("expires previous Stripe checkout and cancels fallback checkout before using Stripe", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "free",
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: "cs_old",
+      abacatepay_pending_checkout_id: "abacatepay-pending-1",
+      abacatepay_customer_id: "customer-1",
+    });
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+
+    await createStripeCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "pro",
+      source: "settings",
+      requestOrigin: "http://localhost",
+    });
+
+    const stripe = getStripe.mock.results[0]?.value;
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith("cs_old");
+    expect(cancelAbacatePaySubscription).toHaveBeenCalledWith("abacatepay-pending-1");
   });
 
   it("prewarms and stores a Stripe customer", async () => {
@@ -304,5 +338,38 @@ describe("billing gateway providers", () => {
       plan: "pro",
       paymentStatus: "paid",
     });
+  });
+
+  it("reuses an existing AbacatePay fallback checkout while Stripe is unavailable", async () => {
+    loadAbacatePayCustomerContext.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        abacatepay_customer_id: "customer-1",
+        abacatepay_pending_checkout_id: "checkout-existing",
+        abacatepay_pending_plan: "team",
+        stripe_pending_checkout_session_id: null,
+      },
+      profile: null,
+    });
+    getAbacatePaySubscriptionById.mockResolvedValueOnce({
+      id: "checkout-existing",
+      url: "https://pay.abacatepay.com/existing",
+      status: "PENDING",
+    });
+    const { createAbacatePayCheckout } = await import("./billing-gateway-providers");
+
+    const result = await createAbacatePayCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "team",
+      source: "settings",
+      requestOrigin: "http://localhost",
+    });
+
+    expect(result).toEqual({
+      provider: "abacatepay",
+      checkoutUrl: "https://pay.abacatepay.com/existing",
+    });
+    expect(createAbacatePaySubscriptionCheckout).not.toHaveBeenCalled();
   });
 });

@@ -113,6 +113,7 @@ export const POST = withAuthRateLimit(
         {
           userId: auth.user.id,
           plan: pendingPlan,
+          abacatepayPendingCheckoutId: billingAccount.abacatepay_pending_checkout_id,
           abacatepayCustomerId:
             subscription.customerId ?? billingAccount.abacatepay_customer_id ?? undefined,
           clearAbacatePayPending: true,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMonths } from "date-fns/addMonths";
 import { inngest } from "@/lib/inngest";
+import { cancelAbacatePaySubscription } from "@/lib/abacatepay";
 import {
   captureObservedError,
   createTraceId,
@@ -52,6 +53,7 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   plan?: Exclude<Plan, "free">;
   now?: Date;
   clearAbacatePayPending?: boolean;
+  abacatepayPendingCheckoutId?: string;
   abacatepaySubscriptionId?: string;
   stripeSubscriptionId?: string;
   previousPeriodEnd?: Date | string | null;
@@ -198,6 +200,14 @@ function isProviderMismatch(
   return account.active_billing_provider !== provider;
 }
 
+function isStaleAbacatePayCheckout(
+  account: BillingAccount | null,
+  params: ResetSubscriptionPeriodParams
+): boolean {
+  if (!account || !params.abacatepayPendingCheckoutId) return false;
+  return account.abacatepay_pending_checkout_id !== params.abacatepayPendingCheckoutId;
+}
+
 function resolveSubscriptionPeriod(
   params: ResetSubscriptionPeriodParams,
   account: BillingAccount | null,
@@ -268,6 +278,7 @@ function buildSubscriptionResetPayload(
     updatePayload.stripe_pending_plan = null;
     updatePayload.abacatepay_pending_checkout_id = null;
     updatePayload.abacatepay_pending_plan = null;
+    updatePayload.abacatepay_subscription_id = null;
     updatePayload.abacatepay_renewal_period_end = null;
   }
   if (activeProvider === "abacatepay") {
@@ -325,6 +336,57 @@ async function expirePendingStripeCheckout(
       },
     });
   }
+}
+
+async function cancelAbacatePaySubscriptionIfPresent(
+  subscriptionId: string,
+  context: Record<string, unknown>
+): Promise<void> {
+  try {
+    await cancelAbacatePaySubscription(subscriptionId);
+  } catch (error) {
+    const requestId = createTraceId();
+    logStructured("warn", {
+      event: "billing.abacatepay.subscription_cancel_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "abacatepay_cancel_failed",
+      ...context,
+    });
+    captureObservedError(error, {
+      event: "billing.abacatepay.subscription_cancel_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "abacatepay_cancel_failed",
+      extra: context,
+    });
+  }
+}
+
+async function cancelInactiveAbacatePayCheckouts(
+  account: BillingAccount | null,
+  activeProvider: ActiveBillingProvider | null
+): Promise<void> {
+  if (activeProvider !== "stripe" || !account) return;
+
+  const subscriptionIds = new Set(
+    [
+      account.abacatepay_pending_checkout_id,
+      account.abacatepay_subscription_id,
+    ].filter((value): value is string => Boolean(value))
+  );
+
+  await Promise.all(
+    Array.from(subscriptionIds).map((subscriptionId) =>
+      cancelAbacatePaySubscriptionIfPresent(subscriptionId, {
+        userId: account.user_id,
+        abacatepaySubscriptionId: subscriptionId,
+        activeProvider,
+      })
+    )
+  );
 }
 
 export async function getBillingRenewalContext(
@@ -519,6 +581,7 @@ export async function resetSubscriptionPeriod(
   supabase: SupabaseClient<Database> = createServiceRoleClient()
 ): Promise<void> {
   const account = await loadResetAccount(params, supabase);
+  if (isStaleAbacatePayCheckout(account, params)) return;
   if (!params.plan) {
     if (!account || account.plan === "free") return;
     if (isProviderMismatch(account, getResetProvider(params))) return;
@@ -544,6 +607,7 @@ export async function resetSubscriptionPeriod(
   }
 
   await expirePendingStripeCheckout(account, getResetProvider(params));
+  await cancelInactiveAbacatePayCheckouts(account, getResetProvider(params));
 
   if (shouldResetAbacatePayRenewal(params)) {
     const userId = "userId" in params ? params.userId : account?.user_id;

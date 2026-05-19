@@ -299,6 +299,7 @@ async function handleBillingPaid(
     userId: parsed.userId,
     plan: parsed.plan,
     clearAbacatePayPending: true,
+    ...(subscriptionId ? { abacatepayPendingCheckoutId: subscriptionId } : {}),
     ...(subscriptionId ? { abacatepaySubscriptionId: subscriptionId } : {}),
     ...(customerId ? { abacatepayCustomerId: customerId } : {}),
   };

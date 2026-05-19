@@ -14,12 +14,12 @@ export interface MeetingEditRecord {
   title: string | null;
   client_name: string | null;
   meeting_date: string | null;
+  group_id: string | null;
   created_at: string;
 }
 
 export interface MeetingEditInput {
   title?: string;
-  clientName?: string;
   meetingDate?: string;
 }
 
@@ -42,7 +42,6 @@ function normalizeEditableText(value: string | undefined, label: string): string
 
 function buildMeetingUpdatePayload(input: MeetingEditInput) {
   const title = normalizeEditableText(input.title, "Título");
-  const clientName = normalizeEditableText(input.clientName, "Empresa");
   const meetingDate = input.meetingDate;
 
   if (meetingDate !== undefined) {
@@ -57,7 +56,6 @@ function buildMeetingUpdatePayload(input: MeetingEditInput) {
 
   const payload = {
     ...(title !== undefined && { title }),
-    ...(clientName !== undefined && { client_name: clientName }),
     ...(meetingDate !== undefined && { meeting_date: meetingDate }),
   };
 
@@ -74,7 +72,7 @@ async function selectMeetingForEdit(
 ): Promise<MeetingEditRecord> {
   const { data, error } = await supabaseAdmin
     .from("meetings")
-    .select("id, title, client_name, meeting_date, created_at")
+    .select("id, title, client_name, meeting_date, group_id, created_at")
     .eq("id", meetingId)
     .single();
 
@@ -95,7 +93,7 @@ async function updateMeetingForEdit(
     .from("meetings")
     .update(payload)
     .eq("id", meetingId)
-    .select("id, title, client_name, meeting_date, created_at")
+    .select("id, title, client_name, meeting_date, group_id, created_at")
     .single();
 
   if (error || !data) {

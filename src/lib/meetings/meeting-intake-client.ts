@@ -3,6 +3,10 @@ import {
   isValidWhatsappNumber,
   normalizeWhatsappNumber,
 } from "@/lib/meetings/whatsapp-number";
+import {
+  fetchMeetingGroupOptions,
+  type MeetingGroupOption,
+} from "@/lib/meeting-groups-client";
 
 interface CurrentUserDefaultsResponse {
   user?: {
@@ -27,6 +31,7 @@ interface ProcessMeetingApiResponse {
 export interface MeetingIntakeDefaults {
   accountWhatsappNumber: string;
   canSendWhatsAppSummary: boolean;
+  meetingGroups: MeetingGroupOption[];
 }
 
 export interface InitMeetingUploadInput {
@@ -36,15 +41,18 @@ export interface InitMeetingUploadInput {
 }
 
 export interface ProcessMeetingUploadInput {
-  clientName: string;
   meetingDate: string;
   whatsappNumber: string;
   r2Key: string;
   uploadToken?: string;
+  groupId?: string | null;
 }
 
 export async function fetchMeetingIntakeDefaults(): Promise<MeetingIntakeDefaults> {
-  const response = await fetch("/api/user/me", { method: "GET" });
+  const [response, meetingGroups] = await Promise.all([
+    fetch("/api/user/me", { method: "GET" }),
+    fetchMeetingGroupOptions(),
+  ]);
   const body = await parseJson<CurrentUserDefaultsResponse>(response);
 
   if (!response.ok || !body.user) {
@@ -55,6 +63,7 @@ export async function fetchMeetingIntakeDefaults(): Promise<MeetingIntakeDefault
   return {
     accountWhatsappNumber: isValidWhatsappNumber(normalized) ? normalized : "",
     canSendWhatsAppSummary: Boolean(body.user.canSendWhatsAppSummary),
+    meetingGroups,
   };
 }
 
@@ -92,11 +101,11 @@ export async function processUploadedMeeting(
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      clientName: input.clientName,
       meetingDate: input.meetingDate,
       whatsappNumber: input.whatsappNumber,
       r2Key: input.r2Key,
       ...(input.uploadToken ? { uploadToken: input.uploadToken } : {}),
+      ...(input.groupId ? { groupId: input.groupId } : {}),
     }),
   });
   const body = await parseJson<ProcessMeetingApiResponse>(response);

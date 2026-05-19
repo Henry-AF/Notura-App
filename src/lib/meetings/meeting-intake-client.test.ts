@@ -6,17 +6,39 @@ describe("meeting intake client", () => {
   });
 
   it("fetches the current user's whatsapp defaults through /api/user/me", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          user: {
-            whatsappNumber: "+55 (11) 99999-9999",
-            canSendWhatsAppSummary: true,
-          },
-        }),
-        { status: 200 }
-      )
-    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (input === "/api/meeting-groups") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              groups: [
+                {
+                  id: "group-1",
+                  name: "Acme",
+                  created_at: "2026-04-16T12:00:00Z",
+                  updated_at: "2026-04-16T12:00:00Z",
+                  meetings_count: 0,
+                },
+              ],
+              meetings: [],
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            user: {
+              whatsappNumber: "+55 (11) 99999-9999",
+              canSendWhatsAppSummary: true,
+            },
+          }),
+          { status: 200 }
+        )
+      );
+    });
 
     const mod = await import("./meeting-intake-client");
     const result = await mod.fetchMeetingIntakeDefaults();
@@ -25,21 +47,44 @@ describe("meeting intake client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: true,
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });
 
-  it("keeps WhatsApp summary disabled in defaults for non-paying users", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          user: {
-            whatsappNumber: "+55 (11) 99999-9999",
-            canSendWhatsAppSummary: false,
-          },
-        }),
-        { status: 200 }
-      )
-    );
+  it("keeps WhatsApp summary disabled in defaults for non-paying users without hiding groups", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (input === "/api/meeting-groups") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              groups: [
+                {
+                  id: "group-1",
+                  name: "Acme",
+                  created_at: "2026-04-16T12:00:00Z",
+                  updated_at: "2026-04-16T12:00:00Z",
+                  meetings_count: 0,
+                },
+              ],
+              meetings: [],
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            user: {
+              whatsappNumber: "+55 (11) 99999-9999",
+              canSendWhatsAppSummary: false,
+            },
+          }),
+          { status: 200 }
+        )
+      );
+    });
 
     const mod = await import("./meeting-intake-client");
     const result = await mod.fetchMeetingIntakeDefaults();
@@ -47,6 +92,7 @@ describe("meeting intake client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: false,
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });
 
@@ -97,22 +143,22 @@ describe("meeting intake client", () => {
 
     const mod = await import("./meeting-intake-client");
     const meetingId = await mod.processUploadedMeeting({
-      clientName: "Acme",
       meetingDate: "2026-04-16",
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/audio.mp3",
       uploadToken: "signed-upload-token",
+      groupId: "group-1",
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/meetings/process", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        clientName: "Acme",
         meetingDate: "2026-04-16",
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",
         uploadToken: "signed-upload-token",
+        groupId: "group-1",
       }),
     });
     expect(meetingId).toBe("meeting-1");

@@ -10,12 +10,24 @@ function readSource() {
 }
 
 describe("meetings client presentation", () => {
-  it("reuses the shared new meeting dropdown in the page header", () => {
+  it("keeps the primary new meeting action in the page header", () => {
     const source = readSource();
 
-    expect(source).toContain("NewMeetingDropdown");
+    expect(source).toContain('title="Reuniões"');
     expect(source).toContain("actions={");
-    expect(source).toContain('router.push("/dashboard/recording")');
-    expect(source).toContain('router.push("/dashboard/recording?mode=upload")');
+    expect(source).toContain('href="/dashboard/recording"');
+    expect(source).toContain("Nova reunião");
+  });
+
+  it("renders the meetings table through the shared dashboard list wrapper", () => {
+    const source = readSource();
+
+    expect(source).toContain("DashboardListSection");
+    expect(source).toContain("<p>Título</p>");
+    expect(source).toContain('placeholder="Buscar por título..."');
+    expect(source).toContain("<p>Data</p>");
+    expect(source).toContain("<p>Status</p>");
+    expect(source).toContain('<p className="text-right">Ações</p>');
+    expect(source).toContain('title="Nenhuma reunião encontrada"');
   });
 });

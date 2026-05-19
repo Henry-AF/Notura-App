@@ -325,7 +325,7 @@ describe("POST /api/meetings/process", () => {
     expect(incrementMeetingsThisMonth).not.toHaveBeenCalled();
   });
 
-  it("creates a free meeting without a WhatsApp recipient and queues processing without relying on payload plan", async () => {
+  it("creates a free meeting with a selected group without a WhatsApp recipient", async () => {
     getBillingStatus.mockResolvedValue({
       billingAccount: { plan: "free", meetings_used: 1 },
       meetingsThisMonth: 1,
@@ -340,6 +340,13 @@ describe("POST /api/meetings/process", () => {
     });
     getWhatsAppSummaryAccess.mockResolvedValue({ canSend: false, plan: "free" });
 
+    meetingsSelectMaybeSingle
+      .mockResolvedValueOnce({
+        data: { id: "group-1", user_id: "user-1" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
     const mod = await import("./route");
     const response = await mod.POST(
       new Request("http://localhost/api/meetings/process", {
@@ -350,6 +357,7 @@ describe("POST /api/meetings/process", () => {
           meetingDate: "2026-04-10",
           r2Key: "meetings/user-1/audio.mp3",
           uploadToken: "valid-token",
+          groupId: "group-1",
           plan: "team",
         }),
       }) as NextRequest,
@@ -363,6 +371,7 @@ describe("POST /api/meetings/process", () => {
     );
     expect(meetingsInsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        group_id: "group-1",
         whatsapp_number: "",
       })
     );
@@ -372,6 +381,39 @@ describe("POST /api/meetings/process", () => {
           whatsappNumber: "",
           userId: "user-1",
         }),
+      })
+    );
+  });
+
+  it("stores the selected meeting group when it belongs to the user", async () => {
+    meetingsSelectMaybeSingle
+      .mockResolvedValueOnce({
+        data: { id: "group-1", user_id: "user-1" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new Request("http://localhost/api/meetings/process", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Acme",
+          meetingDate: "2026-04-10",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "(11) 98888-7777",
+          uploadToken: "valid-token",
+          groupId: "group-1",
+        }),
+      }) as NextRequest,
+      { params: {} } as never
+    );
+
+    expect(response.status).toBe(201);
+    expect(meetingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group_id: "group-1",
       })
     );
   });

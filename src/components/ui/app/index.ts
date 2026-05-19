@@ -1,4 +1,5 @@
 export { ActionBar } from "./action-bar";
+export { DashboardListSection } from "./dashboard-list-section";
 export { EmptyState } from "./empty-state";
 export { ErrorState } from "./error-state";
 export { FilterBar } from "./filter-bar";

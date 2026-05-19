@@ -6,17 +6,27 @@ describe("meeting upload client", () => {
   });
 
   it("loads whatsapp defaults through /api/user/me", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          user: {
-            whatsappNumber: "+55 (11) 99999-9999",
-            canSendWhatsAppSummary: true,
-          },
-        }),
-        { status: 200 }
-      )
-    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (input === "/api/meeting-groups") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ groups: [], meetings: [] }), {
+            status: 200,
+          })
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            user: {
+              whatsappNumber: "+55 (11) 99999-9999",
+              canSendWhatsAppSummary: true,
+            },
+          }),
+          { status: 200 }
+        )
+      );
+    });
 
     const mod = await import("./meeting-upload-client");
     const result = await mod.fetchMeetingUploadDefaults();
@@ -25,6 +35,7 @@ describe("meeting upload client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: true,
+      meetingGroups: [],
     });
   });
 
@@ -75,7 +86,6 @@ describe("meeting upload client", () => {
 
     const mod = await import("./meeting-upload-client");
     const meetingId = await mod.processUploadedMeeting({
-      clientName: "Acme",
       meetingDate: "2026-04-14",
       whatsappNumber: "5511999999999",
       r2Key: "meetings/user-1/123/audio.mp3",
@@ -86,7 +96,6 @@ describe("meeting upload client", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        clientName: "Acme",
         meetingDate: "2026-04-14",
         whatsappNumber: "5511999999999",
         r2Key: "meetings/user-1/123/audio.mp3",

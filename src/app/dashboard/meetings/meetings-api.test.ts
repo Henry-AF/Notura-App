@@ -49,7 +49,6 @@ describe("meetings api client", () => {
     expect(meetings).toEqual([
       expect.objectContaining({
         id: "meeting-1",
-        clientName: "Acme",
         title: "Kickoff",
         status: "processing",
         rawDate: "2026-04-07T08:00:00.000Z",

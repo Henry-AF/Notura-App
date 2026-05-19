@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { User, MessageSquare, Loader2, Zap } from "lucide-react";
+import { MessageSquare, Loader2, Zap } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import {
@@ -21,7 +21,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface MeetingFormData {
-  clientName: string;
   meetingDate: string;
   whatsappNumber: string;
 }
@@ -63,7 +62,6 @@ export function MeetingForm({
   canSendWhatsAppSummary = true,
   fileField,
 }: MeetingFormProps) {
-  const [clientName, setClientName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [selectedMeetingDate, setSelectedMeetingDate] = useState<Date | undefined>();
   const [whatsappSource, setWhatsappSource] = useState<WhatsappNumberSource>("account");
@@ -116,10 +114,6 @@ export function MeetingForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientName.trim()) {
-      onValidationError("Preencha o nome do cliente.");
-      return;
-    }
     if (!meetingDate) {
       onValidationError("Selecione a data da reunião.");
       return;
@@ -137,7 +131,6 @@ export function MeetingForm({
       }
     }
     onSubmit({
-      clientName: clientName.trim(),
       meetingDate,
       whatsappNumber: canSendWhatsAppSummary ? selectedWhatsappNormalized : "",
     });
@@ -152,21 +145,6 @@ export function MeetingForm({
       </h2>
 
       {fileField ? <div>{fileField}</div> : null}
-
-      {/* Client name */}
-      <div>
-        <label className={labelCls}>Nome do cliente</label>
-        <div className="relative">
-          <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Ex: Tech Solutions Inc."
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-            className={`${inputCls} pl-9`}
-          />
-        </div>
-      </div>
 
       {/* Meeting date */}
       <div>

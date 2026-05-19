@@ -47,7 +47,6 @@ export const PATCH = withAuth<{ id: string }, NextRequest>(async (
   try {
     const body = (await request.json()) as {
       title?: string;
-      clientName?: string;
       meetingDate?: string;
     };
 
@@ -55,8 +54,8 @@ export const PATCH = withAuth<{ id: string }, NextRequest>(async (
     return NextResponse.json({
       id: meeting.id,
       title: meeting.title,
-      clientName: meeting.client_name,
       meetingDate: meeting.meeting_date,
+      groupId: meeting.group_id,
     });
   } catch (error) {
     if (error instanceof Response) {

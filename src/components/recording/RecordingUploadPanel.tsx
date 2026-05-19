@@ -214,7 +214,6 @@ export function RecordingUploadPanel({
 
       try {
         const meetingId = await submitUploadedMeeting({
-          clientName: data.clientName,
           meetingDate: data.meetingDate,
           whatsappNumber: data.whatsappNumber,
           file,

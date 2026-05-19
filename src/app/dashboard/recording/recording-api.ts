@@ -3,18 +3,20 @@ import {
   initMeetingUpload,
   processUploadedMeeting,
 } from "@/lib/meetings/meeting-upload-client";
+import type { MeetingGroupOption } from "@/lib/meeting-groups-client";
 import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 
 export interface RecordingDefaults {
   accountWhatsappNumber: string;
   canSendWhatsAppSummary: boolean;
+  meetingGroups: MeetingGroupOption[];
 }
 
 export interface SubmitRecordedMeetingInput {
-  clientName: string;
   whatsappNumber: string;
   recording: Blob;
   recordedAt?: Date;
+  groupId?: string | null;
   onUploadProgress?: (pct: number) => void;
 }
 
@@ -78,11 +80,11 @@ export async function submitRecordedMeeting(
     );
 
     return await processUploadedMeeting({
-      clientName: input.clientName,
       meetingDate: formatDateToYmd(recordedAt),
       whatsappNumber: input.whatsappNumber,
       r2Key,
       uploadToken,
+      groupId: input.groupId,
     });
   })();
 

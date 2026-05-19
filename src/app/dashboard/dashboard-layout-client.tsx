@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
+  FolderKanban,
   LayoutGrid,
   LogOut,
   Menu,
@@ -39,12 +40,14 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   exact?: boolean;
+  badge?: string;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, exact: true },
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
-  { href: "/dashboard/ai-chats", label: "Chats", icon: Bot },
+  { href: "/dashboard/groups", label: "Grupos", icon: FolderKanban },
+  { href: "/dashboard/ai-chats", label: "Chats", icon: Bot, badge: "BETA" },
   // { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];
 
@@ -241,11 +244,23 @@ function SidebarNavigation({ onNavigate, collapsible }: { onNavigate?: () => voi
               )}
             />
             {collapsible ? (
-              <span className="hidden whitespace-nowrap group-hover:block">
+              <span className="hidden whitespace-nowrap group-hover:flex group-hover:items-center group-hover:gap-1.5">
                 {item.label}
+                {item.badge ? (
+                  <span className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary">
+                    {item.badge}
+                  </span>
+                ) : null}
               </span>
             ) : (
-              item.label
+              <span className="flex items-center gap-1.5">
+                {item.label}
+                {item.badge ? (
+                  <span className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </span>
             )}
           </Link>
         );

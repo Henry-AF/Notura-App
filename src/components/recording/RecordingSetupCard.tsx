@@ -6,13 +6,21 @@ import {
   MessageSquare,
   Mic,
   MonitorUp,
+  FolderPlus,
   UploadCloud,
-  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -22,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { SegmentedControlOption } from "@/components/ui/segmented-control";
+import type { MeetingGroupOption } from "@/lib/meeting-groups-client";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
 import { getRecordingTheme } from "./recording-theme";
 import {
@@ -35,9 +44,9 @@ type WhatsappNumberSource = "account" | "custom";
 export type RecordingMode = "in-person" | "remote" | "upload";
 
 export interface RecordingSetupValues {
-  clientName: string;
   whatsappNumber: string;
   recordingMode: RecordingMode;
+  groupId?: string | null;
   meetingDate?: string;
 }
 
@@ -47,7 +56,11 @@ interface RecordingSetupCardProps {
   isStarting: boolean;
   hasUploadFile?: boolean;
   recordingMode: RecordingMode;
+  meetingGroups?: MeetingGroupOption[];
+  selectedGroupId?: string | null;
   onRecordingModeChange: (mode: RecordingMode) => void;
+  onGroupIdChange?: (groupId: string | null) => void;
+  onCreateGroup?: (name: string) => Promise<MeetingGroupOption>;
   onStart: (values: RecordingSetupValues) => void;
   onValidationError: (message: string) => void;
   uploadField?: React.ReactNode;
@@ -61,6 +74,8 @@ const RECORDING_MODE_OPTIONS: SegmentedControlOption<RecordingMode>[] = [
 
 const labelClassName =
   "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground";
+const NO_GROUP_VALUE = "__none__";
+const CREATE_GROUP_VALUE = "__create__";
 
 export function RecordingSetupCard({
   accountWhatsappNumber = "",
@@ -68,18 +83,24 @@ export function RecordingSetupCard({
   isStarting,
   hasUploadFile = false,
   recordingMode,
+  meetingGroups = [],
+  selectedGroupId = null,
   onRecordingModeChange,
+  onGroupIdChange,
+  onCreateGroup,
   onStart,
   onValidationError,
   uploadField,
 }: RecordingSetupCardProps) {
-  const [clientName, setClientName] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [selectedMeetingDate, setSelectedMeetingDate] = useState<Date | undefined>();
   const [whatsappSource, setWhatsappSource] =
     useState<WhatsappNumberSource>("account");
   const [customWhatsappNumber, setCustomWhatsappNumber] = useState("");
   const [hasTouchedWhatsappSource, setHasTouchedWhatsappSource] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [today] = useState(() => new Date());
 
   const accountWhatsappNumberNormalized = normalizeWhatsappNumber(
@@ -128,11 +149,6 @@ export function RecordingSetupCard({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!clientName.trim()) {
-      onValidationError("Preencha o nome do cliente.");
-      return;
-    }
-
     if (canSendWhatsAppSummary) {
       const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
       if (whatsappError) {
@@ -160,13 +176,38 @@ export function RecordingSetupCard({
     }
 
     onStart({
-      clientName: clientName.trim(),
       whatsappNumber: canSendWhatsAppSummary
         ? normalizeWhatsappNumber(selectedWhatsappRaw)
         : "",
       recordingMode,
+      groupId: selectedGroupId,
       meetingDate: isUploadMode ? meetingDate : undefined,
     });
+  }
+
+  async function handleCreateGroup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!onCreateGroup) return;
+
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) {
+      onValidationError("Preencha o nome do grupo.");
+      return;
+    }
+
+    setIsCreatingGroup(true);
+    try {
+      const group = await onCreateGroup(trimmedName);
+      onGroupIdChange?.(group.id);
+      setNewGroupName("");
+      setIsCreateGroupOpen(false);
+    } catch (error) {
+      onValidationError(
+        error instanceof Error ? error.message : "Erro ao criar grupo."
+      );
+    } finally {
+      setIsCreatingGroup(false);
+    }
   }
 
   const isRemoteRecording = recordingMode === "remote";
@@ -215,17 +256,33 @@ export function RecordingSetupCard({
           {isUploadMode && uploadField ? <div>{uploadField}</div> : null}
 
           <div>
-            <label className={labelClassName}>Nome do cliente</label>
-            <div className="relative">
-              <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Ex: Tech Solutions Inc."
-                value={clientName}
-                onChange={(event) => setClientName(event.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <label className={labelClassName}>Grupo</label>
+            <Select
+              value={selectedGroupId ?? NO_GROUP_VALUE}
+              onValueChange={(value) => {
+                if (value === CREATE_GROUP_VALUE) {
+                  setIsCreateGroupOpen(true);
+                  return;
+                }
+
+                onGroupIdChange?.(value === NO_GROUP_VALUE ? null : value);
+              }}
+            >
+              <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
+                <SelectValue placeholder="Sem grupo" />
+              </SelectTrigger>
+              <SelectContent className="animate-none">
+                <SelectItem value={NO_GROUP_VALUE}>Sem grupo</SelectItem>
+                {meetingGroups.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+                <SelectItem value={CREATE_GROUP_VALUE}>
+                  Criar novo grupo
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {isUploadMode ? (
@@ -319,6 +376,49 @@ export function RecordingSetupCard({
           </p>
         </form>
       </CardContent>
+
+      <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FolderPlus className="h-5 w-5" />
+            </div>
+            <DialogTitle>Criar grupo</DialogTitle>
+            <DialogDescription>
+              O grupo sera selecionado para esta reuniao assim que for criado.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateGroup} className="space-y-4">
+            <div>
+              <label className={labelClassName}>Nome do grupo</label>
+              <Input
+                autoFocus
+                maxLength={80}
+                value={newGroupName}
+                onChange={(event) => setNewGroupName(event.target.value)}
+                placeholder="Ex: Cliente Acme"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateGroupOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isCreatingGroup}>
+                {isCreatingGroup ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderPlus className="h-4 w-4" />
+                )}
+                Criar grupo
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -14,11 +14,13 @@ interface TestInngestFunction {
 }
 
 const mocks = vi.hoisted(() => ({
+  captureObservedError: vi.fn(),
   createFunction: vi.fn(
     (_config: unknown, handler: TestInngestFunction["handler"]) => ({ handler })
   ),
   createServiceRoleClient: vi.fn(),
   resetSubscriptionPeriod: vi.fn(),
+  logStructured: vi.fn(),
 }));
 
 vi.mock("@/lib/inngest", () => ({
@@ -33,6 +35,14 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/billing", () => ({
   resetSubscriptionPeriod: mocks.resetSubscriptionPeriod,
+}));
+
+vi.mock("@/lib/observability", () => ({
+  captureObservedError: mocks.captureObservedError,
+  createTraceId: () => "trace-id",
+  getErrorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : String(error),
+  logStructured: mocks.logStructured,
 }));
 
 function createStep(): TestStep {

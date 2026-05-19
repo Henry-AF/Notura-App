@@ -280,8 +280,10 @@ export const processMeeting = inngest.createFunction(
     let userIdForLog: string | undefined;
     let meetingIdForLog: string | undefined;
     let processingJobId: string | null = null;
+    let currentStepForLog: ProcessingStepName | "validate-event-data" | null = null;
 
     try {
+      currentStepForLog = "validate-event-data";
       const { meetingId, r2Key, whatsappNumber, userId } = await step.run(
         "validate-event-data",
         async () => {
@@ -303,6 +305,7 @@ export const processMeeting = inngest.createFunction(
       )) as Awaited<ReturnType<typeof getWhatsAppSummaryAccess>>;
 
       // ── Step 1: Mark as processing ─────────────────────────────────────
+      currentStepForLog = "update-status-processing";
       const initialProcessingState = await step.run("update-status-processing", async () => {
         // Idempotency: if already completed, return true to short-circuit below.
         // IMPORTANT: never throw here — throwing causes Inngest to retry and
@@ -344,6 +347,7 @@ export const processMeeting = inngest.createFunction(
       processingJobId = jobId;
 
       // ── Step 2: Transcribe audio ───────────────────────────────────────
+      currentStepForLog = "transcribe";
       const { transcript, durationSeconds, utterances } = await runTrackedProcessingStep(step, supabase, jobId, "transcribe", async () => {
         // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
         // NOTE: Webhook alternative — swap transcribe() for submit() and pass
@@ -451,6 +455,7 @@ export const processMeeting = inngest.createFunction(
         };
       });
 
+      currentStepForLog = "index-transcript-chunks";
       await runTrackedProcessingStep(step, supabase, jobId, "index-transcript-chunks", async () => {
         await indexMeetingTranscriptChunks({
           supabase,
@@ -463,6 +468,7 @@ export const processMeeting = inngest.createFunction(
       });
 
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
+      currentStepForLog = "summarize-meeting";
       const { summaryWhatsapp, summaryJson } = await runTrackedProcessingStep(
         step,
         supabase,
@@ -478,6 +484,7 @@ export const processMeeting = inngest.createFunction(
       );
 
       // ── Step 4: Save results to Supabase ───────────────────────────────
+      currentStepForLog = "save-results";
       await runTrackedProcessingStep(step, supabase, jobId, "save-results", async () => {
         const taskDedupeKeys = buildSummaryItemDedupeKeys(
           summaryJson.tasks,
@@ -600,33 +607,33 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
       if (whatsappAccess.canSend && whatsappNumber) {
-        await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
-          const result = await sendMeetingSummaryTemplate(
-            whatsappNumber,
-            summaryJson,
-            meetingId,
-            summaryJson.meeting?.title
-          );
-
-          const newStatus = result.success ? "sent" : "failed";
-          await supabase
-            .from("meetings")
-            .update({
-              whatsapp_status: newStatus,
-              error_message: result.success
-                ? null
-                : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
-            })
-            .eq("id", meetingId);
-
-          if (!result.success) {
-            console.error(
-              `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
+          currentStepForLog = "send-whatsapp";
+          await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
+            const result = await sendMeetingSummaryTemplate(
+              whatsappNumber,
+              summaryJson,
+              meetingId,
+              summaryJson.meeting?.title
             );
-            // Don't throw — WhatsApp failure shouldn't fail the whole pipeline
-            // User can resend manually
-          }
-        });
+
+            const newStatus = result.success ? "sent" : "failed";
+            await supabase
+              .from("meetings")
+              .update({
+                whatsapp_status: newStatus,
+                error_message: result.success
+                  ? null
+                  : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+              })
+              .eq("id", meetingId);
+
+            if (!result.success) {
+              console.error(
+                `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
+              );
+            }
+          });
+        }
       } else if (whatsappAccess.canSend) {
         await supabase
           .from("meetings")
@@ -647,6 +654,7 @@ export const processMeeting = inngest.createFunction(
       }
 
       // ── Step 6: Cleanup — delete audio from R2 (LGPD) ─────────────────
+      currentStepForLog = "cleanup";
       await runTrackedProcessingStep(step, supabase, jobId, "cleanup", async () => {
         let audioDeleted = false;
 
@@ -709,6 +717,7 @@ export const processMeeting = inngest.createFunction(
           functionId: "process-meeting",
           eventName: event.name,
           meetingId: meetingIdForLog,
+          processingStep: currentStepForLog,
         },
       });
 
@@ -755,6 +764,7 @@ export const handleProcessMeetingFailure = inngest.createFunction(
       const errorMessage =
         (event.data as { error?: { message?: string } })?.error?.message ??
         "Unknown error";
+      const userId = eventData?.userId;
 
       if (meetingId) {
         await supabase
@@ -769,6 +779,22 @@ export const handleProcessMeetingFailure = inngest.createFunction(
       await alertOperator(
         `Processamento falhou para reunião ${meetingId ?? "desconhecida"}: ${errorMessage}`
       );
+
+      captureObservedError(new Error("Meeting processing failed after retries"), {
+        event: "inngest.process_meeting.final_failed",
+        requestId,
+        userId,
+        route: "inngest/process-meeting-failure",
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        extra: {
+          functionId: "process-meeting",
+          failureHandlerId: "process-meeting-failure",
+          meetingId,
+          errorMessage,
+          originalEventName: eventData ? "meeting/process" : undefined,
+        },
+      });
 
       logStructured("info", {
         event: "inngest.job.completed",

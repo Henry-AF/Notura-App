@@ -12,6 +12,12 @@ import {
   getOrCreateBillingAccount,
   resetSubscriptionPeriod,
 } from "@/lib/billing";
+import {
+  captureObservedError,
+  createTraceId,
+  getErrorMessage,
+  logStructured,
+} from "@/lib/observability";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
@@ -53,9 +59,11 @@ async function syncStripeSubscriptionState(
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.stripeWebhook,
   async (request: NextRequest) => {
-  const stripe = getStripe();
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-  let event: Stripe.Event;
+    const startedAt = Date.now();
+    const requestId = createTraceId();
+    const stripe = getStripe();
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+    let event: Stripe.Event;
 
   // ── Verify signature ─────────────────────────────────────────────────
   try {
@@ -154,6 +162,44 @@ export const POST = withPublicRateLimit<NextRequest>(
         break;
       }
 
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === "string"
+            ? invoice.customer
+            : invoice.customer?.id ?? null;
+        const message = "Stripe invoice payment failed";
+
+        logStructured("error", {
+          event: "billing.stripe.payment_failed",
+          requestId,
+          route: "/api/webhooks/stripe",
+          durationMs: Date.now() - startedAt,
+          status: "payment_failed",
+          stripeEventId: event.id,
+          stripeEventType: event.type,
+          stripeCustomerId: customerId,
+          stripeInvoiceId: invoice.id,
+        });
+
+        captureObservedError(new Error(message), {
+          event: "billing.stripe.payment_failed",
+          requestId,
+          route: "/api/webhooks/stripe",
+          durationMs: Date.now() - startedAt,
+          status: "payment_failed",
+          extra: {
+            stripeEventId: event.id,
+            stripeEventType: event.type,
+            stripeCustomerId: customerId,
+            stripeInvoiceId: invoice.id,
+            billingReason: invoice.billing_reason,
+          },
+        });
+
+        break;
+      }
+
       // ── Subscription deleted → downgrade to free ─────────────────────
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
@@ -174,7 +220,20 @@ export const POST = withPublicRateLimit<NextRequest>(
         console.log(`[stripe-webhook] Unhandled event type: ${event.type}`);
     }
   } catch (error) {
+    const message = getErrorMessage(error);
     console.error("[stripe-webhook] Error handling event:", error);
+    captureObservedError(error, {
+      event: "billing.stripe.webhook.failed",
+      requestId,
+      route: "/api/webhooks/stripe",
+      durationMs: Date.now() - startedAt,
+      status: 500,
+      extra: {
+        stripeEventId: event.id,
+        stripeEventType: event.type,
+        errorMessage: message,
+      },
+    });
     return NextResponse.json(
       { error: "Failed to process Stripe webhook." },
       { status: 500 }

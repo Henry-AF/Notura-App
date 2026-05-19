@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { getOrCreateBillingAccount } from "@/lib/billing";
+import {
+  captureObservedError,
+  createTraceId,
+  getErrorMessage,
+} from "@/lib/observability";
 import { getAppBaseUrl, getStripe, getStripePriceId } from "@/lib/stripe";
 import type { Plan } from "@/types/database";
 
@@ -16,77 +21,93 @@ function isPaidPlan(plan: Plan): plan is Exclude<Plan, "free"> {
 export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
   RATE_LIMIT_POLICIES.stripeCheckout,
   async (request: NextRequest, { auth }) => {
-  try {
-    const body = (await request.json()) as CreateCheckoutBody;
-    const plan = body.plan;
+    const startedAt = Date.now();
+    const requestId = createTraceId();
+    let planForLog: Plan | null = null;
 
-    if (!plan || !isPaidPlan(plan)) {
-      return NextResponse.json(
-        { error: "Plano inválido para checkout." },
-        { status: 400 }
-      );
-    }
+    try {
+      const body = (await request.json()) as CreateCheckoutBody;
+      const plan = body.plan;
+      planForLog = plan ?? null;
 
-    const billingAccount = await getOrCreateBillingAccount(auth.user.id);
-    if (billingAccount.plan === plan) {
-      return NextResponse.json({
-        alreadyActive: true,
-        plan,
+      if (!plan || !isPaidPlan(plan)) {
+        return NextResponse.json(
+          { error: "Plano inválido para checkout." },
+          { status: 400 }
+        );
+      }
+
+      const billingAccount = await getOrCreateBillingAccount(auth.user.id);
+      if (billingAccount.plan === plan) {
+        return NextResponse.json({
+          alreadyActive: true,
+          plan,
+        });
+      }
+
+      if (!billingAccount.stripe_customer_id && !auth.user.email) {
+        return NextResponse.json(
+          { error: "Seu usuário não possui email válido para iniciar o checkout." },
+          { status: 400 }
+        );
+      }
+
+      const stripe = getStripe();
+      const origin = new URL(request.url).origin;
+      const appBaseUrl = getAppBaseUrl(origin);
+      const priceId = getStripePriceId(plan);
+      const successUrl = new URL("/onboarding", appBaseUrl);
+      successUrl.searchParams.set("payment", "success");
+      successUrl.searchParams.set("plan", plan);
+      successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+
+      const cancelUrl = new URL("/onboarding", appBaseUrl);
+      cancelUrl.searchParams.set("payment", "canceled");
+      cancelUrl.searchParams.set("plan", plan);
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: successUrl.toString(),
+        cancel_url: cancelUrl.toString(),
+        client_reference_id: auth.user.id,
+        metadata: {
+          user_id: auth.user.id,
+          plan,
+        },
+        ...(billingAccount.stripe_customer_id
+          ? { customer: billingAccount.stripe_customer_id }
+          : { customer_email: auth.user.email ?? undefined }),
       });
-    }
 
-    if (!billingAccount.stripe_customer_id && !auth.user.email) {
+      if (!session.url) {
+        return NextResponse.json(
+          { error: "Não foi possível iniciar o checkout." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        checkoutUrl: session.url,
+      });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("[stripe-checkout] Failed to create checkout session:", message);
+      captureObservedError(error, {
+        event: "billing.stripe.checkout.failed",
+        requestId,
+        userId: auth.user.id,
+        route: "/api/stripe/checkout",
+        durationMs: Date.now() - startedAt,
+        status: 500,
+        extra: {
+          plan: planForLog,
+        },
+      });
       return NextResponse.json(
-        { error: "Seu usuário não possui email válido para iniciar o checkout." },
-        { status: 400 }
-      );
-    }
-
-    const stripe = getStripe();
-    const origin = new URL(request.url).origin;
-    const appBaseUrl = getAppBaseUrl(origin);
-    const priceId = getStripePriceId(plan);
-    const successUrl = new URL("/onboarding", appBaseUrl);
-    successUrl.searchParams.set("payment", "success");
-    successUrl.searchParams.set("plan", plan);
-    successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
-
-    const cancelUrl = new URL("/onboarding", appBaseUrl);
-    cancelUrl.searchParams.set("payment", "canceled");
-    cancelUrl.searchParams.set("plan", plan);
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl.toString(),
-      cancel_url: cancelUrl.toString(),
-      client_reference_id: auth.user.id,
-      metadata: {
-        user_id: auth.user.id,
-        plan,
-      },
-      ...(billingAccount.stripe_customer_id
-        ? { customer: billingAccount.stripe_customer_id }
-        : { customer_email: auth.user.email ?? undefined }),
-    });
-
-    if (!session.url) {
-      return NextResponse.json(
-        { error: "Não foi possível iniciar o checkout." },
+        { error: "Falha ao iniciar pagamento." },
         { status: 500 }
       );
     }
-
-    return NextResponse.json({
-      checkoutUrl: session.url,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[stripe-checkout] Failed to create checkout session:", message);
-    return NextResponse.json(
-      { error: "Falha ao iniciar pagamento." },
-      { status: 500 }
-    );
-  }
   }
 );

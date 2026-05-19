@@ -1,5 +1,11 @@
 import { inngest } from "@/lib/inngest";
 import { resetSubscriptionPeriod } from "@/lib/billing";
+import {
+  captureObservedError,
+  createTraceId,
+  getErrorMessage,
+  logStructured,
+} from "@/lib/observability";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Plan } from "@/types/database";
 
@@ -31,6 +37,12 @@ function parseRenewalEventData(data: unknown): AbacatePayRenewalEventData {
   };
 }
 
+function resolveInngestRequestId(eventId: unknown): string {
+  if (typeof eventId !== "string") return createTraceId();
+  const trimmed = eventId.trim();
+  return trimmed.length > 0 ? trimmed : createTraceId();
+}
+
 export const applyAbacatePayRenewal = inngest.createFunction(
   {
     id: "billing-abacatepay-renewal-confirmed",
@@ -38,22 +50,63 @@ export const applyAbacatePayRenewal = inngest.createFunction(
     triggers: [{ event: "billing/abacatepay.renewal-confirmed" }],
   },
   async ({ event, step }) => {
-    const data = parseRenewalEventData(event.data);
-    const supabase = createServiceRoleClient();
+    const startedAt = Date.now();
+    const requestId = resolveInngestRequestId((event as { id?: unknown }).id);
+    let data: AbacatePayRenewalEventData | null = null;
 
-    await step.run("reset-subscription-period", () =>
-      resetSubscriptionPeriod(
-        {
-          userId: data.userId,
-          plan: data.plan,
-          clearAbacatePayPending: true,
-          previousPeriodEnd: data.currentPeriodEnd,
-          ...(data.customerId ? { abacatepayCustomerId: data.customerId } : {}),
+    try {
+      data = parseRenewalEventData(event.data);
+      const renewal = data;
+      const supabase = createServiceRoleClient();
+
+      await step.run("reset-subscription-period", () =>
+        resetSubscriptionPeriod(
+          {
+            userId: renewal.userId,
+            plan: renewal.plan,
+            clearAbacatePayPending: true,
+            previousPeriodEnd: renewal.currentPeriodEnd,
+            ...(renewal.customerId
+              ? { abacatepayCustomerId: renewal.customerId }
+              : {}),
+          },
+          supabase
+        )
+      );
+
+      return {
+        userId: renewal.userId,
+        currentPeriodEnd: renewal.currentPeriodEnd,
+      };
+    } catch (error) {
+      const message = getErrorMessage(error);
+
+      logStructured("error", {
+        event: "billing.abacatepay.renewal_apply.failed",
+        requestId,
+        userId: data?.userId,
+        route: "inngest/abacatepay-renewal",
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        errorMessage: message,
+      });
+      captureObservedError(error, {
+        event: "billing.abacatepay.renewal_apply.failed",
+        requestId,
+        userId: data?.userId,
+        route: "inngest/abacatepay-renewal",
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        extra: {
+          functionId: "billing-abacatepay-renewal-confirmed",
+          eventName: event.name,
+          plan: data?.plan,
+          currentPeriodEnd: data?.currentPeriodEnd,
+          customerId: data?.customerId,
         },
-        supabase
-      )
-    );
+      });
 
-    return { userId: data.userId, currentPeriodEnd: data.currentPeriodEnd };
+      throw error;
+    }
   }
 );

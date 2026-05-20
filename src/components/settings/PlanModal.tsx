@@ -414,12 +414,12 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
     >
       <div
         ref={panelRef}
-        className="plan-modal-panel relative w-full rounded-t-3xl sm:max-w-5xl sm:rounded-2xl"
+        className="plan-modal-panel relative w-full rounded-t-3xl sm:max-w-6xl sm:rounded-2xl"
         style={{
           background: c.card,
           border: `1px solid ${c.border}`,
-          maxHeight: "90dvh",
-          overflowY: "auto",
+          maxHeight: "calc(100dvh - 32px)",
+          overflow: "hidden",
         }}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -432,17 +432,17 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
         />
 
         <div
-          className="sticky top-0 z-10 flex items-center justify-between p-4 sm:p-6"
+          className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4"
           style={{
             background: c.card,
             borderBottom: `1px solid ${c.border}`,
           }}
         >
           <div>
-            <h2 className="font-display text-xl font-bold" style={{ color: c.ink }}>
+            <h2 className="font-display text-lg font-bold sm:text-xl" style={{ color: c.ink }}>
               Escolha seu plano
             </h2>
-            <p className="mt-0.5 text-sm" style={{ color: c.ink2 }}>
+            <p className="mt-0.5 text-xs sm:text-sm" style={{ color: c.ink2 }}>
               Atualize a qualquer momento. Cancele quando quiser.
             </p>
           </div>
@@ -461,14 +461,14 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
           </button>
         </div>
 
-        <div className="px-4 pt-4 text-center sm:px-6">
+        <div className="px-4 pt-3 text-center sm:px-5">
           <PricingToggle billingCycle={billingCycle} onChange={setBillingCycle} />
-          <p className="mt-3 text-xs" style={{ color: c.ink3 }}>
+          <p className="mt-2 text-xs" style={{ color: c.ink3 }}>
             {getBillingCycleLabel(billingCycle)}. A selecao e mantida entre paginas e checkouts.
           </p>
         </div>
 
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-6 pt-4 sm:grid sm:grid-cols-4 sm:overflow-x-visible sm:snap-none sm:px-6 sm:pb-6 sm:pt-6">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-4 pt-4 sm:grid sm:grid-cols-4 sm:overflow-x-visible sm:snap-none sm:px-5 sm:pb-4 sm:pt-4">
           {plans.map((plan) => {
             const isCurrentPlan = currentPricingPlan === plan.id;
             const isLoading = loading === plan.id;
@@ -486,7 +486,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
             return (
               <div
                 key={plan.id}
-                className="relative flex w-[82vw] shrink-0 snap-center flex-col rounded-2xl p-5 sm:w-auto"
+                className="relative flex w-[82vw] shrink-0 snap-center flex-col rounded-2xl p-4 sm:w-auto"
                 style={{
                   background: plan.highlight ? "rgba(104,81,255,0.07)" : c.card2,
                   border: plan.highlight
@@ -513,17 +513,17 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                 ) : null}
 
                 <div
-                  className="flex h-10 w-10 items-center justify-center rounded-xl"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl"
                   style={{ background: plan.iconBg }}
                 >
-                  <plan.icon className="h-5 w-5" style={{ color: plan.iconColor }} />
+                  <plan.icon className="h-4 w-4" style={{ color: plan.iconColor }} />
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3">
                   <p className="text-sm font-semibold" style={{ color: c.ink2 }}>
                     {plan.name}
                   </p>
-                  <p className="mt-1 text-[13px] leading-snug" style={{ color: c.ink3 }}>
+                  <p className="mt-1 min-h-[34px] text-xs leading-snug" style={{ color: c.ink3 }}>
                     {plan.description}
                   </p>
 
@@ -544,7 +544,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                   ) : null}
 
                   <div className="mt-1 flex items-end gap-1">
-                    <span className="font-display text-3xl font-bold" style={{ color: c.ink }}>
+                    <span className="font-display text-2xl font-bold sm:text-[28px]" style={{ color: c.ink }}>
                       {plan.price}
                     </span>
                     <span className="mb-1 text-sm" style={{ color: c.ink3 }}>
@@ -553,7 +553,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                   </div>
                 </div>
 
-                <ul className="mt-4 flex-1 space-y-2.5">
+                <ul className="mt-3 flex-1 space-y-1.5">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
                       <Check
@@ -566,7 +566,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                               : "#4ECB71",
                         }}
                       />
-                      <span className="text-[13px] leading-snug" style={{ color: c.ink2 }}>
+                      <span className="text-xs leading-snug" style={{ color: c.ink2 }}>
                         {feature}
                       </span>
                     </li>
@@ -581,7 +581,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                       void handleSelectPlan(plan.id);
                     }
                   }}
-                  className="mt-5"
+                  className="mt-4"
                   style={
                     isFree || isCurrentPlan
                       ? {
@@ -622,7 +622,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
 
         {error ? (
           <div
-            className="mx-4 mb-4 rounded-xl px-4 py-3 text-sm sm:mx-6 sm:mb-6"
+            className="mx-4 mb-3 rounded-xl px-4 py-2 text-sm sm:mx-5"
             style={{
               background: "rgba(255,107,107,0.1)",
               border: "1px solid rgba(255,107,107,0.25)",
@@ -633,7 +633,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
           </div>
         ) : null}
 
-        <p className="px-4 pb-4 pt-1 text-center text-xs sm:px-6 sm:pb-6" style={{ color: c.ink3 }}>
+        <p className="px-4 pb-4 pt-0 text-center text-xs sm:px-5" style={{ color: c.ink3 }}>
           Pagamento seguro · {getBillingCycleLabel(billingCycle)} · Cancele a qualquer momento
         </p>
       </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Suspense,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -16,19 +17,28 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import {
+  BillingCycleProvider,
+  useBillingCycle,
+} from "@/components/pricing/BillingCycleProvider";
+import { PricingToggle } from "@/components/pricing/PricingToggle";
+import { UpgradeButton } from "@/components/pricing/UpgradeButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/app";
 import {
-  APP_PLAN_IDS,
-  getPlanDisplayName,
+  createCheckoutSelection,
+  getBillingCycleLabel,
   getPlanPriceLabel,
-  getPlanUsageShortLabel,
-  isPlan,
-} from "@/lib/plans";
+  getPricingPlan,
+  isCheckoutPlan,
+  isPricingPlan,
+  resolvePricingPlanFromInternalPlan,
+  type BillingCycle,
+  type PricingPlanType,
+} from "@/lib/pricing";
 import { cn } from "@/lib/utils";
-import type { Plan } from "@/types/database";
 import { saveOnboardingProfile } from "./actions";
 import {
   ensureOnboardingBillingCustomer,
@@ -40,11 +50,12 @@ import { isOnboardingCheckoutBlocked } from "./onboarding-checkout-state";
 type OnboardingStep = 1 | 2 | 3;
 
 interface OnboardingPlan {
-  id: Plan;
+  id: PricingPlanType;
   name: string;
   price: string;
   desc: string;
   popular?: boolean;
+  contactHref?: string;
 }
 
 interface SearchParamsReader {
@@ -67,12 +78,14 @@ interface PhoneStepProps {
 }
 
 interface PlanStepProps {
+  billingCycle: BillingCycle;
   error: string | null;
   loading: boolean;
   paymentVerifying: boolean;
   prewarmReady: boolean;
-  selectedPlan: Plan;
-  onPlanChange: (plan: Plan) => void;
+  selectedPlan: PricingPlanType;
+  onBillingCycleChange: (value: BillingCycle) => void;
+  onPlanChange: (plan: PricingPlanType) => void;
   onContinue: () => void;
 }
 
@@ -83,26 +96,19 @@ interface SuccessStepProps {
 interface PlanOptionButtonProps {
   plan: OnboardingPlan;
   selected: boolean;
-  onSelect: (plan: Plan) => void;
+  onSelect: (plan: PricingPlanType) => void;
 }
 
 interface PaymentRedirectOptions {
+  setBillingCycle: (value: BillingCycle) => void;
   pathname: string;
   searchParams: SearchParamsReader;
   setError: (value: string | null) => void;
   setLoading: (value: boolean) => void;
   setPaymentVerifying: (value: boolean) => void;
-  setSelectedPlan: (value: Plan) => void;
+  setSelectedPlan: (value: PricingPlanType) => void;
   setStep: (value: OnboardingStep) => void;
 }
-
-const plans = APP_PLAN_IDS.map((planId) => ({
-  id: planId,
-  name: getPlanDisplayName(planId),
-  price: `${getPlanPriceLabel(planId)}/mês`,
-  desc: getPlanUsageShortLabel(planId),
-  popular: planId === "pro",
-})) satisfies readonly OnboardingPlan[];
 
 const onboardingHighlights = [
   {
@@ -326,25 +332,53 @@ function PlanOptionButton({ plan, selected, onSelect }: PlanOptionButtonProps) {
 }
 
 function PlanStep({
+  billingCycle,
   error,
   loading,
   paymentVerifying,
   prewarmReady,
   selectedPlan,
+  onBillingCycleChange,
   onPlanChange,
   onContinue,
 }: PlanStepProps) {
+  const isPaidSelection = isCheckoutPlan(selectedPlan);
+  const isEnterprise = selectedPlan === "enterprise";
   const buttonLabel = paymentVerifying
     ? "Confirmando pagamento..."
     : loading
       ? selectedPlan === "free"
         ? "Continuando..."
-        : "Redirecionando para pagamento..."
+        : isEnterprise
+          ? "Abrindo contato..."
+          : "Redirecionando para pagamento..."
       : selectedPlan === "free"
         ? "Continuar"
-        : !prewarmReady
+        : isEnterprise
+          ? "Falar com a equipe"
+          : !prewarmReady
           ? "Preparando checkout..."
         : "Ir para pagamento";
+
+  const plans = useMemo(
+    () =>
+      (["free", "starter", "pro", "enterprise"] as const).map((planId) => {
+        const plan = getPricingPlan(planId);
+
+        return {
+          id: plan.id,
+          name: plan.displayName,
+          price:
+            plan.id === "enterprise"
+              ? "Consultar"
+              : `${getPlanPriceLabel(plan.id, billingCycle)}/mês`,
+          desc: plan.usageShortLabel,
+          popular: Boolean(plan.badgeLabel),
+          contactHref: plan.contactHref,
+        } satisfies OnboardingPlan;
+      }),
+    [billingCycle]
+  );
 
   return (
     <div className="space-y-8">
@@ -355,6 +389,10 @@ function PlanStep({
       />
 
       <div className="space-y-4">
+        <div className="flex justify-center">
+          <PricingToggle billingCycle={billingCycle} onChange={onBillingCycleChange} />
+        </div>
+
         <div className="space-y-3">
           {plans.map((plan) => (
             <PlanOptionButton
@@ -367,14 +405,15 @@ function PlanStep({
         </div>
 
         <p className="text-center text-xs leading-relaxed text-notura-muted">
-          Esta etapa não libera acesso pago sozinha. O plano válido só muda após
-          confirmação do pagamento pelo gateway.
+          {isEnterprise
+            ? "Enterprise não usa checkout automático. Vamos abrir o contato comercial para você."
+            : `${getBillingCycleLabel(billingCycle)}. O plano válido só muda após confirmação do pagamento pelo gateway.`}
         </p>
 
         {error ? <p className="text-center text-sm text-red-600">{error}</p> : null}
 
-        <Button
-          className="w-full rounded-full"
+        <UpgradeButton
+          className="bg-notura-primary text-white disabled:bg-notura-primary/80"
           onClick={onContinue}
           disabled={isOnboardingCheckoutBlocked({
             loading,
@@ -382,10 +421,9 @@ function PlanStep({
             prewarmReady,
             selectedPlan,
           })}
-        >
-          {buttonLabel}
-          <ArrowRight className="ml-1 h-4 w-4" />
-        </Button>
+          label={buttonLabel}
+          loading={loading && isPaidSelection}
+        />
       </div>
     </div>
   );
@@ -420,6 +458,7 @@ function SuccessStep({ onContinue }: SuccessStepProps) {
 }
 
 function usePaymentRedirect({
+  setBillingCycle,
   pathname,
   searchParams,
   setError,
@@ -430,11 +469,24 @@ function usePaymentRedirect({
 }: PaymentRedirectOptions) {
   useEffect(() => {
     const payment = searchParams.get("payment");
-    const planParam = searchParams.get("plan");
+    const providerParam = searchParams.get("provider");
     const sessionId = searchParams.get("session_id");
+    const planParam = searchParams.get("plan");
+    const billingCycleParam = searchParams.get("billingCycle");
+    const provider =
+      providerParam === "stripe" || sessionId
+        ? "stripe"
+        : "abacatepay";
 
-    if (isPlan(planParam)) {
-      setSelectedPlan(planParam);
+    const pricingPlan = isPricingPlan(planParam)
+      ? planParam
+      : resolvePricingPlanFromInternalPlan(planParam);
+    if (pricingPlan) {
+      setSelectedPlan(pricingPlan);
+    }
+
+    if (billingCycleParam === "monthly" || billingCycleParam === "yearly") {
+      setBillingCycle(billingCycleParam);
     }
 
     if (payment === "canceled") {
@@ -457,7 +509,10 @@ function usePaymentRedirect({
       setError(null);
 
       try {
-        await verifyOnboardingPayment(sessionId);
+        await verifyOnboardingPayment({
+          provider,
+          sessionId,
+        });
 
         if (!cancelled) {
           setStep(3);
@@ -487,6 +542,7 @@ function usePaymentRedirect({
       cancelled = true;
     };
   }, [
+    setBillingCycle,
     pathname,
     searchParams,
     setError,
@@ -566,14 +622,16 @@ function OnboardingPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { billingCycle, setBillingCycle } = useBillingCycle();
   const [step, setStep] = useState<OnboardingStep>(1);
   const [phone, setPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<Plan>("free");
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlanType>("free");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentVerifying, setPaymentVerifying] = useState(false);
 
   usePaymentRedirect({
+    setBillingCycle,
     pathname,
     searchParams,
     setError,
@@ -614,8 +672,22 @@ function OnboardingPageContent() {
       return;
     }
 
+    if (selectedPlan === "enterprise") {
+      setLoading(false);
+      window.open(getPricingPlan("enterprise").contactHref, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (!isCheckoutPlan(selectedPlan)) {
+      setLoading(false);
+      setError("Plano inválido para checkout.");
+      return;
+    }
+
     try {
-      const checkout = await startOnboardingCheckout(selectedPlan);
+      const checkout = await startOnboardingCheckout(
+        createCheckoutSelection(selectedPlan, billingCycle)
+      );
 
       if (checkout.alreadyActive) {
         setStep(3);
@@ -657,11 +729,13 @@ function OnboardingPageContent() {
           />
         ) : step === 2 ? (
           <PlanStep
+            billingCycle={billingCycle}
             error={error}
             loading={loading}
             paymentVerifying={paymentVerifying}
             prewarmReady={prewarmReady}
             selectedPlan={selectedPlan}
+            onBillingCycleChange={setBillingCycle}
             onPlanChange={setSelectedPlan}
             onContinue={handleSelectPlan}
           />
@@ -676,7 +750,9 @@ function OnboardingPageContent() {
 export default function OnboardingPage() {
   return (
     <Suspense fallback={<OnboardingFallback />}>
-      <OnboardingPageContent />
+      <BillingCycleProvider>
+        <OnboardingPageContent />
+      </BillingCycleProvider>
     </Suspense>
   );
 }

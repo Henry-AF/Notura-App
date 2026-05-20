@@ -38,6 +38,7 @@ vi.mock("@/lib/observability", () => ({
 interface BillingRow {
   user_id: string;
   plan: "free" | "pro" | "team";
+  active_billing_provider: "stripe" | "abacatepay" | null;
   current_period_end: string | null;
   abacatepay_customer_id: string | null;
   abacatepay_auto_renew_enabled: boolean;
@@ -51,6 +52,7 @@ function createBillingRow(overrides: Partial<BillingRow> = {}): BillingRow {
   return {
     user_id: "user-1",
     plan: "pro",
+    active_billing_provider: "abacatepay",
     current_period_end: "2026-05-27T12:00:00.000Z",
     abacatepay_customer_id: "customer-1",
     abacatepay_auto_renew_enabled: true,
@@ -135,6 +137,19 @@ describe("renewAbacatePaySubscription", () => {
     expect(supabase.update).not.toHaveBeenCalled();
   });
 
+  it("skips AbacatePay renewal after the user moves to Stripe", async () => {
+    const supabase = createSupabaseMock(
+      createBillingRow({ active_billing_provider: "stripe" })
+    );
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+
+    const { result } = await runRenewal({ attempt: 1 });
+
+    expect(result).toEqual({ status: "skipped-inactive-provider" });
+    expect(mocks.createAbacatePaySubscriptionCheckout).not.toHaveBeenCalled();
+    expect(supabase.update).not.toHaveBeenCalled();
+  });
+
   it("skips renewal when the billing account no longer exists", async () => {
     const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const selectEq = vi.fn().mockReturnValue({ maybeSingle });
@@ -164,9 +179,9 @@ describe("renewAbacatePaySubscription", () => {
       customerId: "customer-1",
       externalId: "onboarding:user-1:pro:renewal:2026-05-27T12:00:00.000Z",
       returnUrl:
-        "https://app.notura.com/dashboard/settings?payment=canceled&plan=pro&provider=abacatepay",
+        "https://app.notura.com/dashboard?payment=canceled&plan=pro&provider=abacatepay",
       completionUrl:
-        "https://app.notura.com/dashboard/settings?payment=success&plan=pro&provider=abacatepay",
+        "https://app.notura.com/dashboard?payment=success&plan=pro&provider=abacatepay",
       metadata: {
         userId: "user-1",
         plan: "pro",

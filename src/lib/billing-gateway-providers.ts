@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import {
   createAbacatePaySubscriptionCheckout,
+  cancelAbacatePaySubscription,
   getAbacatePaySubscriptionById,
   getAbacatePayCheckoutExternalId,
   getAbacatePayProductId,
@@ -16,6 +17,7 @@ import {
   getOrCreateBillingAccount,
   resetSubscriptionPeriod,
   setAbacatePayAutoRenew as setProviderAbacatePayAutoRenew,
+  StaleBillingProviderError,
 } from "@/lib/billing";
 import { BillingGatewayError } from "@/lib/billing-gateway-errors";
 import { withBillingSpan } from "@/lib/billing-observability";
@@ -33,13 +35,17 @@ import {
   getStripe,
   getStripePriceId,
   isPaidCheckoutSession,
+  retrieveStripeSubscriptionBillingPeriod,
 } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 type PaidPlan = BillingCheckoutInput["plan"];
+const PAYMENT_RECEIVED_PLAN_PENDING_CODE = "payment_received_plan_pending";
+const PAYMENT_RECEIVED_PLAN_PENDING_MESSAGE =
+  "Recebemos o pagamento da sua assinatura, mas o plano ainda nao foi aplicado automaticamente. Entre em contato com o suporte imediatamente para regularizarmos seu acesso.";
 
 function getCheckoutReturnPath(source: BillingCheckoutInput["source"]): string {
-  return source === "settings" ? "/dashboard/settings" : "/onboarding";
+  return source === "settings" ? "/dashboard" : "/onboarding";
 }
 
 function buildCheckoutUrl(
@@ -106,6 +112,83 @@ async function saveStripeCustomerId(
 
   if (error) {
     throw new Error(`Failed to persist Stripe customer ID: ${error.message}`);
+  }
+}
+
+async function saveStripePendingCheckout(input: {
+  userId: string;
+  plan: PaidPlan;
+  sessionId: string;
+  clearAbacatePayPending: boolean;
+}): Promise<void> {
+  const { error } = await createServiceRoleClient()
+    .from("billing_accounts")
+    .update({
+      stripe_pending_checkout_session_id: input.sessionId,
+      stripe_pending_plan: input.plan,
+      ...(input.clearAbacatePayPending && {
+        abacatepay_pending_checkout_id: null,
+        abacatepay_pending_plan: null,
+        abacatepay_renewal_period_end: null,
+      }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", input.userId);
+
+  if (error) {
+    throw new Error(`Failed to persist pending Stripe checkout: ${error.message}`);
+  }
+}
+
+async function expireStripeCheckoutIfPending(
+  sessionId: string | null
+): Promise<boolean> {
+  if (!sessionId) return true;
+
+  try {
+    await getStripe().checkout.sessions.expire(sessionId);
+    return true;
+  } catch (error) {
+    if (isCompletedStripeCheckoutExpireError(error)) {
+      throw new BillingGatewayError(
+        PAYMENT_RECEIVED_PLAN_PENDING_MESSAGE,
+        409,
+        PAYMENT_RECEIVED_PLAN_PENDING_CODE
+      );
+    }
+    console.warn("[billing-gateway] Failed to expire pending Stripe checkout:", error);
+    return false;
+  }
+}
+
+function readStripeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "raw" in error) {
+    const raw = (error as { raw?: { message?: unknown } }).raw;
+    return typeof raw?.message === "string" ? raw.message : "";
+  }
+  return "";
+}
+
+function isCompletedStripeCheckoutExpireError(error: unknown): boolean {
+  const message = readStripeErrorMessage(error);
+  return (
+    message.includes('Only Checkout Sessions with a status in ["open"] can be expired') &&
+    message.includes("status of `complete`")
+  );
+}
+
+async function cancelAbacatePayCheckoutIfPending(
+  checkoutId: string | null
+): Promise<boolean> {
+  if (!checkoutId) return true;
+
+  try {
+    await cancelAbacatePaySubscription(checkoutId);
+    return true;
+  } catch (error) {
+    console.warn("[billing-gateway] Failed to cancel pending AbacatePay checkout:", error);
+    return false;
   }
 }
 
@@ -188,6 +271,30 @@ function validateStripeSessionOwner(input: {
   }
 }
 
+function validateStripePendingCheckout(input: {
+  pendingSessionId: string | null | undefined;
+  sessionId: string;
+}): void {
+  if (input.pendingSessionId !== input.sessionId) {
+    throw new BillingGatewayError(
+      "Sessão de pagamento não está mais ativa.",
+      409
+    );
+  }
+}
+
+function isAlreadyActiveStripeSession(input: {
+  billingAccount: Awaited<ReturnType<typeof getOrCreateBillingAccount>>;
+  plan: PaidPlan;
+  subscriptionId: string | undefined;
+}): boolean {
+  return (
+    input.billingAccount.active_billing_provider === "stripe" &&
+    input.billingAccount.plan === input.plan &&
+    input.billingAccount.stripe_subscription_id === input.subscriptionId
+  );
+}
+
 export async function createStripeCheckout(
   input: BillingCheckoutInput
 ): Promise<BillingCheckoutResult> {
@@ -196,9 +303,21 @@ export async function createStripeCheckout(
     return { provider: "stripe", alreadyActive: true, plan: input.plan };
   }
 
+  const stripePendingExpired = await expireStripeCheckoutIfPending(
+    billingAccount.stripe_pending_checkout_session_id
+  );
+  if (!stripePendingExpired) {
+    throw new Error("Não foi possível expirar o checkout Stripe pendente.");
+  }
+
   const session = await getStripe().checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price: getStripePriceId(input.plan), quantity: 1 }],
+    line_items: [
+      {
+        price: getStripePriceId(input.plan, input.billingCycle),
+        quantity: 1,
+      },
+    ],
     success_url: buildCheckoutUrl(input, "stripe", "success"),
     cancel_url: buildCheckoutUrl(input, "stripe", "canceled"),
     client_reference_id: input.userId,
@@ -215,6 +334,17 @@ export async function createStripeCheckout(
   if (!session.url) {
     throw new Error("Stripe não retornou uma URL de checkout.");
   }
+
+  const [abacatePayPendingCanceled] = await Promise.all([
+    cancelAbacatePayCheckoutIfPending(billingAccount.abacatepay_pending_checkout_id),
+  ]);
+
+  await saveStripePendingCheckout({
+    userId: input.userId,
+    plan: input.plan,
+    sessionId: session.id,
+    clearAbacatePayPending: abacatePayPendingCanceled,
+  });
 
   return {
     provider: "stripe",
@@ -273,6 +403,7 @@ export async function verifyStripeCheckout(
   input: VerifyBillingCheckoutInput & { sessionId: string }
 ): Promise<VerifyBillingCheckoutResult> {
   const db = createServiceRoleClient();
+  const billingAccount = await getOrCreateBillingAccount(input.userId, db);
   const session = await getStripe().checkout.sessions.retrieve(input.sessionId);
   const plan = session.metadata?.plan;
 
@@ -295,15 +426,54 @@ export async function verifyStripeCheckout(
     );
   }
 
-  await resetSubscriptionPeriod(
-    {
-      userId: input.userId,
-      plan,
-      stripeCustomerId: readResourceId(session.customer),
-      stripeSubscriptionId: readResourceId(session.subscription),
-    },
-    db
-  );
+  const stripeCustomerId = readResourceId(session.customer);
+  const stripeSubscriptionId = readResourceId(session.subscription);
+  if (!stripeSubscriptionId) {
+    throw new BillingGatewayError("Sessão de checkout sem assinatura Stripe.", 400);
+  }
+  if (billingAccount.stripe_pending_checkout_session_id !== session.id) {
+    if (
+      isAlreadyActiveStripeSession({
+        billingAccount,
+        plan,
+        subscriptionId: stripeSubscriptionId,
+      })
+    ) {
+      return {
+        provider: "stripe",
+        success: true,
+        plan,
+        paymentStatus: session.payment_status,
+      };
+    }
+    validateStripePendingCheckout({
+      pendingSessionId: billingAccount.stripe_pending_checkout_session_id,
+      sessionId: session.id,
+    });
+  }
+  const billingPeriod =
+    await retrieveStripeSubscriptionBillingPeriod(stripeSubscriptionId);
+
+  try {
+    await resetSubscriptionPeriod(
+      {
+        userId: input.userId,
+        plan,
+        stripeCustomerId,
+        stripeSubscriptionId,
+        ...billingPeriod,
+      },
+      db
+    );
+  } catch (error) {
+    if (error instanceof StaleBillingProviderError) {
+      throw new BillingGatewayError(
+        "Sessão de pagamento não está mais ativa.",
+        409
+      );
+    }
+    throw error;
+  }
 
   return {
     provider: "stripe",
@@ -322,6 +492,14 @@ export async function createAbacatePayCheckout(
     return { provider: "abacatepay", alreadyActive: true, plan: input.plan };
   }
 
+  const existingCheckout = await getReusableAbacatePayCheckout(input, context);
+  if (existingCheckout) {
+    return {
+      provider: "abacatepay",
+      checkoutUrl: existingCheckout.url,
+    };
+  }
+
   const customer = await ensureProviderAbacatePayCustomer(
     db,
     { id: input.userId, email: input.userEmail },
@@ -329,13 +507,45 @@ export async function createAbacatePayCheckout(
     { source: input.source, waitForFreshLock: true }
   );
   const customerId = getAbacatePayCustomerId(customer);
+  const stripePendingExpired = await expireStripeCheckoutIfPending(
+    context.billingAccount.stripe_pending_checkout_session_id
+  );
   const subscription = await createAbacatePaySubscription(input, customerId);
-  await saveAbacatePayPendingCheckout(input, customerId, subscription.id);
+  await saveAbacatePayPendingCheckout(
+    input,
+    customerId,
+    subscription.id,
+    stripePendingExpired
+  );
 
   return {
     provider: "abacatepay",
     checkoutUrl: subscription.url,
   };
+}
+
+async function getReusableAbacatePayCheckout(
+  input: BillingCheckoutInput,
+  context: Awaited<ReturnType<typeof loadAbacatePayCustomerContext>>
+): Promise<{ url: string } | null> {
+  const pendingCheckoutId = context.billingAccount.abacatepay_pending_checkout_id;
+  if (!pendingCheckoutId || context.billingAccount.abacatepay_pending_plan !== input.plan) {
+    return null;
+  }
+
+  try {
+    const subscription = await getAbacatePaySubscriptionById(pendingCheckoutId);
+    if (
+      subscription?.url &&
+      !isAbacatePaySubscriptionPaid(subscription)
+    ) {
+      return { url: subscription.url };
+    }
+  } catch (error) {
+    console.warn("[billing-gateway] Failed to load pending AbacatePay checkout:", error);
+  }
+
+  return null;
 }
 
 export async function ensureAbacatePayCustomer(
@@ -370,7 +580,11 @@ export async function verifyAbacatePayCheckout(
   const billingAccount = await getOrCreateBillingAccount(input.userId, db);
 
   if (!billingAccount.abacatepay_pending_checkout_id) {
-    if (billingAccount.plan !== "free" && isPaidPlan(billingAccount.plan)) {
+    if (
+      billingAccount.active_billing_provider === "abacatepay" &&
+      billingAccount.plan !== "free" &&
+      isPaidPlan(billingAccount.plan)
+    ) {
       return { provider: "abacatepay", success: true, plan: billingAccount.plan };
     }
     throw new BillingGatewayError(
@@ -399,6 +613,7 @@ export async function verifyAbacatePayCheckout(
     {
       userId: input.userId,
       plan: pendingPlan,
+      abacatepayPendingCheckoutId: billingAccount.abacatepay_pending_checkout_id,
       abacatepayCustomerId:
         subscription.customerId ?? billingAccount.abacatepay_customer_id ?? undefined,
       clearAbacatePayPending: true,
@@ -483,7 +698,8 @@ async function createAbacatePaySubscription(
 async function saveAbacatePayPendingCheckout(
   input: BillingCheckoutInput,
   customerId: string,
-  checkoutId: string
+  checkoutId: string,
+  clearStripePending: boolean
 ): Promise<void> {
   const { error } = await createServiceRoleClient()
     .from("billing_accounts")
@@ -491,6 +707,10 @@ async function saveAbacatePayPendingCheckout(
       abacatepay_customer_id: customerId,
       abacatepay_pending_checkout_id: checkoutId,
       abacatepay_pending_plan: input.plan as PaidPlan,
+      ...(clearStripePending && {
+        stripe_pending_checkout_session_id: null,
+        stripe_pending_plan: null,
+      }),
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", input.userId);

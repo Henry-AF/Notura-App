@@ -108,6 +108,7 @@ describe("POST /api/abacatepay/checkout/verify", () => {
       {
         userId: "user-1",
         plan: "pro",
+        abacatepayPendingCheckoutId: "checkout-1",
         abacatepayCustomerId: "customer-1",
         clearAbacatePayPending: true,
       },

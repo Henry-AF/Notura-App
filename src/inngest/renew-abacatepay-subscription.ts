@@ -28,6 +28,7 @@ type RenewalBillingAccount = Pick<
   BillingAccount,
   | "user_id"
   | "plan"
+  | "active_billing_provider"
   | "current_period_end"
   | "abacatepay_customer_id"
   | "abacatepay_auto_renew_enabled"
@@ -67,12 +68,12 @@ function isPaidPlan(plan: string): plan is Exclude<Plan, "free"> {
 
 function buildRenewalUrls(plan: Exclude<Plan, "free">) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const returnUrl = new URL("/dashboard/settings", baseUrl);
+  const returnUrl = new URL("/dashboard", baseUrl);
   returnUrl.searchParams.set("payment", "canceled");
   returnUrl.searchParams.set("plan", plan);
   returnUrl.searchParams.set("provider", "abacatepay");
 
-  const completionUrl = new URL("/dashboard/settings", baseUrl);
+  const completionUrl = new URL("/dashboard", baseUrl);
   completionUrl.searchParams.set("payment", "success");
   completionUrl.searchParams.set("plan", plan);
   completionUrl.searchParams.set("provider", "abacatepay");
@@ -90,7 +91,7 @@ async function loadRenewalAccount(
   const { data, error } = await supabase
     .from("billing_accounts")
     .select(
-      "user_id, plan, current_period_end, abacatepay_customer_id, abacatepay_auto_renew_enabled, abacatepay_renewal_attempts, abacatepay_renewal_period_end, abacatepay_pending_checkout_id, abacatepay_pending_plan"
+      "user_id, plan, active_billing_provider, current_period_end, abacatepay_customer_id, abacatepay_auto_renew_enabled, abacatepay_renewal_attempts, abacatepay_renewal_period_end, abacatepay_pending_checkout_id, abacatepay_pending_plan"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -173,6 +174,10 @@ export const renewAbacatePaySubscription = inngest.createFunction(
 
     if (!account || !isPaidPlan(account.plan)) {
       return { status: "skipped-no-paid-account" };
+    }
+
+    if (account.active_billing_provider === "stripe") {
+      return { status: "skipped-inactive-provider" };
     }
 
     if (!account.abacatepay_auto_renew_enabled) {

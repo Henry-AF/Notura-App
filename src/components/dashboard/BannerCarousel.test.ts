@@ -18,6 +18,6 @@ describe("BannerCarousel", () => {
 
     expect(source).toContain("notura:open-plan-modal");
     expect(source).toContain("Email salvo");
-    expect(source).toContain("WHATSAPP_SUPPORT_URL");
+    expect(source).toContain("buildSupportWhatsAppUrl");
   });
 });

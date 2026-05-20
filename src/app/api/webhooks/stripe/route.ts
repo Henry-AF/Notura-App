@@ -6,18 +6,19 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import {
-  downgradeToFree,
-  getOrCreateBillingAccount,
-  resetSubscriptionPeriod,
-} from "@/lib/billing";
 import {
   captureObservedError,
   createTraceId,
   getErrorMessage,
   logStructured,
 } from "@/lib/observability";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  downgradeToFree,
+  getOrCreateBillingAccount,
+  resetSubscriptionPeriod,
+} from "@/lib/billing";
+import { getStripeSubscriptionBillingPeriod } from "@/lib/stripe";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
@@ -27,6 +28,21 @@ function getStripe() {
 function readStripeId(value: string | { id?: unknown } | null): string | null {
   if (typeof value === "string") return value;
   return typeof value?.id === "string" ? value.id : null;
+}
+
+function readInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const subscription = invoice.parent?.subscription_details?.subscription;
+  return readStripeId(subscription ?? null);
+}
+
+async function loadStripeSubscriptionBillingPeriod(
+  stripe: Stripe,
+  subscriptionId: string
+) {
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ["items.data.price"],
+  });
+  return getStripeSubscriptionBillingPeriod(subscription);
 }
 
 function getSubscriptionStatus(subscription: Stripe.Subscription): string {
@@ -106,10 +122,13 @@ export const POST = withPublicRateLimit<NextRequest>(
         const plan: Plan = planId === "team" ? "team" : "pro";
         const stripeCustomerId = readStripeId(session.customer);
         const stripeSubscriptionId = readStripeId(session.subscription);
+        if (!stripeSubscriptionId) {
+          throw new Error("Stripe checkout session is missing subscription ID.");
+        }
 
         const { data: existingBilling, error: existingBillingError } = await supabase
           .from("billing_accounts")
-          .select("stripe_customer_id")
+          .select("stripe_customer_id, stripe_pending_checkout_session_id")
           .eq("user_id", userId)
           .maybeSingle();
 
@@ -119,13 +138,25 @@ export const POST = withPublicRateLimit<NextRequest>(
           );
         }
 
+        if (existingBilling?.stripe_pending_checkout_session_id !== session.id) {
+          console.warn(
+            `[stripe-webhook] Ignored stale checkout session ${session.id} for user ${userId}`
+          );
+          break;
+        }
+
         await getOrCreateBillingAccount(userId, supabase);
+        const billingPeriod = await loadStripeSubscriptionBillingPeriod(
+          stripe,
+          stripeSubscriptionId
+        );
         await resetSubscriptionPeriod(
           {
             userId,
             plan,
             stripeCustomerId: existingBilling?.stripe_customer_id ?? stripeCustomerId ?? undefined,
-            stripeSubscriptionId: stripeSubscriptionId ?? undefined,
+            stripeSubscriptionId,
+            ...billingPeriod,
           },
           supabase
         );
@@ -148,7 +179,23 @@ export const POST = withPublicRateLimit<NextRequest>(
 
         // Only reset on subscription renewal, not on first payment
         if (invoice.billing_reason === "subscription_cycle") {
-          await resetSubscriptionPeriod({ stripeCustomerId: customerId }, supabase);
+          const subscriptionId = readInvoiceSubscriptionId(invoice);
+          if (!subscriptionId) {
+            console.warn("[stripe-webhook] invoice.payment_succeeded missing subscription ID");
+            break;
+          }
+          const billingPeriod = await loadStripeSubscriptionBillingPeriod(
+            stripe,
+            subscriptionId
+          );
+          await resetSubscriptionPeriod(
+            {
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+              ...billingPeriod,
+            },
+            supabase
+          );
           console.log(`[stripe-webhook] Reset meeting quota for customer ${customerId}`);
         }
         break;

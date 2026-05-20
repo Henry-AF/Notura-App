@@ -201,6 +201,19 @@ export async function getAbacatePaySubscriptionById(
   return data[0] ?? null;
 }
 
+export async function cancelAbacatePaySubscription(
+  subscriptionId: string
+): Promise<AbacatePaySubscription> {
+  return fetchAbacatePay<AbacatePaySubscription>(
+    "/subscriptions/cancel",
+    {
+      method: "POST",
+      body: JSON.stringify({ id: subscriptionId }),
+    },
+    "subscriptions/cancel"
+  );
+}
+
 export function isAbacatePaySubscriptionPaid(
   subscription: AbacatePaySubscription
 ): boolean {

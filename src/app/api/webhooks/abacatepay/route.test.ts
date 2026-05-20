@@ -31,8 +31,13 @@ function createAdminClient(
     current_period_end: "2026-05-27T12:00:00.000Z",
   }
 ): AdminClient {
-  const updateEq = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn().mockReturnValue({ eq: updateEq });
+  const updateQuery = {
+    eq: vi.fn(),
+    then: vi.fn(),
+  };
+  updateQuery.eq.mockReturnValue(updateQuery);
+  updateQuery.then.mockImplementation((resolve) => resolve({ error: null }));
+  const update = vi.fn().mockReturnValue(updateQuery);
   const maybeSingle = vi.fn().mockResolvedValue({
     data: existingAccount,
     error: null,
@@ -46,7 +51,7 @@ function createAdminClient(
     select,
     selectEq,
     update,
-    updateEq,
+    updateEq: updateQuery.eq,
   };
 }
 
@@ -145,6 +150,7 @@ describe("POST /api/webhooks/abacatepay", () => {
       user_id: "user-1",
       plan: "free",
       current_period_end: null,
+      abacatepay_pending_checkout_id: "subs-1",
     });
     createServiceRoleClient.mockReturnValue(adminClient);
 

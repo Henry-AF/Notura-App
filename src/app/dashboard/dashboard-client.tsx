@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BannerCarousel,
   DashboardHeader,
@@ -14,6 +14,7 @@ import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
 import TextType from "@/components/ui/text-type";
+import { normalizeError, parseJson } from "@/lib/api-client";
 import { getPlanTitle } from "@/lib/plans";
 import type { DashboardOverviewData } from "./dashboard-types";
 
@@ -37,6 +38,29 @@ const QUICK_ACTIONS: QuickActionCardProps[] = [
   },
 ];
 
+interface VerifyDashboardPaymentResponse {
+  error?: string;
+}
+
+function clearPaymentSearch(router: ReturnType<typeof useRouter>, pathname: string) {
+  router.replace(pathname);
+}
+
+async function verifyDashboardPayment(sessionId?: string | null): Promise<void> {
+  const response = await fetch("/api/billing/checkout/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sessionId ? { sessionId } : {}),
+  });
+  const body = await parseJson<VerifyDashboardPaymentResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      normalizeError(body.error, "Não foi possível confirmar o pagamento.")
+    );
+  }
+}
+
 // ─── Client ───────────────────────────────────────────────────────────────────
 
 export interface DashboardClientProps {
@@ -45,6 +69,8 @@ export interface DashboardClientProps {
 
 export function DashboardClient({ initialOverview }: DashboardClientProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { show } = useToast();
 
   const [meetings, setMeetings] = useState<Meeting[]>(initialOverview.meetings);
@@ -71,6 +97,49 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   useEffect(() => {
     router.prefetch("/dashboard/meetings");
   }, [router]);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const provider = searchParams.get("provider");
+    const sessionId = searchParams.get("session_id");
+
+    if (provider && provider !== "abacatepay" && provider !== "stripe") return;
+
+    if (payment === "canceled") {
+      show("Pagamento cancelado.", "warning");
+      clearPaymentSearch(router, pathname);
+      return;
+    }
+
+    if (payment !== "success") return;
+
+    let cancelled = false;
+
+    async function verifyPayment() {
+      try {
+        await verifyDashboardPayment(sessionId);
+
+        if (!cancelled) {
+          show("Plano atualizado com sucesso!", "success");
+          router.refresh();
+        }
+      } catch {
+        if (!cancelled) {
+          show("Pagamento recebido, mas não foi possível confirmar o plano.", "error");
+        }
+      } finally {
+        if (!cancelled) {
+          clearPaymentSearch(router, pathname);
+        }
+      }
+    }
+
+    void verifyPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, router, searchParams, show]);
 
   return (
     <PageShell>

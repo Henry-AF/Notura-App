@@ -1,1 +1,1 @@
-export const WHATSAPP_SUPPORT_URL = "https://wa.me/5513996495858";
+export { NOTURA_SUPPORT_WHATSAPP_BASE_URL as WHATSAPP_SUPPORT_URL } from "./support-contact";

@@ -299,6 +299,7 @@ async function handleBillingPaid(
     userId: parsed.userId,
     plan: parsed.plan,
     clearAbacatePayPending: true,
+    ...(subscriptionId ? { abacatepayPendingCheckoutId: subscriptionId } : {}),
     ...(subscriptionId ? { abacatepaySubscriptionId: subscriptionId } : {}),
     ...(customerId ? { abacatepayCustomerId: customerId } : {}),
   };
@@ -340,7 +341,10 @@ async function handleSubscriptionCanceled(
     const parsed = parseAbacatePayOnboardingExternalId(data.externalId);
     if (parsed) {
       try {
-        await downgradeToFree({ userId: parsed.userId }, supabase);
+        await downgradeToFree(
+          { userId: parsed.userId, activeProvider: "abacatepay" },
+          supabase
+        );
       } catch (error) {
         const requestId = createTraceId();
         const message = getErrorMessage(error);

@@ -12,7 +12,7 @@ describe("presentPlanCard", () => {
     ).toEqual({
       title: "Plano Free",
       badgeLabel: "Free",
-      priceLabel: "R$ 0,00",
+      priceLabel: "R$ 0",
       usageLabel: "2 de 3 reuniões este mês",
       usageValueLabel: "67%",
       showProgress: true,
@@ -28,9 +28,9 @@ describe("presentPlanCard", () => {
         monthlyLimit: 30,
       })
     ).toEqual({
-      title: "Plano Pro",
-      badgeLabel: "Pro",
-      priceLabel: "R$ 59,90",
+      title: "Plano Starter",
+      badgeLabel: "Starter",
+      priceLabel: "R$ 49",
       usageLabel: "12 de 30 reuniões este mês",
       usageValueLabel: "40%",
       showProgress: true,
@@ -38,7 +38,7 @@ describe("presentPlanCard", () => {
     });
   });
 
-  it("maps platinum plan usage and price from internal team id", () => {
+  it("maps the internal team id to the commercial Pro plan", () => {
     expect(
       presentPlanCard({
         plan: "team",
@@ -46,9 +46,9 @@ describe("presentPlanCard", () => {
         monthlyLimit: 100,
       })
     ).toEqual({
-      title: "Plano Platinum",
-      badgeLabel: "Platinum",
-      priceLabel: "R$ 79,90",
+      title: "Plano Pro",
+      badgeLabel: "Pro",
+      priceLabel: "R$ 99",
       usageLabel: "4 de 100 reuniões este mês",
       usageValueLabel: "4%",
       showProgress: true,
@@ -68,7 +68,7 @@ describe("presentPlanCard", () => {
       badgeLabel: "ENTERPRISE",
       priceLabel: null,
       usageLabel: "48 reuniões processadas neste mês",
-      usageValueLabel: "Sem limite mensal",
+      usageValueLabel: "Limite personalizado",
       showProgress: false,
       progressValue: null,
     });

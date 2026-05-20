@@ -19,32 +19,32 @@ describe("plans catalog", () => {
       displayName: "Free",
       monthlyLimit: 3,
       priceInCents: 0,
-      usageShortLabel: "Até 3 reuniões",
+      usageShortLabel: "3 reuniões grátis",
     });
   });
 
   it("returns canonical pro plan details", () => {
     expect(getPlanCatalogEntry("pro")).toMatchObject({
       id: "pro",
-      displayName: "Pro",
+      displayName: "Starter",
       monthlyLimit: 30,
-      priceInCents: 5990,
-      usageShortLabel: "Até 30 reuniões",
+      priceInCents: 4900,
+      usageShortLabel: "30 reuniões por mês",
     });
-    expect(getPlanPriceLabel("pro")).toBe("R$ 59,90");
+    expect(getPlanPriceLabel("pro")).toBe("R$ 49");
   });
 
-  it("maps internal team id to Platinum plan details", () => {
+  it("maps internal team id to the commercial Pro plan details", () => {
     expect(getPlanCatalogEntry("team")).toMatchObject({
       id: "team",
-      displayName: "Platinum",
+      displayName: "Pro",
       monthlyLimit: 100,
-      priceInCents: 7990,
-      usageShortLabel: "Até 100 reuniões",
+      priceInCents: 9900,
+      usageShortLabel: "100 reuniões por mês",
     });
-    expect(getPlanTitle("team")).toBe("Plano Platinum");
-    expect(getPlanDisplayName("team")).toBe("Platinum");
-    expect(getPlanPriceLabel("team")).toBe("R$ 79,90");
+    expect(getPlanTitle("team")).toBe("Plano Pro");
+    expect(getPlanDisplayName("team")).toBe("Pro");
+    expect(getPlanPriceLabel("team")).toBe("R$ 99");
   });
 
   it("identifies paid plans from the same source of truth", () => {

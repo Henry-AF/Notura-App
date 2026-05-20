@@ -7,8 +7,8 @@ import React, {
   useState,
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { buildSupportWhatsAppUrl } from "@/lib/support-contact";
 import { useToast } from "@/components/upload/Toast";
-import { WHATSAPP_SUPPORT_URL } from "@/lib/whatsapp-support";
 
 type BannerAction =
   | { type: "plan-modal" }
@@ -39,7 +39,7 @@ const BANNERS: StaticBanner[] = [
     desktopSrc: "/banners/banner-atendimento.png",
     mobileSrc: "/banners/banner-atendimento-mobile.png",
     alt: "Nossa equipe de desenvolvimento atende você diretamente",
-    action: { type: "external", href: WHATSAPP_SUPPORT_URL },
+    action: { type: "external", href: buildSupportWhatsAppUrl() },
   },
 ];
 

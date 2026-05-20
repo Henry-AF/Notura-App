@@ -5,6 +5,7 @@ const resetSubscriptionPeriod = vi.fn();
 const setAbacatePayAutoRenew = vi.fn();
 const getStripe = vi.fn();
 const getStripePriceId = vi.fn();
+const retrieveStripeSubscriptionBillingPeriod = vi.fn();
 const getAppBaseUrl = vi.fn();
 const isPaidCheckoutSession = vi.fn();
 const createServiceRoleClient = vi.fn();
@@ -29,6 +30,7 @@ vi.mock("@/lib/billing", () => ({
 vi.mock("@/lib/stripe", () => ({
   getStripe,
   getStripePriceId,
+  retrieveStripeSubscriptionBillingPeriod,
   getAppBaseUrl,
   isPaidCheckoutSession,
 }));
@@ -83,10 +85,16 @@ describe("billing gateway providers", () => {
       plan: "free",
       stripe_customer_id: null,
       stripe_pending_checkout_session_id: "cs_123",
+      billing_cycle: null,
       abacatepay_pending_checkout_id: null,
       abacatepay_customer_id: "customer-1",
     });
     getStripePriceId.mockReturnValue("price_pro");
+    retrieveStripeSubscriptionBillingPeriod.mockResolvedValue({
+      billingCycle: "yearly",
+      currentPeriodStart: "2026-04-27T12:00:00.000Z",
+      currentPeriodEnd: "2027-04-27T12:00:00.000Z",
+    });
     getAppBaseUrl.mockImplementation((origin: string) => origin);
     isPaidCheckoutSession.mockReturnValue(true);
     resetSubscriptionPeriod.mockResolvedValue(undefined);
@@ -161,6 +169,7 @@ describe("billing gateway providers", () => {
       plan: "pro",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "yearly",
     });
 
     const stripe = getStripe.mock.results[0]?.value;
@@ -184,6 +193,7 @@ describe("billing gateway providers", () => {
         }),
       })
     );
+    expect(getStripePriceId).toHaveBeenCalledWith("pro", "yearly");
   });
 
   it("stores pending Stripe checkout state for stale-session cleanup", async () => {
@@ -195,6 +205,7 @@ describe("billing gateway providers", () => {
       plan: "pro",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     const admin = createServiceRoleClient.mock.results[0]?.value;
@@ -222,11 +233,58 @@ describe("billing gateway providers", () => {
       plan: "pro",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     const stripe = getStripe.mock.results[0]?.value;
     expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith("cs_old");
     expect(cancelAbacatePaySubscription).toHaveBeenCalledWith("abacatepay-pending-1");
+  });
+
+  it("stops checkout creation when the pending Stripe checkout was already paid", async () => {
+    const completedSessionError = Object.assign(
+      new Error(
+        'Only Checkout Sessions with a status in ["open"] can be expired. This Checkout Session has a status of `complete`.'
+      ),
+      { type: "StripeInvalidRequestError" }
+    );
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "free",
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: "cs_paid",
+      abacatepay_pending_checkout_id: null,
+      abacatepay_customer_id: "customer-1",
+    });
+    const stripe = {
+      checkout: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({
+            id: "cs_new",
+            url: "https://checkout.stripe.com/session",
+          }),
+          expire: vi.fn().mockRejectedValue(completedSessionError),
+          retrieve: vi.fn(),
+        },
+      },
+    };
+    getStripe.mockReturnValueOnce(stripe);
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      createStripeCheckout({
+        userId: "user-1",
+        userEmail: "ana@example.com",
+        plan: "pro",
+        source: "settings",
+        requestOrigin: "http://localhost",
+        billingCycle: "monthly",
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "payment_received_plan_pending",
+    });
+
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
   it("keeps fallback pending checkout when its cancellation fails before using Stripe", async () => {
@@ -247,6 +305,7 @@ describe("billing gateway providers", () => {
       plan: "pro",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     const admin = createServiceRoleClient.mock.results[0]?.value;
@@ -327,12 +386,16 @@ describe("billing gateway providers", () => {
     const stripe = getStripe.mock.results[0]?.value;
     const admin = createServiceRoleClient.mock.results[0]?.value;
     expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledWith("cs_123");
+    expect(retrieveStripeSubscriptionBillingPeriod).toHaveBeenCalledWith("sub_123");
     expect(resetSubscriptionPeriod).toHaveBeenCalledWith(
       {
         userId: "user-1",
         plan: "pro",
         stripeCustomerId: "cus_123",
         stripeSubscriptionId: "sub_123",
+        billingCycle: "yearly",
+        currentPeriodStart: "2026-04-27T12:00:00.000Z",
+        currentPeriodEnd: "2027-04-27T12:00:00.000Z",
       },
       admin
     );
@@ -359,6 +422,7 @@ describe("billing gateway providers", () => {
     });
 
     expect(resetSubscriptionPeriod).not.toHaveBeenCalled();
+    expect(retrieveStripeSubscriptionBillingPeriod).not.toHaveBeenCalled();
     expect(result).toEqual({
       provider: "stripe",
       success: true,
@@ -408,6 +472,7 @@ describe("billing gateway providers", () => {
       plan: "team",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     expect(result).toEqual({
@@ -444,6 +509,7 @@ describe("billing gateway providers", () => {
       plan: "team",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     const admin = createServiceRoleClient.mock.results[0]?.value;

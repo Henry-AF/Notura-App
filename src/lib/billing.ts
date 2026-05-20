@@ -10,6 +10,7 @@ import {
 import { getPlanMonthlyLimit } from "@/lib/plans";
 import { getStripe } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import type { BillingCycle } from "@/lib/pricing";
 import type { BillingAccount, Database, Plan } from "@/types/database";
 
 export type MeetingQuotaBlockCode =
@@ -64,6 +65,9 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   abacatepaySubscriptionId?: string;
   stripeSubscriptionId?: string;
   previousPeriodEnd?: Date | string | null;
+  billingCycle?: BillingCycle;
+  currentPeriodStart?: Date | string | null;
+  currentPeriodEnd?: Date | string | null;
 };
 
 type DowngradeToFreeParams = BillingAccountLookup & {
@@ -113,6 +117,31 @@ function getMeetingsUsed(account: Partial<BillingAccount>): number {
     0,
     account.meetings_used ?? account.meetings_this_month ?? 0
   );
+}
+
+function isQuotaWindowExpired(
+  account: Pick<BillingAccount, "plan" | "current_period_end"> &
+    Partial<Pick<BillingAccount, "quota_period_end">>,
+  now: Date
+): boolean {
+  if (account.plan === "free" || !account.quota_period_end) return false;
+  const quotaPeriodEnd = parseBillingDate(account.quota_period_end);
+  const subscriptionPeriodEnd = parseBillingDate(account.current_period_end);
+  return Boolean(
+    quotaPeriodEnd &&
+      subscriptionPeriodEnd &&
+      quotaPeriodEnd.getTime() <= now.getTime() &&
+      subscriptionPeriodEnd.getTime() > now.getTime()
+  );
+}
+
+function getEffectiveMeetingsUsed(
+  account: Partial<BillingAccount> &
+    Pick<BillingAccount, "plan" | "current_period_end">,
+  now: Date = new Date()
+): number {
+  if (isQuotaWindowExpired(account, now)) return 0;
+  return getMeetingsUsed(account);
 }
 
 function getQuotaMessage(
@@ -228,6 +257,9 @@ function resolveSubscriptionPeriod(
   account: BillingAccount | null,
   now: Date
 ): { start: Date; end: Date; guardCurrentPeriodEnd: boolean } | null {
+  const explicitPeriod = resolveExplicitSubscriptionPeriod(params);
+  if (explicitPeriod) return explicitPeriod;
+
   const explicitPreviousPeriodEnd = parseBillingDate(params.previousPeriodEnd);
   if (explicitPreviousPeriodEnd) {
     return {
@@ -258,20 +290,57 @@ function resolveSubscriptionPeriod(
   return { start: now, end: addOneMonth(now), guardCurrentPeriodEnd: false };
 }
 
+function resolveExplicitSubscriptionPeriod(
+  params: ResetSubscriptionPeriodParams
+): { start: Date; end: Date; guardCurrentPeriodEnd: false } | null {
+  const hasExplicitPeriod =
+    params.currentPeriodStart !== undefined || params.currentPeriodEnd !== undefined;
+  if (!hasExplicitPeriod) return null;
+
+  const start = parseBillingDate(params.currentPeriodStart);
+  const end = parseBillingDate(params.currentPeriodEnd);
+  if (!start || !end || end.getTime() <= start.getTime()) {
+    throw new Error("Invalid subscription period.");
+  }
+
+  return { start, end, guardCurrentPeriodEnd: false };
+}
+
+function resolveQuotaPeriod(
+  params: ResetSubscriptionPeriodParams,
+  subscriptionPeriod: { start: Date; end: Date }
+): { start: Date; end: Date } {
+  if (params.billingCycle !== "yearly") return subscriptionPeriod;
+  const monthlyQuotaEnd = addOneMonth(subscriptionPeriod.start);
+  return {
+    start: subscriptionPeriod.start,
+    end:
+      monthlyQuotaEnd.getTime() < subscriptionPeriod.end.getTime()
+        ? monthlyQuotaEnd
+        : subscriptionPeriod.end,
+  };
+}
+
 function buildSubscriptionResetPayload(
   params: ResetSubscriptionPeriodParams,
   period: { start: Date; end: Date },
   now: Date,
   cleanup: PendingCleanupState
 ): Database["public"]["Tables"]["billing_accounts"]["Update"] {
+  const quotaPeriod = resolveQuotaPeriod(params, period);
   const updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"] = {
     meetings_used: 0,
     current_period_start: period.start.toISOString(),
     current_period_end: period.end.toISOString(),
+    quota_period_start: quotaPeriod.start.toISOString(),
+    quota_period_end: quotaPeriod.end.toISOString(),
     updated_at: now.toISOString(),
   };
   if (params.plan) {
     updatePayload.plan = params.plan;
+  }
+  if (params.billingCycle) {
+    updatePayload.billing_cycle = params.billingCycle;
   }
   if ("stripeCustomerId" in params) {
     updatePayload.stripe_customer_id = params.stripeCustomerId;
@@ -504,18 +573,24 @@ export async function syncMeetingsThisMonth(
 export function getMeetingQuotaStatus(
   account: Pick<
     BillingAccount,
-    "plan" | "meetings_used" | "meetings_this_month" | "current_period_end"
+    | "plan"
+    | "meetings_used"
+    | "meetings_this_month"
+    | "current_period_end"
+    | "quota_period_end"
   > &
     Partial<
       Pick<
         BillingAccount,
-        "abacatepay_auto_renew_enabled" | "abacatepay_renewal_status"
+        | "billing_cycle"
+        | "abacatepay_auto_renew_enabled"
+        | "abacatepay_renewal_status"
       >
     >,
   now: Date = new Date()
 ): MeetingQuotaStatus {
   const plan = account.plan as Plan;
-  const meetingsUsed = getMeetingsUsed(account);
+  const meetingsUsed = getEffectiveMeetingsUsed(account, now);
   const quotaLimit = getMeetingQuotaLimit(plan);
   const hasAbacatePayRetryGrace =
     account.abacatepay_auto_renew_enabled === true &&
@@ -680,10 +755,13 @@ export async function downgradeToFree(
   const query = supabase.from("billing_accounts").update({
     plan: "free",
     active_billing_provider: null,
+    billing_cycle: null,
     stripe_pending_checkout_session_id: null,
     stripe_pending_plan: null,
     current_period_start: null,
     current_period_end: null,
+    quota_period_start: null,
+    quota_period_end: null,
     stripe_subscription_id: null,
     stripe_auto_renew_enabled: true,
     stripe_auto_renew_updated_at: now.toISOString(),
@@ -746,7 +824,7 @@ export async function getBillingStatus(userId: string): Promise<{
   quotaStatus: MeetingQuotaStatus;
 }> {
   const billingAccount = await getOrCreateBillingAccount(userId);
-  const meetingsUsed = getMeetingsUsed(billingAccount);
+  const meetingsUsed = getEffectiveMeetingsUsed(billingAccount);
   const monthlyLimit = getMonthlyMeetingLimit(billingAccount.plan as Plan);
   const quotaStatus = getMeetingQuotaStatus(billingAccount);
 

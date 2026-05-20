@@ -62,6 +62,7 @@ describe("billing gateway", () => {
       plan: "pro",
       source: "settings",
       requestOrigin: "http://localhost",
+      billingCycle: "monthly",
     });
 
     expect(result).toEqual({
@@ -83,6 +84,7 @@ describe("billing gateway", () => {
       plan: "team",
       source: "onboarding",
       requestOrigin: "http://localhost",
+      billingCycle: "yearly",
     });
 
     expect(result).toEqual({

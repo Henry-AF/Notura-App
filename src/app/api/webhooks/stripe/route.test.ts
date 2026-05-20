@@ -5,11 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
 const constructEvent = vi.fn();
+const retrieveSubscription = vi.fn();
 
 vi.mock("stripe", () => ({
   default: vi.fn().mockImplementation(() => ({
     webhooks: {
       constructEvent,
+    },
+    subscriptions: {
+      retrieve: retrieveSubscription,
     },
   })),
 }));
@@ -58,6 +62,22 @@ describe("POST /api/webhooks/stripe", () => {
     process.env.STRIPE_SECRET_KEY = "sk_test";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
     createServiceRoleClient.mockReturnValue(createAdminClient());
+    retrieveSubscription.mockResolvedValue({
+      id: "sub-1",
+      items: {
+        data: [
+          {
+            current_period_start: 1_777_291_200,
+            current_period_end: 1_808_827_200,
+            price: {
+              recurring: {
+                interval: "year",
+              },
+            },
+          },
+        ],
+      },
+    });
   });
 
   afterEach(() => {
@@ -93,8 +113,9 @@ describe("POST /api/webhooks/stripe", () => {
       expect.objectContaining({
         plan: "team",
         meetings_used: 0,
-        current_period_start: expect.any(String),
-        current_period_end: expect.any(String),
+        billing_cycle: "yearly",
+        current_period_start: "2026-04-27T12:00:00.000Z",
+        current_period_end: "2027-04-27T12:00:00.000Z",
         stripe_customer_id: "cus-1",
         stripe_subscription_id: "sub-1",
         stripe_auto_renew_enabled: true,
@@ -134,6 +155,7 @@ describe("POST /api/webhooks/stripe", () => {
 
     const adminClient = createServiceRoleClient.mock.results[0]?.value;
     expect(response.status).toBe(200);
+    expect(retrieveSubscription).not.toHaveBeenCalled();
     expect(adminClient.update).not.toHaveBeenCalled();
   });
 
@@ -177,6 +199,11 @@ describe("POST /api/webhooks/stripe", () => {
       data: {
         object: {
           customer: "cus-1",
+          parent: {
+            subscription_details: {
+              subscription: "sub-1",
+            },
+          },
           billing_reason: "subscription_cycle",
         },
       },
@@ -196,8 +223,9 @@ describe("POST /api/webhooks/stripe", () => {
     expect(adminClient.update).toHaveBeenCalledWith(
       expect.objectContaining({
         meetings_used: 0,
-        current_period_start: expect.any(String),
-        current_period_end: expect.any(String),
+        billing_cycle: "yearly",
+        current_period_start: "2026-04-27T12:00:00.000Z",
+        current_period_end: "2027-04-27T12:00:00.000Z",
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");

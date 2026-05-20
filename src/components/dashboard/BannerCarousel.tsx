@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { buildSupportWhatsAppUrl } from "@/lib/support-contact";
 
 interface StaticBanner {
   desktopSrc: string;
@@ -39,9 +40,9 @@ const BANNERS: StaticBanner[] = [
     desktopSrc: "/banners/banner-atendimento.png",
     mobileSrc: "/banners/banner-atendimento-mobile.png",
     alt: "Nossa equipe de desenvolvimento atende você diretamente",
-    desktopHref: "https://wa.me/",
+    desktopHref: buildSupportWhatsAppUrl(),
     desktopExternal: true,
-    mobileHref: "https://wa.me/5513996495858",
+    mobileHref: buildSupportWhatsAppUrl(),
     mobileExternal: true,
   },
 ];

@@ -8,6 +8,7 @@ import {
   verifyAbacatePayCheckout,
   verifyStripeCheckout,
 } from "@/lib/billing-gateway-providers";
+import type { BillingCycle } from "@/lib/pricing";
 import type { Plan } from "@/types/database";
 
 export type BillingGatewayProvider = "stripe" | "abacatepay";
@@ -19,6 +20,7 @@ export interface BillingCheckoutInput {
   plan: Exclude<Plan, "free">;
   source: BillingGatewaySource;
   requestOrigin: string;
+  billingCycle: BillingCycle;
 }
 
 export interface BillingCheckoutResult {

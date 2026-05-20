@@ -41,6 +41,7 @@ export interface Database {
           user_id: string
           plan: string
           active_billing_provider: string | null
+          billing_cycle: string | null
           meetings_this_month: number
           meetings_used: number
           stripe_customer_id: string | null
@@ -64,6 +65,8 @@ export interface Database {
           abacatepay_pending_plan: string | null
           current_period_start: string | null
           current_period_end: string | null
+          quota_period_start: string | null
+          quota_period_end: string | null
           created_at: string
           updated_at: string
         }
@@ -71,6 +74,7 @@ export interface Database {
           user_id: string
           plan?: string
           active_billing_provider?: string | null
+          billing_cycle?: string | null
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
@@ -94,6 +98,8 @@ export interface Database {
           abacatepay_pending_plan?: string | null
           current_period_start?: string | null
           current_period_end?: string | null
+          quota_period_start?: string | null
+          quota_period_end?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -101,6 +107,7 @@ export interface Database {
           user_id?: string
           plan?: string
           active_billing_provider?: string | null
+          billing_cycle?: string | null
           meetings_this_month?: number
           meetings_used?: number
           stripe_customer_id?: string | null
@@ -124,6 +131,8 @@ export interface Database {
           abacatepay_pending_plan?: string | null
           current_period_start?: string | null
           current_period_end?: string | null
+          quota_period_start?: string | null
+          quota_period_end?: string | null
           created_at?: string
           updated_at?: string
         }

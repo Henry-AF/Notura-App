@@ -35,10 +35,14 @@ import {
   getStripe,
   getStripePriceId,
   isPaidCheckoutSession,
+  retrieveStripeSubscriptionBillingPeriod,
 } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 type PaidPlan = BillingCheckoutInput["plan"];
+const PAYMENT_RECEIVED_PLAN_PENDING_CODE = "payment_received_plan_pending";
+const PAYMENT_RECEIVED_PLAN_PENDING_MESSAGE =
+  "Recebemos o pagamento da sua assinatura, mas o plano ainda nao foi aplicado automaticamente. Entre em contato com o suporte imediatamente para regularizarmos seu acesso.";
 
 function getCheckoutReturnPath(source: BillingCheckoutInput["source"]): string {
   return source === "settings" ? "/dashboard" : "/onboarding";
@@ -145,9 +149,33 @@ async function expireStripeCheckoutIfPending(
     await getStripe().checkout.sessions.expire(sessionId);
     return true;
   } catch (error) {
+    if (isCompletedStripeCheckoutExpireError(error)) {
+      throw new BillingGatewayError(
+        PAYMENT_RECEIVED_PLAN_PENDING_MESSAGE,
+        409,
+        PAYMENT_RECEIVED_PLAN_PENDING_CODE
+      );
+    }
     console.warn("[billing-gateway] Failed to expire pending Stripe checkout:", error);
     return false;
   }
+}
+
+function readStripeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "raw" in error) {
+    const raw = (error as { raw?: { message?: unknown } }).raw;
+    return typeof raw?.message === "string" ? raw.message : "";
+  }
+  return "";
+}
+
+function isCompletedStripeCheckoutExpireError(error: unknown): boolean {
+  const message = readStripeErrorMessage(error);
+  return (
+    message.includes('Only Checkout Sessions with a status in ["open"] can be expired') &&
+    message.includes("status of `complete`")
+  );
 }
 
 async function cancelAbacatePayCheckoutIfPending(
@@ -275,9 +303,21 @@ export async function createStripeCheckout(
     return { provider: "stripe", alreadyActive: true, plan: input.plan };
   }
 
+  const stripePendingExpired = await expireStripeCheckoutIfPending(
+    billingAccount.stripe_pending_checkout_session_id
+  );
+  if (!stripePendingExpired) {
+    throw new Error("Não foi possível expirar o checkout Stripe pendente.");
+  }
+
   const session = await getStripe().checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price: getStripePriceId(input.plan), quantity: 1 }],
+    line_items: [
+      {
+        price: getStripePriceId(input.plan, input.billingCycle),
+        quantity: 1,
+      },
+    ],
     success_url: buildCheckoutUrl(input, "stripe", "success"),
     cancel_url: buildCheckoutUrl(input, "stripe", "canceled"),
     client_reference_id: input.userId,
@@ -295,17 +335,9 @@ export async function createStripeCheckout(
     throw new Error("Stripe não retornou uma URL de checkout.");
   }
 
-  const [stripePendingExpired, abacatePayPendingCanceled] = await Promise.all([
-    expireStripeCheckoutIfPending(
-      billingAccount.stripe_pending_checkout_session_id === session.id
-        ? null
-        : billingAccount.stripe_pending_checkout_session_id
-    ),
+  const [abacatePayPendingCanceled] = await Promise.all([
     cancelAbacatePayCheckoutIfPending(billingAccount.abacatepay_pending_checkout_id),
   ]);
-  if (!stripePendingExpired) {
-    throw new Error("Não foi possível expirar o checkout Stripe pendente.");
-  }
 
   await saveStripePendingCheckout({
     userId: input.userId,
@@ -396,6 +428,9 @@ export async function verifyStripeCheckout(
 
   const stripeCustomerId = readResourceId(session.customer);
   const stripeSubscriptionId = readResourceId(session.subscription);
+  if (!stripeSubscriptionId) {
+    throw new BillingGatewayError("Sessão de checkout sem assinatura Stripe.", 400);
+  }
   if (billingAccount.stripe_pending_checkout_session_id !== session.id) {
     if (
       isAlreadyActiveStripeSession({
@@ -416,6 +451,8 @@ export async function verifyStripeCheckout(
       sessionId: session.id,
     });
   }
+  const billingPeriod =
+    await retrieveStripeSubscriptionBillingPeriod(stripeSubscriptionId);
 
   try {
     await resetSubscriptionPeriod(
@@ -424,6 +461,7 @@ export async function verifyStripeCheckout(
         plan,
         stripeCustomerId,
         stripeSubscriptionId,
+        ...billingPeriod,
       },
       db
     );

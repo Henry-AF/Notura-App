@@ -162,6 +162,29 @@ describe("billing helpers", () => {
     });
   });
 
+  it("treats expired annual quota windows as fresh while the subscription is active", async () => {
+    const mod = await import("./billing");
+    const now = new Date("2026-05-28T12:00:00.000Z");
+
+    expect(
+      mod.getMeetingQuotaStatus(
+        {
+          plan: "pro",
+          billing_cycle: "yearly",
+          meetings_used: 30,
+          current_period_end: "2027-04-27T12:00:00.000Z",
+          quota_period_end: "2026-05-27T12:00:00.000Z",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      allowed: true,
+      code: null,
+      meetingsUsed: 0,
+      quotaLimit: 30,
+    });
+  });
+
   it("keeps paid access open while an AbacatePay renewal retry is pending", async () => {
     const mod = await import("./billing");
     const now = new Date("2026-04-27T12:00:00.000Z");
@@ -295,6 +318,8 @@ describe("billing helpers", () => {
       stripe_pending_plan: null,
       current_period_start: "2026-04-27T12:00:00.000Z",
       current_period_end: "2026-05-27T12:00:00.000Z",
+      quota_period_start: "2026-04-27T12:00:00.000Z",
+      quota_period_end: "2026-05-27T12:00:00.000Z",
       abacatepay_customer_id: "customer-1",
       abacatepay_auto_renew_enabled: true,
       abacatepay_renewal_attempts: 0,
@@ -330,6 +355,9 @@ describe("billing helpers", () => {
       now: new Date("2026-04-27T12:00:00.000Z"),
       stripeCustomerId: "cus-1",
       stripeSubscriptionId: "sub-1",
+      billingCycle: "yearly",
+      currentPeriodStart: "2026-04-27T12:00:00.000Z",
+      currentPeriodEnd: "2027-04-27T12:00:00.000Z",
     });
 
     expect(update).toHaveBeenCalledWith(
@@ -337,6 +365,11 @@ describe("billing helpers", () => {
         plan: "pro",
         stripe_customer_id: "cus-1",
         stripe_subscription_id: "sub-1",
+        billing_cycle: "yearly",
+        current_period_start: "2026-04-27T12:00:00.000Z",
+        current_period_end: "2027-04-27T12:00:00.000Z",
+        quota_period_start: "2026-04-27T12:00:00.000Z",
+        quota_period_end: "2026-05-27T12:00:00.000Z",
         stripe_auto_renew_enabled: true,
         stripe_renewal_status: "active",
       })
@@ -746,10 +779,13 @@ describe("billing helpers", () => {
     expect(update).toHaveBeenCalledWith({
       plan: "free",
       active_billing_provider: null,
+      billing_cycle: null,
       stripe_pending_checkout_session_id: null,
       stripe_pending_plan: null,
       current_period_start: null,
       current_period_end: null,
+      quota_period_start: null,
+      quota_period_end: null,
       stripe_subscription_id: null,
       stripe_auto_renew_enabled: true,
       stripe_auto_renew_updated_at: "2026-04-27T12:00:00.000Z",

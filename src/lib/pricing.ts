@@ -1,4 +1,5 @@
 import type { Plan } from "@/types/database";
+import { buildSupportWhatsAppUrl } from "@/lib/support-contact";
 
 export const BILLING_CYCLES = ["monthly", "yearly"] as const;
 export const PRICING_PLANS = ["free", "starter", "pro", "enterprise"] as const;
@@ -104,7 +105,7 @@ export const PRICING: PricingConfig = {
     monthlyLimit: null,
     internalPlan: null,
     ctaLabel: "Falar com a equipe",
-    contactHref: "https://wa.me/5513996495858",
+    contactHref: buildSupportWhatsAppUrl(),
     annualSavingsLabel: ANNUAL_SAVINGS_LABEL,
   },
 };

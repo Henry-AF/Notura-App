@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Sparkles, Users, X, Zap } from "lucide-react";
+import { AlertTriangle, Check, Sparkles, Users, X, Zap } from "lucide-react";
 import {
   BillingCycleProvider,
   useBillingCycle,
@@ -9,7 +9,10 @@ import {
 import { PricingToggle } from "@/components/pricing/PricingToggle";
 import { UpgradeButton } from "@/components/pricing/UpgradeButton";
 import { prewarmBillingCustomer } from "@/lib/billing-customer-client";
-import { startPlanCheckout } from "@/lib/checkout-client";
+import {
+  CheckoutSupportRequiredError,
+  startPlanCheckout,
+} from "@/lib/checkout-client";
 import {
   createCheckoutSelection,
   getBillingCycleLabel,
@@ -51,7 +54,17 @@ export interface CheckoutResponseBody {
   alreadyActive?: boolean;
 }
 
+type CheckoutSupportIssue = {
+  message: string;
+  whatsappUrl: string;
+};
+
 const MODAL_PLAN_IDS = ["free", "starter", "pro", "enterprise"] as const;
+export const CHECKOUT_SUPPORT_MODAL_TONE = {
+  background: "rgba(255,107,107,0.1)",
+  border: "1px solid rgba(255,107,107,0.32)",
+  actionBackground: "#FF4D4F",
+};
 
 const PLAN_STYLE: Record<
   PricingPlanType,
@@ -165,15 +178,34 @@ export function isSettingsCheckoutDisabled(input: {
   return isFree || isCurrentPlan || input.isLoading || (needsCheckout && !input.prewarmReady);
 }
 
+export function getCheckoutSupportIssue(error: unknown): {
+  message: string;
+  whatsappUrl: string;
+} | null {
+  if (!(error instanceof CheckoutSupportRequiredError)) return null;
+  return {
+    message: error.message,
+    whatsappUrl: error.whatsappUrl,
+  };
+}
+
+export function getPlanModalMode(input: {
+  supportIssue: CheckoutSupportIssue | null;
+}): "plans" | "support" {
+  return input.supportIssue ? "support" : "plans";
+}
+
 function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
   const c = useThemeColors();
   const { billingCycle, setBillingCycle } = useBillingCycle();
   const [loading, setLoading] = useState<CheckoutPlanType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [supportIssue, setSupportIssue] = useState<CheckoutSupportIssue | null>(null);
   const [prewarmReady, setPrewarmReady] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const currentPricingPlan = resolvePricingPlanFromInternalPlan(currentPlan);
   const plans = useMemo(() => buildModalPlans(billingCycle), [billingCycle]);
+  const modalMode = getPlanModalMode({ supportIssue });
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +265,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
 
     setLoading(plan);
     setError(null);
+    setSupportIssue(null);
 
     try {
       const body = (await startPlanCheckout(
@@ -252,11 +285,125 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
 
       throw new Error("URL de checkout nao recebida.");
     } catch (err) {
+      const checkoutSupportIssue = getCheckoutSupportIssue(err);
+      if (checkoutSupportIssue) {
+        setSupportIssue(checkoutSupportIssue);
+        setLoading(null);
+        return;
+      }
+
       setError(
         err instanceof Error ? err.message : "Erro inesperado. Tente novamente."
       );
       setLoading(null);
     }
+  }
+
+  if (modalMode === "support" && supportIssue) {
+    return (
+      <div
+        className="fixed inset-0 z-[220] flex items-end justify-center sm:items-center sm:p-4"
+        style={{ background: "rgba(0,0,0,0.78)", backdropFilter: "blur(4px)" }}
+        onClick={onClose}
+      >
+        <div
+          ref={panelRef}
+          className="plan-modal-panel relative w-full rounded-t-3xl sm:max-w-lg sm:rounded-2xl"
+          style={{
+            background: c.card,
+            border: CHECKOUT_SUPPORT_MODAL_TONE.border,
+            boxShadow: "0 22px 70px rgba(0,0,0,0.35)",
+            maxHeight: "90dvh",
+            overflowY: "auto",
+          }}
+          onClick={(event) => event.stopPropagation()}
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Falha na ativação da assinatura"
+        >
+          <div
+            className="flex items-start justify-between gap-4 border-b p-5 sm:p-6"
+            style={{ borderColor: "rgba(255,107,107,0.22)" }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  background: CHECKOUT_SUPPORT_MODAL_TONE.background,
+                  color: CHECKOUT_SUPPORT_MODAL_TONE.actionBackground,
+                }}
+              >
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold" style={{ color: c.ink }}>
+                  Pagamento recebido, assinatura pendente
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: c.ink2 }}>
+                  Precisamos regularizar sua conta manualmente.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="Fechar"
+              onClick={onClose}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
+              style={{ background: c.card2, color: c.ink3 }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="p-5 sm:p-6">
+            <div
+              className="rounded-xl px-4 py-4 text-sm"
+              style={{
+                background: CHECKOUT_SUPPORT_MODAL_TONE.background,
+                border: CHECKOUT_SUPPORT_MODAL_TONE.border,
+                color: c.ink,
+              }}
+            >
+              <p className="font-semibold" style={{ color: CHECKOUT_SUPPORT_MODAL_TONE.actionBackground }}>
+                Isso exige atenção imediata.
+              </p>
+              <p className="mt-2 leading-relaxed" style={{ color: c.ink2 }}>
+                {supportIssue.message}
+              </p>
+            </div>
+
+            <a
+              className="mt-5 flex w-full items-center justify-center rounded-xl px-4 py-3 text-center text-sm font-bold text-white transition-colors"
+              href={supportIssue.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: CHECKOUT_SUPPORT_MODAL_TONE.actionBackground }}
+            >
+              Falar com suporte imediatamente
+            </a>
+          </div>
+
+          <style>{`
+            @keyframes planModalSlideUp {
+              from { opacity: 0; transform: translateY(100%); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes planModalIn {
+              from { opacity: 0; transform: scale(0.95) translateY(10px); }
+              to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            .plan-modal-panel {
+              animation: planModalSlideUp 0.3s cubic-bezier(0.3, 0, 0.1, 1);
+            }
+            @media (min-width: 640px) {
+              .plan-modal-panel {
+                animation: planModalIn 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+              }
+            }
+          `}</style>
+        </div>
+      </div>
+    );
   }
 
   return (

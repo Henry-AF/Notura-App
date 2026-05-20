@@ -51,7 +51,6 @@ describe("onboarding api client", () => {
       body: JSON.stringify({
         plan: "pro",
         billingCycle: "monthly",
-        price: 49,
         source: "onboarding",
       }),
     });

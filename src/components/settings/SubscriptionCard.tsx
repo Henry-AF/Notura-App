@@ -74,7 +74,7 @@ export function SubscriptionCard({
           <span style={{ color: c.ink2 }}>Reuniões usadas</span>
           <span className="font-semibold" style={{ color: c.ink }}>
             {meetingsTotal === null
-              ? `${meetingsUsed}/Ilimitado`
+              ? `${meetingsUsed}/Personalizado`
               : `${meetingsUsed}/${meetingsTotal}`}
           </span>
         </div>
@@ -99,7 +99,7 @@ export function SubscriptionCard({
 
         <p className="mt-1.5 text-right text-[11px]" style={{ color: c.ink3 }}>
           {meetingsTotal === null
-            ? "Sem limite mensal"
+            ? "Limite personalizado"
             : `Renova em ${renewsInDays} dias`}
         </p>
       </div>

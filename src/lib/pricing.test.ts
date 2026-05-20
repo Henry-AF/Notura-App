@@ -6,6 +6,7 @@ import {
   getPlanPrice,
   getPlanPriceLabel,
   getPlanSummary,
+  getPricingPlan,
   resolveInternalPlanForCheckout,
   resolvePricingPlanFromInternalPlan,
 } from "./pricing";
@@ -17,6 +18,14 @@ describe("pricing config", () => {
     expect(getPlanPrice("pro", "monthly")).toBe(99);
     expect(getPlanPrice("pro", "yearly")).toBe(69);
     expect(getPlanPrice("free", "monthly")).toBe(0);
+  });
+
+  it("keeps the commercial Pro quota aligned with the backend team limit", () => {
+    expect(getPricingPlan("pro")).toMatchObject({
+      monthlyLimit: 100,
+      usageShortLabel: "100 reuniões por mês",
+    });
+    expect(resolveInternalPlanForCheckout("pro")).toBe("team");
   });
 
   it("maps commercial plans to internal billing plans without changing the database ids", () => {

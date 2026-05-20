@@ -53,7 +53,7 @@ export function presentPlanCard(
     badgeLabel: knownPlan?.badgeLabel ?? (input.plan?.trim().toUpperCase() || "Ativo"),
     priceLabel: knownPlan?.priceLabel ?? null,
     usageLabel: `${input.meetingsThisMonth} reuniões processadas neste mês`,
-    usageValueLabel: "Sem limite mensal",
+    usageValueLabel: "Limite personalizado",
     showProgress: false,
     progressValue: null,
   };

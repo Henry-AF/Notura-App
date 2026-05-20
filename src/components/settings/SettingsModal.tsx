@@ -574,7 +574,7 @@ export function SettingsModal({
                     <span className="font-bold" style={{ color: c.ink }}>
                       {hasLimit
                         ? `${data.meetingsUsed} / ${monthlyLimit}`
-                        : "Ilimitado"}
+                        : "Limite personalizado"}
                     </span>
                   </div>
                   <div
@@ -594,7 +594,7 @@ export function SettingsModal({
                   <p className="mt-2 text-right text-xs" style={{ color: c.ink3 }}>
                     {hasLimit
                       ? `${Math.max(0, monthlyLimit - data.meetingsUsed)} reuniões restantes`
-                      : "Reuniões ilimitadas no plano atual"}
+                      : "Limite personalizado no plano atual"}
                   </p>
                 </div>
 

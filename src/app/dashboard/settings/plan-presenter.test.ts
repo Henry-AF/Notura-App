@@ -43,16 +43,16 @@ describe("presentPlanCard", () => {
       presentPlanCard({
         plan: "team",
         meetingsThisMonth: 4,
-        monthlyLimit: null,
+        monthlyLimit: 100,
       })
     ).toEqual({
       title: "Plano Pro",
       badgeLabel: "Pro",
       priceLabel: "R$ 99",
-      usageLabel: "4 reuniões processadas neste mês",
-      usageValueLabel: "Sem limite mensal",
-      showProgress: false,
-      progressValue: null,
+      usageLabel: "4 de 100 reuniões este mês",
+      usageValueLabel: "4%",
+      showProgress: true,
+      progressValue: 4,
     });
   });
 
@@ -68,7 +68,7 @@ describe("presentPlanCard", () => {
       badgeLabel: "ENTERPRISE",
       priceLabel: null,
       usageLabel: "48 reuniões processadas neste mês",
-      usageValueLabel: "Sem limite mensal",
+      usageValueLabel: "Limite personalizado",
       showProgress: false,
       progressValue: null,
     });

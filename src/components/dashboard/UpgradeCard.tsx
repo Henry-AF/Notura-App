@@ -64,8 +64,8 @@ export function UpgradeCard({ onViewPlans, planName }: UpgradeCardProps) {
           margin: "10px 0 20px",
         }}
       >
-        Você está no {planName}. Upgrade para ilimitado e desbloqueie
-        transcrições infinitas e análises avançadas.
+        Você está no {planName}. Veja os planos disponíveis para ampliar
+        suas transcrições e análises avançadas.
       </p>
 
       {/* CTA */}

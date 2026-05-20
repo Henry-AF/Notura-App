@@ -114,7 +114,7 @@ const PLAN_EXTRA_FEATURES: Record<PricingPlanType, string[]> = {
 function getPlanUsageFeature(planId: PricingPlanType): string {
   const plan = getPricingPlan(planId);
   return plan.monthlyLimit === null
-    ? "Reunioes ilimitadas por mes"
+    ? "Limite personalizado"
     : plan.usageShortLabel;
 }
 

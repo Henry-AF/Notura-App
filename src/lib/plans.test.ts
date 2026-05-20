@@ -38,9 +38,9 @@ describe("plans catalog", () => {
     expect(getPlanCatalogEntry("team")).toMatchObject({
       id: "team",
       displayName: "Pro",
-      monthlyLimit: null,
+      monthlyLimit: 100,
       priceInCents: 9900,
-      usageShortLabel: "Reuniões ilimitadas",
+      usageShortLabel: "100 reuniões por mês",
     });
     expect(getPlanTitle("team")).toBe("Plano Pro");
     expect(getPlanDisplayName("team")).toBe("Pro");

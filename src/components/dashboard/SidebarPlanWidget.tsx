@@ -13,7 +13,7 @@ export interface SidebarPlanWidgetProps {
 
 function getUsageLabel(used: number, total: number | null) {
   if (typeof total !== "number" || total <= 0) {
-    return "Ilimitado";
+    return `${used}/Personalizado`;
   }
 
   return `${used}/${total}`;
@@ -127,7 +127,7 @@ export function SidebarPlanWidget({
       </div>
 
       <p className="mt-2 text-[11px] text-notura-ink-secondary">
-        {hasLimit ? `${used} reuniões usadas neste mês.` : "Sem limite mensal."}
+        {hasLimit ? `${used} reuniões usadas neste mês.` : "Limite personalizado."}
       </p>
 
       {onUpgradeClick && hasLimit && (
@@ -136,7 +136,7 @@ export function SidebarPlanWidget({
           onClick={onUpgradeClick}
           className="mt-3 text-xs font-semibold text-notura-primary transition-colors hover:text-notura-ink"
         >
-          Upgrade para ilimitado
+          Ver planos
         </button>
       )}
     </section>

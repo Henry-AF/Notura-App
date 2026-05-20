@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
@@ -226,6 +228,12 @@ describe("POST /api/webhooks/stripe", () => {
     const adminClient = createServiceRoleClient.mock.results[0]?.value;
     expect(response.status).toBe(200);
     expect(adminClient.update).not.toHaveBeenCalled();
+  });
+
+  it("has a single invoice payment failed handler", () => {
+    const source = readFileSync(resolve(__dirname, "route.ts"), "utf8");
+
+    expect(source.match(/case "invoice\.payment_failed"/g)).toHaveLength(1);
   });
 
   it("downgrades deleted subscriptions without resetting consumed usage", async () => {

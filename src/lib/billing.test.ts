@@ -455,6 +455,61 @@ describe("billing helpers", () => {
     );
   });
 
+  it("does not clear pending Stripe checkout when Stripe expire fails", async () => {
+    stripeExpire.mockRejectedValueOnce(new Error("stripe unavailable"));
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+        stripe_pending_checkout_session_id: "cs_pending",
+        stripe_pending_plan: "team",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      abacatepayCustomerId: "customer-1",
+    });
+
+    const payload = update.mock.calls[0]?.[0];
+    expect(stripeExpire).toHaveBeenCalledWith("cs_pending");
+    expect(payload).not.toHaveProperty("stripe_pending_checkout_session_id");
+    expect(payload).not.toHaveProperty("stripe_pending_plan");
+  });
+
+  it("does not clear pending AbacatePay checkout when cancellation fails", async () => {
+    abacatepayCancel.mockRejectedValueOnce(new Error("abacatepay unavailable"));
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+        abacatepay_pending_checkout_id: "abacatepay-pending-1",
+        abacatepay_pending_plan: "team",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+    });
+
+    const payload = update.mock.calls[0]?.[0];
+    expect(abacatepayCancel).toHaveBeenCalledWith("abacatepay-pending-1");
+    expect(payload).not.toHaveProperty("abacatepay_pending_checkout_id");
+    expect(payload).not.toHaveProperty("abacatepay_pending_plan");
+  });
+
   it("ignores stale AbacatePay payments when checkout is no longer pending", async () => {
     const { client, update } = createBillingClient({
       existingAccount: {
@@ -590,7 +645,7 @@ describe("billing helpers", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("ignores Stripe renewal webhooks when AbacatePay is the active provider", async () => {
+  it("throws stale provider error for Stripe renewal when AbacatePay is active", async () => {
     const { client, update } = createBillingClient({
       existingAccount: {
         user_id: "user-1",
@@ -602,12 +657,73 @@ describe("billing helpers", () => {
     createServiceRoleClient.mockReturnValue(client);
 
     const mod = await import("./billing");
-    await mod.resetSubscriptionPeriod({
-      stripeCustomerId: "cus-1",
-      now: new Date("2026-04-27T12:00:00.000Z"),
+    await expect(
+      mod.resetSubscriptionPeriod({
+        stripeCustomerId: "cus-1",
+        now: new Date("2026-04-27T12:00:00.000Z"),
+      })
+    ).rejects.toMatchObject({
+      name: "StaleBillingProviderError",
     });
 
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("throws stale provider error when guarded activation skips the update", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        active_billing_provider: "stripe",
+        current_period_end: "2026-04-27T11:59:59.000Z",
+        abacatepay_pending_checkout_id: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await expect(
+      mod.resetSubscriptionPeriod({
+        userId: "user-1",
+        plan: "team",
+        now: new Date("2026-04-27T12:00:00.000Z"),
+        abacatepayCustomerId: "customer-1",
+      })
+    ).rejects.toMatchObject({
+      name: "StaleBillingProviderError",
+    });
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("allows active provider handoff for a matching AbacatePay pending checkout", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        active_billing_provider: "stripe",
+        current_period_end: "2026-04-27T11:59:59.000Z",
+        abacatepay_pending_checkout_id: "abacatepay-pending-1",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      abacatepayCustomerId: "customer-1",
+      abacatepayPendingCheckoutId: "abacatepay-pending-1",
+      clearAbacatePayPending: true,
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_billing_provider: "abacatepay",
+        abacatepay_pending_checkout_id: null,
+      })
+    );
   });
 
   it("downgrades to free without resetting consumed usage", async () => {

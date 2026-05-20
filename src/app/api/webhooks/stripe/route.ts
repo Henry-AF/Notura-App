@@ -9,6 +9,7 @@ import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import {
   captureObservedError,
   createTraceId,
+  getErrorMessage,
   logStructured,
 } from "@/lib/observability";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -17,12 +18,6 @@ import {
   getOrCreateBillingAccount,
   resetSubscriptionPeriod,
 } from "@/lib/billing";
-import {
-  captureObservedError,
-  createTraceId,
-  getErrorMessage,
-  logStructured,
-} from "@/lib/observability";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
@@ -163,43 +158,6 @@ export const POST = withPublicRateLimit<NextRequest>(
           await resetSubscriptionPeriod({ stripeCustomerId: customerId }, supabase);
           console.log(`[stripe-webhook] Reset meeting quota for customer ${customerId}`);
         }
-        break;
-      }
-
-      case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const customerId =
-          typeof invoice.customer === "string"
-            ? invoice.customer
-            : invoice.customer?.id ?? null;
-        const requestId = createTraceId();
-        const message = "Stripe invoice payment failed";
-
-        logStructured("error", {
-          event: "billing.stripe.payment_failed",
-          requestId,
-          route: "/api/webhooks/stripe",
-          durationMs: 0,
-          status: "payment_failed",
-          stripeEventId: event.id,
-          stripeEventType: event.type,
-          stripeCustomerId: customerId,
-          stripeInvoiceId: invoice.id,
-        });
-        captureObservedError(new Error(message), {
-          event: "billing.stripe.payment_failed",
-          requestId,
-          route: "/api/webhooks/stripe",
-          durationMs: 0,
-          status: "payment_failed",
-          extra: {
-            stripeEventId: event.id,
-            stripeEventType: event.type,
-            stripeCustomerId: customerId,
-            stripeInvoiceId: invoice.id,
-            billingReason: invoice.billing_reason,
-          },
-        });
         break;
       }
 

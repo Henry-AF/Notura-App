@@ -229,6 +229,33 @@ describe("billing gateway providers", () => {
     expect(cancelAbacatePaySubscription).toHaveBeenCalledWith("abacatepay-pending-1");
   });
 
+  it("keeps fallback pending checkout when its cancellation fails before using Stripe", async () => {
+    cancelAbacatePaySubscription.mockRejectedValueOnce(new Error("cancel failed"));
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "free",
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: null,
+      abacatepay_pending_checkout_id: "abacatepay-pending-1",
+      abacatepay_pending_plan: "pro",
+      abacatepay_customer_id: "customer-1",
+    });
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+
+    await createStripeCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "pro",
+      source: "settings",
+      requestOrigin: "http://localhost",
+    });
+
+    const admin = createServiceRoleClient.mock.results[0]?.value;
+    const payload = admin.update.mock.calls[0]?.[0];
+    expect(cancelAbacatePaySubscription).toHaveBeenCalledWith("abacatepay-pending-1");
+    expect(payload).not.toHaveProperty("abacatepay_pending_checkout_id");
+    expect(payload).not.toHaveProperty("abacatepay_pending_plan");
+  });
+
   it("prewarms and stores a Stripe customer", async () => {
     const { ensureStripeCustomer } = await import("./billing-gateway-providers");
 
@@ -340,6 +367,23 @@ describe("billing gateway providers", () => {
     });
   });
 
+  it("does not report AbacatePay success for active Stripe accounts", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "pro",
+      active_billing_provider: "stripe",
+      abacatepay_pending_checkout_id: null,
+    });
+    const { verifyAbacatePayCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      verifyAbacatePayCheckout({
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
   it("reuses an existing AbacatePay fallback checkout while Stripe is unavailable", async () => {
     loadAbacatePayCustomerContext.mockResolvedValueOnce({
       billingAccount: {
@@ -371,5 +415,41 @@ describe("billing gateway providers", () => {
       checkoutUrl: "https://pay.abacatepay.com/existing",
     });
     expect(createAbacatePaySubscriptionCheckout).not.toHaveBeenCalled();
+  });
+
+  it("keeps Stripe pending checkout when expiration fails before using AbacatePay", async () => {
+    const stripe = {
+      checkout: {
+        sessions: {
+          expire: vi.fn().mockRejectedValueOnce(new Error("expire failed")),
+        },
+      },
+    };
+    getStripe.mockReturnValueOnce(stripe);
+    loadAbacatePayCustomerContext.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        abacatepay_customer_id: "customer-1",
+        abacatepay_pending_checkout_id: null,
+        stripe_pending_checkout_session_id: "cs_pending",
+        stripe_pending_plan: "pro",
+      },
+      profile: null,
+    });
+    const { createAbacatePayCheckout } = await import("./billing-gateway-providers");
+
+    await createAbacatePayCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "team",
+      source: "settings",
+      requestOrigin: "http://localhost",
+    });
+
+    const admin = createServiceRoleClient.mock.results[0]?.value;
+    const payload = admin.update.mock.calls[0]?.[0];
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith("cs_pending");
+    expect(payload).not.toHaveProperty("stripe_pending_checkout_session_id");
+    expect(payload).not.toHaveProperty("stripe_pending_plan");
   });
 });

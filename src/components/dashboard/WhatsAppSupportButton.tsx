@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { MessageCircleQuestion, X } from "lucide-react";
+import { WHATSAPP_SUPPORT_URL } from "@/lib/whatsapp-support";
 
 function useClickOutside(
   ref: React.RefObject<HTMLElement | null>,
@@ -140,7 +141,7 @@ export function WhatsAppSupportButton() {
           </p>
 
           <a
-            href="https://wa.me/5513996495858"
+            href={WHATSAPP_SUPPORT_URL}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}

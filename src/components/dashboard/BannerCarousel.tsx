@@ -6,17 +6,20 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useToast } from "@/components/upload/Toast";
+import { WHATSAPP_SUPPORT_URL } from "@/lib/whatsapp-support";
+
+type BannerAction =
+  | { type: "plan-modal" }
+  | { type: "toast"; message: string }
+  | { type: "external"; href: string };
 
 interface StaticBanner {
   desktopSrc: string;
   mobileSrc: string;
   alt: string;
-  desktopHref: string;
-  desktopExternal?: boolean;
-  mobileHref?: string;
-  mobileExternal?: boolean;
+  action: BannerAction;
 }
 
 const BANNERS: StaticBanner[] = [
@@ -24,32 +27,26 @@ const BANNERS: StaticBanner[] = [
     desktopSrc: "/banners/banner-plano-pro.png",
     mobileSrc: "/banners/banner-plano-pro-mobile.png",
     alt: "Teste o plano Pro",
-    desktopHref: "/planos",
-    mobileHref: "/dashboard/settings",
+    action: { type: "plan-modal" },
   },
   {
     desktopSrc: "/banners/banner-integracoes.png",
     mobileSrc: "/banners/banner-integracoes-mobile.png",
     alt: "Quero receber novidades sobre integrações",
-    desktopHref: "/novidades",
-    mobileHref: "https://notura-lp2.pages.dev",
-    mobileExternal: true,
+    action: { type: "toast", message: "Email salvo" },
   },
   {
     desktopSrc: "/banners/banner-atendimento.png",
     mobileSrc: "/banners/banner-atendimento-mobile.png",
     alt: "Nossa equipe de desenvolvimento atende você diretamente",
-    desktopHref: "https://wa.me/",
-    desktopExternal: true,
-    mobileHref: "https://wa.me/5513996495858",
-    mobileExternal: true,
+    action: { type: "external", href: WHATSAPP_SUPPORT_URL },
   },
 ];
 
 const INTERVAL_MS = 6000;
 
 export function BannerCarousel() {
-  const router = useRouter();
+  const { show } = useToast();
   const count = BANNERS.length;
   const [current, setCurrent] = useState(0);
   const [hovered, setHovered] = useState(false);
@@ -109,18 +106,19 @@ export function BannerCarousel() {
     delta < 0 ? handleNext() : handlePrev();
   };
 
-  const handleMobileBannerAction = useCallback(
+  const handleBannerAction = useCallback(
     (banner: StaticBanner) => {
-      if (banner.mobileHref) {
-        if (banner.mobileExternal) {
-          window.open(banner.mobileHref, "_blank", "noopener,noreferrer");
-          return;
-        }
-
-        router.push(banner.mobileHref);
+      if (banner.action.type === "plan-modal") {
+        window.dispatchEvent(new Event("notura:open-plan-modal"));
+        return;
       }
+      if (banner.action.type === "toast") {
+        show(banner.action.message, "success");
+        return;
+      }
+      window.open(banner.action.href, "_blank", "noopener,noreferrer");
     },
-    [router]
+    [show]
   );
 
   const arrowBase: React.CSSProperties = {
@@ -176,15 +174,18 @@ export function BannerCarousel() {
                 lineHeight: 0,
               }}
             >
-              <a
-                href={banner.desktopHref}
-                target={banner.desktopExternal ? "_blank" : undefined}
-                rel={banner.desktopExternal ? "noopener noreferrer" : undefined}
+              <button
+                type="button"
+                aria-label={banner.alt}
                 className="hidden md:block"
+                onClick={() => handleBannerAction(banner)}
                 style={{
-                  textDecoration: "none",
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  cursor: "pointer",
                 }}
-                draggable={false}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -197,13 +198,13 @@ export function BannerCarousel() {
                   }}
                   draggable={false}
                 />
-              </a>
+              </button>
 
               <button
                 type="button"
                 aria-label={banner.alt}
                 className="block w-full md:hidden"
-                onClick={() => handleMobileBannerAction(banner)}
+                onClick={() => handleBannerAction(banner)}
                 style={{
                   border: "none",
                   background: "transparent",

@@ -283,16 +283,31 @@ function SidebarFooter({
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
-    <div className="space-y-3 px-4 pb-4 pt-3">
+    <div
+      className={cn(
+        "space-y-3 pb-4 pt-3",
+        collapsible ? "px-2 group-hover:px-4" : "px-4"
+      )}
+    >
       {collapsible ? (
-        <div className="hidden group-hover:block">
-          <SidebarPlanWidget
-            planName={getPlanLabel(user.plan)}
-            used={user.meetingsThisMonth}
-            total={user.monthlyLimit}
-            onUpgradeClick={onUpgradeClick}
-          />
-        </div>
+        <>
+          <div className="flex justify-center group-hover:hidden">
+            <SidebarPlanWidget
+              planName={getPlanLabel(user.plan)}
+              used={user.meetingsThisMonth}
+              total={user.monthlyLimit}
+              variant="compact"
+            />
+          </div>
+          <div className="hidden group-hover:block">
+            <SidebarPlanWidget
+              planName={getPlanLabel(user.plan)}
+              used={user.meetingsThisMonth}
+              total={user.monthlyLimit}
+              onUpgradeClick={onUpgradeClick}
+            />
+          </div>
+        </>
       ) : (
         <SidebarPlanWidget
           planName={getPlanLabel(user.plan)}

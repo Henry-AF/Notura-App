@@ -12,4 +12,12 @@ describe("BannerCarousel", () => {
 
     expect(source).toContain("shadow-[0_2px_8px_rgba(0,0,0,0.06)]");
   });
+
+  it("routes banner actions to plan modal, saved-email toast, and WhatsApp support", () => {
+    const source = readSource("src/components/dashboard/BannerCarousel.tsx");
+
+    expect(source).toContain("notura:open-plan-modal");
+    expect(source).toContain("Email salvo");
+    expect(source).toContain("buildSupportWhatsAppUrl");
+  });
 });

@@ -1,26 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  createSettingsCheckoutRequest,
   createSettingsCheckoutPayload,
   isSettingsCheckoutDisabled,
 } from "./PlanModal";
 
 describe("PlanModal checkout payload", () => {
   it("marks dashboard plan changes as settings checkouts", () => {
-    expect(createSettingsCheckoutPayload("team")).toEqual({
-      plan: "team",
+    expect(createSettingsCheckoutPayload("pro", "yearly")).toEqual({
+      plan: "pro",
+      billingCycle: "yearly",
+      price: 69,
       source: "settings",
-    });
-  });
-
-  it("sends dashboard plan changes to the billing gateway endpoint", () => {
-    expect(createSettingsCheckoutRequest("pro")).toEqual({
-      url: "/api/billing/checkout",
-      init: {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "pro", source: "settings" }),
-      },
     });
   });
 
@@ -29,7 +19,7 @@ describe("PlanModal checkout payload", () => {
       isSettingsCheckoutDisabled({
         currentPlan: "free",
         isLoading: false,
-        planId: "pro",
+        planId: "starter",
         prewarmReady: false,
       })
     ).toBe(true);
@@ -38,7 +28,7 @@ describe("PlanModal checkout payload", () => {
       isSettingsCheckoutDisabled({
         currentPlan: "free",
         isLoading: false,
-        planId: "pro",
+        planId: "starter",
         prewarmReady: true,
       })
     ).toBe(false);

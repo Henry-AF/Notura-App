@@ -1,65 +1,61 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
 import { prewarmBillingCustomer } from "@/lib/billing-customer-client";
-import type { Plan } from "@/types/database";
-
-interface StartCheckoutResponse {
-  checkoutUrl?: string;
-  alreadyActive?: boolean;
-  error?: string;
-}
+import {
+  startPlanCheckout,
+  type CheckoutStartResult,
+  type StartCheckoutRequest,
+} from "@/lib/checkout-client";
+import {
+  createCheckoutSelection,
+  DEFAULT_BILLING_CYCLE,
+  isCheckoutPlan,
+  type CheckoutPlanType,
+} from "@/lib/pricing";
 
 interface VerifyPaymentResponse {
   error?: string;
 }
 
-export interface OnboardingCheckoutResult {
-  checkoutUrl: string | null;
-  alreadyActive: boolean;
+type CheckoutProvider = "abacatepay" | "stripe";
+
+interface VerifyPaymentInput {
+  provider: CheckoutProvider;
+  sessionId?: string | null;
 }
+
+export type OnboardingCheckoutResult = CheckoutStartResult;
 
 export async function ensureOnboardingBillingCustomer(): Promise<boolean> {
   return prewarmBillingCustomer("onboarding");
 }
 
 export async function startOnboardingCheckout(
-  plan: Plan
+  input: Omit<StartCheckoutRequest, "source"> | CheckoutPlanType
 ): Promise<OnboardingCheckoutResult> {
-  const response = await fetch("/api/billing/checkout", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ plan }),
+  const request =
+    typeof input === "string"
+      ? createCheckoutSelection(
+          isCheckoutPlan(input) ? input : "starter",
+          DEFAULT_BILLING_CYCLE
+        )
+      : input;
+
+  return startPlanCheckout({
+    ...request,
+    source: "onboarding",
   });
-  const body = await parseJson<StartCheckoutResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(normalizeError(body.error, "Falha ao iniciar o checkout."));
-  }
-
-  if (body.alreadyActive) {
-    return { checkoutUrl: null, alreadyActive: true };
-  }
-
-  if (!body.checkoutUrl) {
-    throw new Error("Checkout não retornou URL de redirecionamento.");
-  }
-
-  return {
-    checkoutUrl: body.checkoutUrl,
-    alreadyActive: false,
-  };
 }
 
 export async function verifyOnboardingPayment(
-  sessionId?: string | null
+  input: VerifyPaymentInput
 ): Promise<void> {
+  const payload = input.sessionId ? { sessionId: input.sessionId } : {};
   const response = await fetch("/api/billing/checkout/verify", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(sessionId ? { sessionId } : {}),
+    body: JSON.stringify(payload),
   });
   const body = await parseJson<VerifyPaymentResponse>(response);
 

@@ -37,7 +37,7 @@ describe("onboarding api client", () => {
       )
     );
 
-    const result = await startOnboardingCheckout("pro");
+    const result = await startOnboardingCheckout("starter");
 
     expect(result).toEqual({
       checkoutUrl: "https://checkout.example.com/session",
@@ -48,7 +48,12 @@ describe("onboarding api client", () => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ plan: "pro" }),
+      body: JSON.stringify({
+        plan: "pro",
+        billingCycle: "monthly",
+        price: 49,
+        source: "onboarding",
+      }),
     });
   });
 
@@ -57,7 +62,7 @@ describe("onboarding api client", () => {
       new Response(JSON.stringify({ alreadyActive: true }), { status: 200 })
     );
 
-    await expect(startOnboardingCheckout("team")).resolves.toEqual({
+    await expect(startOnboardingCheckout("pro")).resolves.toEqual({
       checkoutUrl: null,
       alreadyActive: true,
     });
@@ -73,24 +78,17 @@ describe("onboarding api client", () => {
     );
   });
 
-  it("throws the API error when payment verification fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Pagamento pendente." }), {
-        status: 409,
+  it("verifies Stripe payments with the checkout session id", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
       })
     );
 
-    await expect(verifyOnboardingPayment()).rejects.toThrow(
-      "Pagamento pendente."
-    );
-  });
-
-  it("sends the checkout session id when verifying Stripe payments", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), { status: 200 })
-    );
-
-    await verifyOnboardingPayment("cs_test_123");
+    await verifyOnboardingPayment({
+      provider: "stripe",
+      sessionId: "cs_test_123",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout/verify", {
       method: "POST",
@@ -99,5 +97,21 @@ describe("onboarding api client", () => {
       },
       body: JSON.stringify({ sessionId: "cs_test_123" }),
     });
+  });
+
+  it("throws the API error when payment verification fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Pagamento pendente." }), {
+        status: 409,
+      })
+    );
+
+    await expect(
+      verifyOnboardingPayment({
+        provider: "abacatepay",
+      })
+    ).rejects.toThrow(
+      "Pagamento pendente."
+    );
   });
 });

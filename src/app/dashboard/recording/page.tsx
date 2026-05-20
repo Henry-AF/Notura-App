@@ -18,7 +18,6 @@ import {
   type RecordingOverlayStage,
   type RecordingSetupValues,
 } from "@/components/recording";
-import { LoadingState } from "@/components/ui/app";
 import { Grainient } from "@/components/ui/grainient";
 import { useThemeColors } from "@/lib/theme-context";
 import {
@@ -343,7 +342,6 @@ function RecordingPageInner() {
   const [canSendWhatsAppSummary, setCanSendWhatsAppSummary] = useState(false);
   const [meetingGroups, setMeetingGroups] = useState<MeetingGroupOption[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(
     getInitialRecordingMode(searchParams.get("mode"))
@@ -451,10 +449,6 @@ function RecordingPageInner() {
               : "Erro ao carregar os dados da gravação.",
             "warning"
           );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingDefaults(false);
         }
       }
     }
@@ -816,10 +810,6 @@ function RecordingPageInner() {
     },
     []
   );
-
-  if (isLoadingDefaults) {
-    return <LoadingState label="Carregando opções da gravação..." />;
-  }
 
   return (
     <>

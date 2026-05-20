@@ -30,7 +30,6 @@ import {
 import {
   DashboardListSection,
   EmptyState,
-  LoadingState,
   PageHeader,
   PageShell,
   SectionCard,
@@ -366,13 +365,14 @@ function SelectedGroupPanel({
   );
 }
 
-export function GroupsClient() {
-  const [data, setData] = useState<GroupsPageData>({ groups: [], meetings: [] });
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
+  const [data, setData] = useState<GroupsPageData>(initialData);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
+    initialData.groups[0]?.id ?? null
+  );
   const [editingGroup, setEditingGroup] = useState<GroupsPageGroup | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GroupsPageGroup | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -393,12 +393,6 @@ export function GroupsClient() {
     setData(nextData);
     setSelectedGroupId((current) => current ?? nextData.groups[0]?.id ?? null);
   }
-
-  useEffect(() => {
-    void reload()
-      .catch(() => setError("Erro ao carregar grupos."))
-      .finally(() => setIsLoading(false));
-  }, []);
 
   async function saveGroup(name: string, groupId?: string) {
     setIsSaving(true);
@@ -434,10 +428,6 @@ export function GroupsClient() {
     setError(null);
     await moveMeetingToGroup(meetingId, groupId);
     await reload();
-  }
-
-  if (isLoading) {
-    return <LoadingState label="Carregando grupos..." />;
   }
 
   return (

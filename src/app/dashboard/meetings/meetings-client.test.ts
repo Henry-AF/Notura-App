@@ -30,4 +30,12 @@ describe("meetings client presentation", () => {
     expect(source).toContain('<p className="text-right">Ações</p>');
     expect(source).toContain('title="Nenhuma reunião encontrada"');
   });
+
+  it("exposes a cancel action for meetings that are still processing", () => {
+    const source = readSource();
+
+    expect(source).toContain("cancelMeetingProcessing");
+    expect(source).toContain('aria-label="Cancelar processamento"');
+    expect(source).toContain('meeting.status === "processing"');
+  });
 });

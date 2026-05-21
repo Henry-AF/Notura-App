@@ -79,6 +79,40 @@ describe("meeting detail client api", () => {
     });
   });
 
+  it("cancels meeting processing through the owned API route", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const mod = await import("./meeting-client-api");
+    await mod.cancelMeetingProcessing("meeting-1");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/meetings/meeting-1/cancel-processing",
+      {
+        method: "POST",
+      }
+    );
+  });
+
+  it("throws a useful error when processing cancellation fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Nao foi possivel cancelar." }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const mod = await import("./meeting-client-api");
+
+    await expect(mod.cancelMeetingProcessing("meeting-1")).rejects.toThrow(
+      "Nao foi possivel cancelar."
+    );
+  });
+
   it("throws a useful error when the meeting deletion fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "Nao foi possivel excluir." }), {

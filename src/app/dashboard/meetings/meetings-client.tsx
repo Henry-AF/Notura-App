@@ -3,7 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { Plus, RefreshCw, Search, Sparkles, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
   type MeetingsPageMeeting as Meeting,
   type MeetingsPageStatus as Status,
 } from "./meetings-types";
+import { cancelMeetingProcessing } from "./[id]/meeting-client-api";
 
 const STATUS_OPTIONS: { value: Status | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -36,30 +37,47 @@ function MeetingStatusBadge({ status }: { status: Status }) {
 function MeetingRow({
   meeting,
   onRetry,
+  onCancel,
+  isCanceling,
   onViewProcessing,
   onOpen,
 }: {
   meeting: Meeting;
   onRetry: (id: string) => void;
+  onCancel: (id: string) => void;
+  isCanceling: boolean;
   onViewProcessing: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
   const actionButton = (
     <div
-      className="flex shrink-0 items-center justify-end"
+      className="flex shrink-0 items-center justify-end gap-1"
       onClick={(event) => event.stopPropagation()}
     >
       {meeting.status === "processing" ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 rounded-md p-0 text-primary"
-          onClick={() => onViewProcessing(meeting.id)}
-          aria-label="Ver processamento"
-        >
-          <Sparkles className="h-4 w-4" />
-        </Button>
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 rounded-md p-0 text-primary"
+            onClick={() => onViewProcessing(meeting.id)}
+            aria-label="Ver processamento"
+          >
+            <Sparkles className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 rounded-md p-0 text-destructive"
+            onClick={() => onCancel(meeting.id)}
+            disabled={isCanceling}
+            aria-label="Cancelar processamento"
+          >
+            <XCircle className="h-4 w-4" />
+          </Button>
+        </>
       ) : null}
       {meeting.status === "failed" ? (
         <Button
@@ -84,7 +102,7 @@ function MeetingRow({
       onKeyDown={(event) => {
         if (event.key === "Enter") onOpen(meeting.id);
       }}
-      className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_70px] sm:gap-2 sm:px-3 sm:py-3"
+      className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_92px] sm:gap-2 sm:px-3 sm:py-3"
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────── */}
       <Avatar className="h-9 w-9 shrink-0 sm:hidden">
@@ -135,6 +153,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
   const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [cancelingMeetingId, setCancelingMeetingId] = useState<string | null>(null);
 
   const handleRetry = useCallback(async (id: string) => {
     try {
@@ -148,6 +167,22 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
       );
     } catch {
       // silently ignore for now; page-level toast will be added in a later pass
+    }
+  }, []);
+
+  const handleCancelProcessing = useCallback(async (id: string) => {
+    setCancelingMeetingId(id);
+    try {
+      await cancelMeetingProcessing(id);
+      setMeetings((previous) =>
+        previous.map((meeting) =>
+          meeting.id === id ? { ...meeting, status: "failed" as const } : meeting
+        )
+      );
+    } catch {
+      // silently ignore for now; page-level toast will be added in a later pass
+    } finally {
+      setCancelingMeetingId(null);
     }
   }, []);
 
@@ -229,7 +264,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         className="rounded-xl"
         contentClassName="p-3 pt-3 sm:p-6 sm:pt-6"
         header={
-          <div className="grid grid-cols-[1fr_120px_140px_70px] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <div className="grid grid-cols-[1fr_120px_140px_92px] gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <p>Título</p>
             <p>Data</p>
             <p>Status</p>
@@ -255,6 +290,8 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
             key={meeting.id}
             meeting={meeting}
             onRetry={handleRetry}
+            onCancel={handleCancelProcessing}
+            isCanceling={cancelingMeetingId === meeting.id}
             onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}
             onOpen={(id) => router.push(`/dashboard/meetings/${id}`)}
           />

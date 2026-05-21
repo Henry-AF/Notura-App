@@ -30,4 +30,18 @@ describe("meeting detail actions", () => {
       'if (feedback !== "down") (e.currentTarget as HTMLButtonElement).style.color = feedback === "down" ? "#EF4444" : "#9CA3AF";'
     );
   });
+
+  it("shows processing cancellation from the meeting detail without changing the processing page", () => {
+    const meetingHeader = readSource("src/components/meeting-detail/MeetingHeader.tsx");
+    const meetingDetailClient = readSource(
+      "src/app/dashboard/meetings/[id]/meeting-detail-client.tsx"
+    );
+    const processingPage = readSource("src/app/dashboard/processing/page.tsx");
+
+    expect(meetingHeader).toContain("onCancelProcessing");
+    expect(meetingDetailClient).toContain("cancelMeetingProcessing");
+    expect(meetingDetailClient).toContain('meetingStatus === "processing"');
+    expect(processingPage).not.toContain("cancelMeetingProcessing");
+    expect(processingPage).not.toContain("Cancelar processamento");
+  });
 });

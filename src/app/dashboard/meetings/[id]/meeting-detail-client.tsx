@@ -23,7 +23,12 @@ import {
   deleteTaskById,
   updateTaskById,
 } from "@/app/dashboard/tasks/tasks-api";
-import { deleteMeetingById, fetchMeetingStatus, retryMeetingProcessing } from "./meeting-client-api";
+import {
+  cancelMeetingProcessing,
+  deleteMeetingById,
+  fetchMeetingStatus,
+  retryMeetingProcessing,
+} from "./meeting-client-api";
 import type { MeetingDetailData } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
@@ -48,7 +53,15 @@ function NotFoundState({ onBack }: { onBack: () => void }) {
 
 // ─── Processing state ─────────────────────────────────────────────────────────
 
-function ProcessingState({ clientName }: { clientName: string }) {
+function ProcessingState({
+  clientName,
+  isCancelingProcessing,
+  onCancelProcessing,
+}: {
+  clientName: string;
+  isCancelingProcessing: boolean;
+  onCancelProcessing: () => void;
+}) {
   return (
     <SectionCard className="rounded-xl px-6 py-12 text-center">
       <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
@@ -56,6 +69,16 @@ function ProcessingState({ clientName }: { clientName: string }) {
       <p className="mt-1 text-xs text-muted-foreground">
         O resumo e as tarefas serão gerados em instantes.
       </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onCancelProcessing}
+        disabled={isCancelingProcessing}
+        className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10"
+      >
+        {isCancelingProcessing ? "Cancelando..." : "Cancelar processamento"}
+      </Button>
     </SectionCard>
   );
 }
@@ -151,6 +174,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     "completed" | "processing" | "failed" | "scheduled"
   >(meeting.meetingStatus);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isCancelingProcessing, setIsCancelingProcessing] = useState(false);
   const [participants] = useState<Array<{ name: string }>>(meeting.participants);
 
   // Summary content
@@ -216,6 +240,24 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       );
     } finally {
       setIsRetrying(false);
+    }
+  }, [id, show]);
+
+  const handleCancelProcessing = useCallback(async () => {
+    setIsCancelingProcessing(true);
+    try {
+      await cancelMeetingProcessing(id);
+      setMeetingStatus("failed");
+      show("Processamento cancelado. Você pode reprocessar depois.", "success");
+    } catch (error) {
+      show(
+        error instanceof Error
+          ? error.message
+          : "Erro ao cancelar processamento.",
+        "error"
+      );
+    } finally {
+      setIsCancelingProcessing(false);
     }
   }, [id, show]);
 
@@ -388,13 +430,25 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   // ─── Main content per active tab ──────────────────────────────────────────
   function renderMainContent() {
     if (meetingStatus === "processing") {
-      return <ProcessingState clientName={clientName} />;
+      return (
+        <ProcessingState
+          clientName={clientName}
+          isCancelingProcessing={isCancelingProcessing}
+          onCancelProcessing={handleCancelProcessing}
+        />
+      );
     }
     if (meetingStatus === "failed") {
       return <FailedState onRetry={handleRetry} isRetrying={isRetrying} />;
     }
     if (meetingStatus !== "completed") {
-      return <ProcessingState clientName={clientName} />;
+      return (
+        <ProcessingState
+          clientName={clientName}
+          isCancelingProcessing={isCancelingProcessing}
+          onCancelProcessing={handleCancelProcessing}
+        />
+      );
     }
 
     switch (activeTab) {
@@ -666,6 +720,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           participants={participants}
           onRetry={meetingStatus === "failed" ? handleRetry : undefined}
           isRetrying={isRetrying}
+          onCancelProcessing={
+            meetingStatus === "processing" ? handleCancelProcessing : undefined
+          }
+          isCancelingProcessing={isCancelingProcessing}
           onChat={
             meetingStatus === "completed" ? () => setIsChatOpen(true) : undefined
           }

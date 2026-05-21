@@ -1,7 +1,15 @@
 "use client";
 
 import React from "react";
-import { Calendar, MessageSquare, RefreshCw, Share2, Pencil, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  MessageSquare,
+  RefreshCw,
+  Share2,
+  Pencil,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -58,6 +66,8 @@ export interface MeetingHeaderProps {
   onChat?: () => void;
   onRetry?: () => void;
   isRetrying?: boolean;
+  onCancelProcessing?: () => void;
+  isCancelingProcessing?: boolean;
   onShare: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -72,6 +82,8 @@ export function MeetingHeader({
   onChat,
   onRetry,
   isRetrying = false,
+  onCancelProcessing,
+  isCancelingProcessing = false,
   onShare,
   onEdit,
   onDelete,
@@ -104,6 +116,19 @@ export function MeetingHeader({
             >
               <RefreshCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
               {isRetrying ? "Reprocessando..." : "Reprocessar"}
+            </Button>
+          ) : null}
+          {onCancelProcessing ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancelProcessing}
+              disabled={isCancelingProcessing}
+              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto"
+            >
+              <XCircle className="h-4 w-4" />
+              {isCancelingProcessing ? "Cancelando..." : "Cancelar processamento"}
             </Button>
           ) : null}
           {onChat ? (

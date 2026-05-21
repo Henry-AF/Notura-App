@@ -61,8 +61,8 @@ vi.mock("@/lib/observability", () => ({
 vi.mock("@/lib/jobs/meeting-queue-guardrails", () => ({
   PROCESS_MEETING_CONCURRENCY: 1,
   PROCESS_MEETING_RETRY_ATTEMPTS: 0,
-  toNonRetriableJobError: (_message: string, error: unknown) =>
-    error instanceof Error ? error : new Error(String(error)),
+  toNonRetriableJobError: (message: string, error: unknown) =>
+    error instanceof Error ? error : new Error(message),
   toProviderQueueError: (_provider: string, error: unknown) =>
     error instanceof Error ? error : new Error(String(error)),
 }));
@@ -102,16 +102,17 @@ function createSummaryJson() {
   };
 }
 
-function createSupabaseMock() {
+function createSupabaseMock(input: { meetingStatuses?: string[] } = {}) {
+  const meetingStatuses = input.meetingStatuses ?? ["pending"];
   const writes = {
     inserts: [] as Array<{ table: string; payload: unknown }>,
     updates: [] as Array<{ table: string; payload: unknown }>,
     upserts: [] as Array<{ table: string; payload: unknown }>,
   };
-  const single = vi.fn().mockResolvedValue({
-    data: { status: "pending" },
+  const single = vi.fn(async () => ({
+    data: { status: meetingStatuses.shift() ?? "pending" },
     error: null,
-  });
+  }));
   const selectEq = vi.fn(() => ({ single }));
   const select = vi.fn(() => ({ eq: selectEq }));
   const updateEq = vi.fn().mockResolvedValue({ error: null });
@@ -359,5 +360,33 @@ describe("processMeeting", () => {
         },
       ])
     );
+  });
+
+  it("stops before provider work when the meeting was canceled by the user", async () => {
+    const supabase = createSupabaseMock({ meetingStatuses: ["failed"] });
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await expect(
+      (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+        event: {
+          id: "event-1",
+          name: "meeting/process",
+          data: {
+            meetingId: "meeting-1",
+            r2Key: "meetings/user-1/audio.mp3",
+            whatsappNumber: "+5511999999999",
+            userId: "user-1",
+          },
+        },
+        step,
+      })
+    ).rejects.toThrow("Meeting processing was canceled by the user.");
+
+    expect(mocks.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    expect(mocks.transcribe).not.toHaveBeenCalled();
   });
 });

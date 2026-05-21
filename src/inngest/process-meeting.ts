@@ -61,6 +61,9 @@ type InngestStepTools = {
   run(name: string, fn: () => Promise<unknown> | unknown): Promise<unknown>;
 };
 
+const USER_CANCELED_PROCESSING_MESSAGE = "Meeting processing was canceled by the user.";
+const ACTIVE_PROCESSING_STATUSES = ["pending", "processing"];
+
 function readRequiredEventString(
   payload: Record<string, unknown>,
   field: keyof MeetingProcessEventData,
@@ -210,6 +213,28 @@ async function updateProcessingJobStep(
   }
 }
 
+async function assertMeetingProcessingIsActive(
+  supabase: ServiceRoleClient,
+  meetingId: string
+) {
+  const { data, error } = await supabase
+    .from("meetings")
+    .select("status")
+    .eq("id", meetingId)
+    .single();
+
+  if (error || !data) {
+    throw toNonRetriableJobError(
+      "Meeting processing stopped because the meeting could not be loaded.",
+      error
+    );
+  }
+
+  if (!ACTIVE_PROCESSING_STATUSES.includes(data.status)) {
+    throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
+  }
+}
+
 async function completeProcessingJob(
   supabase: ServiceRoleClient,
   jobId: string
@@ -252,10 +277,12 @@ async function runTrackedProcessingStep<T>(
   step: InngestStepTools,
   supabase: ServiceRoleClient,
   jobId: string,
+  meetingId: string,
   name: ProcessingStepName,
   fn: () => Promise<T> | T
 ): Promise<T> {
   const result = await step.run(name, async () => {
+    await assertMeetingProcessingIsActive(supabase, meetingId);
     await updateProcessingJobStep(supabase, jobId, name);
     return await fn();
   });
@@ -320,6 +347,13 @@ export const processMeeting = inngest.createFunction(
           return true;
         }
 
+        if (
+          !existing ||
+          !ACTIVE_PROCESSING_STATUSES.includes(existing.status)
+        ) {
+          throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
+        }
+
         const { error } = await supabase
           .from("meetings")
           .update({ status: "processing" })
@@ -348,7 +382,7 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 2: Transcribe audio ───────────────────────────────────────
       currentStepForLog = "transcribe";
-      const { transcript, durationSeconds, utterances } = await runTrackedProcessingStep(step, supabase, jobId, "transcribe", async () => {
+      const { transcript, durationSeconds, utterances } = await runTrackedProcessingStep(step, supabase, jobId, meetingId, "transcribe", async () => {
         // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
         // NOTE: Webhook alternative — swap transcribe() for submit() and pass
         //   webhook_url + webhook_auth_header_name/value, then save the returned
@@ -456,7 +490,7 @@ export const processMeeting = inngest.createFunction(
       });
 
       currentStepForLog = "index-transcript-chunks";
-      await runTrackedProcessingStep(step, supabase, jobId, "index-transcript-chunks", async () => {
+      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "index-transcript-chunks", async () => {
         await indexMeetingTranscriptChunks({
           supabase,
           meetingId,
@@ -473,6 +507,7 @@ export const processMeeting = inngest.createFunction(
         step,
         supabase,
         jobId,
+        meetingId,
         "summarize-meeting",
         async () => {
           try {
@@ -485,7 +520,7 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 4: Save results to Supabase ───────────────────────────────
       currentStepForLog = "save-results";
-      await runTrackedProcessingStep(step, supabase, jobId, "save-results", async () => {
+      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "save-results", async () => {
         const taskDedupeKeys = buildSummaryItemDedupeKeys(
           summaryJson.tasks,
           (task) =>
@@ -608,7 +643,7 @@ export const processMeeting = inngest.createFunction(
       // ── Step 5: Send WhatsApp ──────────────────────────────────────────
       if (whatsappAccess.canSend && whatsappNumber) {
         currentStepForLog = "send-whatsapp";
-        await runTrackedProcessingStep(step, supabase, jobId, "send-whatsapp", async () => {
+        await runTrackedProcessingStep(step, supabase, jobId, meetingId, "send-whatsapp", async () => {
           const result = await sendMeetingSummaryTemplate(
             whatsappNumber,
             summaryJson,
@@ -654,7 +689,7 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 6: Cleanup — delete audio from R2 (LGPD) ─────────────────
       currentStepForLog = "cleanup";
-      await runTrackedProcessingStep(step, supabase, jobId, "cleanup", async () => {
+      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "cleanup", async () => {
         let audioDeleted = false;
 
         try {

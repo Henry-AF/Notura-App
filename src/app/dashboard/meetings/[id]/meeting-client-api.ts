@@ -166,6 +166,19 @@ export async function retryMeetingProcessing(id: string): Promise<void> {
   }
 }
 
+export async function cancelMeetingProcessing(id: string): Promise<void> {
+  const response = await fetch(`/api/meetings/${id}/cancel-processing`, {
+    method: "POST",
+  });
+  const body = await parseJson<{ success?: boolean; error?: string }>(response);
+
+  if (!response.ok || !body.success) {
+    throw new Error(
+      normalizeError(body.error, "Erro ao cancelar processamento da reunião.")
+    );
+  }
+}
+
 // ─── Meeting delete ───────────────────────────────────────────────────────────
 
 interface MeetingDeleteResponse {

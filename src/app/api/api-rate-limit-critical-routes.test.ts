@@ -361,7 +361,7 @@ describe("critical API routes rate limiting", () => {
           new NextRequest("http://localhost/api/webhooks/abacatepay?webhookSecret=wrong", {
             method: "POST",
             headers: {
-              "x-forwarded-for": "203.0.113.10",
+              "x-vercel-forwarded-for": "203.0.113.10",
             },
             body: JSON.stringify({ event: "noop" }),
           }),
@@ -372,7 +372,7 @@ describe("critical API routes rate limiting", () => {
           new NextRequest("http://localhost/api/webhooks/assemblyai", {
             method: "POST",
             headers: {
-              "x-forwarded-for": "198.51.100.20",
+              "x-vercel-forwarded-for": "198.51.100.20",
             },
             body: JSON.stringify({}),
           }),
@@ -383,7 +383,7 @@ describe("critical API routes rate limiting", () => {
           new NextRequest("http://localhost/api/webhooks/stripe", {
             method: "POST",
             headers: {
-              "x-forwarded-for": "192.0.2.30",
+              "x-vercel-forwarded-for": "192.0.2.30",
             },
             body: "{}",
           }),

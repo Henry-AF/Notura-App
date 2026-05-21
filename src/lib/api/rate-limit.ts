@@ -81,7 +81,9 @@ function extractFirstForwardedIp(forwardedFor: string | null): string | null {
 }
 
 export function getClientIp(request: Request): string | null {
-  const fromForwardedFor = extractFirstForwardedIp(request.headers.get("x-forwarded-for"));
+  const fromForwardedFor = extractFirstForwardedIp(
+    request.headers.get("x-vercel-forwarded-for")
+  );
   if (fromForwardedFor) return fromForwardedFor;
 
   const fromRealIp = request.headers.get("x-real-ip")?.trim();

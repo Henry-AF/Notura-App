@@ -62,7 +62,7 @@ describe("rate-limit helper", () => {
   it("uses authenticated user id as key and blocks after the limit", async () => {
     const request = new Request("http://localhost/api/test", {
       headers: {
-        "x-forwarded-for": "203.0.113.10",
+        "x-vercel-forwarded-for": "203.0.113.10",
       },
     });
 
@@ -108,7 +108,7 @@ describe("rate-limit helper", () => {
   it("falls back to ip when there is no authenticated user", async () => {
     const request = new Request("http://localhost/api/test", {
       headers: {
-        "x-forwarded-for": "198.51.100.77, 10.0.0.1",
+        "x-vercel-forwarded-for": "198.51.100.77, 10.0.0.1",
       },
     });
 
@@ -133,6 +133,29 @@ describe("rate-limit helper", () => {
 
     expect(first.limited).toBe(false);
     expect(second.limited).toBe(true);
+  });
+
+  it("uses x-vercel-forwarded-for for anonymous client ip keys", async () => {
+    const fetchMock = installUpstashMock();
+
+    await consumeRateLimit({
+      request: new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "203.0.113.44, 10.0.0.1",
+        },
+      }),
+      policy: {
+        bucket: "test-vercel-forwarded-for",
+        limit: 5,
+        windowMs: 30_000,
+      },
+      nowMs: 1_000,
+    });
+
+    const command = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body)
+    ) as string[];
+    expect(command[3]).toBe("rl:test-vercel-forwarded-for:ip:203.0.113.44");
   });
 
   it("returns to allow state after the sliding window expires", async () => {

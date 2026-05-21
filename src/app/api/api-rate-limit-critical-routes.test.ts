@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const createServerSupabase = vi.fn();
@@ -6,6 +6,8 @@ const createServiceRoleClient = vi.fn();
 const getOrCreateBillingAccount = vi.fn();
 const getBillingStatus = vi.fn();
 const syncMeetingsThisMonth = vi.fn();
+const originalUpstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+const originalUpstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabase,
@@ -38,6 +40,47 @@ function expectRateLimitedHeaders(response: Response) {
   expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
   expect(response.headers.get("x-ratelimit-reset")).toBeTruthy();
   expect(response.headers.get("retry-after")).toBeTruthy();
+}
+
+function installUpstashMock() {
+  const store = new Map<string, number[]>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const command = JSON.parse(String(init?.body)) as string[];
+      const key = command[3];
+      const nowMs = Number(command[4]);
+      const windowMs = Number(command[5]);
+      const limit = Number(command[6]);
+      const entries = (store.get(key) ?? []).filter(
+        (entry) => entry > nowMs - windowMs
+      );
+
+      if (entries.length >= limit) {
+        store.set(key, entries);
+        return Response.json({ result: [0, entries.length, entries[0] ?? nowMs] });
+      }
+
+      entries.push(nowMs);
+      entries.sort((a, b) => a - b);
+      store.set(key, entries);
+      return Response.json({ result: [1, entries.length, entries[0] ?? nowMs] });
+    })
+  );
+}
+
+function restoreUpstashEnv() {
+  if (originalUpstashUrl === undefined) {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+  } else {
+    process.env.UPSTASH_REDIS_REST_URL = originalUpstashUrl;
+  }
+
+  if (originalUpstashToken === undefined) {
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  } else {
+    process.env.UPSTASH_REDIS_REST_TOKEN = originalUpstashToken;
+  }
 }
 
 async function setupPatchedPolicies() {
@@ -94,6 +137,14 @@ describe("critical API routes rate limiting", () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_rate_limit_123";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_rate_limit_123";
     process.env.ABACATEPAY_WEBHOOK_SECRET = "abacatepay-secret";
+    process.env.UPSTASH_REDIS_REST_URL = "https://notura-upstash.example";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "upstash-token";
+    installUpstashMock();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    restoreUpstashEnv();
   });
 
   it("applies 429 contract to authenticated critical routes", async () => {

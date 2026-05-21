@@ -50,7 +50,7 @@ export function withAuthRateLimit<
   handler: AuthenticatedRateLimitedHandler<TParams, TRequest>
 ) {
   return withAuth<TParams, TRequest>(async (request, context) => {
-    const decision = consumeRateLimit({
+    const decision = await consumeRateLimit({
       request,
       policy,
       userId: context.auth.user.id,
@@ -78,7 +78,7 @@ export function withPublicRateLimit<
     const startedAt = Date.now();
 
     try {
-      const decision = consumeRateLimit({
+      const decision = await consumeRateLimit({
         request,
         policy,
       });

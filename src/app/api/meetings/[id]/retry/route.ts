@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireOwnership, withAuth } from "@/lib/api/auth";
+import { requireOwnership } from "@/lib/api/auth";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
   getWhatsAppSummaryAccess,
   WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE,
@@ -7,10 +9,12 @@ import {
 import { inngest } from "@/lib/inngest";
 
 // POST /api/meetings/:id/retry — Re-enqueue processing for a failed meeting
-export const POST = withAuth<{ id: string }>(async (
-  _req: Request,
-  { params, auth }
-) => {
+export const POST = withAuthRateLimit<{ id: string }>(
+  RATE_LIMIT_POLICIES.meetingRetry,
+  async (
+    _req: Request,
+    { params, auth }
+  ) => {
   const { id } = params;
   if (!id) {
     return NextResponse.json({ error: "Meeting ID obrigatório." }, { status: 400 });

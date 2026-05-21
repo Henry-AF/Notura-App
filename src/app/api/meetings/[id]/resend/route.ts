@@ -3,7 +3,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireOwnership, withAuth } from "@/lib/api/auth";
+import { requireOwnership } from "@/lib/api/auth";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
   getWhatsAppSummaryAccess,
   WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE,
@@ -13,10 +15,9 @@ import type { MeetingJSON, WhatsAppStatus } from "@/types/database";
 
 const MAX_RESENDS = 3;
 
-export const POST = withAuth<{ id: string }, NextRequest>(async (
-  _request: NextRequest,
-  { params, auth }
-) => {
+export const POST = withAuthRateLimit<{ id: string }, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingResend,
+  async (_request: NextRequest, { params, auth }) => {
   const meetingId = params.id;
   const supabase = auth.supabaseAdmin;
   await requireOwnership(supabase, "meetings", meetingId, auth.user.id);
@@ -124,4 +125,5 @@ export const POST = withAuth<{ id: string }, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);

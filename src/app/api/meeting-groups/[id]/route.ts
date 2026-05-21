@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireOwnership, withAuth } from "@/lib/api/auth";
+import { requireOwnership } from "@/lib/api/auth";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
   MeetingGroupValidationError,
   deleteMeetingGroupForUser,
   updateMeetingGroupForUser,
 } from "@/lib/meeting-groups";
 
-export const PATCH = withAuth<{ id: string }, NextRequest>(async (
-  request: NextRequest,
-  { params, auth }
-) => {
+export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingGroupsMutate,
+  async (request: NextRequest, { params, auth }) => {
   try {
     await requireOwnership(
       auth.supabaseAdmin,
@@ -41,12 +42,12 @@ export const PATCH = withAuth<{ id: string }, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);
 
-export const DELETE = withAuth<{ id: string }, NextRequest>(async (
-  _request: NextRequest,
-  { params, auth }
-) => {
+export const DELETE = withAuthRateLimit<{ id: string }, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingGroupsMutate,
+  async (_request: NextRequest, { params, auth }) => {
   try {
     await requireOwnership(
       auth.supabaseAdmin,
@@ -65,4 +66,5 @@ export const DELETE = withAuth<{ id: string }, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);

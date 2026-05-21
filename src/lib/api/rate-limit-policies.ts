@@ -3,17 +3,42 @@ import type { RateLimitPolicy } from "@/lib/api/rate-limit";
 export const RATE_LIMIT_POLICIES = {
   meetingsUpload: {
     bucket: "api:meetings/upload",
-    limit: 10,
+    limit: 20,
     windowMs: 60_000,
   },
   meetingsProcess: {
     bucket: "api:meetings/process",
-    limit: 20,
+    limit: 10,
     windowMs: 60_000,
   },
   meetingAiChatCreate: {
     bucket: "api:meetings/[id]/chats",
     limit: 2,
+    windowMs: 60_000,
+  },
+  meetingRetry: {
+    bucket: "api:meetings/[id]/retry",
+    limit: 5,
+    windowMs: 60_000,
+  },
+  meetingResend: {
+    bucket: "api:meetings/[id]/resend",
+    limit: 5,
+    windowMs: 60_000,
+  },
+  meetingExport: {
+    bucket: "api:meetings/[id]/export",
+    limit: 20,
+    windowMs: 60_000,
+  },
+  meetingGroupsCreate: {
+    bucket: "api:meeting-groups",
+    limit: 20,
+    windowMs: 60_000,
+  },
+  meetingGroupsMutate: {
+    bucket: "api:meeting-groups/[id]",
+    limit: 30,
     windowMs: 60_000,
   },
   assemblyAiToken: {
@@ -53,17 +78,17 @@ export const RATE_LIMIT_POLICIES = {
   },
   stripeWebhook: {
     bucket: "api:webhooks/stripe",
-    limit: 120,
+    limit: 30,
     windowMs: 60_000,
   },
   abacatepayWebhook: {
     bucket: "api:webhooks/abacatepay",
-    limit: 120,
+    limit: 30,
     windowMs: 60_000,
   },
   assemblyAiWebhook: {
     bucket: "api:webhooks/assemblyai",
-    limit: 120,
+    limit: 30,
     windowMs: 60_000,
   },
   internalHealth: {

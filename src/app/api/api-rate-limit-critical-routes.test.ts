@@ -35,6 +35,41 @@ function createServerClient(user: { id: string } | null) {
   };
 }
 
+function createServiceRoleMock() {
+  const chain = {
+    select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    update: vi.fn(() => chain),
+    delete: vi.fn(() => chain),
+    insert: vi.fn(() => chain),
+    upsert: vi.fn(() => chain),
+    order: vi.fn(() => chain),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: { id: "resource-1", user_id: "default-user" },
+      error: null,
+    }),
+    single: vi.fn().mockResolvedValue({
+      data: {
+        id: "meeting-1",
+        user_id: "default-user",
+        audio_r2_key: "audio/key.mp3",
+        whatsapp_number: "+5511999999999",
+        status: "failed",
+        title: "Meeting",
+        summary_whatsapp: "Resumo",
+        whatsapp_status: "sent",
+        summary_json: {},
+      },
+      error: null,
+    }),
+  };
+
+  return {
+    from: vi.fn(() => chain),
+  };
+}
+
 function expectRateLimitedHeaders(response: Response) {
   expect(response.headers.get("x-ratelimit-limit")).toBeTruthy();
   expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
@@ -112,7 +147,7 @@ describe("critical API routes rate limiting", () => {
     vi.clearAllMocks();
 
     createServerSupabase.mockReturnValue(createServerClient({ id: "default-user" }));
-    createServiceRoleClient.mockReturnValue({});
+    createServiceRoleClient.mockReturnValue(createServiceRoleMock());
     getOrCreateBillingAccount.mockResolvedValue({
       plan: "free",
       abacatepay_pending_checkout_id: null,
@@ -224,6 +259,63 @@ describe("critical API routes rate limiting", () => {
             headers: { "content-type": "application/json" },
           }),
       },
+      {
+        routePath: "./meetings/[id]/retry/route",
+        methodName: "POST",
+        params: { id: "meeting-1" },
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meetings/meeting-1/retry?i=${idx}`, {
+            method: "POST",
+          }),
+      },
+      {
+        routePath: "./meetings/[id]/resend/route",
+        methodName: "POST",
+        params: { id: "meeting-1" },
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meetings/meeting-1/resend?i=${idx}`, {
+            method: "POST",
+          }),
+      },
+      {
+        routePath: "./meetings/[id]/export/route",
+        methodName: "POST",
+        params: { id: "meeting-1" },
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meetings/meeting-1/export?i=${idx}`, {
+            method: "POST",
+          }),
+      },
+      {
+        routePath: "./meeting-groups/route",
+        methodName: "POST",
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meeting-groups?i=${idx}`, {
+            method: "POST",
+            body: JSON.stringify({ name: "Projeto" }),
+            headers: { "content-type": "application/json" },
+          }),
+      },
+      {
+        routePath: "./meeting-groups/[id]/route",
+        methodName: "PATCH",
+        params: { id: "group-1" },
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meeting-groups/group-1?i=${idx}`, {
+            method: "PATCH",
+            body: JSON.stringify({ name: "Projeto" }),
+            headers: { "content-type": "application/json" },
+          }),
+      },
+      {
+        routePath: "./meeting-groups/[id]/route",
+        methodName: "DELETE",
+        params: { id: "group-1" },
+        buildRequest: (idx: number) =>
+          new Request(`http://localhost/api/meeting-groups/group-1?i=${idx}`, {
+            method: "DELETE",
+          }),
+      },
     ] as const;
 
     for (let index = 0; index < authenticatedCases.length; index += 1) {
@@ -234,18 +326,22 @@ describe("critical API routes rate limiting", () => {
         createServerClient({ id: `rate-limit-auth-user-${index}` })
       );
 
-      const mod = (await import(testCase.routePath)) as {
-        POST: (request: Request, context: { params: Record<string, string> }) => Promise<Response>;
-      };
+      const mod = (await import(testCase.routePath)) as Record<
+        string,
+        (request: Request, context: { params: Record<string, string> }) => Promise<Response>
+      >;
+      const methodName = "methodName" in testCase ? testCase.methodName : "POST";
+      const handler = mod[methodName];
+      const params = "params" in testCase ? testCase.params : {};
 
-      let response = await mod.POST(testCase.buildRequest(1), {
-        params: {},
+      let response = await handler(testCase.buildRequest(1), {
+        params,
       });
-      response = await mod.POST(testCase.buildRequest(2), {
-        params: {},
+      response = await handler(testCase.buildRequest(2), {
+        params,
       });
-      response = await mod.POST(testCase.buildRequest(3), {
-        params: {},
+      response = await handler(testCase.buildRequest(3), {
+        params,
       });
 
       expect(response.status).toBe(429);

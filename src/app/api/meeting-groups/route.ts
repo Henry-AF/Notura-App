@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/auth";
+import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
   MeetingGroupValidationError,
   createMeetingGroupForUser,
@@ -21,10 +23,9 @@ export const GET = withAuth<Record<string, string>, NextRequest>(async (
   }
 });
 
-export const POST = withAuth<Record<string, string>, NextRequest>(async (
-  request: NextRequest,
-  { auth }
-) => {
+export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingGroupsCreate,
+  async (request: NextRequest, { auth }) => {
   try {
     const body = (await request.json()) as { name?: unknown };
     const group = await createMeetingGroupForUser(
@@ -49,4 +50,5 @@ export const POST = withAuth<Record<string, string>, NextRequest>(async (
       { status: 500 }
     );
   }
-});
+  }
+);

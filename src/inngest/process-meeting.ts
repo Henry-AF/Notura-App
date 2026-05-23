@@ -31,7 +31,11 @@ import {
   getErrorMessage,
   logStructured,
 } from "@/lib/observability";
-import type { Json, MeetingJSON, Priority, Confidence } from "@/types/database";
+import type {
+  Json,
+  MeetingJSON,
+  MeetingStatus,
+} from "@/types/database";
 
 // ── External clients ─────────────────────────────────────────────────────────
 
@@ -60,8 +64,65 @@ type ProcessingStepName =
 
 type ServiceRoleClient = ReturnType<typeof createServiceRoleClient>;
 type InngestStepTools = {
-  run(name: string, fn: () => Promise<unknown> | unknown): Promise<unknown>;
+  run<T>(name: string, fn: () => Promise<T> | T): Promise<T>;
 };
+type SupabaseSingleResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+type TranscriptResult = Awaited<
+  ReturnType<AssemblyAI["transcripts"]["transcribe"]>
+>;
+type TranscriptionStepResult = {
+  transcript: string;
+  durationSeconds: number | null;
+  utterances: TranscriptResult["utterances"] | null;
+};
+type WhatsAppSummaryAccess = Awaited<ReturnType<typeof getWhatsAppSummaryAccess>>;
+type ProcessingLogStep = ProcessingStepName | "validate-event-data" | null;
+
+interface TrackedProcessingStepInput<T> {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  name: ProcessingStepName;
+  fn: () => Promise<T> | T;
+}
+
+interface ProcessMeetingFailureInput {
+  error: unknown;
+  eventName: string;
+  requestId: string;
+  startedAt: number;
+  userId: string | undefined;
+  meetingId: string | undefined;
+  processingJobId: string | null;
+  currentStep: ProcessingLogStep;
+}
+
+interface ProcessMeetingRunInput {
+  event: { id?: unknown; name: string; data: unknown };
+  step: InngestStepTools;
+}
+
+interface ProcessMeetingState {
+  userId: string | undefined;
+  meetingId: string | undefined;
+  processingJobId: string | null;
+  currentStep: ProcessingLogStep;
+}
+
+interface ProcessingStepsInput {
+  eventData: MeetingProcessEventData;
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  whatsappAccess: WhatsAppSummaryAccess;
+  requestId: string;
+  startedAt: number;
+  state: ProcessMeetingState;
+}
 
 const USER_CANCELED_PROCESSING_MESSAGE = "Meeting processing was canceled by the user.";
 const ACTIVE_PROCESSING_STATUSES = ["pending", "processing"];
@@ -176,7 +237,7 @@ async function createProcessingJob(
   supabase: ServiceRoleClient,
   meetingId: string
 ): Promise<string> {
-  const { data, error } = await supabase
+  const result = await supabase
     .from("jobs")
     .insert({
       meeting_id: meetingId,
@@ -187,13 +248,7 @@ async function createProcessingJob(
     .select("id")
     .single();
 
-  if (error || !data) {
-    throw new Error(
-      `Failed to create processing job: ${error?.message ?? "missing job id"}`
-    );
-  }
-
-  return data.id;
+  return unwrapProcessingJobId(result);
 }
 
 async function updateProcessingJobStep(
@@ -219,20 +274,15 @@ async function assertMeetingProcessingIsActive(
   supabase: ServiceRoleClient,
   meetingId: string
 ) {
-  const { data, error } = await supabase
+  const result = await supabase
     .from("meetings")
     .select("status")
     .eq("id", meetingId)
     .single();
 
-  if (error || !data) {
-    throw toNonRetriableJobError(
-      "Meeting processing stopped because the meeting could not be loaded.",
-      error
-    );
-  }
+  const status = unwrapMeetingStatus(result);
 
-  if (!ACTIVE_PROCESSING_STATUSES.includes(data.status)) {
+  if (!ACTIVE_PROCESSING_STATUSES.includes(status)) {
     throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
   }
 }
@@ -276,20 +326,832 @@ async function failProcessingJob(
 }
 
 async function runTrackedProcessingStep<T>(
-  step: InngestStepTools,
-  supabase: ServiceRoleClient,
-  jobId: string,
-  meetingId: string,
-  name: ProcessingStepName,
-  fn: () => Promise<T> | T
+  input: TrackedProcessingStepInput<T>
 ): Promise<T> {
-  const result = await step.run(name, async () => {
+  const result = await input.step.run(input.name, async () => {
+    const { supabase, meetingId, jobId, name, fn } = input;
     await assertMeetingProcessingIsActive(supabase, meetingId);
     await updateProcessingJobStep(supabase, jobId, name);
     return await fn();
   });
 
   return result as T;
+}
+
+function unwrapProcessingJobId(
+  result: SupabaseSingleResult<{ id: string }>
+): string {
+  if (result.error) {
+    throw new Error(`Failed to create processing job: ${result.error.message}`);
+  }
+
+  if (result.data === null) {
+    throw new Error("Failed to create processing job: missing job id");
+  }
+
+  return result.data.id;
+}
+
+function unwrapMeetingStatus(
+  result: SupabaseSingleResult<{ status: MeetingStatus }>
+): MeetingStatus {
+  if (result.error || result.data === null) {
+    throw toNonRetriableJobError(
+      "Meeting processing stopped because the meeting could not be loaded.",
+      result.error
+    );
+  }
+
+  return result.data.status;
+}
+
+async function runValidateEventData(
+  step: InngestStepTools,
+  payload: unknown
+): Promise<MeetingProcessEventData> {
+  return step.run("validate-event-data", () => {
+    try {
+      return parseMeetingProcessEventData(payload);
+    } catch (error) {
+      throw toNonRetriableJobError(
+        "Invalid meeting/process event payload",
+        error
+      );
+    }
+  });
+}
+
+async function runCheckWhatsAppAccess(
+  step: InngestStepTools,
+  userId: string,
+  supabase: ServiceRoleClient
+) {
+  return step.run("check-whatsapp-summary-access", () =>
+    getWhatsAppSummaryAccess(userId, supabase)
+  );
+}
+
+async function runInitialProcessingStep(
+  step: InngestStepTools,
+  supabase: ServiceRoleClient,
+  meetingId: string
+): Promise<string | null> {
+  return step.run("update-status-processing", async () => {
+    const status = await readExistingMeetingStatus(supabase, meetingId);
+
+    if (status === "completed") {
+      return null;
+    }
+
+    if (status === null || !ACTIVE_PROCESSING_STATUSES.includes(status)) {
+      throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
+    }
+
+    await markMeetingStatusAsProcessing(supabase, meetingId);
+    return createProcessingJob(supabase, meetingId);
+  });
+}
+
+async function readExistingMeetingStatus(
+  supabase: ServiceRoleClient,
+  meetingId: string
+): Promise<MeetingStatus | null> {
+  const result: SupabaseSingleResult<{ status: MeetingStatus }> = await supabase
+    .from("meetings")
+    .select("status")
+    .eq("id", meetingId)
+    .single();
+
+  if (result.error || result.data === null) {
+    return null;
+  }
+
+  return result.data.status;
+}
+
+async function markMeetingStatusAsProcessing(
+  supabase: ServiceRoleClient,
+  meetingId: string
+) {
+  const { error } = await supabase
+    .from("meetings")
+    .update({ status: "processing" })
+    .eq("id", meetingId);
+
+  if (error) throw new Error(`Failed to update status: ${error.message}`);
+}
+
+async function runTranscriptionStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  r2Key: string;
+}): Promise<TranscriptionStepResult> {
+  return runTrackedProcessingStep({
+    ...input,
+    name: "transcribe",
+    fn: async () => {
+      const transcriptResult = await fetchAssemblyTranscript(input.r2Key);
+      const formattedTranscript = formatTranscriptText(transcriptResult);
+      const durationSeconds = resolveTranscriptDurationSeconds(transcriptResult);
+      await saveTranscriptMetadata({
+        supabase: input.supabase,
+        meetingId: input.meetingId,
+        transcript: formattedTranscript,
+        durationSeconds,
+        transcriptId: transcriptResult.id,
+      });
+
+      return {
+        transcript: formattedTranscript,
+        durationSeconds,
+        utterances: transcriptResult.utterances ?? null,
+      };
+    },
+  });
+}
+
+async function fetchAssemblyTranscript(r2Key: string): Promise<TranscriptResult> {
+  let audioUrl: string;
+  try {
+    audioUrl = await getPresignedDownloadUrl(r2Key, 3600);
+  } catch (error) {
+    throw toProviderQueueError("r2", error);
+  }
+
+  try {
+    const aai = getAAI();
+    const result = await aai.transcripts.transcribe({
+      audio_url: audioUrl,
+      speech_models: ["universal-3-pro"],
+      language_code: "pt",
+      speaker_labels: true,
+      punctuate: true,
+      format_text: true,
+      disfluencies: false,
+    });
+
+    return validateTranscriptResult(result);
+  } catch (error) {
+    throw toProviderQueueError("assemblyai", error);
+  }
+}
+
+function validateTranscriptResult(result: TranscriptResult): TranscriptResult {
+  if (result.status === "error") {
+    throw new Error(`AssemblyAI transcription failed: ${result.error}`);
+  }
+
+  if (!result.text) {
+    throw new Error("AssemblyAI returned empty transcript");
+  }
+
+  return result;
+}
+
+function formatTranscriptText(transcriptResult: TranscriptResult): string {
+  const utterances = transcriptResult.utterances;
+  if (!utterances || utterances.length === 0) {
+    return transcriptResult.text;
+  }
+
+  return utterances.map(formatTranscriptUtterance).join("\n\n");
+}
+
+function formatTranscriptUtterance(
+  utterance: NonNullable<TranscriptResult["utterances"]>[number]
+): string {
+  const startSec = Math.floor(utterance.start / 1000);
+  const mm = Math.floor(startSec / 60).toString().padStart(2, "0");
+  const ss = (startSec % 60).toString().padStart(2, "0");
+  return `[${mm}:${ss}] Speaker ${utterance.speaker}: ${utterance.text}`;
+}
+
+function resolveTranscriptDurationSeconds(
+  transcriptResult: TranscriptResult
+): number | null {
+  return transcriptResult.audio_duration
+    ? Math.round(transcriptResult.audio_duration)
+    : null;
+}
+
+function resolveTranscriptCostUsd(durationSeconds: number | null): number | null {
+  return durationSeconds
+    ? parseFloat(((durationSeconds / 3600) * 0.37).toFixed(4))
+    : null;
+}
+
+async function saveTranscriptMetadata(input: {
+  supabase: ServiceRoleClient;
+  meetingId: string;
+  transcript: string;
+  durationSeconds: number | null;
+  transcriptId: string;
+}) {
+  const { error: saveError } = await input.supabase
+    .from("meetings")
+    .update({
+      transcript: input.transcript,
+      duration_seconds: input.durationSeconds,
+      cost_usd: resolveTranscriptCostUsd(input.durationSeconds),
+    })
+    .eq("id", input.meetingId);
+
+  if (saveError) {
+    throw new Error(`Failed to save transcript: ${saveError.message}`);
+  }
+
+  await saveAssemblyTranscriptId(input);
+}
+
+async function saveAssemblyTranscriptId(input: {
+  supabase: ServiceRoleClient;
+  meetingId: string;
+  transcriptId: string;
+}) {
+  const { error } = await input.supabase
+    .from("meetings")
+    .update({ assemblyai_transcript_id: input.transcriptId })
+    .eq("id", input.meetingId);
+
+  if (error) {
+    console.warn(
+      "[process-meeting] Could not save assemblyai_transcript_id (run migration 002?):",
+      error.message
+    );
+  }
+}
+
+async function runIndexTranscriptStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  userId: string;
+  transcript: string;
+  utterances: TranscriptResult["utterances"] | null;
+}) {
+  await runTrackedProcessingStep({
+    ...input,
+    name: "index-transcript-chunks",
+    fn: async () => {
+      await indexMeetingTranscriptChunks({
+        supabase: input.supabase,
+        meetingId: input.meetingId,
+        userId: input.userId,
+        transcript: input.transcript,
+        utterances: input.utterances,
+        embedText: generateEmbedding,
+      });
+    },
+  });
+}
+
+async function runSummaryStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  transcript: string;
+  durationSeconds: number | null;
+}) {
+  return runTrackedProcessingStep({
+    ...input,
+    name: "summarize-meeting",
+    fn: async () => {
+      try {
+        return await generateMeetingSummary(
+          input.transcript,
+          input.durationSeconds
+        );
+      } catch (error) {
+        throw toProviderQueueError("gemini", error);
+      }
+    },
+  });
+}
+
+async function runSaveResultsStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  userId: string;
+  summary: Awaited<ReturnType<typeof generateMeetingSummary>>;
+}) {
+  await runTrackedProcessingStep({
+    step: input.step,
+    supabase: input.supabase,
+    jobId: input.jobId,
+    meetingId: input.meetingId,
+    name: "save-results",
+    fn: () => saveMeetingSummaryResults(input),
+  });
+}
+
+async function saveMeetingSummaryResults(input: {
+  supabase: ServiceRoleClient;
+  meetingId: string;
+  userId: string;
+  summary: Awaited<ReturnType<typeof generateMeetingSummary>>;
+}) {
+  const { participants, summaryStructured, summaryJson } = input.summary;
+  const participantRefMap = await upsertMeetingParticipants({
+    supabase: input.supabase,
+    meetingId: input.meetingId,
+    participants,
+  });
+  const persistedStructuredSummary = rewriteStructuredSummaryRefs(
+    summaryStructured,
+    participantRefMap
+  );
+
+  await upsertSummaryTasks(input.supabase, input.meetingId, input.userId, summaryJson);
+  await upsertSummaryDecisions(input.supabase, input.meetingId, input.userId, summaryJson);
+  await upsertSummaryOpenItems(input.supabase, input.meetingId, input.userId, summaryJson);
+  await updateMeetingSummary(input, persistedStructuredSummary);
+}
+
+async function upsertSummaryTasks(
+  supabase: ServiceRoleClient,
+  meetingId: string,
+  userId: string,
+  summaryJson: MeetingJSON
+) {
+  if (summaryJson.tasks.length === 0) return;
+  const dedupeKeys = buildSummaryItemDedupeKeys(summaryJson.tasks, (task) =>
+    buildSummaryItemSignature("task", [
+      task.description,
+      task.owner === "indefinido" ? null : task.owner,
+      task.due_date,
+      task.priority,
+    ])
+  );
+  const rows = summaryJson.tasks.map((task, index) => ({
+    meeting_id: meetingId,
+    user_id: userId,
+    dedupe_key: dedupeKeys[index],
+    description: task.description,
+    owner: task.owner === "indefinido" ? null : task.owner,
+    due_date: task.due_date,
+    priority: task.priority,
+  }));
+  const { error } = await supabase
+    .from("tasks")
+    .upsert(rows, { onConflict: "meeting_id,dedupe_key" });
+  if (error) throw new Error(`Failed to upsert tasks: ${error.message}`);
+}
+
+async function upsertSummaryDecisions(
+  supabase: ServiceRoleClient,
+  meetingId: string,
+  userId: string,
+  summaryJson: MeetingJSON
+) {
+  if (summaryJson.decisions.length === 0) return;
+  const dedupeKeys = buildSummaryItemDedupeKeys(summaryJson.decisions, (decision) =>
+    buildSummaryItemSignature("decision", [
+      decision.description,
+      decision.decided_by,
+      decision.confidence,
+    ])
+  );
+  const rows = summaryJson.decisions.map((decision, index) => ({
+    meeting_id: meetingId,
+    user_id: userId,
+    dedupe_key: dedupeKeys[index],
+    description: decision.description,
+    decided_by: decision.decided_by,
+    confidence: decision.confidence,
+  }));
+  const { error } = await supabase
+    .from("decisions")
+    .upsert(rows, { onConflict: "meeting_id,dedupe_key" });
+  if (error) throw new Error(`Failed to upsert decisions: ${error.message}`);
+}
+
+async function upsertSummaryOpenItems(
+  supabase: ServiceRoleClient,
+  meetingId: string,
+  userId: string,
+  summaryJson: MeetingJSON
+) {
+  if (summaryJson.open_items.length === 0) return;
+  const dedupeKeys = buildSummaryItemDedupeKeys(summaryJson.open_items, (item) =>
+    buildSummaryItemSignature("open_item", [item.description, item.context])
+  );
+  const rows = summaryJson.open_items.map((item, index) => ({
+    meeting_id: meetingId,
+    user_id: userId,
+    dedupe_key: dedupeKeys[index],
+    description: item.description,
+    context: item.context,
+  }));
+  const { error } = await supabase
+    .from("open_items")
+    .upsert(rows, { onConflict: "meeting_id,dedupe_key" });
+  if (error) throw new Error(`Failed to upsert open items: ${error.message}`);
+}
+
+async function updateMeetingSummary(
+  input: {
+    supabase: ServiceRoleClient;
+    meetingId: string;
+    summary: Awaited<ReturnType<typeof generateMeetingSummary>>;
+  },
+  summaryStructured: ReturnType<typeof rewriteStructuredSummaryRefs>
+) {
+  const { summaryWhatsapp, summaryJson } = input.summary;
+  const { error } = await input.supabase
+    .from("meetings")
+    .update({
+      summary_whatsapp: summaryWhatsapp,
+      summary_json: summaryJson as unknown as Json,
+      summary_structured: summaryStructured as unknown as Json,
+      summary_version: summaryStructured.version,
+      title:
+        summaryStructured.title ??
+        summaryJson.meeting?.title ??
+        "Reunião processada",
+      prompt_version: PROMPT_VERSION,
+    })
+    .eq("id", input.meetingId);
+
+  if (error) throw new Error(`Failed to save results: ${error.message}`);
+}
+
+async function runWhatsAppStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  whatsappNumber: string;
+  summaryJson: MeetingJSON;
+}) {
+  await runTrackedProcessingStep({
+    ...input,
+    name: "send-whatsapp",
+    fn: async () => {
+      const result = await sendMeetingSummaryTemplate(
+        input.whatsappNumber,
+        input.summaryJson,
+        input.meetingId,
+        input.summaryJson.meeting?.title
+      );
+      const newStatus = result.success ? "sent" : "failed";
+      await updateMeetingWhatsAppStatus(input.supabase, input.meetingId, {
+        whatsapp_status: newStatus,
+        error_message: result.success
+          ? null
+          : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
+      });
+
+      if (!result.success) {
+        console.error(
+          `[process-meeting] WhatsApp send failed for meeting ${input.meetingId}: ${result.error}`
+        );
+      }
+    },
+  });
+}
+
+async function handleWhatsAppDelivery(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  whatsappNumber: string;
+  summaryJson: MeetingJSON;
+  whatsappAccess: WhatsAppSummaryAccess;
+  requestId: string;
+  userId: string;
+  startedAt: number;
+}) {
+  if (input.whatsappAccess.canSend && input.whatsappNumber) {
+    await runWhatsAppStep(input);
+    return;
+  }
+
+  if (input.whatsappAccess.canSend) {
+    await markMissingWhatsAppNumber(input.supabase, input.meetingId);
+    return;
+  }
+
+  logSkippedWhatsApp(input);
+}
+
+async function updateMeetingWhatsAppStatus(
+  supabase: ServiceRoleClient,
+  meetingId: string,
+  payload: { whatsapp_status: "sent" | "failed"; error_message: string | null }
+) {
+  await supabase.from("meetings").update(payload).eq("id", meetingId);
+}
+
+async function markMissingWhatsAppNumber(
+  supabase: ServiceRoleClient,
+  meetingId: string
+) {
+  await updateMeetingWhatsAppStatus(supabase, meetingId, {
+    whatsapp_status: "failed",
+    error_message: "Número de WhatsApp ausente para envio do resumo.",
+  });
+}
+
+function logSkippedWhatsApp(input: {
+  requestId: string;
+  userId: string;
+  startedAt: number;
+}) {
+  logStructured("info", {
+    event: "whatsapp.summary.skipped",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs: Date.now() - input.startedAt,
+    status: "skipped-free-plan",
+  });
+}
+
+async function runCleanupStep(input: {
+  step: InngestStepTools;
+  supabase: ServiceRoleClient;
+  jobId: string;
+  meetingId: string;
+  r2Key: string;
+}) {
+  await runTrackedProcessingStep({
+    ...input,
+    name: "cleanup",
+    fn: async () => {
+      const audioDeleted = await deleteMeetingAudio(input.r2Key);
+      const { error } = await input.supabase
+        .from("meetings")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          ...(audioDeleted ? { audio_r2_key: null } : {}),
+        })
+        .eq("id", input.meetingId);
+
+      if (error) {
+        throw new Error(`Failed to mark meeting as completed: ${error.message}`);
+      }
+
+      await completeProcessingJob(input.supabase, input.jobId);
+    },
+  });
+}
+
+async function deleteMeetingAudio(r2Key: string): Promise<boolean> {
+  try {
+    await deleteAudio(r2Key);
+    return true;
+  } catch (error) {
+    console.error("[process-meeting] Failed to delete audio from R2:", error);
+    return false;
+  }
+}
+
+function logCompletedJob(input: {
+  requestId: string;
+  userId: string | undefined;
+  startedAt: number;
+  status: string;
+}) {
+  logStructured("info", {
+    event: "inngest.job.completed",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs: Date.now() - input.startedAt,
+    status: input.status,
+  });
+}
+
+async function handleProcessMeetingError(input: ProcessMeetingFailureInput) {
+  const durationMs = Date.now() - input.startedAt;
+  const message = getErrorMessage(input.error);
+
+  logStructured("error", {
+    event: "inngest.job.failed",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs,
+    status: "failed",
+    errorMessage: message,
+  });
+
+  captureObservedError(input.error, {
+    event: "inngest.job.failed",
+    requestId: input.requestId,
+    userId: input.userId,
+    route: "inngest/process-meeting",
+    durationMs,
+    status: "failed",
+    extra: {
+      functionId: "process-meeting",
+      eventName: input.eventName,
+      meetingId: input.meetingId,
+      processingStep: input.currentStep,
+    },
+  });
+
+  if (input.processingJobId) {
+    await failProcessingJob(
+      createServiceRoleClient(),
+      input.processingJobId,
+      message
+    );
+  }
+}
+
+function readFailureEventData(payload: unknown): MeetingProcessEventData | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const eventPayload = (payload as { event?: unknown }).event;
+  if (!eventPayload || typeof eventPayload !== "object") return undefined;
+
+  const data = (eventPayload as { data?: unknown }).data;
+  if (!data || typeof data !== "object") return undefined;
+  return data as MeetingProcessEventData;
+}
+
+function readFailureErrorMessage(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "Unknown error";
+  const errorPayload = (payload as { error?: unknown }).error;
+  if (!errorPayload || typeof errorPayload !== "object") return "Unknown error";
+
+  const message = (errorPayload as { message?: unknown }).message;
+  return typeof message === "string" ? message : "Unknown error";
+}
+
+async function runProcessMeetingFunction(input: ProcessMeetingRunInput) {
+  const startedAt = Date.now();
+  const requestId = resolveInngestRequestId(input.event.id);
+  const state: ProcessMeetingState = {
+    userId: undefined,
+    meetingId: undefined,
+    processingJobId: null,
+    currentStep: null,
+  };
+
+  try {
+    return await runProcessMeetingPipeline(input, state, startedAt, requestId);
+  } catch (error) {
+    await handleProcessMeetingError({
+      error,
+      eventName: input.event.name,
+      requestId,
+      startedAt,
+      userId: state.userId,
+      meetingId: state.meetingId,
+      processingJobId: state.processingJobId,
+      currentStep: state.currentStep,
+    });
+
+    throw error;
+  }
+}
+
+async function runProcessMeetingPipeline(
+  input: ProcessMeetingRunInput,
+  state: ProcessMeetingState,
+  startedAt: number,
+  requestId: string
+) {
+  state.currentStep = "validate-event-data";
+  const eventData = await runValidateEventData(input.step, input.event.data);
+  state.userId = eventData.userId;
+  state.meetingId = eventData.meetingId;
+  const supabase = createServiceRoleClient();
+  const whatsappAccess = await runCheckWhatsAppAccess(
+    input.step,
+    eventData.userId,
+    supabase
+  );
+
+  state.currentStep = "update-status-processing";
+  const jobId = await runInitialProcessingStep(
+    input.step,
+    supabase,
+    eventData.meetingId
+  );
+  if (jobId === null) {
+    return completeAlreadyProcessedRun(eventData.meetingId, requestId, state, startedAt);
+  }
+
+  state.processingJobId = jobId;
+  const result = await runProcessingSteps({
+    eventData,
+    step: input.step,
+    supabase,
+    jobId,
+    whatsappAccess,
+    requestId,
+    startedAt,
+    state,
+  });
+  return result;
+}
+
+function completeAlreadyProcessedRun(
+  meetingId: string,
+  requestId: string,
+  state: ProcessMeetingState,
+  startedAt: number
+) {
+  const skippedResult = { meetingId, status: "skipped-already-completed" };
+  logCompletedJob({
+    requestId,
+    userId: state.userId,
+    startedAt,
+    status: skippedResult.status,
+  });
+  return skippedResult;
+}
+
+async function runProcessingSteps(input: ProcessingStepsInput) {
+  const { eventData, step, supabase, jobId, state } = input;
+  state.currentStep = "transcribe";
+  const transcription = await runTranscriptionStep({
+    step,
+    supabase,
+    jobId,
+    meetingId: eventData.meetingId,
+    r2Key: eventData.r2Key,
+  });
+
+  state.currentStep = "index-transcript-chunks";
+  await runIndexTranscriptStep({
+    step,
+    supabase,
+    jobId,
+    meetingId: eventData.meetingId,
+    userId: eventData.userId,
+    transcript: transcription.transcript,
+    utterances: transcription.utterances,
+  });
+
+  return runSummarySaveAndDelivery(input, transcription);
+}
+
+async function runSummarySaveAndDelivery(
+  input: ProcessingStepsInput,
+  transcription: TranscriptionStepResult
+) {
+  const { eventData, step, supabase, jobId, state } = input;
+  state.currentStep = "summarize-meeting";
+  const summary = await runSummaryStep({
+    step,
+    supabase,
+    jobId,
+    meetingId: eventData.meetingId,
+    transcript: transcription.transcript,
+    durationSeconds: transcription.durationSeconds,
+  });
+
+  state.currentStep = "save-results";
+  await runSaveResultsStep({
+    step,
+    supabase,
+    jobId,
+    meetingId: eventData.meetingId,
+    userId: eventData.userId,
+    summary,
+  });
+
+  state.currentStep = "send-whatsapp";
+  await handleWhatsAppDelivery({
+    ...input,
+    meetingId: eventData.meetingId,
+    whatsappNumber: eventData.whatsappNumber,
+    summaryJson: summary.summaryJson,
+    userId: eventData.userId,
+  });
+
+  state.currentStep = "cleanup";
+  await runCleanupStep({
+    step,
+    supabase,
+    jobId,
+    meetingId: eventData.meetingId,
+    r2Key: eventData.r2Key,
+  });
+
+  return completeProcessedRun(eventData.meetingId, input);
+}
+
+function completeProcessedRun(meetingId: string, input: ProcessingStepsInput) {
+  const completedResult = { meetingId, status: "completed" };
+  logCompletedJob({
+    requestId: input.requestId,
+    userId: input.state.userId,
+    status: completedResult.status,
+    startedAt: input.startedAt,
+  });
+  return completedResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -303,482 +1165,7 @@ export const processMeeting = inngest.createFunction(
     concurrency: PROCESS_MEETING_CONCURRENCY,
     triggers: [{ event: "meeting/process" }],
   },
-  async ({ event, step }) => {
-    const startedAt = Date.now();
-    const requestId = resolveInngestRequestId((event as { id?: unknown }).id);
-    let userIdForLog: string | undefined;
-    let meetingIdForLog: string | undefined;
-    let processingJobId: string | null = null;
-    let currentStepForLog: ProcessingStepName | "validate-event-data" | null = null;
-
-    try {
-      currentStepForLog = "validate-event-data";
-      const { meetingId, r2Key, whatsappNumber, userId } = await step.run(
-        "validate-event-data",
-        async () => {
-          try {
-            return parseMeetingProcessEventData(event.data);
-          } catch (error) {
-            throw toNonRetriableJobError(
-              "Invalid meeting/process event payload",
-              error
-            );
-          }
-        }
-      );
-      userIdForLog = userId;
-      meetingIdForLog = meetingId;
-      const supabase = createServiceRoleClient();
-      const whatsappAccess = (await step.run("check-whatsapp-summary-access", () =>
-        getWhatsAppSummaryAccess(userId, supabase)
-      )) as Awaited<ReturnType<typeof getWhatsAppSummaryAccess>>;
-
-      // ── Step 1: Mark as processing ─────────────────────────────────────
-      currentStepForLog = "update-status-processing";
-      const initialProcessingState = await step.run("update-status-processing", async () => {
-        // Idempotency: if already completed, return true to short-circuit below.
-        // IMPORTANT: never throw here — throwing causes Inngest to retry and
-        // eventually mark the meeting as failed via the failure handler.
-        const { data: existing } = await supabase
-          .from("meetings")
-          .select("status")
-          .eq("id", meetingId)
-          .single();
-
-        if (existing?.status === "completed") {
-          return true;
-        }
-
-        if (
-          !existing ||
-          !ACTIVE_PROCESSING_STATUSES.includes(existing.status)
-        ) {
-          throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
-        }
-
-        const { error } = await supabase
-          .from("meetings")
-          .update({ status: "processing" })
-          .eq("id", meetingId);
-
-        if (error) throw new Error(`Failed to update status: ${error.message}`);
-        const jobId = await createProcessingJob(supabase, meetingId);
-        return { alreadyCompleted: false, jobId };
-      });
-
-      if (initialProcessingState === true) {
-        const skippedResult = { meetingId, status: "skipped-already-completed" };
-        logStructured("info", {
-          event: "inngest.job.completed",
-          requestId,
-          userId: userIdForLog,
-          route: "inngest/process-meeting",
-          durationMs: Date.now() - startedAt,
-          status: skippedResult.status,
-        });
-        return skippedResult;
-      }
-
-      const jobId = initialProcessingState.jobId;
-      processingJobId = jobId;
-
-      // ── Step 2: Transcribe audio ───────────────────────────────────────
-      currentStepForLog = "transcribe";
-      const { transcript, durationSeconds, utterances } = await runTrackedProcessingStep(step, supabase, jobId, meetingId, "transcribe", async () => {
-        // Presigned URL valid for 1 h — long enough for AssemblyAI to fetch the file.
-        // NOTE: Webhook alternative — swap transcribe() for submit() and pass
-        //   webhook_url + webhook_auth_header_name/value, then save the returned
-        //   transcript.id as assemblyai_transcript_id. The webhook endpoint at
-        //   /api/webhooks/assemblyai will fire meeting/transcription.completed to
-        //   resume processing without blocking this worker.
-        let audioUrl: string;
-        try {
-          audioUrl = await getPresignedDownloadUrl(r2Key, 3600);
-        } catch (error) {
-          throw toProviderQueueError("r2", error);
-        }
-
-        let transcriptResult: Awaited<ReturnType<AssemblyAI["transcripts"]["transcribe"]>>;
-        try {
-          const aai = getAAI();
-          transcriptResult = await aai.transcripts.transcribe({
-            audio_url: audioUrl,
-            speech_models: ["universal-3-pro"], // highest accuracy; replaces deprecated speech_model
-            language_code: "pt",
-            speaker_labels: true,
-            // ── Quality flags ──────────────────────────────────────────
-            punctuate: true, // sentence-level punctuation
-            format_text: true, // proper casing, numbers as words
-            disfluencies: false, // strip fillers: "é...", "né...", "tipo..."
-          });
-        } catch (error) {
-          throw toProviderQueueError("assemblyai", error);
-        }
-
-        if (transcriptResult.status === "error") {
-          throw toProviderQueueError(
-            "assemblyai",
-            new Error(
-              `AssemblyAI transcription failed: ${transcriptResult.error ?? "unknown error"}`
-            )
-          );
-        }
-
-        if (!transcriptResult.text) {
-          throw toProviderQueueError(
-            "assemblyai",
-            new Error("AssemblyAI returned empty transcript")
-          );
-        }
-
-        // Build transcript: prefer utterances (speaker + timestamp), fall back to full text
-        let formattedTranscript = transcriptResult.text;
-
-        if (transcriptResult.utterances && transcriptResult.utterances.length > 0) {
-          formattedTranscript = transcriptResult.utterances
-            .map((u) => {
-              // Convert ms start offset to MM:SS timestamp
-              const startSec = Math.floor((u.start ?? 0) / 1000);
-              const mm = Math.floor(startSec / 60).toString().padStart(2, "0");
-              const ss = (startSec % 60).toString().padStart(2, "0");
-              return `[${mm}:${ss}] Speaker ${u.speaker}: ${u.text}`;
-            })
-            .join("\n\n");
-        }
-
-        // AssemblyAI Standard pricing: ~$0.37 / audio hour
-        const durationSecs = transcriptResult.audio_duration
-          ? Math.round(transcriptResult.audio_duration)
-          : null;
-        const costUsd = durationSecs
-          ? parseFloat(((durationSecs / 3600) * 0.37).toFixed(4))
-          : null;
-
-        // Persist transcript + duration + cost immediately (partial save).
-        // assemblyai_transcript_id is saved separately so that a missing column
-        // (migration 002 not yet applied) doesn't silently discard the transcript.
-        const { error: saveError } = await supabase
-          .from("meetings")
-          .update({
-            transcript: formattedTranscript,
-            duration_seconds: durationSecs,
-            cost_usd: costUsd,
-          })
-          .eq("id", meetingId);
-
-        if (saveError) {
-          throw new Error(`Failed to save transcript: ${saveError.message}`);
-        }
-
-        // Best-effort: save AssemblyAI transcript ID for webhook correlation.
-        // Requires migration 002. Failure here is non-critical.
-        const { error: aaiIdError } = await supabase
-          .from("meetings")
-          .update({ assemblyai_transcript_id: transcriptResult.id })
-          .eq("id", meetingId);
-
-        if (aaiIdError) {
-          console.warn(
-            "[process-meeting] Could not save assemblyai_transcript_id (run migration 002?):",
-            aaiIdError.message
-          );
-        }
-
-        return {
-          transcript: formattedTranscript,
-          durationSeconds: durationSecs,
-          utterances: transcriptResult.utterances ?? null,
-        };
-      });
-
-      currentStepForLog = "index-transcript-chunks";
-      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "index-transcript-chunks", async () => {
-        await indexMeetingTranscriptChunks({
-          supabase,
-          meetingId,
-          userId,
-          transcript,
-          utterances,
-          embedText: generateEmbedding,
-        });
-      });
-
-      // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
-      currentStepForLog = "summarize-meeting";
-      const { participants, summaryWhatsapp, summaryJson, summaryStructured } =
-        await runTrackedProcessingStep(
-          step,
-          supabase,
-          jobId,
-          meetingId,
-          "summarize-meeting",
-          async () => {
-            try {
-              return await generateMeetingSummary(transcript, durationSeconds);
-            } catch (error) {
-              throw toProviderQueueError("gemini", error);
-            }
-          }
-        );
-
-      // ── Step 4: Save results to Supabase ───────────────────────────────
-      currentStepForLog = "save-results";
-      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "save-results", async () => {
-        const participantRefMap = await upsertMeetingParticipants({
-          supabase,
-          meetingId,
-          participants,
-        });
-        const persistedStructuredSummary = rewriteStructuredSummaryRefs(
-          summaryStructured,
-          participantRefMap
-        );
-        const taskDedupeKeys = buildSummaryItemDedupeKeys(
-          summaryJson.tasks,
-          (task) =>
-            buildSummaryItemSignature("task", [
-              task.description,
-              task.owner === "indefinido" ? null : task.owner,
-              task.due_date ?? null,
-              task.priority ?? "média",
-            ])
-        );
-
-        const decisionDedupeKeys = buildSummaryItemDedupeKeys(
-          summaryJson.decisions,
-          (decision) =>
-            buildSummaryItemSignature("decision", [
-              decision.description,
-              decision.decided_by ?? null,
-              decision.confidence ?? "média",
-            ])
-        );
-
-        const openItemDedupeKeys = buildSummaryItemDedupeKeys(
-          summaryJson.open_items,
-          (item) =>
-            buildSummaryItemSignature("open_item", [
-              item.description,
-              item.context ?? null,
-            ])
-        );
-
-        // Upsert tasks using a deterministic key so Inngest retries do not
-        // duplicate rows if this step partially succeeds before failing.
-        if (summaryJson.tasks && summaryJson.tasks.length > 0) {
-          const tasksToUpsert = summaryJson.tasks.map(
-            (task: MeetingJSON["tasks"][number], index) => ({
-              meeting_id: meetingId,
-              user_id: userId,
-              dedupe_key: taskDedupeKeys[index],
-              description: task.description,
-              owner: task.owner === "indefinido" ? null : task.owner,
-              due_date: task.due_date ?? null,
-              priority: (task.priority ?? "média") as Priority,
-            })
-          );
-
-          const { error: tasksError } = await supabase
-            .from("tasks")
-            .upsert(tasksToUpsert, {
-              onConflict: "meeting_id,dedupe_key",
-            });
-
-          if (tasksError) {
-            throw new Error(`Failed to upsert tasks: ${tasksError.message}`);
-          }
-        }
-
-        // Upsert decisions using the same deterministic retry-safe strategy.
-        if (summaryJson.decisions && summaryJson.decisions.length > 0) {
-          const decisionsToUpsert = summaryJson.decisions.map(
-            (decision: MeetingJSON["decisions"][number], index) => ({
-              meeting_id: meetingId,
-              user_id: userId,
-              dedupe_key: decisionDedupeKeys[index],
-              description: decision.description,
-              decided_by: decision.decided_by ?? null,
-              confidence: (decision.confidence ?? "média") as Confidence,
-            })
-          );
-
-          const { error: decisionsError } = await supabase
-            .from("decisions")
-            .upsert(decisionsToUpsert, {
-              onConflict: "meeting_id,dedupe_key",
-            });
-
-          if (decisionsError) {
-            throw new Error(`Failed to upsert decisions: ${decisionsError.message}`);
-          }
-        }
-
-        // Upsert open items so retried executions remain idempotent as well.
-        if (summaryJson.open_items && summaryJson.open_items.length > 0) {
-          const openItemsToUpsert = summaryJson.open_items.map(
-            (item: MeetingJSON["open_items"][number], index) => ({
-              meeting_id: meetingId,
-              user_id: userId,
-              dedupe_key: openItemDedupeKeys[index],
-              description: item.description,
-              context: item.context ?? null,
-            })
-          );
-
-          const { error: openItemsError } = await supabase
-            .from("open_items")
-            .upsert(openItemsToUpsert, {
-              onConflict: "meeting_id,dedupe_key",
-            });
-
-          if (openItemsError) {
-            throw new Error(`Failed to upsert open items: ${openItemsError.message}`);
-          }
-        }
-
-        // Update meeting with summaries
-        const { error: updateError } = await supabase
-          .from("meetings")
-          .update({
-            summary_whatsapp: summaryWhatsapp,
-            summary_json: summaryJson as unknown as Json,
-            summary_structured: persistedStructuredSummary as unknown as Json,
-            summary_version: persistedStructuredSummary.version,
-            title:
-              persistedStructuredSummary.title ??
-              summaryJson.meeting?.title ??
-              "Reunião processada",
-            prompt_version: PROMPT_VERSION,
-          })
-          .eq("id", meetingId);
-
-        if (updateError) {
-          throw new Error(`Failed to save results: ${updateError.message}`);
-        }
-      });
-
-      // ── Step 5: Send WhatsApp ──────────────────────────────────────────
-      if (whatsappAccess.canSend && whatsappNumber) {
-        currentStepForLog = "send-whatsapp";
-        await runTrackedProcessingStep(step, supabase, jobId, meetingId, "send-whatsapp", async () => {
-          const result = await sendMeetingSummaryTemplate(
-            whatsappNumber,
-            summaryJson,
-            meetingId,
-            summaryJson.meeting?.title
-          );
-
-          const newStatus = result.success ? "sent" : "failed";
-          await supabase
-            .from("meetings")
-            .update({
-              whatsapp_status: newStatus,
-              error_message: result.success
-                ? null
-                : `WhatsApp template send failed: ${result.error ?? "unknown error"}`,
-            })
-            .eq("id", meetingId);
-
-          if (!result.success) {
-            console.error(
-              `[process-meeting] WhatsApp send failed for meeting ${meetingId}: ${result.error}`
-            );
-          }
-        });
-      } else if (whatsappAccess.canSend) {
-        await supabase
-          .from("meetings")
-          .update({
-            whatsapp_status: "failed",
-            error_message: "Número de WhatsApp ausente para envio do resumo.",
-          })
-          .eq("id", meetingId);
-      } else {
-        logStructured("info", {
-          event: "whatsapp.summary.skipped",
-          requestId,
-          userId,
-          route: "inngest/process-meeting",
-          durationMs: Date.now() - startedAt,
-          status: "skipped-free-plan",
-        });
-      }
-
-      // ── Step 6: Cleanup — delete audio from R2 (LGPD) ─────────────────
-      currentStepForLog = "cleanup";
-      await runTrackedProcessingStep(step, supabase, jobId, meetingId, "cleanup", async () => {
-        let audioDeleted = false;
-
-        try {
-          await deleteAudio(r2Key);
-          audioDeleted = true;
-        } catch (error) {
-          console.error("[process-meeting] Failed to delete audio from R2:", error);
-          // Non-critical — log but don't fail the pipeline
-        }
-
-        const { error } = await supabase
-          .from("meetings")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            ...(audioDeleted ? { audio_r2_key: null } : {}),
-          })
-          .eq("id", meetingId);
-
-        if (error) {
-          throw new Error(`Failed to mark meeting as completed: ${error.message}`);
-        }
-
-        await completeProcessingJob(supabase, jobId);
-      });
-
-      const completedResult = { meetingId, status: "completed" };
-      logStructured("info", {
-        event: "inngest.job.completed",
-        requestId,
-        userId: userIdForLog,
-        route: "inngest/process-meeting",
-        durationMs: Date.now() - startedAt,
-        status: completedResult.status,
-      });
-      return completedResult;
-    } catch (error) {
-      const durationMs = Date.now() - startedAt;
-      const message = getErrorMessage(error);
-
-      logStructured("error", {
-        event: "inngest.job.failed",
-        requestId,
-        userId: userIdForLog,
-        route: "inngest/process-meeting",
-        durationMs,
-        status: "failed",
-        errorMessage: message,
-      });
-
-      captureObservedError(error, {
-        event: "inngest.job.failed",
-        requestId,
-        userId: userIdForLog,
-        route: "inngest/process-meeting",
-        durationMs,
-        status: "failed",
-        extra: {
-          functionId: "process-meeting",
-          eventName: event.name,
-          meetingId: meetingIdForLog,
-          processingStep: currentStepForLog,
-        },
-      });
-
-      if (processingJobId) {
-        await failProcessingJob(createServiceRoleClient(), processingJobId, message);
-      }
-
-      throw error;
-    }
-  }
+  runProcessMeetingFunction
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -807,14 +1194,10 @@ export const handleProcessMeetingFailure = inngest.createFunction(
 
     try {
       const supabase = createServiceRoleClient();
-      const eventData = (
-        event.data as { event?: { data?: MeetingProcessEventData } }
-      )?.event?.data;
+      const eventData = readFailureEventData(event.data);
       const meetingId = eventData?.meetingId;
       meetingIdForLog = meetingId;
-      const errorMessage =
-        (event.data as { error?: { message?: string } })?.error?.message ??
-        "Unknown error";
+      const errorMessage = readFailureErrorMessage(event.data);
       const userId = eventData?.userId;
 
       if (meetingId) {

@@ -23,6 +23,8 @@ import {
   PROMPT_VERSION,
 } from "@/lib/gemini";
 import { indexMeetingTranscriptChunks } from "@/lib/meetings/rag";
+import { upsertMeetingParticipants } from "@/lib/meetings/participants";
+import { rewriteStructuredSummaryRefs } from "@/lib/meetings/summary-structured";
 import {
   captureObservedError,
   createTraceId,
@@ -503,24 +505,34 @@ export const processMeeting = inngest.createFunction(
 
       // ── Step 3: Generate WhatsApp + JSON summaries in one Gemini call ─
       currentStepForLog = "summarize-meeting";
-      const { summaryWhatsapp, summaryJson } = await runTrackedProcessingStep(
-        step,
-        supabase,
-        jobId,
-        meetingId,
-        "summarize-meeting",
-        async () => {
-          try {
-            return await generateMeetingSummary(transcript, durationSeconds);
-          } catch (error) {
-            throw toProviderQueueError("gemini", error);
+      const { participants, summaryWhatsapp, summaryJson, summaryStructured } =
+        await runTrackedProcessingStep(
+          step,
+          supabase,
+          jobId,
+          meetingId,
+          "summarize-meeting",
+          async () => {
+            try {
+              return await generateMeetingSummary(transcript, durationSeconds);
+            } catch (error) {
+              throw toProviderQueueError("gemini", error);
+            }
           }
-        }
-      );
+        );
 
       // ── Step 4: Save results to Supabase ───────────────────────────────
       currentStepForLog = "save-results";
       await runTrackedProcessingStep(step, supabase, jobId, meetingId, "save-results", async () => {
+        const participantRefMap = await upsertMeetingParticipants({
+          supabase,
+          meetingId,
+          participants,
+        });
+        const persistedStructuredSummary = rewriteStructuredSummaryRefs(
+          summaryStructured,
+          participantRefMap
+        );
         const taskDedupeKeys = buildSummaryItemDedupeKeys(
           summaryJson.tasks,
           (task) =>
@@ -630,7 +642,12 @@ export const processMeeting = inngest.createFunction(
           .update({
             summary_whatsapp: summaryWhatsapp,
             summary_json: summaryJson as unknown as Json,
-            title: summaryJson.meeting?.title ?? "Reunião processada",
+            summary_structured: persistedStructuredSummary as unknown as Json,
+            summary_version: persistedStructuredSummary.version,
+            title:
+              persistedStructuredSummary.title ??
+              summaryJson.meeting?.title ??
+              "Reunião processada",
             prompt_version: PROMPT_VERSION,
           })
           .eq("id", meetingId);

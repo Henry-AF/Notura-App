@@ -102,12 +102,52 @@ function createSummaryJson() {
   };
 }
 
+function createSummaryParticipants() {
+  return [
+    {
+      ref: "p1",
+      displayName: "Ana",
+      originalName: "Speaker A",
+      role: "participant",
+    },
+    {
+      ref: "e1",
+      displayName: "Acme",
+      originalName: "Acme",
+      role: "entity",
+    },
+  ];
+}
+
+function createSummaryStructured() {
+  return {
+    version: 1,
+    title: "Reuniao",
+    sections: [
+      {
+        title: "Contexto",
+        content: "Acme citada.",
+        participantRefs: ["e1"],
+      },
+    ],
+    actionItems: [
+      {
+        description: "Enviar proposta",
+        participantRef: "p1",
+        dueDate: null,
+        priority: "média",
+      },
+    ],
+  };
+}
+
 function createSupabaseMock(input: { meetingStatuses?: string[] } = {}) {
   const meetingStatuses = input.meetingStatuses ?? ["pending"];
   const writes = {
     inserts: [] as Array<{ table: string; payload: unknown }>,
     updates: [] as Array<{ table: string; payload: unknown }>,
     upserts: [] as Array<{ table: string; payload: unknown }>,
+    operations: [] as Array<{ table: string; operation: string; payload: unknown }>,
   };
   const single = vi.fn(async () => ({
     data: { status: meetingStatuses.shift() ?? "pending" },
@@ -118,10 +158,26 @@ function createSupabaseMock(input: { meetingStatuses?: string[] } = {}) {
   const updateEq = vi.fn().mockResolvedValue({ error: null });
   const update = vi.fn((payload: unknown) => {
     writes.updates.push({ table: currentTable, payload });
+    writes.operations.push({ table: currentTable, operation: "update", payload });
     return { eq: updateEq };
   });
   const upsert = vi.fn((payload: unknown) => {
-    writes.upserts.push({ table: currentTable, payload });
+    const table = currentTable;
+    writes.upserts.push({ table, payload });
+    writes.operations.push({ table, operation: "upsert", payload });
+    if (table === "meeting_participants") {
+      return {
+        select: vi.fn().mockResolvedValue({
+          data: (payload as Array<Record<string, unknown>>).map((row, index) => ({
+            id: index === 0 ? "participant-id" : "entity-id",
+            created_at: "2026-05-23T00:00:00.000Z",
+            updated_at: "2026-05-23T00:00:00.000Z",
+            ...row,
+          })),
+          error: null,
+        }),
+      };
+    }
     return Promise.resolve({ error: null });
   });
   const insertSingle = vi.fn().mockResolvedValue({
@@ -131,6 +187,7 @@ function createSupabaseMock(input: { meetingStatuses?: string[] } = {}) {
   const insertSelect = vi.fn(() => ({ single: insertSingle }));
   const insert = vi.fn((payload: unknown) => {
     writes.inserts.push({ table: currentTable, payload });
+    writes.operations.push({ table: currentTable, operation: "insert", payload });
     return { select: insertSelect };
   });
   let currentTable = "";
@@ -154,8 +211,10 @@ describe("processMeeting", () => {
     mocks.sendMeetingSummaryTemplate.mockResolvedValue({ success: true });
     mocks.getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
     mocks.generateMeetingSummary.mockResolvedValue({
+      participants: createSummaryParticipants(),
       summaryWhatsapp: "Resumo pronto",
       summaryJson: createSummaryJson(),
+      summaryStructured: createSummaryStructured(),
     });
     mocks.generateEmbedding.mockResolvedValue(Array.from({ length: 768 }, () => 0.1));
     mocks.indexMeetingTranscriptChunks.mockResolvedValue([]);
@@ -198,6 +257,29 @@ describe("processMeeting", () => {
       "[00:00] Speaker A: Transcricao completa",
       6480
     );
+  });
+
+  it("calls Gemini once for summary and participant extraction", async () => {
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(mocks.generateMeetingSummary).toHaveBeenCalledTimes(1);
   });
 
   it("indexes transcript chunks from AssemblyAI utterances after transcription", async () => {
@@ -320,6 +402,109 @@ describe("processMeeting", () => {
         },
       ])
     );
+  });
+
+  it("upserts meeting participants before saving structured summary", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(supabase.writes.upserts).toContainEqual({
+      table: "meeting_participants",
+      payload: [
+        {
+          meeting_id: "meeting-1",
+          display_name: "Ana",
+          original_name: "Speaker A",
+          role: "participant",
+        },
+        {
+          meeting_id: "meeting-1",
+          display_name: "Acme",
+          original_name: "Acme",
+          role: "entity",
+        },
+      ],
+    });
+    expect(
+      supabase.writes.operations.findIndex(
+        (operation) => operation.table === "meeting_participants"
+      )
+    ).toBeLessThan(
+      supabase.writes.operations.findIndex(
+        (operation) =>
+          operation.table === "meetings" &&
+          typeof operation.payload === "object" &&
+          operation.payload !== null &&
+          "summary_structured" in operation.payload
+      )
+    );
+  });
+
+  it("saves summary_structured with database participant ids", async () => {
+    const supabase = createSupabaseMock();
+    mocks.createServiceRoleClient.mockReturnValue(supabase);
+    const { processMeeting } = await import("./process-meeting");
+    const step = {
+      run: vi.fn(async (_name: string, fn: () => unknown) => await fn()),
+    };
+
+    await (processMeeting as { handler: (input: unknown) => Promise<unknown> }).handler({
+      event: {
+        id: "event-1",
+        name: "meeting/process",
+        data: {
+          meetingId: "meeting-1",
+          r2Key: "meetings/user-1/audio.mp3",
+          whatsappNumber: "+5511999999999",
+          userId: "user-1",
+        },
+      },
+      step,
+    });
+
+    expect(supabase.writes.updates).toContainEqual({
+      table: "meetings",
+      payload: expect.objectContaining({
+        summary_version: 1,
+        summary_structured: {
+          version: 1,
+          title: "Reuniao",
+          sections: [
+            {
+              title: "Contexto",
+              content: "Acme citada.",
+              participant_ids: ["entity-id"],
+            },
+          ],
+          action_items: [
+            {
+              description: "Enviar proposta",
+              participant_id: "participant-id",
+              due_date: null,
+              priority: "média",
+            },
+          ],
+        },
+      }),
+    });
   });
 
   it("skips the WhatsApp send step for users without a paid plan loaded from Supabase", async () => {

@@ -174,6 +174,8 @@ export interface Database {
           transcript: string | null
           summary_whatsapp: string | null
           summary_json: Json | null
+          summary_structured: Json | null
+          summary_version: number
           whatsapp_number: string
           whatsapp_status: string
           status: string
@@ -197,6 +199,8 @@ export interface Database {
           transcript?: string | null
           summary_whatsapp?: string | null
           summary_json?: Json | null
+          summary_structured?: Json | null
+          summary_version?: number
           whatsapp_number: string
           whatsapp_status?: string
           status?: string
@@ -220,6 +224,8 @@ export interface Database {
           transcript?: string | null
           summary_whatsapp?: string | null
           summary_json?: Json | null
+          summary_structured?: Json | null
+          summary_version?: number
           whatsapp_number?: string
           whatsapp_status?: string
           status?: string
@@ -238,6 +244,44 @@ export interface Database {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "meeting_groups"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_participants: {
+        Row: {
+          id: string
+          meeting_id: string
+          display_name: string
+          original_name: string
+          role: "participant" | "entity"
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          display_name: string
+          original_name: string
+          role: "participant" | "entity"
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          display_name?: string
+          original_name?: string
+          role?: "participant" | "entity"
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_participants_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
             referencedColumns: ["id"]
           }
         ]
@@ -874,11 +918,14 @@ export type MeetingSource = "upload" | "zoom_webhook" | "chrome_extension"
 export type WhatsAppStatus = "pending" | "sent" | "failed"
 export type Priority = "alta" | "média" | "baixa"
 export type Confidence = "alta" | "média"
+export type MeetingParticipantRole = "participant" | "entity"
 
 // ── Row shorthand aliases ─────────────────────────────────────────────────────
 
 export type Meeting = Database["public"]["Tables"]["meetings"]["Row"]
 export type MeetingGroup = Database["public"]["Tables"]["meeting_groups"]["Row"]
+export type MeetingParticipant =
+  Database["public"]["Tables"]["meeting_participants"]["Row"]
 export type Task = Database["public"]["Tables"]["tasks"]["Row"]
 export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
@@ -906,7 +953,26 @@ export type MeetingWithRelations =
     tasks: Database["public"]["Tables"]["tasks"]["Row"][]
     decisions: Database["public"]["Tables"]["decisions"]["Row"][]
     open_items: Database["public"]["Tables"]["open_items"]["Row"][]
+    meeting_participants: Database["public"]["Tables"]["meeting_participants"]["Row"][]
   }
+
+// ── MeetingStructuredSummary — read-time hydrated source ─────────────────────
+
+export interface MeetingStructuredSummary {
+  version: number
+  title: string | null
+  sections: Array<{
+    title: string
+    content: string
+    participant_ids: string[]
+  }>
+  action_items: Array<{
+    description: string
+    participant_id: string | null
+    due_date: string | null
+    priority: Priority
+  }>
+}
 
 // ── MeetingJSON — shape of summary_json as returned by Gemini ─────────────────
 

@@ -114,13 +114,13 @@ describe("meeting participant helpers", () => {
       from: vi.fn(() => ({ update })),
     };
 
-    const result = await updateMeetingParticipantDisplayNameForUser(
-      supabase as never,
-      "user-1",
-      "meeting-1",
-      "participant-id",
-      { displayName: " Ana Nova ", role: "entity", meeting_id: "other" }
-    );
+    const result = await updateMeetingParticipantDisplayNameForUser({
+      supabase: supabase as never,
+      userId: "user-1",
+      meetingId: "meeting-1",
+      participantId: "participant-id",
+      input: { displayName: " Ana Nova ", role: "entity", meeting_id: "other" },
+    });
 
     expect(mocks.requireOwnership).toHaveBeenCalledWith(
       supabase,

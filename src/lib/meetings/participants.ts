@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireOwnership } from "@/lib/api/auth";
 import type {
@@ -11,15 +10,34 @@ import type { GeminiMeetingParticipantDraft, ParticipantRefMap } from "./summary
 type SupabaseAdminClient = SupabaseClient<Database>;
 type MeetingParticipantInsert =
   Database["public"]["Tables"]["meeting_participants"]["Insert"];
+type SupabaseQueryResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
 
 export interface UpdateMeetingParticipantInput {
   displayName?: unknown;
+}
+
+export interface UpdateMeetingParticipantDisplayNameForUserInput {
+  supabase: SupabaseAdminClient;
+  userId: string;
+  meetingId: string;
+  participantId: string;
+  input: UpdateMeetingParticipantInput;
 }
 
 export class MeetingParticipantValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MeetingParticipantValidationError";
+  }
+}
+
+export class MeetingParticipantAccessError extends Error {
+  constructor() {
+    super("Acesso negado.");
+    this.name = "MeetingParticipantAccessError";
   }
 }
 
@@ -78,14 +96,15 @@ export async function upsertMeetingParticipants(input: {
   participants: GeminiMeetingParticipantDraft[];
 }): Promise<ParticipantRefMap> {
   const rowsToUpsert = buildParticipantUpserts(input);
-  const { data, error } = await input.supabase
+  const result = await input.supabase
     .from("meeting_participants")
     .upsert(rowsToUpsert, { onConflict: "meeting_id,role,original_name" })
     .select("id, meeting_id, display_name, original_name, role, created_at, updated_at");
 
-  if (error || !data) {
-    throw new Error(`Failed to upsert meeting participants: ${error?.message}`);
-  }
+  const data = unwrapSupabaseData<MeetingParticipant[]>(
+    result,
+    "Failed to upsert meeting participants"
+  );
 
   return mapParticipantRefsToIds(input.participants, data);
 }
@@ -97,41 +116,62 @@ export async function listMeetingParticipantsForUser(
 ): Promise<MeetingParticipant[]> {
   await requireOwnership(supabase, "meetings", meetingId, userId);
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("meeting_participants")
     .select("id, meeting_id, display_name, original_name, role, created_at, updated_at")
     .eq("meeting_id", meetingId)
     .order("created_at", { ascending: true });
 
-  if (error || !data) {
-    throw new Error(`Failed to load meeting participants: ${error?.message}`);
-  }
-
-  return data;
+  return unwrapSupabaseData<MeetingParticipant[]>(
+    result,
+    "Failed to load meeting participants"
+  );
 }
 
 export async function updateMeetingParticipantDisplayNameForUser(
-  supabase: SupabaseAdminClient,
-  userId: string,
-  meetingId: string,
-  participantId: string,
-  input: UpdateMeetingParticipantInput
+  params: UpdateMeetingParticipantDisplayNameForUserInput
 ): Promise<MeetingParticipant> {
-  await requireOwnership(supabase, "meetings", meetingId, userId);
-  const displayName = normalizeDisplayName(input.displayName);
-  const { data, error } = await supabase
+  await requireOwnership(
+    params.supabase,
+    "meetings",
+    params.meetingId,
+    params.userId
+  );
+  const displayName = normalizeDisplayName(params.input.displayName);
+  const result = await params.supabase
     .from("meeting_participants")
     .update({ display_name: displayName })
-    .eq("id", participantId)
-    .eq("meeting_id", meetingId)
+    .eq("id", params.participantId)
+    .eq("meeting_id", params.meetingId)
     .select("id, meeting_id, display_name, original_name, role, created_at, updated_at")
     .single();
 
-  if (error || !data) {
-    throw NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  return unwrapParticipantUpdateResult(result);
+}
+
+function unwrapSupabaseData<T>(
+  result: SupabaseQueryResult<T>,
+  operation: string
+): T {
+  if (result.error) {
+    throw new Error(`${operation}: ${result.error.message}`);
   }
 
-  return data;
+  if (result.data === null) {
+    throw new Error(`${operation}: missing data`);
+  }
+
+  return result.data;
+}
+
+function unwrapParticipantUpdateResult(
+  result: SupabaseQueryResult<MeetingParticipant>
+): MeetingParticipant {
+  if (result.error || result.data === null) {
+    throw new MeetingParticipantAccessError();
+  }
+
+  return result.data;
 }
 
 function buildDraftSignature(draft: GeminiMeetingParticipantDraft): string {

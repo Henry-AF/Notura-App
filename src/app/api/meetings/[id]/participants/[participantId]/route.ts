@@ -3,6 +3,7 @@ import { requireOwnership } from "@/lib/api/auth";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
+  MeetingParticipantAccessError,
   MeetingParticipantValidationError,
   updateMeetingParticipantDisplayNameForUser,
 } from "@/lib/meetings/participants";
@@ -40,13 +41,13 @@ export const PATCH = withAuthRateLimit<
         auth.user.id
       );
 
-      const participant = await updateMeetingParticipantDisplayNameForUser(
-        auth.supabaseAdmin,
-        auth.user.id,
-        params.id,
-        params.participantId,
-        { displayName: readDisplayName(body) }
-      );
+      const participant = await updateMeetingParticipantDisplayNameForUser({
+        supabase: auth.supabaseAdmin,
+        userId: auth.user.id,
+        meetingId: params.id,
+        participantId: params.participantId,
+        input: { displayName: readDisplayName(body) },
+      });
 
       return NextResponse.json({ participant: serializeParticipant(participant) });
     } catch (error) {
@@ -63,6 +64,10 @@ export const PATCH = withAuthRateLimit<
 
       if (error instanceof MeetingParticipantValidationError) {
         return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      if (error instanceof MeetingParticipantAccessError) {
+        return NextResponse.json({ error: error.message }, { status: 403 });
       }
 
       console.error("[meetings/participants] Unexpected patch error:", error);

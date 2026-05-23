@@ -90,7 +90,7 @@ export interface ParticipantRefTarget {
   role: MeetingParticipantRole;
 }
 
-export type ParticipantRefMap = Record<string, ParticipantRefTarget>;
+export type ParticipantRefMap = Partial<Record<string, ParticipantRefTarget>>;
 
 export function parseGeminiMeetingSummaryEnvelope(
   value: unknown

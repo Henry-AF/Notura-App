@@ -144,13 +144,13 @@ describe("PATCH /api/meetings/[id]/participants/[participantId]", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.updateMeetingParticipantDisplayNameForUser).toHaveBeenCalledWith(
-      expect.any(Object),
-      "user-1",
-      "meeting-1",
-      "participant-1",
-      { displayName: "Ana Nova" }
-    );
+    expect(mocks.updateMeetingParticipantDisplayNameForUser).toHaveBeenCalledWith({
+      supabase: expect.any(Object),
+      userId: "user-1",
+      meetingId: "meeting-1",
+      participantId: "participant-1",
+      input: { displayName: "Ana Nova" },
+    });
     expect(await response.json()).toEqual({
       participant: {
         id: "participant-1",

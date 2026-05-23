@@ -355,10 +355,19 @@ function getErrorMessage(error: unknown): string {
     try {
       return JSON.stringify(error);
     } catch {
-      return String(error);
+      return "Unserializable error object";
     }
   }
-  return String(error);
+
+  if (typeof error === "number" || typeof error === "boolean") {
+    return String(error);
+  }
+
+  if (typeof error === "bigint") {
+    return error.toString();
+  }
+
+  return "Unknown error";
 }
 
 function readStatusCandidate(value: unknown): number | null {

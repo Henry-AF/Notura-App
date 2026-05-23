@@ -36,6 +36,20 @@ function createValidGeminiResponse() {
     response: {
       text: () =>
         JSON.stringify({
+          participants: [
+            {
+              ref: "p1",
+              display_name: "Ana",
+              original_name: "Speaker A",
+              role: "participant",
+            },
+            {
+              ref: "e1",
+              display_name: "Acme",
+              original_name: "Acme",
+              role: "entity",
+            },
+          ],
           summary_whatsapp: "Resumo pronto para WhatsApp",
           summary_json: {
             version: "1.0",
@@ -60,6 +74,25 @@ function createValidGeminiResponse() {
               total_tasks: 0,
               total_open_items: 0,
             },
+          },
+          summary_structured: {
+            version: 1,
+            title: "Reuniao",
+            sections: [
+              {
+                title: "Contexto",
+                content: "A Acme foi citada.",
+                participant_refs: ["e1"],
+              },
+            ],
+            action_items: [
+              {
+                description: "Enviar proposta",
+                participant_ref: "p1",
+                due_date: null,
+                priority: "média",
+              },
+            ],
           },
         }),
     },
@@ -246,6 +279,48 @@ describe("generateMeetingSummary summary parity", () => {
           "devem conter as mesmas informações factuais"
         ),
       })
+    );
+  });
+
+  it("instructs Gemini to keep cited entities out of effective participants", async () => {
+    const mod = await import("./gemini");
+    await mod.generateMeetingSummary("transcript", 6480);
+
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemInstruction: expect.stringContaining(
+          "entidades citadas não entram como participantes efetivos"
+        ),
+      })
+    );
+  });
+
+  it("returns participants and structured summary from the same Gemini call", async () => {
+    const mod = await import("./gemini");
+    const result = await mod.generateMeetingSummary("transcript", 6480);
+
+    expect(result.participants).toEqual([
+      expect.objectContaining({ ref: "p1", role: "participant" }),
+      expect.objectContaining({ ref: "e1", role: "entity" }),
+    ]);
+    expect(result.summaryStructured.actionItems[0].participantRef).toBe("p1");
+  });
+
+  it("rejects structured action item owners that point to entities", async () => {
+    generateContentMock.mockResolvedValueOnce({
+      response: {
+        text: () => {
+          const body = JSON.parse(createValidGeminiResponse().response.text());
+          body.summary_structured.action_items[0].participant_ref = "e1";
+          return JSON.stringify(body);
+        },
+      },
+    });
+
+    const mod = await import("./gemini");
+
+    await expect(mod.generateMeetingSummary("transcript", 6480)).rejects.toThrow(
+      "Action item participant_ref must point to a participant"
     );
   });
 });

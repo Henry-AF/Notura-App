@@ -1,7 +1,12 @@
 import type { MeetingTask } from "@/components/meeting-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getOwnedMeetingWithRelations } from "@/lib/meetings/detail";
-import type { MeetingJSON, MeetingWithRelations } from "@/types/database";
+import { renderMeetingSummary } from "@/lib/meetings/summary-renderer";
+import type {
+  MeetingJSON,
+  MeetingStructuredSummary,
+  MeetingWithRelations,
+} from "@/types/database";
 import type { MeetingDetailData } from "./meeting-types";
 
 function normalizeMeetingStatus(
@@ -33,8 +38,13 @@ export function mapMeetingDetail(
   meeting: MeetingWithRelations
 ): MeetingDetailData {
   const summaryJson = (meeting.summary_json as MeetingJSON | null) ?? null;
-  const participants =
-    summaryJson?.meeting?.participants?.map((name) => ({ name })) ?? [];
+  const renderedSummary = renderMeetingSummary({
+    summaryStructured:
+      (meeting.summary_structured as MeetingStructuredSummary | null) ?? null,
+    meetingParticipants: meeting.meeting_participants ?? [],
+    summaryWhatsapp: meeting.summary_whatsapp,
+    summaryJson,
+  });
   const tasks: MeetingTask[] = (meeting.tasks ?? []).map((task) => {
     const status = normalizeTaskStatus(task.status, task.completed);
     const completed = status === "completed";
@@ -81,8 +91,9 @@ export function mapMeetingDetail(
     clientName: meeting.client_name ?? meeting.title ?? "—",
     meetingDate: formatRelativeTime(meeting.meeting_date ?? meeting.created_at),
     meetingStatus: normalizeMeetingStatus(meeting.status),
-    participants,
-    summary: meeting.summary_whatsapp ?? "",
+    participants: renderedSummary.participants,
+    entities: renderedSummary.entities,
+    summary: renderedSummary.text,
     nextStep:
       openItems[0]?.description ??
       tasks.find((task) => !task.completed)?.text ??

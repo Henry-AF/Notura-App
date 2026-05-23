@@ -17,7 +17,7 @@ async function fetchMeetingWithRelations(
 ): Promise<MeetingWithRelations> {
   const { data, error } = await supabaseAdmin
     .from("meetings")
-    .select("*, tasks(*), decisions(*), open_items(*)")
+    .select("*, tasks(*), decisions(*), open_items(*), meeting_participants(*)")
     .eq("id", meetingId)
     .single();
 

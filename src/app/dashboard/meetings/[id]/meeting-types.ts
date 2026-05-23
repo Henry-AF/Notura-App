@@ -4,7 +4,8 @@ export interface MeetingDetailData {
   clientName: string;
   meetingDate: string;
   meetingStatus: "completed" | "processing" | "failed" | "scheduled";
-  participants: Array<{ name: string }>;
+  participants: Array<{ id?: string; name: string; originalName?: string }>;
+  entities: Array<{ id: string; name: string; originalName: string }>;
   summary: string;
   nextStep: string;
   keyDecision: string;

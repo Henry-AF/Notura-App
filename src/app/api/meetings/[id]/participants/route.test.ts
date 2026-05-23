@@ -1,0 +1,100 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NextRequest } from "next/server";
+
+const mocks = vi.hoisted(() => ({
+  listMeetingParticipantsForUser: vi.fn(),
+  requireOwnership: vi.fn(),
+  withAuthRateLimit: vi.fn((_policy, handler) => {
+    return (request: Request, context: { params: { id: string } }) =>
+      handler(request, {
+        ...context,
+        auth: {
+          user: { id: "user-1" },
+          supabaseAdmin: { from: vi.fn() },
+        },
+      });
+  }),
+}));
+
+vi.mock("@/lib/api/auth", () => ({
+  requireOwnership: mocks.requireOwnership,
+}));
+
+vi.mock("@/lib/api/rate-limit-route", () => ({
+  withAuthRateLimit: mocks.withAuthRateLimit,
+}));
+
+vi.mock("@/lib/meetings/participants", () => ({
+  listMeetingParticipantsForUser: mocks.listMeetingParticipantsForUser,
+}));
+
+describe("GET /api/meetings/[id]/participants", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    mocks.requireOwnership.mockResolvedValue(undefined);
+    mocks.listMeetingParticipantsForUser.mockResolvedValue([
+      {
+        id: "participant-1",
+        meeting_id: "meeting-1",
+        display_name: "Ana",
+        original_name: "Speaker A",
+        role: "participant",
+        created_at: "2026-05-23T00:00:00.000Z",
+        updated_at: "2026-05-23T00:00:00.000Z",
+      },
+      {
+        id: "entity-1",
+        meeting_id: "meeting-1",
+        display_name: "Acme",
+        original_name: "Acme",
+        role: "entity",
+        created_at: "2026-05-23T00:00:00.000Z",
+        updated_at: "2026-05-23T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("returns 403 when the meeting does not belong to the user", async () => {
+    mocks.requireOwnership.mockRejectedValueOnce(
+      Response.json({ error: "Acesso negado." }, { status: 403 })
+    );
+
+    const mod = await import("./route");
+    const response = await mod.GET(new Request("http://localhost") as NextRequest, {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Acesso negado." });
+    expect(mocks.listMeetingParticipantsForUser).not.toHaveBeenCalled();
+  });
+
+  it("returns participants and entities for an owned meeting", async () => {
+    const mod = await import("./route");
+    const response = await mod.GET(new Request("http://localhost") as NextRequest, {
+      params: { id: "meeting-1" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      participants: [
+        {
+          id: "participant-1",
+          displayName: "Ana",
+          originalName: "Speaker A",
+          role: "participant",
+        },
+      ],
+      entities: [
+        {
+          id: "entity-1",
+          displayName: "Acme",
+          originalName: "Acme",
+          role: "entity",
+        },
+      ],
+    });
+    expect(mocks.withAuthRateLimit).toHaveBeenCalled();
+  });
+});

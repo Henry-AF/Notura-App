@@ -148,6 +148,7 @@ describe("meeting detail api client", () => {
         id: "participant-1",
         name: "Ana Atualizada",
         originalName: "Speaker A",
+        role: "participant",
       },
     ]);
     expect(meeting.entities).toEqual([
@@ -155,8 +156,28 @@ describe("meeting detail api client", () => {
         id: "entity-1",
         name: "Acme Atualizada",
         originalName: "Acme",
+        role: "entity",
       },
     ]);
+    expect(meeting.summaryStructured).toEqual({
+      version: 1,
+      title: "Reunião — Acme",
+      sections: [
+        {
+          title: "Contexto",
+          content: "A proposta premium foi discutida.",
+          participant_ids: ["participant-1", "entity-1"],
+        },
+      ],
+      action_items: [
+        {
+          description: "Enviar proposta",
+          participant_id: "participant-1",
+          due_date: null,
+          priority: "média",
+        },
+      ],
+    });
     expect(meeting.summary).toContain("Ana Atualizada");
     expect(meeting.summary).toContain("Acme Atualizada");
     expect(meeting.tasks[0]).toEqual(

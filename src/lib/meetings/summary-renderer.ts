@@ -9,8 +9,18 @@ const UNKNOWN_PARTICIPANT_NAME = "Participante removido";
 
 export interface RenderedMeetingSummary {
   text: string;
-  participants: Array<{ id?: string; name: string; originalName?: string }>;
-  entities: Array<{ id: string; name: string; originalName: string }>;
+  participants: Array<{
+    id?: string;
+    name: string;
+    originalName?: string;
+    role?: "participant";
+  }>;
+  entities: Array<{
+    id: string;
+    name: string;
+    originalName: string;
+    role: "entity";
+  }>;
   sections: Array<{ title: string; content: string; participants: string[] }>;
   actionItems: Array<{
     description: string;
@@ -103,6 +113,7 @@ function renderParticipantList(meetingParticipants: MeetingParticipant[]) {
       id: participant.id,
       name: participant.display_name,
       originalName: participant.original_name,
+      role: "participant" as const,
     }));
 }
 
@@ -113,6 +124,7 @@ function renderEntityList(meetingParticipants: MeetingParticipant[]) {
       id: participant.id,
       name: participant.display_name,
       originalName: participant.original_name,
+      role: "entity" as const,
     }));
 }
 

@@ -1,4 +1,5 @@
 ﻿"use client";
+/* eslint-disable max-lines-per-function, complexity */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,6 +7,7 @@ import {
   MeetingDeleteDialog,
   MeetingHeader,
   MeetingTabs,
+  MeetingParticipantsEditorCard,
   SmartSummaryCard,
   KeyDecisionCard,
   AlertPointCard,
@@ -28,8 +30,10 @@ import {
   deleteMeetingById,
   fetchMeetingStatus,
   retryMeetingProcessing,
+  updateMeetingParticipantDisplayName,
 } from "./meeting-client-api";
-import type { MeetingDetailData } from "./meeting-types";
+import { resolveSummary } from "./meeting-summary-resolver";
+import type { MeetingDetailData, MeetingParticipantDisplay } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
   type MeetingTaskColumnId,
@@ -147,7 +151,9 @@ const EMPTY_MEETING_DETAIL: MeetingDetailData = {
   meetingDate: "",
   meetingStatus: "processing",
   participants: [],
+  entities: [],
   summary: "",
+  summaryStructured: null,
   nextStep: "",
   keyDecision: "",
   alertPoint: "",
@@ -175,7 +181,12 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   >(meeting.meetingStatus);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCancelingProcessing, setIsCancelingProcessing] = useState(false);
-  const [participants] = useState<Array<{ name: string }>>(meeting.participants);
+  const [detectedParticipants, setDetectedParticipants] = useState<
+    MeetingParticipantDisplay[]
+  >(meeting.participants);
+  const [detectedEntities, setDetectedEntities] = useState<
+    MeetingParticipantDisplay[]
+  >(meeting.entities);
 
   // Summary content
   const [summary] = useState(meeting.summary);
@@ -204,6 +215,18 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     () => [{ id, label: clientName || "Reunião atual" }],
     [clientName, id]
   );
+  const resolvedSummary = useMemo(
+    () =>
+      resolveSummary(
+        meeting.summaryStructured,
+        [...detectedParticipants, ...detectedEntities],
+        summary
+      ),
+    [detectedEntities, detectedParticipants, meeting.summaryStructured, summary]
+  );
+  const hasEditableNames =
+    detectedParticipants.some((participant) => participant.id) ||
+    detectedEntities.some((entity) => entity.id);
 
   // ─── Polling: refresh status every 30s while processing ──────────────────
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -211,15 +234,17 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   useEffect(() => {
     if (meetingStatus !== "processing") return;
 
-    pollingRef.current = setInterval(async () => {
-      try {
-        const result = await fetchMeetingStatus(id);
-        if (result.status !== "processing") {
-          window.location.reload();
+    pollingRef.current = setInterval(() => {
+      void (async () => {
+        try {
+          const result = await fetchMeetingStatus(id);
+          if (result.status !== "processing") {
+            window.location.reload();
+          }
+        } catch {
+          // silent — will retry on next interval
         }
-      } catch {
-        // silent — will retry on next interval
-      }
+      })();
     }, 30_000);
 
     return () => {
@@ -299,7 +324,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       );
       setTaskColumnById((prev) => ({
         ...prev,
-        [persistedTask.id]: toMeetingTaskColumnId(persistedColumnId) ?? draftColumn,
+        [persistedTask.id]: toMeetingTaskColumnId(persistedColumnId),
       }));
       setDraftColumnId(null);
       return;
@@ -408,6 +433,32 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     show("Resumo inteligente copiado para a area de transferencia.", "success");
   }, [show]);
 
+  const updateParticipantDisplayName = useCallback(
+    async (participantId: string, displayName: string) => {
+      const updated = await updateMeetingParticipantDisplayName(
+        id,
+        participantId,
+        displayName
+      );
+
+      if (updated.role === "entity") {
+        setDetectedEntities((prev) =>
+          prev.map((entity) => entity.id === updated.id ? updated : entity)
+        );
+      } else {
+        setDetectedParticipants((prev) =>
+          prev.map((participant) =>
+            participant.id === updated.id ? updated : participant
+          )
+        );
+      }
+
+      show("Nome atualizado no resumo.", "success");
+      return updated;
+    },
+    [id, show]
+  );
+
   const handleDeleteMeeting = useCallback(async () => {
     setIsDeletingMeeting(true);
 
@@ -434,32 +485,38 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         <ProcessingState
           clientName={clientName}
           isCancelingProcessing={isCancelingProcessing}
-          onCancelProcessing={handleCancelProcessing}
+          onCancelProcessing={() => { void handleCancelProcessing(); }}
         />
       );
     }
     if (meetingStatus === "failed") {
-      return <FailedState onRetry={handleRetry} isRetrying={isRetrying} />;
+      return (
+        <FailedState
+          onRetry={() => { void handleRetry(); }}
+          isRetrying={isRetrying}
+        />
+      );
     }
     if (meetingStatus !== "completed") {
       return (
         <ProcessingState
           clientName={clientName}
           isCancelingProcessing={isCancelingProcessing}
-          onCancelProcessing={handleCancelProcessing}
+          onCancelProcessing={() => { void handleCancelProcessing(); }}
         />
       );
     }
 
     switch (activeTab) {
-      case "summary":
+      case "summary": {
+        const hasSummarySidebar = hasEditableNames || keyDecision || alertPoint;
         return (
           <div
             className="summary-layout anim-in"
             style={{
               display: "grid",
               gridTemplateColumns:
-                keyDecision || alertPoint
+                hasSummarySidebar
                   ? "minmax(0, 1.9fr) minmax(240px, 1fr)"
                   : "1fr",
               gap: 16,
@@ -468,13 +525,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
             }}
           >
             <SmartSummaryCard
-              summary={summary || "Resumo não disponível."}
+              summary={resolvedSummary || "Resumo não disponível."}
               nextSteps={nextStep}
               onCopyToWhatsApp={() =>
                 show("Resumo copiado para WhatsApp!", "success")
               }
             />
-            {(keyDecision || alertPoint) && (
+            {hasSummarySidebar && (
               <div
                 className="decision-grid"
                 style={{
@@ -483,12 +540,21 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
                   gap: 16,
                 }}
               >
+                {hasEditableNames && (
+                  <MeetingParticipantsEditorCard
+                    participants={detectedParticipants}
+                    entities={detectedEntities}
+                    onSaveDisplayName={updateParticipantDisplayName}
+                    onError={(message) => show(message, "error")}
+                  />
+                )}
                 {keyDecision && <KeyDecisionCard decision={keyDecision} />}
                 {alertPoint && <AlertPointCard alert={alertPoint} />}
               </div>
             )}
           </div>
         );
+      }
 
       case "transcript":
         return transcript ? (
@@ -554,7 +620,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
             </p>
             <KanbanBoard
               columns={taskColumns}
-              onDragEnd={handleTaskBoardDragEnd}
+              onDragEnd={(result) => { void handleTaskBoardDragEnd(result); }}
               onAddTask={handleAddTask}
               onEditTask={setEditingTask}
               onDeleteColumn={() => {}}
@@ -717,11 +783,17 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           clientName={clientName}
           date={meetingDate}
           status={meetingStatus}
-          participants={participants}
-          onRetry={meetingStatus === "failed" ? handleRetry : undefined}
+          participants={detectedParticipants}
+          onRetry={
+            meetingStatus === "failed"
+              ? () => { void handleRetry(); }
+              : undefined
+          }
           isRetrying={isRetrying}
           onCancelProcessing={
-            meetingStatus === "processing" ? handleCancelProcessing : undefined
+            meetingStatus === "processing"
+              ? () => { void handleCancelProcessing(); }
+              : undefined
           }
           isCancelingProcessing={isCancelingProcessing}
           onChat={
@@ -767,7 +839,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         meetingName={clientName}
-        summary={summary}
+        summary={resolvedSummary}
         isDeleting={isDeletingMeeting}
         onCopySummary={handleCopySummaryForDelete}
         onConfirmDelete={handleDeleteMeeting}
@@ -794,7 +866,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       >
         <button
           type="button"
-          onClick={handleExport}
+          onClick={() => { void handleExport(); }}
           style={{
             background: "#6C5CE7",
             color: "#FFFFFF",

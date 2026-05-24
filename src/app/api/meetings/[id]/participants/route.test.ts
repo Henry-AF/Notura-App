@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
+  MeetingParticipantAccessError: class MeetingParticipantAccessError extends Error {},
+  MeetingParticipantValidationError: class MeetingParticipantValidationError extends Error {},
   listMeetingParticipantsForUser: vi.fn(),
   requireOwnership: vi.fn(),
+  updateMeetingParticipantDisplayNameForUser: vi.fn(),
   withAuthRateLimit: vi.fn((_policy, handler) => {
     return (request: Request, context: { params: { id: string } }) =>
       handler(request, {
@@ -25,7 +28,11 @@ vi.mock("@/lib/api/rate-limit-route", () => ({
 }));
 
 vi.mock("@/lib/meetings/participants", () => ({
+  MeetingParticipantAccessError: mocks.MeetingParticipantAccessError,
+  MeetingParticipantValidationError: mocks.MeetingParticipantValidationError,
   listMeetingParticipantsForUser: mocks.listMeetingParticipantsForUser,
+  updateMeetingParticipantDisplayNameForUser:
+    mocks.updateMeetingParticipantDisplayNameForUser,
 }));
 
 describe("GET /api/meetings/[id]/participants", () => {
@@ -96,5 +103,55 @@ describe("GET /api/meetings/[id]/participants", () => {
       ],
     });
     expect(mocks.withAuthRateLimit).toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/meetings/[id]/participants", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    mocks.requireOwnership.mockResolvedValue(undefined);
+    mocks.listMeetingParticipantsForUser.mockResolvedValue([]);
+    mocks.updateMeetingParticipantDisplayNameForUser.mockResolvedValue({
+      id: "participant-1",
+      meeting_id: "meeting-1",
+      display_name: "Ana Nova",
+      original_name: "Speaker A",
+      role: "participant",
+      created_at: "2026-05-23T00:00:00.000Z",
+      updated_at: "2026-05-23T00:10:00.000Z",
+    });
+  });
+
+  it("updates only display_name for a participant id sent in the body", async () => {
+    const mod = await import("./route");
+    const response = await mod.PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          participantId: "participant-1",
+          displayName: "Ana Nova",
+          role: "entity",
+        }),
+      }) as NextRequest,
+      { params: { id: "meeting-1" } }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateMeetingParticipantDisplayNameForUser).toHaveBeenCalledWith({
+      supabase: expect.any(Object),
+      userId: "user-1",
+      meetingId: "meeting-1",
+      participantId: "participant-1",
+      input: { displayName: "Ana Nova" },
+    });
+    expect(await response.json()).toEqual({
+      participant: {
+        id: "participant-1",
+        displayName: "Ana Nova",
+        originalName: "Speaker A",
+        role: "participant",
+      },
+    });
   });
 });

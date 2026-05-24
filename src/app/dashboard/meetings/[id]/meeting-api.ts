@@ -60,6 +60,7 @@ export function mapMeetingDetail(
     participants: renderedSummary.participants,
     entities: renderedSummary.entities,
     summary: renderedSummary.text,
+    summaryStructured: meeting.summary_structured as MeetingStructuredSummary | null,
     nextStep: getNextStep(openItems, tasks),
     keyDecision: getFirst(decisions)?.description ?? "",
     alertPoint: getFirst(openItems)?.description ?? "",

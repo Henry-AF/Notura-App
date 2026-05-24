@@ -125,7 +125,7 @@ interface ProcessingStepsInput {
 }
 
 const USER_CANCELED_PROCESSING_MESSAGE = "Meeting processing was canceled by the user.";
-const ACTIVE_PROCESSING_STATUSES = ["pending", "processing"];
+const ACTIVE_PROCESSING_STATUSES: MeetingStatus[] = ["pending", "processing"];
 
 function readRequiredEventString(
   payload: Record<string, unknown>,
@@ -353,7 +353,7 @@ function unwrapProcessingJobId(
 }
 
 function unwrapMeetingStatus(
-  result: SupabaseSingleResult<{ status: MeetingStatus }>
+  result: SupabaseSingleResult<{ status: string }>
 ): MeetingStatus {
   if (result.error || result.data === null) {
     throw toNonRetriableJobError(
@@ -362,7 +362,15 @@ function unwrapMeetingStatus(
     );
   }
 
+  if (!isMeetingStatus(result.data.status)) {
+    throw toNonRetriableJobError(USER_CANCELED_PROCESSING_MESSAGE);
+  }
+
   return result.data.status;
+}
+
+function isMeetingStatus(value: string): value is MeetingStatus {
+  return ["pending", "processing", "completed", "failed"].includes(value);
 }
 
 async function runValidateEventData(
@@ -416,7 +424,7 @@ async function readExistingMeetingStatus(
   supabase: ServiceRoleClient,
   meetingId: string
 ): Promise<MeetingStatus | null> {
-  const result: SupabaseSingleResult<{ status: MeetingStatus }> = await supabase
+  const result: SupabaseSingleResult<{ status: string }> = await supabase
     .from("meetings")
     .select("status")
     .eq("id", meetingId)
@@ -426,7 +434,7 @@ async function readExistingMeetingStatus(
     return null;
   }
 
-  return result.data.status;
+  return isMeetingStatus(result.data.status) ? result.data.status : null;
 }
 
 async function markMeetingStatusAsProcessing(
@@ -513,7 +521,7 @@ function validateTranscriptResult(result: TranscriptResult): TranscriptResult {
 function formatTranscriptText(transcriptResult: TranscriptResult): string {
   const utterances = transcriptResult.utterances;
   if (!utterances || utterances.length === 0) {
-    return transcriptResult.text;
+    return transcriptResult.text ?? "";
   }
 
   return utterances.map(formatTranscriptUtterance).join("\n\n");

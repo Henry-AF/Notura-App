@@ -44,4 +44,19 @@ describe("meeting detail actions", () => {
     expect(processingPage).not.toContain("cancelMeetingProcessing");
     expect(processingPage).not.toContain("Cancelar processamento");
   });
+
+  it("renders an inline participant editor in the summary tab and resolves exports locally", () => {
+    const meetingDetailClient = readSource(
+      "src/app/dashboard/meetings/[id]/meeting-detail-client.tsx"
+    );
+    const meetingDetailIndex = readSource("src/components/meeting-detail/index.ts");
+
+    expect(meetingDetailIndex).toContain("MeetingParticipantsEditorCard");
+    expect(meetingDetailClient).toContain("MeetingParticipantsEditorCard");
+    expect(meetingDetailClient).toContain("resolveSummary");
+    expect(meetingDetailClient).toContain("resolvedSummary");
+    expect(meetingDetailClient).toContain("updateParticipantDisplayName");
+    expect(meetingDetailClient).toContain("setDetectedParticipants");
+    expect(meetingDetailClient).toContain("setDetectedEntities");
+  });
 });

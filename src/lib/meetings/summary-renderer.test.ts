@@ -70,10 +70,20 @@ describe("renderMeetingSummary", () => {
     });
 
     expect(result.participants).toEqual([
-      { id: "p1-id", name: "Ana Atualizada", originalName: "Speaker A" },
+      {
+        id: "p1-id",
+        name: "Ana Atualizada",
+        originalName: "Speaker A",
+        role: "participant",
+      },
     ]);
     expect(result.entities).toEqual([
-      { id: "e1-id", name: "Acme Atualizada", originalName: "Acme" },
+      {
+        id: "e1-id",
+        name: "Acme Atualizada",
+        originalName: "Acme",
+        role: "entity",
+      },
     ]);
   });
 

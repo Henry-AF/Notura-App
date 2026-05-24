@@ -98,6 +98,42 @@ describe("meeting detail client api", () => {
     );
   });
 
+  it("renames a detected meeting participant through the meeting participants API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          participant: {
+            id: "participant-1",
+            displayName: "Ana Nova",
+            originalName: "Speaker A",
+            role: "participant",
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+    const result = await mod.updateMeetingParticipantDisplayName(
+      "meeting-1",
+      "participant-1",
+      "Ana Nova"
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/meetings/meeting-1/participants", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participantId: "participant-1",
+        displayName: "Ana Nova",
+      }),
+    });
+    expect(result.name).toBe("Ana Nova");
+  });
+
   it("throws a useful error when processing cancellation fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "Nao foi possivel cancelar." }), {

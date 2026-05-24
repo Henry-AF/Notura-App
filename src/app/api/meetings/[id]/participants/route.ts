@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireOwnership } from "@/lib/api/auth";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
-import { listMeetingParticipantsForUser } from "@/lib/meetings/participants";
+import {
+  MeetingParticipantAccessError,
+  MeetingParticipantValidationError,
+  listMeetingParticipantsForUser,
+  updateMeetingParticipantDisplayNameForUser,
+} from "@/lib/meetings/participants";
 import type { MeetingParticipant } from "@/types/database";
 
 function serializeParticipant(participant: MeetingParticipant) {
@@ -11,6 +16,15 @@ function serializeParticipant(participant: MeetingParticipant) {
     displayName: participant.display_name,
     originalName: participant.original_name,
     role: participant.role,
+  };
+}
+
+function readParticipantUpdateBody(body: unknown) {
+  const record = body && typeof body === "object" ? body as Record<string, unknown> : {};
+
+  return {
+    participantId: record.participantId,
+    displayName: record.displayName,
   };
 }
 
@@ -45,6 +59,57 @@ export const GET = withAuthRateLimit<{ id: string }, NextRequest>(
       }
 
       console.error("[meetings/participants] Unexpected get error:", error);
+      return NextResponse.json(
+        { error: "Erro interno do servidor." },
+        { status: 500 }
+      );
+    }
+  }
+);
+
+export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
+  RATE_LIMIT_POLICIES.meetingParticipantsMutate,
+  async (request, { params, auth }) => {
+    try {
+      const body = (await request.json()) as unknown;
+      const { participantId, displayName } = readParticipantUpdateBody(body);
+      if (typeof participantId !== "string" || !participantId.trim()) {
+        return NextResponse.json(
+          { error: "Participante é obrigatório." },
+          { status: 400 }
+        );
+      }
+
+      const participant = await updateMeetingParticipantDisplayNameForUser({
+        supabase: auth.supabaseAdmin,
+        userId: auth.user.id,
+        meetingId: params.id,
+        participantId,
+        input: { displayName },
+      });
+
+      return NextResponse.json({ participant: serializeParticipant(participant) });
+    } catch (error) {
+      if (error instanceof Response) {
+        return error;
+      }
+
+      if (error instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Body JSON inválido." },
+          { status: 400 }
+        );
+      }
+
+      if (error instanceof MeetingParticipantValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      if (error instanceof MeetingParticipantAccessError) {
+        return NextResponse.json({ error: error.message }, { status: 403 });
+      }
+
+      console.error("[meetings/participants] Unexpected patch error:", error);
       return NextResponse.json(
         { error: "Erro interno do servidor." },
         { status: 500 }

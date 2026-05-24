@@ -1,12 +1,21 @@
 import type { MeetingFile, MeetingTask } from "@/components/meeting-detail";
+import type { MeetingStructuredSummary } from "@/types/database";
+
+export interface MeetingParticipantDisplay {
+  id?: string;
+  name: string;
+  originalName?: string;
+  role?: "participant" | "entity";
+}
 
 export interface MeetingDetailData {
   clientName: string;
   meetingDate: string;
   meetingStatus: "completed" | "processing" | "failed" | "scheduled";
-  participants: Array<{ id?: string; name: string; originalName?: string }>;
-  entities: Array<{ id: string; name: string; originalName: string }>;
+  participants: MeetingParticipantDisplay[];
+  entities: MeetingParticipantDisplay[];
   summary: string;
+  summaryStructured: MeetingStructuredSummary | null;
   nextStep: string;
   keyDecision: string;
   alertPoint: string;

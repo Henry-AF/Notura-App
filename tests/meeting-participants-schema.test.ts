@@ -37,6 +37,7 @@ describe("meeting participants schema", () => {
     expect(sql).toContain(
       "alter table public.meeting_participants enable row level security"
     );
+    expect(sql).toContain('drop policy if exists "users manage own meeting participants"');
     expect(sql).toContain("meeting_participants_own_select");
     expect(sql).toContain("meeting_participants_own_insert");
     expect(sql).toContain("meeting_participants_own_update");
@@ -45,5 +46,19 @@ describe("meeting participants schema", () => {
     expect(sql).toContain(
       "grant select, insert, update, delete on public.meeting_participants to authenticated"
     );
+  });
+
+  it("upgrades legacy meeting_participants tables created without role", () => {
+    const sql = readMigration();
+
+    expect(sql).toContain("add column if not exists role text");
+    expect(sql).toContain("set role = 'participant'");
+    expect(sql).toContain("alter column role set not null");
+    expect(sql).toContain("alter column user_id drop not null");
+    expect(sql).toContain(
+      "drop constraint if exists meeting_participants_meeting_original_uniq"
+    );
+    expect(sql).toContain("add constraint meeting_participants_unique_original_name");
+    expect(sql).toContain("notify pgrst, 'reload schema'");
   });
 });

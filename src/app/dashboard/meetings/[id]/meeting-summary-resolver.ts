@@ -8,6 +8,7 @@ export function resolveSummary(
   participants: MeetingParticipantDisplay[],
   fallbackText = ""
 ): string {
+  if (fallbackText) return resolveParticipantNamesInText(fallbackText, participants);
   if (!json) return fallbackText;
 
   const participantById = new Map(
@@ -60,4 +61,22 @@ function formatPriority(priority: Priority): string {
   if (priority === "alta") return "alta";
   if (priority === "baixa") return "baixa";
   return "média";
+}
+
+function resolveParticipantNamesInText(
+  text: string,
+  participants: MeetingParticipantDisplay[]
+): string {
+  return participants
+    .filter(
+      (participant) =>
+        Boolean(participant.originalName) && participant.originalName !== participant.name
+    )
+    .sort(
+      (a, b) => (b.originalName?.length ?? 0) - (a.originalName?.length ?? 0)
+    )
+    .reduce((summary, participant) => {
+      if (!participant.originalName) return summary;
+      return summary.split(participant.originalName).join(participant.name);
+    }, text);
 }

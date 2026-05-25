@@ -1,3 +1,6 @@
+-- Repair migration for databases that received an earlier partial
+-- meeting_participants migration. It is intentionally idempotent.
+
 alter table public.meetings
   add column if not exists summary_structured jsonb,
   add column if not exists summary_version integer not null default 1;
@@ -7,21 +10,16 @@ create table if not exists public.meeting_participants (
   meeting_id uuid not null references public.meetings(id) on delete cascade,
   display_name text not null,
   original_name text not null,
-  role text not null check (role in ('participant', 'entity')),
+  role text not null default 'participant',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint meeting_participants_display_name_not_blank
-    check (char_length(trim(display_name)) > 0),
-  constraint meeting_participants_display_name_length
-    check (char_length(trim(display_name)) <= 80),
-  constraint meeting_participants_original_name_not_blank
-    check (char_length(trim(original_name)) > 0),
-  constraint meeting_participants_unique_original_name
-    unique (meeting_id, role, original_name)
+  updated_at timestamptz not null default now()
 );
 
 alter table public.meeting_participants
+  add column if not exists display_name text,
+  add column if not exists original_name text,
   add column if not exists role text,
+  add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
 update public.meeting_participants
@@ -30,7 +28,9 @@ update public.meeting_participants
 
 alter table public.meeting_participants
   alter column role set default 'participant',
-  alter column role set not null;
+  alter column role set not null,
+  alter column display_name set not null,
+  alter column original_name set not null;
 
 do $$
 begin
@@ -61,6 +61,39 @@ begin
     alter table public.meeting_participants
       add constraint meeting_participants_role_check
       check (role in ('participant', 'entity'));
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.meeting_participants'::regclass
+      and conname = 'meeting_participants_display_name_not_blank'
+  ) then
+    alter table public.meeting_participants
+      add constraint meeting_participants_display_name_not_blank
+      check (char_length(trim(display_name)) > 0);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.meeting_participants'::regclass
+      and conname = 'meeting_participants_display_name_length'
+  ) then
+    alter table public.meeting_participants
+      add constraint meeting_participants_display_name_length
+      check (char_length(trim(display_name)) <= 80);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.meeting_participants'::regclass
+      and conname = 'meeting_participants_original_name_not_blank'
+  ) then
+    alter table public.meeting_participants
+      add constraint meeting_participants_original_name_not_blank
+      check (char_length(trim(original_name)) > 0);
   end if;
 
   if not exists (

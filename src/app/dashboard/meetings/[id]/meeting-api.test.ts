@@ -26,7 +26,8 @@ describe("meeting detail api client", () => {
           meeting_date: "2026-04-07T09:00:00.000Z",
           audio_r2_key: "meetings/user-1/audio.m4a",
           transcript: "Linha 1\nLinha 2",
-          summary_whatsapp: "Resumo pronto",
+          summary_whatsapp:
+            "Reunião: Acme\nParticipantes: Speaker A, Acme\n\nDecisões tomadas:\n• Seguir com a proposta premium.",
           summary_structured: {
             version: 1,
             title: "Reunião — Acme",
@@ -178,8 +179,10 @@ describe("meeting detail api client", () => {
         },
       ],
     });
+    expect(meeting.summary).toContain("Decisões tomadas:");
     expect(meeting.summary).toContain("Ana Atualizada");
     expect(meeting.summary).toContain("Acme Atualizada");
+    expect(meeting.summary).not.toContain("Participantes citados");
     expect(meeting.tasks[0]).toEqual(
       expect.objectContaining({
         id: "task-1",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveSummary } from "./meeting-summary-resolver";
 
 describe("resolveSummary", () => {
-  it("renders structured summaries with the latest participant and entity names", () => {
+  it("keeps the existing summary text format when resolving edited names", () => {
     const text = resolveSummary(
       {
         version: 1,
@@ -36,12 +36,15 @@ describe("resolveSummary", () => {
           originalName: "Acme",
           role: "entity",
         },
-      ]
+      ],
+      "Reunião: Renovação\nParticipantes: Speaker A, Acme\n\nDecisões tomadas:\n• Contrato será revisado."
     );
 
     expect(text).toContain("Reunião: Renovação");
     expect(text).toContain("Ana Atualizada");
     expect(text).toContain("Acme Atualizada");
-    expect(text).toContain("Ana Atualizada - Enviar proposta atualizada");
+    expect(text).toContain("Decisões tomadas:");
+    expect(text).not.toContain("Participantes citados");
+    expect(text).not.toContain("Enviar proposta atualizada");
   });
 });

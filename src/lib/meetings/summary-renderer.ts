@@ -50,9 +50,12 @@ export function renderMeetingSummary(
   );
   const sections = renderSections(input.summaryStructured, participantById);
   const actionItems = renderActionItems(input.summaryStructured, participantById);
+  const text = input.summaryWhatsapp
+    ? resolveParticipantNamesInText(input.summaryWhatsapp, input.meetingParticipants)
+    : buildStructuredSummaryText(input.summaryStructured.title, sections, actionItems);
 
   return {
-    text: buildStructuredSummaryText(input.summaryStructured.title, sections, actionItems),
+    text,
     participants: renderParticipantList(input.meetingParticipants),
     entities: renderEntityList(input.meetingParticipants),
     sections,
@@ -168,4 +171,18 @@ function formatActionItemsText(
   });
 
   return ["Tarefas", ...lines].join("\n");
+}
+
+function resolveParticipantNamesInText(
+  text: string,
+  meetingParticipants: MeetingParticipant[]
+) {
+  return meetingParticipants
+    .filter((participant) => participant.original_name !== participant.display_name)
+    .sort((a, b) => b.original_name.length - a.original_name.length)
+    .reduce(
+      (summary, participant) =>
+        summary.split(participant.original_name).join(participant.display_name),
+      text
+    );
 }

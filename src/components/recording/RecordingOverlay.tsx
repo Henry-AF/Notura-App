@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, Sparkles, Square, TimerReset, Trash2, X } from "lucide-react";
+import {
+  Loader2,
+  Minimize2,
+  Sparkles,
+  Square,
+  TimerReset,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +27,7 @@ interface RecordingOverlayProps {
   onDiscard: () => void;
   onSave: () => void;
   onClose?: () => void;
+  onMinimize?: () => void;
 }
 
 export function RecordingOverlay({
@@ -30,6 +39,7 @@ export function RecordingOverlay({
   onDiscard,
   onSave,
   onClose,
+  onMinimize,
 }: RecordingOverlayProps) {
   const isRecording = stage === "recording";
   const isSaving = stage === "saving";
@@ -39,16 +49,28 @@ export function RecordingOverlay({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm sm:items-center sm:p-6">
       <Card className="h-full w-full rounded-none border-0 bg-card sm:h-auto sm:max-w-xl sm:rounded-3xl sm:border sm:border-border/80">
         <CardContent className="flex h-full flex-col justify-center px-6 py-10 sm:px-8">
-          {hasError && onClose ? (
-            <div className="mb-4 flex justify-end sm:-mt-4">
-              <button
-                type="button"
-                aria-label="Fechar"
-                onClick={onClose}
-                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          {(onMinimize || (hasError && onClose)) ? (
+            <div className="mb-4 flex justify-end gap-2 sm:-mt-4">
+              {onMinimize ? (
+                <button
+                  type="button"
+                  aria-label="Minimizar gravação"
+                  onClick={onMinimize}
+                  className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Minimize2 className="h-5 w-5" />
+                </button>
+              ) : null}
+              {hasError && onClose ? (
+                <button
+                  type="button"
+                  aria-label="Fechar"
+                  onClick={onClose}
+                  className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              ) : null}
             </div>
           ) : null}
 

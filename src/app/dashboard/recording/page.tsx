@@ -12,81 +12,27 @@ import {
   useToast,
 } from "@/components/upload";
 import {
-  RecordingOverlay,
   RecordingSetupCard,
   type RecordingMode,
-  type RecordingOverlayStage,
   type RecordingSetupValues,
+  useRecordingSession,
 } from "@/components/recording";
 import { Grainient } from "@/components/ui/grainient";
 import { useThemeColors } from "@/lib/theme-context";
 import {
-  RemoteDisplayAudioMissingError,
-  createMicrophoneRecordingCapture,
-  createRemoteMeetingRecordingCapture,
-  formatRecordingDuration,
-  getPreferredRecordingMimeType,
-  type MeetingRecordingCapture,
-} from "@/lib/meetings/recording-session";
-import {
   createMeetingGroup,
   type MeetingGroupOption,
 } from "@/lib/meeting-groups-client";
-import {
-  fetchRecordingDefaults,
-  submitRecordedMeeting,
-} from "./recording-api";
+import { fetchRecordingDefaults } from "./recording-api";
 import { submitUploadedMeeting } from "./recording-upload-api";
-
-interface MeetingDraft {
-  whatsappNumber: string;
-  groupId: string | null;
-}
 
 const UPLOAD_LEAVE_WARNING_MESSAGE =
   "Você perderá o arquivo selecionado se sair agora.";
-
-function createRecordingMediaRecorder(stream: MediaStream): MediaRecorder {
-  const mimeType = getPreferredRecordingMimeType((candidate) =>
-    MediaRecorder.isTypeSupported(candidate)
-  );
-
-  return mimeType
-    ? new MediaRecorder(stream, { mimeType })
-    : new MediaRecorder(stream);
-}
-
-async function createRecordingCapture(
-  mode: RecordingMode
-): Promise<MeetingRecordingCapture> {
-  if (mode === "remote") {
-    return await createRemoteMeetingRecordingCapture();
-  }
-
-  return await createMicrophoneRecordingCapture();
-}
 
 function getInitialRecordingMode(mode: string | null): RecordingMode {
   if (mode === "remote") return "remote";
   if (mode === "upload") return "upload";
   return "in-person";
-}
-
-function getStartRecordingErrorMessage(
-  error: unknown,
-  mode: RecordingMode
-): string {
-  if (error instanceof RemoteDisplayAudioMissingError) {
-    return "Selecione uma aba, janela ou tela com áudio compartilhado para gravar reunião remota.";
-  }
-
-  if (mode === "remote") {
-    return error instanceof Error
-      ? error.message
-      : "Não foi possível iniciar a gravação remota.";
-  }
-
-  return "Permissão de microfone negada. Habilite o acesso e tente novamente.";
 }
 
 const GRAINIENT_COLORS = {
@@ -337,52 +283,30 @@ function RecordingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { show } = useToast();
+  const {
+    hasActiveSession,
+    isStarting: isRecordingStarting,
+    startRecording,
+  } = useRecordingSession();
 
   const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
   const [canSendWhatsAppSummary, setCanSendWhatsAppSummary] = useState(false);
   const [meetingGroups, setMeetingGroups] = useState<MeetingGroupOption[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
+  const [isUploadSubmitting, setIsUploadSubmitting] = useState(false);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>(
     getInitialRecordingMode(searchParams.get("mode"))
   );
-  const [overlayStage, setOverlayStage] =
-    useState<RecordingOverlayStage | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [recordedAt, setRecordedAt] = useState<Date | null>(null);
-  const [meetingDraft, setMeetingDraft] = useState<MeetingDraft | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreviewProgress, setUploadPreviewProgress] = useState(0);
   const [uploadTimeRemaining, setUploadTimeRemaining] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [, setUploadProgress] = useState(0);
   const [pendingNavigationHref, setPendingNavigationHref] = useState<
     string | null
   >(null);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const captureCleanupRef = useRef<(() => void) | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uploadStartTimeRef = useRef<number>(0);
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const cleanupRecorderResources = useCallback(() => {
-    clearTimer();
-    mediaRecorderRef.current = null;
-    captureCleanupRef.current?.();
-    captureCleanupRef.current = null;
-    mediaStreamRef.current = null;
-  }, [clearTimer]);
 
   const clearUploadPreviewTimer = useCallback(() => {
     if (uploadTimerRef.current) {
@@ -390,18 +314,6 @@ function RecordingPageInner() {
       uploadTimerRef.current = null;
     }
   }, []);
-
-  const resetRecordingState = useCallback(() => {
-    cleanupRecorderResources();
-    recordedChunksRef.current = [];
-    setRecordedBlob(null);
-    setRecordedAt(null);
-    setMeetingDraft(null);
-    setElapsedSeconds(0);
-    setUploadProgress(0);
-    setOverlayError(null);
-    setOverlayStage(null);
-  }, [cleanupRecorderResources]);
 
   const resetUploadState = useCallback(() => {
     clearUploadPreviewTimer();
@@ -411,8 +323,9 @@ function RecordingPageInner() {
     setUploadProgress(0);
   }, [clearUploadPreviewTimer]);
 
+  const isStarting = isUploadSubmitting || isRecordingStarting;
   const hasSelectedUploadFile =
-    recordingMode === "upload" && Boolean(uploadFile) && !isStarting;
+    recordingMode === "upload" && Boolean(uploadFile) && !isUploadSubmitting;
 
   const updateModeUrl = useCallback(
     (mode: RecordingMode) => {
@@ -457,27 +370,13 @@ function RecordingPageInner() {
 
     return () => {
       cancelled = true;
-      cleanupRecorderResources();
       clearUploadPreviewTimer();
     };
-  }, [cleanupRecorderResources, clearUploadPreviewTimer, show]);
+  }, [clearUploadPreviewTimer, show]);
 
   useEffect(() => {
     setRecordingMode(getInitialRecordingMode(searchParams.get("mode")));
   }, [searchParams]);
-
-  useEffect(() => {
-    if (overlayStage !== "recording") {
-      clearTimer();
-      return;
-    }
-
-    timerRef.current = setInterval(() => {
-      setElapsedSeconds((current) => current + 1);
-    }, 1000);
-
-    return () => clearTimer();
-  }, [clearTimer, overlayStage]);
 
   useEffect(() => {
     if (!hasSelectedUploadFile) return;
@@ -587,9 +486,8 @@ function RecordingPageInner() {
           return;
         }
 
-        setIsStarting(true);
+        setIsUploadSubmitting(true);
         setUploadProgress(0);
-        setOverlayError(null);
 
         try {
           const meetingId = await submitUploadedMeeting({
@@ -607,184 +505,29 @@ function RecordingPageInner() {
             "error"
           );
         } finally {
-          setIsStarting(false);
+          setIsUploadSubmitting(false);
         }
 
-        return;
-      }
-
-      const isRemoteMode = values.recordingMode === "remote";
-
-      if (
-        typeof window === "undefined" ||
-        typeof navigator === "undefined" ||
-        !navigator.mediaDevices?.getUserMedia ||
-        typeof MediaRecorder === "undefined"
-      ) {
-        show("Seu navegador não suporta gravação de áudio nesta página.", "error");
-        return;
-      }
-
-      setIsStarting(true);
-      setOverlayError(null);
-
-      try {
-        let capture: MeetingRecordingCapture | null = null;
-
-        try {
-          capture = await createRecordingCapture(
-            isRemoteMode ? "remote" : "in-person"
-          );
-          const recorder = createRecordingMediaRecorder(capture.stream);
-
-          captureCleanupRef.current = capture.cleanup;
-          mediaStreamRef.current = capture.stream;
-          mediaRecorderRef.current = recorder;
-          recordedChunksRef.current = [];
-
-          recorder.addEventListener("dataavailable", (event) => {
-            if (event.data.size > 0) {
-              recordedChunksRef.current.push(event.data);
-            }
-          });
-
-          recorder.start(1000);
-        } catch (error) {
-          capture?.cleanup();
-          captureCleanupRef.current = null;
-          mediaStreamRef.current = null;
-          mediaRecorderRef.current = null;
-          throw error;
-        }
-
-        setMeetingDraft({
-          whatsappNumber: values.whatsappNumber,
-          groupId: values.groupId ?? null,
-        });
-        setElapsedSeconds(0);
-        setRecordedBlob(null);
-        setRecordedAt(null);
-        setUploadProgress(0);
-        setOverlayStage("recording");
-      } catch (error) {
-        show(getStartRecordingErrorMessage(error, values.recordingMode), "error");
-      } finally {
-        setIsStarting(false);
-      }
-    },
-    [router, show, uploadFile]
-  );
-
-  const stopActiveRecording = useCallback(async (): Promise<Blob> => {
-    const recorder = mediaRecorderRef.current;
-
-    if (!recorder) {
-      throw new Error("Nenhuma gravação ativa encontrada.");
-    }
-
-    return await new Promise<Blob>((resolve, reject) => {
-      const finalizeBlob = () => {
-        const nextBlob = new Blob(recordedChunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
-
-        if (nextBlob.size <= 0) {
-          reject(new Error("Nenhum áudio foi capturado nesta gravação."));
-          return;
-        }
-
-        resolve(nextBlob);
-      };
-
-      recorder.addEventListener("stop", finalizeBlob, { once: true });
-      recorder.addEventListener(
-        "error",
-        () => {
-          reject(new Error("Falha ao encerrar a gravação."));
-        },
-        { once: true }
-      );
-
-      if (recorder.state === "inactive") {
-        finalizeBlob();
         return;
       }
 
       try {
-        recorder.stop();
+        await startRecording(values);
       } catch (error) {
-        reject(
+        show(
           error instanceof Error
-            ? error
-            : new Error("Falha ao encerrar a gravação.")
+            ? error.message
+            : "Não foi possível iniciar a gravação.",
+          "error"
         );
       }
-    });
-  }, []);
-
-  const handleStopRecording = useCallback(async () => {
-    clearTimer();
-
-    try {
-      const nextBlob = await stopActiveRecording();
-      cleanupRecorderResources();
-      setRecordedBlob(nextBlob);
-      setRecordedAt(new Date());
-      setOverlayStage("confirm");
-    } catch (error) {
-      cleanupRecorderResources();
-      show(
-        error instanceof Error
-          ? error.message
-          : "Erro ao encerrar a gravação.",
-        "error"
-      );
-      resetRecordingState();
-    }
-  }, [
-    cleanupRecorderResources,
-    clearTimer,
-    resetRecordingState,
-    show,
-    stopActiveRecording,
-  ]);
-
-  const handleSaveRecording = useCallback(async () => {
-    if (!meetingDraft || !recordedBlob) {
-      show("Nenhuma gravação pronta para envio.", "error");
-      return;
-    }
-
-    setOverlayStage("saving");
-    setOverlayError(null);
-    setUploadProgress(0);
-
-    try {
-      const meetingId = await submitRecordedMeeting({
-        whatsappNumber: meetingDraft.whatsappNumber,
-        groupId: meetingDraft.groupId,
-        recording: recordedBlob,
-        recordedAt: recordedAt ?? new Date(),
-        onUploadProgress: setUploadProgress,
-      });
-
-      router.push(`/dashboard/processing?id=${meetingId}`);
-    } catch (error) {
-      const technicalMessage =
-        error instanceof Error
-          ? error.message
-          : "Erro ao salvar a gravação.";
-      const userMessage =
-        "Sua gravação foi salva. Houve um erro no processamento, mas você pode tentar novamente na tela de reuniões.";
-      setOverlayError(userMessage);
-      setOverlayStage("confirm");
-      show(technicalMessage, "error");
-    }
-  }, [meetingDraft, recordedAt, recordedBlob, router, show]);
+    },
+    [router, show, startRecording, uploadFile]
+  );
 
   const handleRecordingModeChange = useCallback(
     (mode: RecordingMode) => {
-      if (overlayStage || isStarting) {
+      if (hasActiveSession || isStarting) {
         show(
           "Finalize ou descarte a gravação atual antes de trocar de modo.",
           "warning"
@@ -798,7 +541,7 @@ function RecordingPageInner() {
       }
       updateModeUrl(mode);
     },
-    [isStarting, overlayStage, resetUploadState, show, updateModeUrl]
+    [hasActiveSession, isStarting, resetUploadState, show, updateModeUrl]
   );
 
   const handleCreateGroup = useCallback(
@@ -859,19 +602,6 @@ function RecordingPageInner() {
           </div>
         </div>
       </div>
-
-      {recordingMode !== "upload" && overlayStage ? (
-        <RecordingOverlay
-          stage={overlayStage}
-          elapsedLabel={formatRecordingDuration(elapsedSeconds)}
-          uploadProgress={uploadProgress}
-          errorMessage={overlayError}
-          onStop={handleStopRecording}
-          onDiscard={resetRecordingState}
-          onSave={handleSaveRecording}
-          onClose={overlayError ? resetRecordingState : undefined}
-        />
-      ) : null}
 
       <UploadLeaveWarningDialog
         open={Boolean(pendingNavigationHref)}

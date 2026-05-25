@@ -16,6 +16,8 @@ export interface Database {
           role: string | null
           company: string | null
           whatsapp_number: string | null
+          onboarding_completed: boolean
+          onboarding_phase: number
           created_at: string
         }
         Insert: {
@@ -24,6 +26,8 @@ export interface Database {
           role?: string | null
           company?: string | null
           whatsapp_number?: string | null
+          onboarding_completed?: boolean
+          onboarding_phase?: number
           created_at?: string
         }
         Update: {
@@ -32,6 +36,8 @@ export interface Database {
           role?: string | null
           company?: string | null
           whatsapp_number?: string | null
+          onboarding_completed?: boolean
+          onboarding_phase?: number
           created_at?: string
         }
         Relationships: []

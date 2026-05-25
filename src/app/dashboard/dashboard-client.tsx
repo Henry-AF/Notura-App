@@ -10,7 +10,13 @@ import {
   InsightCard,
   UpgradeCard,
 } from "@/components/dashboard";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { dashboardSteps } from "@/components/onboarding/steps";
 import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
+import {
+  fetchUserOnboardingState,
+  updateUserOnboardingState,
+} from "@/lib/user/onboarding-client";
 import { useToast } from "@/components/upload/Toast";
 import { PageShell } from "@/components/ui/app";
 import TextType from "@/components/ui/text-type";
@@ -25,16 +31,19 @@ const QUICK_ACTIONS: QuickActionCardProps[] = [
     label: "Gravar Reunião Presencial",
     href: "/dashboard/recording",
     colors: { color1: "#6851FF", color2: "#9B87FF", color3: "#1A0F4E" },
+    dataOnboarding: "btn-presencial",
   },
   {
     label: "Gravar Reunião Remota",
     href: "/dashboard/recording?mode=remote",
     colors: { color1: "#059669", color2: "#34D399", color3: "#022C22" },
+    dataOnboarding: "btn-remota",
   },
   {
     label: "Processar Reunião Gravada",
     href: "/dashboard/recording?mode=upload",
     colors: { color1: "#F59E0B", color2: "#FCD34D", color3: "#451A03" },
+    dataOnboarding: "btn-upload",
   },
 ];
 
@@ -74,6 +83,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   const { show } = useToast();
 
   const [meetings, setMeetings] = useState<Meeting[]>(initialOverview.meetings);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const handleRetry = useCallback(
     async (id: string) => {
@@ -97,6 +107,30 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
   useEffect(() => {
     router.prefetch("/dashboard/meetings");
   }, [router]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOnboardingState() {
+      try {
+        const onboarding = await fetchUserOnboardingState();
+        if (
+          !cancelled &&
+          !onboarding.onboardingCompleted &&
+          onboarding.onboardingPhase === 0
+        ) {
+          setShowOnboarding(true);
+        }
+      } catch {
+        // Ignore onboarding fetch failures and keep dashboard usable.
+      }
+    }
+
+    void loadOnboardingState();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const payment = searchParams.get("payment");
@@ -141,12 +175,35 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
     };
   }, [pathname, router, searchParams, show]);
 
+  const handleOnboardingComplete = useCallback(async () => {
+    await updateUserOnboardingState({ onboardingPhase: 1 });
+    setShowOnboarding(false);
+    router.push("/dashboard/recording");
+  }, [router]);
+
+  const handleOnboardingSkip = useCallback(async () => {
+    await updateUserOnboardingState({
+      onboardingCompleted: true,
+      onboardingPhase: 2,
+    });
+    setShowOnboarding(false);
+  }, []);
+
   return (
     <PageShell>
+      {showOnboarding ? (
+        <OnboardingTour
+          steps={dashboardSteps}
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      ) : null}
+
       <div className="animate-fade-in">
         <DashboardHeader
           userName={initialOverview.userName}
           meetingsProcessedToday={initialOverview.todayCount}
+          newMeetingOnboardingId="btn-nova-reuniao"
         />
       </div>
 
@@ -177,6 +234,7 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
             <div className="mt-4 animate-fade-in [animation-delay:120ms]">
               <RecentMeetingsTable
                 meetings={meetings}
+                dataOnboarding="reunioes-recentes"
                 onViewAll={() => router.push("/dashboard/meetings")}
                 onRetry={handleRetry}
                 onViewProcessing={(id) => router.push(`/dashboard/meetings/${id}`)}

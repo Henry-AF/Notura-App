@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ChevronRight, X } from "lucide-react";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { recordingSteps } from "@/components/onboarding/steps";
 import {
   AiInsightTip,
   DropZone,
@@ -23,6 +25,10 @@ import {
   createMeetingGroup,
   type MeetingGroupOption,
 } from "@/lib/meeting-groups-client";
+import {
+  fetchUserOnboardingState,
+  updateUserOnboardingState,
+} from "@/lib/user/onboarding-client";
 import { fetchRecordingDefaults } from "./recording-api";
 import { submitUploadedMeeting } from "./recording-upload-api";
 
@@ -304,6 +310,7 @@ function RecordingPageInner() {
   const [pendingNavigationHref, setPendingNavigationHref] = useState<
     string | null
   >(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uploadStartTimeRef = useRef<number>(0);
@@ -373,6 +380,30 @@ function RecordingPageInner() {
       clearUploadPreviewTimer();
     };
   }, [clearUploadPreviewTimer, show]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOnboardingState() {
+      try {
+        const onboarding = await fetchUserOnboardingState();
+        if (
+          !cancelled &&
+          !onboarding.onboardingCompleted &&
+          onboarding.onboardingPhase === 1
+        ) {
+          setShowOnboarding(true);
+        }
+      } catch {
+        // Ignore onboarding fetch failures and keep recording flow available.
+      }
+    }
+
+    void loadOnboardingState();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setRecordingMode(getInitialRecordingMode(searchParams.get("mode")));
@@ -554,8 +585,32 @@ function RecordingPageInner() {
     []
   );
 
+  const handleOnboardingComplete = useCallback(async () => {
+    await updateUserOnboardingState({
+      onboardingCompleted: true,
+      onboardingPhase: 2,
+    });
+    setShowOnboarding(false);
+  }, []);
+
+  const handleOnboardingSkip = useCallback(async () => {
+    await updateUserOnboardingState({
+      onboardingCompleted: true,
+      onboardingPhase: 2,
+    });
+    setShowOnboarding(false);
+  }, []);
+
   return (
     <>
+      {showOnboarding ? (
+        <OnboardingTour
+          steps={recordingSteps}
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      ) : null}
+
       <div className="animate-fade-in min-h-full">
         <RecordingPageHeader mode={recordingMode} />
 

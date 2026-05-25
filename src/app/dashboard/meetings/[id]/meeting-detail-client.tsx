@@ -29,6 +29,7 @@ import {
   cancelMeetingProcessing,
   deleteMeetingById,
   fetchMeetingStatus,
+  mergeMeetingParticipant,
   retryMeetingProcessing,
   updateMeetingParticipantDisplayName,
 } from "./meeting-client-api";
@@ -443,6 +444,21 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     [id, show]
   );
 
+  const mergeParticipant = useCallback(
+    async (participantId: string, mergeIntoParticipantId: string) => {
+      const updated = await mergeMeetingParticipant(
+        id,
+        participantId,
+        mergeIntoParticipantId
+      );
+
+      show("Integrantes mesclados no resumo.", "success");
+      window.location.reload();
+      return updated;
+    },
+    [id, show]
+  );
+
   const handleDeleteMeeting = useCallback(async () => {
     setIsDeletingMeeting(true);
 
@@ -529,6 +545,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
                     participants={detectedParticipants}
                     entities={detectedEntities}
                     onSaveParticipant={updateParticipantDisplayName}
+                    onMergeParticipant={mergeParticipant}
                     onError={(message) => show(message, "error")}
                   />
                 )}

@@ -6,6 +6,7 @@ import {
   MeetingParticipantAccessError,
   MeetingParticipantValidationError,
   listMeetingParticipantsForUser,
+  mergeMeetingParticipantsForUser,
   updateMeetingParticipantDisplayNameForUser,
 } from "@/lib/meetings/participants";
 import type { MeetingParticipant } from "@/types/database";
@@ -26,6 +27,7 @@ function readParticipantUpdateBody(body: unknown) {
     participantId: record.participantId,
     displayName: record.displayName,
     role: record.role,
+    mergeIntoParticipantId: record.mergeIntoParticipantId,
   };
 }
 
@@ -73,12 +75,35 @@ export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
   async (request, { params, auth }) => {
     try {
       const body = (await request.json()) as unknown;
-      const { participantId, displayName, role } = readParticipantUpdateBody(body);
+      const { participantId, displayName, role, mergeIntoParticipantId } =
+        readParticipantUpdateBody(body);
       if (typeof participantId !== "string" || !participantId.trim()) {
         return NextResponse.json(
           { error: "Participante é obrigatório." },
           { status: 400 }
         );
+      }
+
+      if (mergeIntoParticipantId !== undefined) {
+        if (
+          typeof mergeIntoParticipantId !== "string" ||
+          !mergeIntoParticipantId.trim()
+        ) {
+          return NextResponse.json(
+            { error: "Participante de destino é obrigatório." },
+            { status: 400 }
+          );
+        }
+
+        const participant = await mergeMeetingParticipantsForUser({
+          supabase: auth.supabaseAdmin,
+          userId: auth.user.id,
+          meetingId: params.id,
+          sourceParticipantId: participantId,
+          targetParticipantId: mergeIntoParticipantId,
+        });
+
+        return NextResponse.json({ participant: serializeParticipant(participant) });
       }
 
       const participant = await updateMeetingParticipantDisplayNameForUser({

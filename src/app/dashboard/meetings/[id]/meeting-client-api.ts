@@ -223,6 +223,37 @@ export async function updateMeetingParticipantDisplayName(
   };
 }
 
+export async function mergeMeetingParticipant(
+  meetingId: string,
+  participantId: string,
+  mergeIntoParticipantId: string
+) {
+  const response = await fetch(`/api/meetings/${meetingId}/participants`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participantId,
+      mergeIntoParticipantId,
+    }),
+  });
+  const body = await parseJson<MeetingParticipantUpdateResponse & { error?: string }>(
+    response
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      normalizeError(body.error, "Erro ao mesclar participantes.")
+    );
+  }
+
+  return {
+    id: body.participant.id,
+    name: body.participant.displayName,
+    originalName: body.participant.originalName,
+    role: body.participant.role,
+  };
+}
+
 // ─── Meeting delete ───────────────────────────────────────────────────────────
 
 interface MeetingDeleteResponse {

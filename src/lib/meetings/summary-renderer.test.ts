@@ -48,16 +48,20 @@ const structuredSummary: MeetingStructuredSummary = {
 };
 
 describe("renderMeetingSummary", () => {
-  it("keeps the WhatsApp summary format and only resolves edited names", () => {
+  it("keeps the WhatsApp summary format and resolves the participants line from current roles", () => {
     const result = renderMeetingSummary({
       summaryStructured: structuredSummary,
       meetingParticipants,
       summaryWhatsapp:
-        "Reunião: Reuniao\nParticipantes: Speaker A, Acme\n\nDecisões tomadas:\n• A proposta foi discutida.",
+        "Reunião: Reuniao\nParticipantes: Speaker A, Acme\n\nDecisões tomadas:\n• A proposta da Acme foi discutida.",
       summaryJson: null,
     });
+    const participantsLine = result.text
+      .split("\n")
+      .find((line) => line.startsWith("Participantes:"));
 
     expect(result.text).toContain("Decisões tomadas:");
+    expect(participantsLine).toBe("Participantes: Ana Atualizada");
     expect(result.text).toContain("Ana Atualizada");
     expect(result.text).toContain("Acme Atualizada");
     expect(result.text).not.toContain("Participantes citados");

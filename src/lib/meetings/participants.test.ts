@@ -3,6 +3,7 @@ import type { MeetingParticipant } from "@/types/database";
 import type { GeminiMeetingParticipantDraft } from "./summary-structured";
 import {
   buildParticipantUpserts,
+  mergeMeetingParticipantsForUser,
   mapParticipantRefsToIds,
   normalizeDisplayName,
   normalizeParticipantRole,
@@ -217,5 +218,134 @@ describe("meeting participant helpers", () => {
         ],
       },
     });
+  });
+
+  it("merges duplicate participants into the selected target participant", async () => {
+    const source = {
+      ...rows[0],
+      id: "biel-id",
+      display_name: "Biel",
+      original_name: "Biel",
+    };
+    const target = {
+      ...rows[0],
+      id: "gabriel-id",
+      display_name: "Gabriel",
+      original_name: "Gabriel",
+    };
+    const meetingSummary = {
+      version: 1,
+      sections: [
+        {
+          title: "Contexto",
+          content: "Biel comentou os pontos.",
+          participant_ids: ["biel-id", "gabriel-id"],
+        },
+      ],
+      action_items: [
+        {
+          description: "Enviar proposta",
+          participant_id: "biel-id",
+          due_date: null,
+          priority: "média",
+        },
+      ],
+    };
+    const deleteParticipant = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })),
+    }));
+    const selectParticipants = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        in: vi.fn().mockResolvedValue({ data: [source, target], error: null }),
+      })),
+    }));
+    const selectMeeting = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            summary_structured: meetingSummary,
+            summary_whatsapp:
+              "Reunião: Teste\nParticipantes: Biel, Gabriel\n\nDecisões tomadas:\n• Biel falou com Gabriel.",
+          },
+          error: null,
+        }),
+      })),
+    }));
+    const updateMeeting = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "meeting_participants") {
+          return { select: selectParticipants, delete: deleteParticipant };
+        }
+        return { select: selectMeeting, update: updateMeeting };
+      }),
+    };
+
+    const result = await mergeMeetingParticipantsForUser({
+      supabase: supabase as never,
+      userId: "user-1",
+      meetingId: "meeting-1",
+      sourceParticipantId: "biel-id",
+      targetParticipantId: "gabriel-id",
+    });
+
+    expect(result).toEqual(target);
+    expect(mocks.requireOwnership).toHaveBeenCalledWith(
+      supabase,
+      "meetings",
+      "meeting-1",
+      "user-1"
+    );
+    expect(updateMeeting).toHaveBeenCalledWith({
+      summary_structured: {
+        ...meetingSummary,
+        sections: [
+          {
+            ...meetingSummary.sections[0],
+            participant_ids: ["gabriel-id"],
+          },
+        ],
+        action_items: [
+          {
+            ...meetingSummary.action_items[0],
+            participant_id: "gabriel-id",
+          },
+        ],
+      },
+      summary_whatsapp:
+        "Reunião: Teste\nParticipantes: Gabriel\n\nDecisões tomadas:\n• Gabriel falou com Gabriel.",
+    });
+    expect(deleteParticipant).toHaveBeenCalled();
+  });
+
+  it("rejects merging participants with different roles", async () => {
+    const selectParticipants = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        in: vi.fn().mockResolvedValue({
+          data: [
+            { ...rows[0], id: "participant-id", role: "participant" },
+            { ...rows[1], id: "entity-id", role: "entity" },
+          ],
+          error: null,
+        }),
+      })),
+    }));
+    const supabase = {
+      from: vi.fn(() => ({ select: selectParticipants })),
+    };
+
+    await expect(
+      mergeMeetingParticipantsForUser({
+        supabase: supabase as never,
+        userId: "user-1",
+        meetingId: "meeting-1",
+        sourceParticipantId: "participant-id",
+        targetParticipantId: "entity-id",
+      })
+    ).rejects.toThrow("Só é possível mesclar itens do mesmo tipo.");
   });
 });

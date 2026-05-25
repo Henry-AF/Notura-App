@@ -48,16 +48,22 @@ export function renderMeetingSummary(
   const participantById = new Map(
     input.meetingParticipants.map((participant) => [participant.id, participant])
   );
+  const participants = renderParticipantList(input.meetingParticipants);
+  const entities = renderEntityList(input.meetingParticipants);
   const sections = renderSections(input.summaryStructured, participantById);
   const actionItems = renderActionItems(input.summaryStructured, participantById);
   const text = input.summaryWhatsapp
-    ? resolveParticipantNamesInText(input.summaryWhatsapp, input.meetingParticipants)
+    ? resolveSummaryWhatsappText(
+        input.summaryWhatsapp,
+        input.meetingParticipants,
+        participants.map((participant) => participant.name)
+      )
     : buildStructuredSummaryText(input.summaryStructured.title, sections, actionItems);
 
   return {
     text,
-    participants: renderParticipantList(input.meetingParticipants),
-    entities: renderEntityList(input.meetingParticipants),
+    participants,
+    entities,
     sections,
     actionItems,
   };
@@ -185,4 +191,24 @@ function resolveParticipantNamesInText(
         summary.split(participant.original_name).join(participant.display_name),
       text
     );
+}
+
+function resolveSummaryWhatsappText(
+  text: string,
+  meetingParticipants: MeetingParticipant[],
+  participantNames: string[]
+) {
+  return replaceParticipantsLine(
+    resolveParticipantNamesInText(text, meetingParticipants),
+    participantNames
+  );
+}
+
+function replaceParticipantsLine(text: string, participantNames: string[]) {
+  const participantsText =
+    participantNames.length > 0
+      ? participantNames.join(", ")
+      : "Participante não identificado";
+
+  return text.replace(/^Participantes:\s*.*$/m, `Participantes: ${participantsText}`);
 }

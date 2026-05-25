@@ -1,9 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   Loader2,
   Minimize2,
+  Pause,
+  Play,
   Sparkles,
   Square,
   TimerReset,
@@ -22,20 +25,59 @@ interface RecordingOverlayProps {
   stage: RecordingOverlayStage;
   elapsedLabel: string;
   uploadProgress: number;
+  isPaused?: boolean;
   errorMessage?: string | null;
   onStop: () => void;
+  onPauseToggle?: () => void;
+  onResumeRecording?: () => void;
   onDiscard: () => void;
   onSave: () => void;
   onClose?: () => void;
   onMinimize?: () => void;
 }
 
+interface RecordingActionButtonProps {
+  children: ReactNode;
+  icon: ReactNode;
+  onClick?: () => void;
+  variant?: "primary" | "outline";
+  disabled?: boolean;
+}
+
+function RecordingActionButton({
+  children,
+  icon,
+  onClick,
+  variant = "primary",
+  disabled = false,
+}: RecordingActionButtonProps) {
+  return (
+    <Button
+      variant={variant === "outline" ? "outline" : "default"}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "h-12 rounded-full",
+        variant === "primary" &&
+          "bg-primary text-primary-foreground hover:bg-primary/90",
+        disabled && "opacity-100"
+      )}
+    >
+      {icon}
+      {children}
+    </Button>
+  );
+}
+
 export function RecordingOverlay({
   stage,
   elapsedLabel,
   uploadProgress,
+  isPaused = false,
   errorMessage,
   onStop,
+  onPauseToggle,
+  onResumeRecording,
   onDiscard,
   onSave,
   onClose,
@@ -84,20 +126,30 @@ export function RecordingOverlay({
                   : "bg-notura-primary text-primary-foreground"
               )}
             >
-              {isRecording ? "Gravando agora" : isSaving ? "Enviando gravação" : "Gravação finalizada"}
+              {isRecording
+                ? isPaused
+                  ? "Gravação pausada"
+                  : "Gravando agora"
+                : isSaving
+                  ? "Enviando gravação"
+                  : "Gravação finalizada"}
             </Badge>
 
             <div>
               <h2 className="font-display text-2xl font-bold text-card-foreground sm:text-3xl">
                 {isRecording
-                  ? "Gravação em andamento"
+                  ? isPaused
+                    ? "Gravação pausada"
+                    : "Gravação em andamento"
                   : isSaving
                     ? "Gerando o sumário"
                     : "O que deseja fazer com a gravação?"}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {isRecording
-                  ? "Quando encerrar, você poderá escolher entre descartar o áudio ou enviar para processamento."
+                  ? isPaused
+                    ? "A captura está pausada. Continue quando quiser ou encerre para revisar o áudio."
+                    : "Quando encerrar, você poderá escolher entre descartar o áudio ou enviar para processamento."
                   : isSaving
                     ? "Estamos subindo o arquivo e iniciando o processamento em segundo plano."
                     : "Se você salvar agora, o arquivo será enviado e a reunião seguirá para a tela de processamento."}
@@ -111,7 +163,7 @@ export function RecordingOverlay({
               </span>
             </div>
 
-            <RecordingWaveform active={isRecording || isSaving} className="w-full" />
+            <RecordingWaveform active={(isRecording && !isPaused) || isSaving} className="w-full" />
 
             {isSaving ? (
               <div className="w-full max-w-sm">
@@ -144,38 +196,56 @@ export function RecordingOverlay({
             ) : null}
 
             {isRecording ? (
-              <Button
-                onClick={onStop}
-                className="h-12 w-full rounded-full bg-primary text-primary-foreground hover:bg-primary/90 sm:max-w-xs"
-              >
-                <Square className="h-4 w-4" />
-                Encerrar gravação
-              </Button>
-            ) : isSaving ? (
-              <Button
-                disabled
-                className="h-12 w-full rounded-full bg-primary text-primary-foreground opacity-100 sm:max-w-xs"
-              >
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Enviando arquivo...
-              </Button>
-            ) : (
               <div className="grid w-full gap-3 sm:grid-cols-2">
-                <Button
+                <RecordingActionButton
+                  variant="outline"
+                  onClick={onPauseToggle}
+                  icon={
+                    isPaused ? (
+                      <Play className="h-4 w-4" />
+                    ) : (
+                      <Pause className="h-4 w-4" />
+                    )
+                  }
+                >
+                  {isPaused ? "Continuar gravação" : "Pausar gravação"}
+                </RecordingActionButton>
+                <RecordingActionButton
+                  onClick={onStop}
+                  icon={<Square className="h-4 w-4" />}
+                >
+                  Encerrar gravação
+                </RecordingActionButton>
+              </div>
+            ) : isSaving ? (
+              <RecordingActionButton
+                disabled
+                icon={<Loader2 className="h-4 w-4 animate-spin" />}
+              >
+                Enviando arquivo...
+              </RecordingActionButton>
+            ) : (
+              <div className="grid w-full gap-3 sm:grid-cols-3">
+                <RecordingActionButton
                   variant="outline"
                   onClick={onDiscard}
-                  className="h-12 rounded-full"
+                  icon={<Trash2 className="h-4 w-4" />}
                 >
-                  <Trash2 className="h-4 w-4" />
                   Descartar gravação
-                </Button>
-                <Button
-                  onClick={onSave}
-                  className="h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                </RecordingActionButton>
+                <RecordingActionButton
+                  variant="outline"
+                  onClick={onResumeRecording}
+                  icon={<Play className="h-4 w-4" />}
                 >
-                  <Sparkles className="h-4 w-4" />
+                  Retomar gravação
+                </RecordingActionButton>
+                <RecordingActionButton
+                  onClick={onSave}
+                  icon={<Sparkles className="h-4 w-4" />}
+                >
                   Gerar sumário
-                </Button>
+                </RecordingActionButton>
               </div>
             )}
           </div>

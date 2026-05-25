@@ -27,6 +27,7 @@ import type { RecordingMode, RecordingSetupValues } from "./RecordingSetupCard";
 interface MeetingDraft {
   whatsappNumber: string;
   groupId: string | null;
+  recordingMode: RecordingMode;
 }
 
 interface RecordingSessionContextValue {
@@ -39,6 +40,7 @@ interface MinimizedRecordingControllerProps {
   stage: RecordingOverlayStage;
   elapsedLabel: string;
   uploadProgress: number;
+  isPaused: boolean;
   onExpand: () => void;
   onStop: () => void;
 }
@@ -87,6 +89,7 @@ function MinimizedRecordingController({
   stage,
   elapsedLabel,
   uploadProgress,
+  isPaused,
   onExpand,
   onStop,
 }: MinimizedRecordingControllerProps) {
@@ -117,7 +120,9 @@ function MinimizedRecordingController({
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-card-foreground">
             {isRecording
-              ? "Gravando"
+              ? isPaused
+                ? "Pausado"
+                : "Gravando"
               : isSaving
                 ? `Enviando ${uploadProgress}%`
                 : "Gravação pronta"}
@@ -154,6 +159,7 @@ export function RecordingSessionProvider({
   const [overlayStage, setOverlayStage] =
     useState<RecordingOverlayStage | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedAt, setRecordedAt] = useState<Date | null>(null);
@@ -193,6 +199,7 @@ export function RecordingSessionProvider({
     setOverlayError(null);
     setOverlayStage(null);
     setIsMinimized(false);
+    setIsPaused(false);
   }, [cleanupRecorderResources]);
 
   useEffect(() => {
@@ -200,7 +207,7 @@ export function RecordingSessionProvider({
   }, [cleanupRecorderResources]);
 
   useEffect(() => {
-    if (overlayStage !== "recording") {
+    if (overlayStage !== "recording" || isPaused) {
       clearTimer();
       return;
     }
@@ -210,16 +217,13 @@ export function RecordingSessionProvider({
     }, 1000);
 
     return () => clearTimer();
-  }, [clearTimer, overlayStage]);
+  }, [clearTimer, isPaused, overlayStage]);
 
-  const startRecording = useCallback(
-    async (values: RecordingSetupValues) => {
-      if (overlayStage || isStarting) {
-        throw new Error(
-          "Finalize ou descarte a gravação atual antes de iniciar outra."
-        );
-      }
-
+  const startRecorderSession = useCallback(
+    async (
+      values: RecordingSetupValues,
+      options: { preserveExistingChunks: boolean }
+    ) => {
       if (
         typeof window === "undefined" ||
         typeof navigator === "undefined" ||
@@ -245,7 +249,9 @@ export function RecordingSessionProvider({
           captureCleanupRef.current = capture.cleanup;
           mediaStreamRef.current = capture.stream;
           mediaRecorderRef.current = recorder;
-          recordedChunksRef.current = [];
+          if (!options.preserveExistingChunks) {
+            recordedChunksRef.current = [];
+          }
 
           recorder.addEventListener("dataavailable", (event) => {
             if (event.data.size > 0) {
@@ -265,11 +271,15 @@ export function RecordingSessionProvider({
         setMeetingDraft({
           whatsappNumber: values.whatsappNumber,
           groupId: values.groupId ?? null,
+          recordingMode: values.recordingMode,
         });
-        setElapsedSeconds(0);
+        if (!options.preserveExistingChunks) {
+          setElapsedSeconds(0);
+        }
         setRecordedBlob(null);
         setRecordedAt(null);
         setUploadProgress(0);
+        setIsPaused(false);
         setOverlayStage("recording");
       } catch (error) {
         throw new Error(getStartRecordingErrorMessage(error, values.recordingMode));
@@ -277,8 +287,50 @@ export function RecordingSessionProvider({
         setIsStarting(false);
       }
     },
-    [isStarting, overlayStage]
+    []
   );
+
+  const startRecording = useCallback(
+    async (values: RecordingSetupValues) => {
+      if (overlayStage || isStarting) {
+        throw new Error(
+          "Finalize ou descarte a gravação atual antes de iniciar outra."
+        );
+      }
+
+      await startRecorderSession(values, { preserveExistingChunks: false });
+    },
+    [isStarting, overlayStage, startRecorderSession]
+  );
+
+  const pauseRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== "recording") {
+      return;
+    }
+
+    recorder.pause();
+    setIsPaused(true);
+  }, []);
+
+  const resumePausedRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== "paused") {
+      return;
+    }
+
+    recorder.resume();
+    setIsPaused(false);
+  }, []);
+
+  const handlePauseToggle = useCallback(() => {
+    if (isPaused) {
+      resumePausedRecording();
+      return;
+    }
+
+    pauseRecording();
+  }, [isPaused, pauseRecording, resumePausedRecording]);
 
   const stopActiveRecording = useCallback(async (): Promise<Blob> => {
     const recorder = mediaRecorderRef.current;
@@ -330,6 +382,7 @@ export function RecordingSessionProvider({
   const handleStopRecording = useCallback(async () => {
     clearTimer();
     setIsMinimized(false);
+    setIsPaused(false);
 
     try {
       const nextBlob = await stopActiveRecording();
@@ -350,6 +403,29 @@ export function RecordingSessionProvider({
     resetRecordingState,
     stopActiveRecording,
   ]);
+
+  const resumeStoppedRecording = useCallback(async () => {
+    if (!meetingDraft || overlayStage !== "confirm" || isStarting) {
+      return;
+    }
+
+    try {
+      await startRecorderSession(
+        {
+          recordingMode: meetingDraft.recordingMode,
+          whatsappNumber: meetingDraft.whatsappNumber,
+          groupId: meetingDraft.groupId,
+        },
+        { preserveExistingChunks: true }
+      );
+    } catch (error) {
+      setOverlayError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível retomar a gravação."
+      );
+    }
+  }, [isStarting, meetingDraft, overlayStage, startRecorderSession]);
 
   const handleSaveRecording = useCallback(async () => {
     if (!meetingDraft || !recordedBlob) {
@@ -404,7 +480,10 @@ export function RecordingSessionProvider({
           elapsedLabel={elapsedLabel}
           uploadProgress={uploadProgress}
           errorMessage={overlayError}
+          isPaused={isPaused}
           onStop={handleStopRecording}
+          onPauseToggle={handlePauseToggle}
+          onResumeRecording={resumeStoppedRecording}
           onDiscard={resetRecordingState}
           onSave={handleSaveRecording}
           onClose={overlayError ? resetRecordingState : undefined}
@@ -417,6 +496,7 @@ export function RecordingSessionProvider({
           stage={overlayStage}
           elapsedLabel={elapsedLabel}
           uploadProgress={uploadProgress}
+          isPaused={isPaused}
           onExpand={() => setIsMinimized(false)}
           onStop={handleStopRecording}
         />

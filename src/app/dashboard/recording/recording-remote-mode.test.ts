@@ -28,4 +28,27 @@ describe("recording page remote mode", () => {
     expect(provider).toContain("captureCleanupRef");
     expect(provider).toContain("RecordingOverlay");
   });
+
+  it("supports pausing, continuing, and resuming a stopped recording", () => {
+    const provider = readSource(
+      "src/components/recording/RecordingSessionProvider.tsx"
+    );
+    const overlay = readSource("src/components/recording/RecordingOverlay.tsx");
+
+    expect(provider).toContain("isPaused");
+    expect(provider).toContain("pauseRecording");
+    expect(provider).toContain("resumePausedRecording");
+    expect(provider).toContain("resumeStoppedRecording");
+    expect(provider).toContain("recorder.pause()");
+    expect(provider).toContain("recorder.resume()");
+    expect(provider).toContain('overlayStage !== "recording" || isPaused');
+    expect(provider).toContain("preserveExistingChunks");
+
+    expect(overlay).toContain("RecordingActionButton");
+    expect(overlay).toContain("onPauseToggle");
+    expect(overlay).toContain("onResumeRecording");
+    expect(overlay).toContain("Pausar gravação");
+    expect(overlay).toContain("Continuar gravação");
+    expect(overlay).toContain("Retomar gravação");
+  });
 });

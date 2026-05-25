@@ -131,7 +131,7 @@ describe("PATCH /api/meetings/[id]/participants/[participantId]", () => {
     });
   });
 
-  it("updates only the whitelisted display name", async () => {
+  it("updates whitelisted display name and role", async () => {
     const mod = await import("./route");
     const response = await mod.PATCH(
       patchRequest({
@@ -149,7 +149,7 @@ describe("PATCH /api/meetings/[id]/participants/[participantId]", () => {
       userId: "user-1",
       meetingId: "meeting-1",
       participantId: "participant-1",
-      input: { displayName: "Ana Nova" },
+      input: { displayName: "Ana Nova", role: "entity" },
     });
     expect(await response.json()).toEqual({
       participant: {

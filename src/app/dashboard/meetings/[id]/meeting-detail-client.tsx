@@ -424,11 +424,16 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   }, [show]);
 
   const updateParticipantDisplayName = useCallback(
-    async (participantId: string, displayName: string) => {
+    async (
+      participantId: string,
+      displayName: string,
+      updatedRole: "participant" | "entity"
+    ) => {
       const updated = await updateMeetingParticipantDisplayName(
         id,
         participantId,
-        displayName
+        displayName,
+        updatedRole
       );
 
       show("Nome atualizado no resumo.", "success");
@@ -523,7 +528,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
                   <MeetingParticipantsEditorCard
                     participants={detectedParticipants}
                     entities={detectedEntities}
-                    onSaveDisplayName={updateParticipantDisplayName}
+                    onSaveParticipant={updateParticipantDisplayName}
                     onError={(message) => show(message, "error")}
                   />
                 )}

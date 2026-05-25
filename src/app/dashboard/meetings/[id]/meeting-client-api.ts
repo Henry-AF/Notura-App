@@ -193,12 +193,17 @@ export async function cancelMeetingProcessing(id: string): Promise<void> {
 export async function updateMeetingParticipantDisplayName(
   meetingId: string,
   participantId: string,
-  displayName: string
+  displayName: string,
+  role?: "participant" | "entity"
 ) {
   const response = await fetch(`/api/meetings/${meetingId}/participants`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ participantId, displayName }),
+    body: JSON.stringify({
+      participantId,
+      displayName,
+      ...(role ? { role } : {}),
+    }),
   });
   const body = await parseJson<MeetingParticipantUpdateResponse & { error?: string }>(
     response

@@ -117,13 +117,13 @@ describe("PATCH /api/meetings/[id]/participants", () => {
       meeting_id: "meeting-1",
       display_name: "Ana Nova",
       original_name: "Speaker A",
-      role: "participant",
+      role: "entity",
       created_at: "2026-05-23T00:00:00.000Z",
       updated_at: "2026-05-23T00:10:00.000Z",
     });
   });
 
-  it("updates only display_name for a participant id sent in the body", async () => {
+  it("updates whitelisted display name and role for a participant id sent in the body", async () => {
     const mod = await import("./route");
     const response = await mod.PATCH(
       new Request("http://localhost", {
@@ -143,14 +143,14 @@ describe("PATCH /api/meetings/[id]/participants", () => {
       userId: "user-1",
       meetingId: "meeting-1",
       participantId: "participant-1",
-      input: { displayName: "Ana Nova" },
+      input: { displayName: "Ana Nova", role: "entity" },
     });
     expect(await response.json()).toEqual({
       participant: {
         id: "participant-1",
         displayName: "Ana Nova",
         originalName: "Speaker A",
-        role: "participant",
+        role: "entity",
       },
     });
   });

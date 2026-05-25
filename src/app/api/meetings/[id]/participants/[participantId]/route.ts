@@ -17,6 +17,14 @@ function readDisplayName(body: unknown): unknown {
   return (body as { displayName?: unknown }).displayName;
 }
 
+function readRole(body: unknown): unknown {
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
+
+  return (body as { role?: unknown }).role;
+}
+
 function serializeParticipant(participant: MeetingParticipant) {
   return {
     id: participant.id,
@@ -46,7 +54,7 @@ export const PATCH = withAuthRateLimit<
         userId: auth.user.id,
         meetingId: params.id,
         participantId: params.participantId,
-        input: { displayName: readDisplayName(body) },
+        input: { displayName: readDisplayName(body), role: readRole(body) },
       });
 
       return NextResponse.json({ participant: serializeParticipant(participant) });

@@ -5,6 +5,7 @@ import {
   buildParticipantUpserts,
   mapParticipantRefsToIds,
   normalizeDisplayName,
+  normalizeParticipantRole,
   updateMeetingParticipantDisplayNameForUser,
 } from "./participants";
 
@@ -71,6 +72,14 @@ describe("meeting participant helpers", () => {
     );
   });
 
+  it("normalizes participant roles", () => {
+    expect(normalizeParticipantRole("entity")).toBe("entity");
+    expect(normalizeParticipantRole("participant")).toBe("participant");
+    expect(() => normalizeParticipantRole("company")).toThrow(
+      "Tipo deve ser participante ou entidade."
+    );
+  });
+
   it("builds participant upsert rows from Gemini drafts", () => {
     expect(
       buildParticipantUpserts({ meetingId: "meeting-1", participants: drafts })
@@ -97,7 +106,7 @@ describe("meeting participant helpers", () => {
     });
   });
 
-  it("renames a participant after checking meeting ownership", async () => {
+  it("updates a participant display name and role after checking meeting ownership", async () => {
     const update = vi.fn(() => ({
       eq: vi.fn(() => ({
         eq: vi.fn(() => ({
@@ -128,7 +137,85 @@ describe("meeting participant helpers", () => {
       "meeting-1",
       "user-1"
     );
-    expect(update).toHaveBeenCalledWith({ display_name: "Ana Nova" });
+    expect(update).toHaveBeenCalledWith({
+      display_name: "Ana Nova",
+      role: "entity",
+    });
     expect(result.display_name).toBe("Ana Nova");
+  });
+
+  it("clears structured action item ownership when a participant becomes an entity", async () => {
+    const meetingSummary = {
+      version: 1,
+      sections: [],
+      action_items: [
+        {
+          description: "Enviar proposta",
+          participant_id: "participant-id",
+          due_date: null,
+          priority: "média",
+        },
+        {
+          description: "Revisar contrato",
+          participant_id: "other-participant",
+          due_date: null,
+          priority: "média",
+        },
+      ],
+    };
+    const updateParticipant = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({
+              data: { ...rows[0], role: "entity" },
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    }));
+    const updateMeeting = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+    const selectMeeting = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { summary_structured: meetingSummary },
+          error: null,
+        }),
+      })),
+    }));
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "meeting_participants") {
+          return { update: updateParticipant };
+        }
+        return { select: selectMeeting, update: updateMeeting };
+      }),
+    };
+
+    await updateMeetingParticipantDisplayNameForUser({
+      supabase: supabase as never,
+      userId: "user-1",
+      meetingId: "meeting-1",
+      participantId: "participant-id",
+      input: { role: "entity" },
+    });
+
+    expect(updateMeeting).toHaveBeenCalledWith({
+      summary_structured: {
+        ...meetingSummary,
+        action_items: [
+          {
+            description: "Enviar proposta",
+            participant_id: null,
+            due_date: null,
+            priority: "média",
+          },
+          meetingSummary.action_items[1],
+        ],
+      },
+    });
   });
 });

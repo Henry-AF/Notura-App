@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireOwnership } from "@/lib/api/auth";
 import type {
   Database,
+  Json,
   MeetingParticipant,
   MeetingParticipantRole,
 } from "@/types/database";
@@ -10,6 +11,8 @@ import type { GeminiMeetingParticipantDraft, ParticipantRefMap } from "./summary
 type SupabaseAdminClient = SupabaseClient<Database>;
 type MeetingParticipantInsert =
   Database["public"]["Tables"]["meeting_participants"]["Insert"];
+type MeetingParticipantUpdate =
+  Database["public"]["Tables"]["meeting_participants"]["Update"];
 type SupabaseQueryResult<T> = {
   data: T | null;
   error: { message: string } | null;
@@ -17,6 +20,7 @@ type SupabaseQueryResult<T> = {
 
 export interface UpdateMeetingParticipantInput {
   displayName?: unknown;
+  role?: unknown;
 }
 
 export interface UpdateMeetingParticipantDisplayNameForUserInput {
@@ -58,6 +62,16 @@ export function normalizeDisplayName(value: unknown): string {
   }
 
   return displayName;
+}
+
+export function normalizeParticipantRole(value: unknown): MeetingParticipantRole {
+  if (value === "participant" || value === "entity") {
+    return value;
+  }
+
+  throw new MeetingParticipantValidationError(
+    "Tipo deve ser participante ou entidade."
+  );
 }
 
 export function buildParticipantUpserts(input: {
@@ -137,16 +151,82 @@ export async function updateMeetingParticipantDisplayNameForUser(
     params.meetingId,
     params.userId
   );
-  const displayName = normalizeDisplayName(params.input.displayName);
+  const updatePayload: MeetingParticipantUpdate = {};
+  if (params.input.displayName !== undefined) {
+    updatePayload.display_name = normalizeDisplayName(params.input.displayName);
+  }
+  if (params.input.role !== undefined) {
+    updatePayload.role = normalizeParticipantRole(params.input.role);
+  }
+  if (!updatePayload.display_name && !updatePayload.role) {
+    throw new MeetingParticipantValidationError("Nenhuma alteração informada.");
+  }
+
   const result = await params.supabase
     .from("meeting_participants")
-    .update({ display_name: displayName })
+    .update(updatePayload)
     .eq("id", params.participantId)
     .eq("meeting_id", params.meetingId)
     .select("id, meeting_id, display_name, original_name, role, created_at, updated_at")
     .single();
 
-  return unwrapParticipantUpdateResult(result);
+  const participant = unwrapParticipantUpdateResult(result);
+  if (participant.role === "entity") {
+    await clearStructuredActionItemOwnership(params.supabase, {
+      meetingId: params.meetingId,
+      participantId: participant.id,
+    });
+  }
+
+  return participant;
+}
+
+async function clearStructuredActionItemOwnership(
+  supabase: SupabaseAdminClient,
+  params: { meetingId: string; participantId: string }
+): Promise<void> {
+  const result = await supabase
+    .from("meetings")
+    .select("summary_structured")
+    .eq("id", params.meetingId)
+    .maybeSingle();
+
+  if (
+    result.error ||
+    !isStructuredSummaryWithActionItems(result.data?.summary_structured)
+  ) {
+    return;
+  }
+
+  const summaryStructured = result.data.summary_structured as Record<string, unknown> & {
+    action_items: Array<Record<string, unknown> & { participant_id?: unknown }>;
+  };
+  const actionItems = summaryStructured.action_items.map((item) =>
+    item.participant_id === params.participantId
+      ? { ...item, participant_id: null }
+      : item
+  );
+
+  await supabase
+    .from("meetings")
+    .update({
+      summary_structured: {
+        ...summaryStructured,
+        action_items: actionItems,
+      } as unknown as Json,
+    })
+    .eq("id", params.meetingId);
+}
+
+function isStructuredSummaryWithActionItems(value: unknown): value is {
+  [key: string]: unknown;
+  action_items: Array<Record<string, unknown> & { participant_id?: unknown }>;
+} {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    Array.isArray((value as { action_items?: unknown }).action_items)
+  );
 }
 
 function unwrapSupabaseData<T>(

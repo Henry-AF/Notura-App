@@ -120,7 +120,8 @@ describe("meeting detail client api", () => {
     const result = await mod.updateMeetingParticipantDisplayName(
       "meeting-1",
       "participant-1",
-      "Ana Nova"
+      "Ana Nova",
+      "entity"
     );
 
     expect(fetchSpy).toHaveBeenCalledWith("/api/meetings/meeting-1/participants", {
@@ -129,6 +130,7 @@ describe("meeting detail client api", () => {
       body: JSON.stringify({
         participantId: "participant-1",
         displayName: "Ana Nova",
+        role: "entity",
       }),
     });
     expect(result.name).toBe("Ana Nova");

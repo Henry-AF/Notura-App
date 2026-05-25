@@ -55,6 +55,9 @@ describe("meeting detail actions", () => {
     expect(meetingDetailClient).toContain("MeetingParticipantsEditorCard");
     expect(meetingDetailClient).toContain("updateParticipantDisplayName");
     expect(meetingDetailClient).toContain("window.location.reload()");
+    expect(meetingDetailClient).toContain("updatedRole");
+    expect(meetingDetailClient).toContain("onSaveParticipant");
+    expect(readSource("src/components/meeting-detail/MeetingParticipantsEditorCard.tsx")).toContain("SelectItem value=\"entity\"");
     expect(meetingDetailClient).not.toContain("resolveSummary");
     expect(meetingDetailClient).not.toContain("resolvedSummary");
   });

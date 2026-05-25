@@ -25,6 +25,7 @@ function readParticipantUpdateBody(body: unknown) {
   return {
     participantId: record.participantId,
     displayName: record.displayName,
+    role: record.role,
   };
 }
 
@@ -72,7 +73,7 @@ export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
   async (request, { params, auth }) => {
     try {
       const body = (await request.json()) as unknown;
-      const { participantId, displayName } = readParticipantUpdateBody(body);
+      const { participantId, displayName, role } = readParticipantUpdateBody(body);
       if (typeof participantId !== "string" || !participantId.trim()) {
         return NextResponse.json(
           { error: "Participante é obrigatório." },
@@ -85,7 +86,7 @@ export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
         userId: auth.user.id,
         meetingId: params.id,
         participantId,
-        input: { displayName },
+        input: { displayName, role },
       });
 
       return NextResponse.json({ participant: serializeParticipant(participant) });

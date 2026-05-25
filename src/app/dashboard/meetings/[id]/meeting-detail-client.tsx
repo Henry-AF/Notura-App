@@ -32,7 +32,6 @@ import {
   retryMeetingProcessing,
   updateMeetingParticipantDisplayName,
 } from "./meeting-client-api";
-import { resolveSummary } from "./meeting-summary-resolver";
 import type { MeetingDetailData, MeetingParticipantDisplay } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
@@ -181,10 +180,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   >(meeting.meetingStatus);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCancelingProcessing, setIsCancelingProcessing] = useState(false);
-  const [detectedParticipants, setDetectedParticipants] = useState<
+  const [detectedParticipants] = useState<
     MeetingParticipantDisplay[]
   >(meeting.participants);
-  const [detectedEntities, setDetectedEntities] = useState<
+  const [detectedEntities] = useState<
     MeetingParticipantDisplay[]
   >(meeting.entities);
 
@@ -214,15 +213,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   const taskMeetingOptions = useMemo(
     () => [{ id, label: clientName || "Reunião atual" }],
     [clientName, id]
-  );
-  const resolvedSummary = useMemo(
-    () =>
-      resolveSummary(
-        meeting.summaryStructured,
-        [...detectedParticipants, ...detectedEntities],
-        summary
-      ),
-    [detectedEntities, detectedParticipants, meeting.summaryStructured, summary]
   );
   const hasEditableNames =
     detectedParticipants.some((participant) => participant.id) ||
@@ -441,19 +431,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         displayName
       );
 
-      if (updated.role === "entity") {
-        setDetectedEntities((prev) =>
-          prev.map((entity) => entity.id === updated.id ? updated : entity)
-        );
-      } else {
-        setDetectedParticipants((prev) =>
-          prev.map((participant) =>
-            participant.id === updated.id ? updated : participant
-          )
-        );
-      }
-
       show("Nome atualizado no resumo.", "success");
+      window.location.reload();
       return updated;
     },
     [id, show]
@@ -525,7 +504,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
             }}
           >
             <SmartSummaryCard
-              summary={resolvedSummary || "Resumo não disponível."}
+              summary={summary || "Resumo não disponível."}
               nextSteps={nextStep}
               onCopyToWhatsApp={() =>
                 show("Resumo copiado para WhatsApp!", "success")
@@ -839,7 +818,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         meetingName={clientName}
-        summary={resolvedSummary}
+        summary={summary}
         isDeleting={isDeletingMeeting}
         onCopySummary={handleCopySummaryForDelete}
         onConfirmDelete={handleDeleteMeeting}

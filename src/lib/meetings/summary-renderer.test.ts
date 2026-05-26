@@ -118,4 +118,28 @@ describe("renderMeetingSummary", () => {
     ]);
     expect(result.entities).toEqual([]);
   });
+
+  it("resolves edited names without replacing text inside other words", () => {
+    const result = renderMeetingSummary({
+      summaryStructured: structuredSummary,
+      meetingParticipants: [
+        {
+          id: "p2-id",
+          meeting_id: "meeting-1",
+          display_name: "Pro Atualizada",
+          original_name: "Pro",
+          role: "participant",
+          created_at: "2026-05-23T00:00:00.000Z",
+          updated_at: "2026-05-23T00:00:00.000Z",
+        },
+      ],
+      summaryWhatsapp:
+        "Reunião: Produto\nParticipantes: Pro\n\nDecisões tomadas:\n• Pro apresentou o Produto.",
+      summaryJson: null,
+    });
+
+    expect(result.text).toContain("Participantes: Pro Atualizada");
+    expect(result.text).toContain("Pro Atualizada apresentou o Produto.");
+    expect(result.text).not.toContain("Pro Atualizadaduto");
+  });
 });

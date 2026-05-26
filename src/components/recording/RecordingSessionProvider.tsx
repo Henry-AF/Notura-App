@@ -220,10 +220,7 @@ export function RecordingSessionProvider({
   }, [clearTimer, isPaused, overlayStage]);
 
   const startRecorderSession = useCallback(
-    async (
-      values: RecordingSetupValues,
-      options: { preserveExistingChunks: boolean }
-    ) => {
+    async (values: RecordingSetupValues) => {
       if (
         typeof window === "undefined" ||
         typeof navigator === "undefined" ||
@@ -249,9 +246,7 @@ export function RecordingSessionProvider({
           captureCleanupRef.current = capture.cleanup;
           mediaStreamRef.current = capture.stream;
           mediaRecorderRef.current = recorder;
-          if (!options.preserveExistingChunks) {
-            recordedChunksRef.current = [];
-          }
+          recordedChunksRef.current = [];
 
           recorder.addEventListener("dataavailable", (event) => {
             if (event.data.size > 0) {
@@ -273,9 +268,7 @@ export function RecordingSessionProvider({
           groupId: values.groupId ?? null,
           recordingMode: values.recordingMode,
         });
-        if (!options.preserveExistingChunks) {
-          setElapsedSeconds(0);
-        }
+        setElapsedSeconds(0);
         setRecordedBlob(null);
         setRecordedAt(null);
         setUploadProgress(0);
@@ -298,7 +291,7 @@ export function RecordingSessionProvider({
         );
       }
 
-      await startRecorderSession(values, { preserveExistingChunks: false });
+      await startRecorderSession(values);
     },
     [isStarting, overlayStage, startRecorderSession]
   );
@@ -332,6 +325,54 @@ export function RecordingSessionProvider({
     pauseRecording();
   }, [isPaused, pauseRecording, resumePausedRecording]);
 
+  const buildRecordedBlob = useCallback((recorder: MediaRecorder): Blob => {
+    return new Blob(recordedChunksRef.current, {
+      type: recorder.mimeType || "audio/webm",
+    });
+  }, []);
+
+  const requestRecorderData = useCallback(
+    async (recorder: MediaRecorder): Promise<void> => {
+      if (recorder.state === "inactive") {
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        recorder.addEventListener("dataavailable", () => resolve(), {
+          once: true,
+        });
+        recorder.addEventListener(
+          "error",
+          () => reject(new Error("Falha ao preparar a gravação.")),
+          { once: true }
+        );
+        recorder.requestData();
+      });
+    },
+    []
+  );
+
+  const snapshotActiveRecording = useCallback(async (): Promise<Blob> => {
+    const recorder = mediaRecorderRef.current;
+
+    if (!recorder || recorder.state === "inactive") {
+      throw new Error("Nenhuma gravação ativa encontrada.");
+    }
+
+    if (recorder.state === "recording") {
+      recorder.pause();
+    }
+
+    await requestRecorderData(recorder);
+    const nextBlob = buildRecordedBlob(recorder);
+
+    if (nextBlob.size <= 0) {
+      throw new Error("Nenhum áudio foi capturado nesta gravação.");
+    }
+
+    return nextBlob;
+  }, [buildRecordedBlob, requestRecorderData]);
+
   const stopActiveRecording = useCallback(async (): Promise<Blob> => {
     const recorder = mediaRecorderRef.current;
 
@@ -341,9 +382,7 @@ export function RecordingSessionProvider({
 
     return await new Promise<Blob>((resolve, reject) => {
       const finalizeBlob = () => {
-        const nextBlob = new Blob(recordedChunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
+        const nextBlob = buildRecordedBlob(recorder);
 
         if (nextBlob.size <= 0) {
           reject(new Error("Nenhum áudio foi capturado nesta gravação."));
@@ -377,7 +416,7 @@ export function RecordingSessionProvider({
         );
       }
     });
-  }, []);
+  }, [buildRecordedBlob]);
 
   const handleStopRecording = useCallback(async () => {
     clearTimer();
@@ -385,10 +424,10 @@ export function RecordingSessionProvider({
     setIsPaused(false);
 
     try {
-      const nextBlob = await stopActiveRecording();
-      cleanupRecorderResources();
+      const nextBlob = await snapshotActiveRecording();
       setRecordedBlob(nextBlob);
       setRecordedAt(new Date());
+      setIsPaused(true);
       setOverlayStage("confirm");
     } catch (error) {
       cleanupRecorderResources();
@@ -401,7 +440,7 @@ export function RecordingSessionProvider({
     cleanupRecorderResources,
     clearTimer,
     resetRecordingState,
-    stopActiveRecording,
+    snapshotActiveRecording,
   ]);
 
   const resumeStoppedRecording = useCallback(async () => {
@@ -409,26 +448,22 @@ export function RecordingSessionProvider({
       return;
     }
 
-    try {
-      await startRecorderSession(
-        {
-          recordingMode: meetingDraft.recordingMode,
-          whatsappNumber: meetingDraft.whatsappNumber,
-          groupId: meetingDraft.groupId,
-        },
-        { preserveExistingChunks: true }
-      );
-    } catch (error) {
-      setOverlayError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível retomar a gravação."
-      );
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state !== "paused") {
+      setOverlayError("Não foi possível retomar a gravação.");
+      return;
     }
-  }, [isStarting, meetingDraft, overlayStage, startRecorderSession]);
+
+    recorder.resume();
+    setRecordedBlob(null);
+    setRecordedAt(null);
+    setOverlayError(null);
+    setIsPaused(false);
+    setOverlayStage("recording");
+  }, [isStarting, meetingDraft, overlayStage]);
 
   const handleSaveRecording = useCallback(async () => {
-    if (!meetingDraft || !recordedBlob) {
+    if (!meetingDraft) {
       setOverlayError("Nenhuma gravação pronta para envio.");
       return;
     }
@@ -439,10 +474,21 @@ export function RecordingSessionProvider({
     setUploadProgress(0);
 
     try {
+      const recording = mediaRecorderRef.current
+        ? await stopActiveRecording()
+        : recordedBlob;
+
+      if (!recording) {
+        setOverlayError("Nenhuma gravação pronta para envio.");
+        setOverlayStage("confirm");
+        return;
+      }
+
+      cleanupRecorderResources();
       const meetingId = await submitRecordedMeeting({
         whatsappNumber: meetingDraft.whatsappNumber,
         groupId: meetingDraft.groupId,
-        recording: recordedBlob,
+        recording,
         recordedAt: recordedAt ?? new Date(),
         onUploadProgress: setUploadProgress,
       });
@@ -457,7 +503,15 @@ export function RecordingSessionProvider({
       setOverlayStage("confirm");
       setIsMinimized(false);
     }
-  }, [meetingDraft, recordedAt, recordedBlob, resetRecordingState, router]);
+  }, [
+    cleanupRecorderResources,
+    meetingDraft,
+    recordedAt,
+    recordedBlob,
+    resetRecordingState,
+    router,
+    stopActiveRecording,
+  ]);
 
   const contextValue = useMemo<RecordingSessionContextValue>(
     () => ({

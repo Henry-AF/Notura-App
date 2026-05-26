@@ -225,7 +225,7 @@ describe("meeting participant helpers", () => {
       ...rows[0],
       id: "biel-id",
       display_name: "Biel",
-      original_name: "Biel",
+      original_name: "Speaker B",
     };
     const target = {
       ...rows[0],
@@ -276,10 +276,19 @@ describe("meeting participant helpers", () => {
     const updateMeeting = vi.fn(() => ({
       eq: vi.fn().mockResolvedValue({ data: null, error: null }),
     }));
+    const taskOwnerIn = vi.fn().mockResolvedValue({ data: null, error: null });
+    const updateTaskOwner = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        in: taskOwnerIn,
+      })),
+    }));
     const supabase = {
       from: vi.fn((table: string) => {
         if (table === "meeting_participants") {
           return { select: selectParticipants, delete: deleteParticipant };
+        }
+        if (table === "tasks") {
+          return { update: updateTaskOwner };
         }
         return { select: selectMeeting, update: updateMeeting };
       }),
@@ -319,6 +328,8 @@ describe("meeting participant helpers", () => {
       summary_whatsapp:
         "Reunião: Teste\nParticipantes: Gabriel\n\nDecisões tomadas:\n• Gabriel falou com Gabriel.",
     });
+    expect(updateTaskOwner).toHaveBeenCalledWith({ owner: "Gabriel" });
+    expect(taskOwnerIn).toHaveBeenCalledWith("owner", ["Speaker B", "Biel"]);
     expect(deleteParticipant).toHaveBeenCalled();
   });
 

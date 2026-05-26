@@ -188,7 +188,7 @@ function resolveParticipantNamesInText(
     .sort((a, b) => b.original_name.length - a.original_name.length)
     .reduce(
       (summary, participant) =>
-        summary.split(participant.original_name).join(participant.display_name),
+        replaceWholeName(summary, participant.original_name, participant.display_name),
       text
     );
 }
@@ -211,4 +211,17 @@ function replaceParticipantsLine(text: string, participantNames: string[]) {
       : "Participante não identificado";
 
   return text.replace(/^Participantes:\s*.*$/m, `Participantes: ${participantsText}`);
+}
+
+function replaceWholeName(text: string, alias: string, replacement: string): string {
+  const pattern = new RegExp(
+    `(^|[^\\p{L}\\p{N}_])${escapeRegExp(alias)}(?=$|[^\\p{L}\\p{N}_])`,
+    "gu"
+  );
+
+  return text.replace(pattern, `$1${replacement}`);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

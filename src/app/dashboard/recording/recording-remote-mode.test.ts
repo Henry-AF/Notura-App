@@ -41,8 +41,9 @@ describe("recording page remote mode", () => {
     expect(provider).toContain("resumeStoppedRecording");
     expect(provider).toContain("recorder.pause()");
     expect(provider).toContain("recorder.resume()");
+    expect(provider).toContain("recorder.requestData()");
     expect(provider).toContain('overlayStage !== "recording" || isPaused');
-    expect(provider).toContain("preserveExistingChunks");
+    expect(provider).not.toContain("preserveExistingChunks");
 
     expect(overlay).toContain("RecordingActionButton");
     expect(overlay).toContain("onPauseToggle");

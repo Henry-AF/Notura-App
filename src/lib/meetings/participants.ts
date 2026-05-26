@@ -233,6 +233,11 @@ export async function mergeMeetingParticipantsForUser(
     source,
     target,
   });
+  await updateTaskOwnersForParticipantMerge(params.supabase, {
+    meetingId: params.meetingId,
+    source,
+    target,
+  });
 
   const deleteResult = await params.supabase
     .from("meeting_participants")
@@ -315,6 +320,30 @@ async function updateMeetingSummaryForParticipantMerge(
   if (updateResult.error) {
     throw new Error(
       `Failed to update meeting summary after participant merge: ${updateResult.error.message}`
+    );
+  }
+}
+
+async function updateTaskOwnersForParticipantMerge(
+  supabase: SupabaseAdminClient,
+  params: {
+    meetingId: string;
+    source: MeetingParticipant;
+    target: MeetingParticipant;
+  }
+): Promise<void> {
+  const aliases = buildParticipantMergeAliases(params.source, params.target);
+  if (aliases.length === 0) return;
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({ owner: params.target.display_name })
+    .eq("meeting_id", params.meetingId)
+    .in("owner", aliases);
+
+  if (error) {
+    throw new Error(
+      `Failed to update task owners after participant merge: ${error.message}`
     );
   }
 }
@@ -440,7 +469,17 @@ function replaceParticipantAliasesInText(
   source: MeetingParticipant,
   target: MeetingParticipant
 ): string {
-  const aliases = [source.display_name, source.original_name]
+  return buildParticipantMergeAliases(source, target).reduce(
+    (summary, alias) => replaceWholeName(summary, alias, target.display_name),
+    text
+  );
+}
+
+function buildParticipantMergeAliases(
+  source: MeetingParticipant,
+  target: MeetingParticipant
+): string[] {
+  return [source.display_name, source.original_name]
     .map((alias) => alias.trim())
     .filter((alias, index, values) =>
       Boolean(alias) &&
@@ -448,11 +487,6 @@ function replaceParticipantAliasesInText(
       values.indexOf(alias) === index
     )
     .sort((a, b) => b.length - a.length);
-
-  return aliases.reduce(
-    (summary, alias) => replaceWholeName(summary, alias, target.display_name),
-    text
-  );
 }
 
 function replaceWholeName(text: string, alias: string, replacement: string): string {

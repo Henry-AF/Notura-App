@@ -29,6 +29,17 @@ export interface MeetingChatResponse {
   completedAt: string | null;
 }
 
+export interface MeetingParticipantDisplayResponse {
+  id: string;
+  displayName: string;
+  originalName: string;
+  role: "participant" | "entity";
+}
+
+export interface MeetingParticipantUpdateResponse {
+  participant: MeetingParticipantDisplayResponse;
+}
+
 const DEFAULT_CHAT_POLL_INITIAL_INTERVAL_MS = 500;
 const DEFAULT_CHAT_POLL_MAX_INTERVAL_MS = 2000;
 
@@ -177,6 +188,70 @@ export async function cancelMeetingProcessing(id: string): Promise<void> {
       normalizeError(body.error, "Erro ao cancelar processamento da reunião.")
     );
   }
+}
+
+export async function updateMeetingParticipantDisplayName(
+  meetingId: string,
+  participantId: string,
+  displayName: string,
+  role?: "participant" | "entity"
+) {
+  const response = await fetch(`/api/meetings/${meetingId}/participants`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participantId,
+      displayName,
+      ...(role ? { role } : {}),
+    }),
+  });
+  const body = await parseJson<MeetingParticipantUpdateResponse & { error?: string }>(
+    response
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      normalizeError(body.error, "Erro ao atualizar participante.")
+    );
+  }
+
+  return {
+    id: body.participant.id,
+    name: body.participant.displayName,
+    originalName: body.participant.originalName,
+    role: body.participant.role,
+  };
+}
+
+export async function mergeMeetingParticipant(
+  meetingId: string,
+  participantId: string,
+  mergeIntoParticipantId: string
+) {
+  const response = await fetch(`/api/meetings/${meetingId}/participants`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participantId,
+      mergeIntoParticipantId,
+    }),
+  });
+  const body = await parseJson<MeetingParticipantUpdateResponse & { error?: string }>(
+    response
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      normalizeError(body.error, "Erro ao mesclar participantes.")
+    );
+  }
+
+  return {
+    id: body.participant.id,
+    name: body.participant.displayName,
+    originalName: body.participant.originalName,
+    role: body.participant.role,
+  };
 }
 
 // ─── Meeting delete ───────────────────────────────────────────────────────────

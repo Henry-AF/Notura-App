@@ -7,25 +7,22 @@ import {
 import type { Database, MeetingWithRelations } from "@/types/database";
 
 type SupabaseAdminClient = SupabaseClient<Database>;
-type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
-type DecisionRow = Database["public"]["Tables"]["decisions"]["Row"];
-type OpenItemRow = Database["public"]["Tables"]["open_items"]["Row"];
+type SupabaseSingleResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
 
 async function fetchMeetingWithRelations(
   supabaseAdmin: SupabaseAdminClient,
   meetingId: string
 ): Promise<MeetingWithRelations> {
-  const { data, error } = await supabaseAdmin
+  const result = await supabaseAdmin
     .from("meetings")
-    .select("*, tasks(*), decisions(*), open_items(*)")
+    .select("*, tasks(*), decisions(*), open_items(*), meeting_participants(*)")
     .eq("id", meetingId)
     .single();
 
-  if (error || !data) {
-    throw new Error("Erro ao carregar reunião.");
-  }
-
-  return data as MeetingWithRelations;
+  return unwrapMeetingResult(result);
 }
 
 function sortByCreatedAtAsc<T extends { created_at: string }>(rows: T[]): T[] {
@@ -37,10 +34,20 @@ function sortByCreatedAtAsc<T extends { created_at: string }>(rows: T[]): T[] {
 function withSortedRelations(meeting: MeetingWithRelations): MeetingWithRelations {
   return {
     ...meeting,
-    tasks: sortByCreatedAtAsc(meeting.tasks ?? []),
-    decisions: sortByCreatedAtAsc(meeting.decisions ?? []),
-    open_items: sortByCreatedAtAsc(meeting.open_items ?? []),
+    tasks: sortByCreatedAtAsc(meeting.tasks),
+    decisions: sortByCreatedAtAsc(meeting.decisions),
+    open_items: sortByCreatedAtAsc(meeting.open_items),
   };
+}
+
+function unwrapMeetingResult(
+  result: SupabaseSingleResult<MeetingWithRelations>
+): MeetingWithRelations {
+  if (result.error || result.data === null) {
+    throw new Error("Erro ao carregar reunião.");
+  }
+
+  return result.data;
 }
 
 export async function getMeetingWithRelationsForUser(

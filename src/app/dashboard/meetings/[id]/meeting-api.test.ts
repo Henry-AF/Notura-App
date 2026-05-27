@@ -26,7 +26,28 @@ describe("meeting detail api client", () => {
           meeting_date: "2026-04-07T09:00:00.000Z",
           audio_r2_key: "meetings/user-1/audio.m4a",
           transcript: "Linha 1\nLinha 2",
-          summary_whatsapp: "Resumo pronto",
+          summary_whatsapp:
+            "Reunião: Acme\nParticipantes: Speaker A, Acme\n\nDecisões tomadas:\n• Seguir com a proposta premium.",
+          summary_structured: {
+            version: 1,
+            title: "Reunião — Acme",
+            sections: [
+              {
+                title: "Contexto",
+                content: "A proposta premium foi discutida.",
+                participant_ids: ["participant-1", "entity-1"],
+              },
+            ],
+            action_items: [
+              {
+                description: "Enviar proposta",
+                participant_id: "participant-1",
+                due_date: null,
+                priority: "média",
+              },
+            ],
+          },
+          summary_version: 1,
           summary_json: {
             meeting: {
               participants: ["Ana", "Bruno"],
@@ -94,6 +115,26 @@ describe("meeting detail api client", () => {
               created_at: "2026-04-07T09:31:00.000Z",
             },
           ],
+          meeting_participants: [
+            {
+              id: "participant-1",
+              meeting_id: "meeting-1",
+              display_name: "Ana Atualizada",
+              original_name: "Speaker A",
+              role: "participant",
+              created_at: "2026-04-07T09:00:00.000Z",
+              updated_at: "2026-04-07T09:10:00.000Z",
+            },
+            {
+              id: "entity-1",
+              meeting_id: "meeting-1",
+              display_name: "Acme Atualizada",
+              original_name: "Acme",
+              role: "entity",
+              created_at: "2026-04-07T09:00:00.000Z",
+              updated_at: "2026-04-07T09:10:00.000Z",
+            },
+          ],
     });
 
     const mod = await import("./meeting-api");
@@ -103,7 +144,45 @@ describe("meeting detail api client", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(meeting.clientName).toBe("Acme");
     expect(meeting.meetingStatus).toBe("completed");
-    expect(meeting.participants).toEqual([{ name: "Ana" }, { name: "Bruno" }]);
+    expect(meeting.participants).toEqual([
+      {
+        id: "participant-1",
+        name: "Ana Atualizada",
+        originalName: "Speaker A",
+        role: "participant",
+      },
+    ]);
+    expect(meeting.entities).toEqual([
+      {
+        id: "entity-1",
+        name: "Acme Atualizada",
+        originalName: "Acme",
+        role: "entity",
+      },
+    ]);
+    expect(meeting.summaryStructured).toEqual({
+      version: 1,
+      title: "Reunião — Acme",
+      sections: [
+        {
+          title: "Contexto",
+          content: "A proposta premium foi discutida.",
+          participant_ids: ["participant-1", "entity-1"],
+        },
+      ],
+      action_items: [
+        {
+          description: "Enviar proposta",
+          participant_id: "participant-1",
+          due_date: null,
+          priority: "média",
+        },
+      ],
+    });
+    expect(meeting.summary).toContain("Decisões tomadas:");
+    expect(meeting.summary).toContain("Ana Atualizada");
+    expect(meeting.summary).toContain("Acme Atualizada");
+    expect(meeting.summary).not.toContain("Participantes citados");
     expect(meeting.tasks[0]).toEqual(
       expect.objectContaining({
         id: "task-1",

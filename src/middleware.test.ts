@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+
+const getUserMock = vi.fn();
+const signOutMock = vi.fn();
+
+vi.mock("@supabase/ssr", () => ({
+  createServerClient: vi.fn(() => ({
+    auth: {
+      getUser: getUserMock,
+      signOut: signOutMock,
+    },
+  })),
+}));
 
 describe("middleware CORS (API)", () => {
   it("returns 204 for OPTIONS from allowed origin", async () => {
@@ -49,5 +61,28 @@ describe("middleware CORS (API)", () => {
 
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:11000");
     expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+  });
+});
+
+describe("middleware auth", () => {
+  it("does not delete Supabase cookies when the auth check times out", async () => {
+    getUserMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/dashboard", {
+      headers: {
+        cookie: "sb-test-auth-token=abc",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login?redirectTo=%2Fdashboard"
+    );
+    expect(response.headers.get("set-cookie") ?? "").not.toContain(
+      "sb-test-auth-token=;"
+    );
   });
 });

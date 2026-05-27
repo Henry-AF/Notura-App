@@ -61,11 +61,13 @@ export async function middleware(request: NextRequest) {
   // A stale or revoked refresh token (refresh_token_not_found) must be treated
   // as unauthenticated — clear the session cookies and redirect to login.
   let user = null;
+  let shouldClearAuthCookies = false;
   try {
     const result = await supabase.auth.getUser();
     user = result.data.user;
     if (result.error?.code === "refresh_token_not_found") {
       await supabase.auth.signOut();
+      shouldClearAuthCookies = true;
       user = null;
     }
   } catch {
@@ -78,12 +80,14 @@ export async function middleware(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     const redirectResponse = NextResponse.redirect(loginUrl);
-    // Clear the stale auth cookies so they don't loop
-    request.cookies.getAll().forEach(({ name }) => {
-      if (name.startsWith("sb-")) {
-        redirectResponse.cookies.delete(name);
-      }
-    });
+    if (shouldClearAuthCookies) {
+      // Clear confirmed stale auth cookies so they don't loop.
+      request.cookies.getAll().forEach(({ name }) => {
+        if (name.startsWith("sb-")) {
+          redirectResponse.cookies.delete(name);
+        }
+      });
+    }
     return redirectResponse;
   }
 

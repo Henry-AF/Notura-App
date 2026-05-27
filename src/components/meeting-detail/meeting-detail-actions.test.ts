@@ -44,4 +44,47 @@ describe("meeting detail actions", () => {
     expect(processingPage).not.toContain("cancelMeetingProcessing");
     expect(processingPage).not.toContain("Cancelar processamento");
   });
+
+  it("renders an inline participant editor and reloads after participant edits", () => {
+    const meetingDetailClient = readSource(
+      "src/app/dashboard/meetings/[id]/meeting-detail-client.tsx"
+    );
+    const meetingDetailIndex = readSource("src/components/meeting-detail/index.ts");
+
+    expect(meetingDetailIndex).toContain("MeetingParticipantsEditorCard");
+    expect(meetingDetailClient).toContain("MeetingParticipantsEditorCard");
+    expect(meetingDetailClient).toContain("updateParticipantDisplayName");
+    expect(meetingDetailClient).toContain("mergeParticipant");
+    expect(meetingDetailClient).toContain("window.location.reload()");
+    expect(meetingDetailClient).toContain("updatedRole");
+    expect(meetingDetailClient).toContain("onMergeParticipant");
+    expect(meetingDetailClient).toContain("onSaveParticipant");
+    const participantsEditor = readSource("src/components/meeting-detail/MeetingParticipantsEditorCard.tsx");
+    expect(participantsEditor).toContain("AvatarFallback");
+    expect(participantsEditor).toContain("editingId");
+    expect(participantsEditor).toContain("RolePill");
+    expect(participantsEditor).toContain("MergePanel");
+    expect(participantsEditor).toContain("collapsedGroups");
+    expect(participantsEditor).toContain("aria-expanded={!isCollapsed}");
+    expect(participantsEditor).toContain("Pencil");
+    expect(participantsEditor).toContain("ml-1.5 inline h-3 w-3");
+    expect(participantsEditor).not.toContain("✏️");
+    expect(participantsEditor).not.toContain("opacity-0");
+    expect(participantsEditor).toContain("availableMergeOptions={participants}");
+    expect(participantsEditor).toContain("availableMergeOptions={[]}");
+    expect(participantsEditor.indexOf("MergeButton")).toBeLessThan(
+      participantsEditor.indexOf("RolePill")
+    );
+    expect(participantsEditor).not.toContain("SelectTrigger");
+    expect(participantsEditor).not.toContain("Mesclar com");
+    expect(meetingDetailClient).not.toContain("resolveSummary");
+    expect(meetingDetailClient).not.toContain("resolvedSummary");
+  });
+
+  it("labels the participant avatar overflow as additional participants", () => {
+    const meetingHeader = readSource("src/components/meeting-detail/MeetingHeader.tsx");
+
+    expect(meetingHeader).toContain("aria-label={`${extra} participantes adicionais");
+    expect(meetingHeader).toContain("title={`${participants.length} participantes");
+  });
 });

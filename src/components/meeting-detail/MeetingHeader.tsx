@@ -49,7 +49,11 @@ function ParticipantAvatars({
         </Avatar>
       ))}
       {extra > 0 ? (
-        <div className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground">
+        <div
+          className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground"
+          aria-label={`${extra} participantes adicionais`}
+          title={`${participants.length} participantes no total`}
+        >
           +{extra}
         </div>
       ) : null}

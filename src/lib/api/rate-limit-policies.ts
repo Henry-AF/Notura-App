@@ -31,6 +31,16 @@ export const RATE_LIMIT_POLICIES = {
     limit: 20,
     windowMs: 60_000,
   },
+  meetingParticipantsRead: {
+    bucket: "api:meetings/[id]/participants",
+    limit: 60,
+    windowMs: 60_000,
+  },
+  meetingParticipantsMutate: {
+    bucket: "api:meetings/[id]/participants/[participantId]",
+    limit: 30,
+    windowMs: 60_000,
+  },
   meetingGroupsCreate: {
     bucket: "api:meeting-groups",
     limit: 20,

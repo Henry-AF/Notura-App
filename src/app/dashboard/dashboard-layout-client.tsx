@@ -19,6 +19,7 @@ import {
 import { Logo, LogoFull } from "@/components/logo";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { WhatsAppSupportButton } from "@/components/dashboard/WhatsAppSupportButton";
+import { RecordingSessionProvider } from "@/components/recording";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -503,72 +504,74 @@ export function DashboardLayoutClient({
   }, [refreshUser]);
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-notura-bg">
-      <aside className="group hidden w-16 shrink-0 overflow-hidden border-r border-notura-border/50 bg-notura-bg-secondary transition-[width] duration-[250ms] ease-in-out hover:w-60 lg:block">
-        <SidebarContent
+    <RecordingSessionProvider>
+      <div className="fixed inset-0 flex overflow-hidden bg-notura-bg">
+        <aside className="group hidden w-16 shrink-0 overflow-hidden border-r border-notura-border/50 bg-notura-bg-secondary transition-[width] duration-[250ms] ease-in-out hover:w-60 lg:block">
+          <SidebarContent
+            user={user}
+            collapsible
+            onUpgradeClick={() => setShowPlanModal(true)}
+            onSettingsClick={() => setShowSettingsModal(true)}
+          />
+        </aside>
+
+        <MobileSidebar
+          open={mobileOpen}
           user={user}
-          collapsible
-          onUpgradeClick={() => setShowPlanModal(true)}
-          onSettingsClick={() => setShowSettingsModal(true)}
-        />
-      </aside>
-
-      <MobileSidebar
-        open={mobileOpen}
-        user={user}
-        onClose={() => setMobileOpen(false)}
-        onUpgradeClick={() => {
-          setMobileOpen(false);
-          setShowPlanModal(true);
-        }}
-        onSettingsClick={() => {
-          setMobileOpen(false);
-          setShowSettingsModal(true);
-        }}
-      />
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center gap-3 border-b border-notura-border/50 bg-notura-bg-secondary px-4 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-md p-1.5 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <Link href="/dashboard">
-            <Logo size={24} />
-          </Link>
-        </header>
-
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            {children}
-          </div>
-        </main>
-      </div>
-
-      {showPlanModal && (
-        <PlanModal
-          currentPlan={user.plan}
-          onClose={() => setShowPlanModal(false)}
-          onSuccess={() => void refreshUser()}
-        />
-      )}
-
-      {showSettingsModal && (
-        <SettingsModal
-          currentUser={user}
-          onClose={() => setShowSettingsModal(false)}
+          onClose={() => setMobileOpen(false)}
           onUpgradeClick={() => {
-            setShowSettingsModal(false);
+            setMobileOpen(false);
             setShowPlanModal(true);
           }}
-          onUserChange={setUser}
+          onSettingsClick={() => {
+            setMobileOpen(false);
+            setShowSettingsModal(true);
+          }}
         />
-      )}
 
-      <WhatsAppSupportButton />
-    </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <header className="flex h-14 items-center gap-3 border-b border-notura-border/50 bg-notura-bg-secondary px-4 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="rounded-md p-1.5 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <Link href="/dashboard">
+              <Logo size={24} />
+            </Link>
+          </header>
+
+          <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+              {children}
+            </div>
+          </main>
+        </div>
+
+        {showPlanModal && (
+          <PlanModal
+            currentPlan={user.plan}
+            onClose={() => setShowPlanModal(false)}
+            onSuccess={() => void refreshUser()}
+          />
+        )}
+
+        {showSettingsModal && (
+          <SettingsModal
+            currentUser={user}
+            onClose={() => setShowSettingsModal(false)}
+            onUpgradeClick={() => {
+              setShowSettingsModal(false);
+              setShowPlanModal(true);
+            }}
+            onUserChange={setUser}
+          />
+        )}
+
+        <WhatsAppSupportButton />
+      </div>
+    </RecordingSessionProvider>
   );
 }

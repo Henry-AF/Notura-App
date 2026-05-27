@@ -171,6 +171,11 @@ export async function updateMeetingParticipantDisplayNameForUser(
     throw new MeetingParticipantValidationError("Nenhuma alteração informada.");
   }
 
+  const previousParticipant = await loadMeetingParticipantForUpdate(params.supabase, {
+    meetingId: params.meetingId,
+    participantId: params.participantId,
+  });
+
   const result = await params.supabase
     .from("meeting_participants")
     .update(updatePayload)
@@ -186,6 +191,11 @@ export async function updateMeetingParticipantDisplayNameForUser(
       participantId: participant.id,
     });
   }
+  await updateTaskOwnersForParticipantUpdate(params.supabase, {
+    meetingId: params.meetingId,
+    previousParticipant,
+    participant,
+  });
 
   return participant;
 }
@@ -274,6 +284,23 @@ async function loadParticipantsForMerge(
   );
 }
 
+async function loadMeetingParticipantForUpdate(
+  supabase: SupabaseAdminClient,
+  params: {
+    meetingId: string;
+    participantId: string;
+  }
+): Promise<MeetingParticipant> {
+  const result = await supabase
+    .from("meeting_participants")
+    .select("id, meeting_id, display_name, original_name, role, created_at, updated_at")
+    .eq("id", params.participantId)
+    .eq("meeting_id", params.meetingId)
+    .single();
+
+  return unwrapParticipantUpdateResult(result);
+}
+
 async function updateMeetingSummaryForParticipantMerge(
   supabase: SupabaseAdminClient,
   params: {
@@ -288,8 +315,14 @@ async function updateMeetingSummaryForParticipantMerge(
     .eq("id", params.meetingId)
     .maybeSingle();
 
-  if (result.error || !result.data) {
-    return;
+  if (result.error) {
+    throw new Error(
+      `Failed to load meeting summary before participant merge: ${result.error.message}`
+    );
+  }
+
+  if (!result.data) {
+    throw new Error("Failed to load meeting summary before participant merge");
   }
 
   const updatePayload: MeetingUpdate = {};
@@ -324,6 +357,40 @@ async function updateMeetingSummaryForParticipantMerge(
   }
 }
 
+async function updateTaskOwnersForParticipantUpdate(
+  supabase: SupabaseAdminClient,
+  params: {
+    meetingId: string;
+    previousParticipant: MeetingParticipant;
+    participant: MeetingParticipant;
+  }
+): Promise<void> {
+  const aliases = buildParticipantOwnerAliases(params.previousParticipant, {
+    excludeDisplayName:
+      params.participant.role === "participant"
+        ? params.participant.display_name
+        : undefined,
+  });
+  if (aliases.length === 0) return;
+
+  const nextOwner =
+    params.participant.role === "participant"
+      ? params.participant.display_name
+      : null;
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({ owner: nextOwner })
+    .eq("meeting_id", params.meetingId)
+    .in("owner", aliases);
+
+  if (error) {
+    throw new Error(
+      `Failed to update task owners after participant update: ${error.message}`
+    );
+  }
+}
+
 async function updateTaskOwnersForParticipantMerge(
   supabase: SupabaseAdminClient,
   params: {
@@ -332,7 +399,9 @@ async function updateTaskOwnersForParticipantMerge(
     target: MeetingParticipant;
   }
 ): Promise<void> {
-  const aliases = buildParticipantMergeAliases(params.source, params.target);
+  const aliases = buildParticipantOwnerAliases(params.source, {
+    excludeDisplayName: params.target.display_name,
+  });
   if (aliases.length === 0) return;
 
   const { error } = await supabase
@@ -469,21 +538,23 @@ function replaceParticipantAliasesInText(
   source: MeetingParticipant,
   target: MeetingParticipant
 ): string {
-  return buildParticipantMergeAliases(source, target).reduce(
+  return buildParticipantOwnerAliases(source, {
+    excludeDisplayName: target.display_name,
+  }).reduce(
     (summary, alias) => replaceWholeName(summary, alias, target.display_name),
     text
   );
 }
 
-function buildParticipantMergeAliases(
+function buildParticipantOwnerAliases(
   source: MeetingParticipant,
-  target: MeetingParticipant
+  options: { excludeDisplayName?: string }
 ): string[] {
   return [source.display_name, source.original_name]
     .map((alias) => alias.trim())
     .filter((alias, index, values) =>
       Boolean(alias) &&
-      alias !== target.display_name &&
+      alias !== options.excludeDisplayName &&
       values.indexOf(alias) === index
     )
     .sort((a, b) => b.length - a.length);

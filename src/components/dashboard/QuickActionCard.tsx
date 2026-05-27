@@ -17,14 +17,21 @@ export interface QuickActionCardProps {
   label: string;
   href: string;
   colors: QuickActionCardColors;
+  dataOnboarding?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function QuickActionCard({ label, href, colors }: QuickActionCardProps) {
+export function QuickActionCard({
+  label,
+  href,
+  colors,
+  dataOnboarding,
+}: QuickActionCardProps) {
   return (
     <Link
       href={href}
+      data-onboarding={dataOnboarding}
       className="group relative flex h-32 w-full flex-col justify-end overflow-hidden rounded-lg border border-white/20 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
     >
       {/* Grainient background fills the card */}

@@ -110,6 +110,8 @@ export function RecordingSetupCard({
     accountWhatsappNumberNormalized
   );
   const hasAccountWhatsappNumber = accountWhatsappDisplay.length > 0;
+  const canConfigureWhatsappSummary =
+    canSendWhatsAppSummary && Boolean(selectedGroupId);
 
   useEffect(() => {
     if (!canSendWhatsAppSummary) return;
@@ -149,7 +151,7 @@ export function RecordingSetupCard({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (canSendWhatsAppSummary) {
+    if (canConfigureWhatsappSummary) {
       const whatsappError = getWhatsappNumberValidationError(selectedWhatsappRaw);
       if (whatsappError) {
         onValidationError(whatsappError);
@@ -176,7 +178,7 @@ export function RecordingSetupCard({
     }
 
     onStart({
-      whatsappNumber: canSendWhatsAppSummary
+      whatsappNumber: canConfigureWhatsappSummary
         ? normalizeWhatsappNumber(selectedWhatsappRaw)
         : "",
       recordingMode,
@@ -255,7 +257,7 @@ export function RecordingSetupCard({
 
           {isUploadMode && uploadField ? <div>{uploadField}</div> : null}
 
-          <div>
+          <div data-onboarding="campo-grupo">
             <label className={labelClassName}>Grupo</label>
             <Select
               value={selectedGroupId ?? NO_GROUP_VALUE}
@@ -298,7 +300,8 @@ export function RecordingSetupCard({
           ) : null}
 
           {canSendWhatsAppSummary ? (
-            <div>
+            canConfigureWhatsappSummary ? (
+            <div data-onboarding="campo-numero">
               <label className={labelClassName}>Número WhatsApp para resumo</label>
               <Select
                 value={whatsappSource}
@@ -341,6 +344,11 @@ export function RecordingSetupCard({
                 O número padrão da sua conta já vem selecionado, mas você pode enviar para outro contato.
               </p>
             </div>
+            ) : (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+              Selecione ou crie um grupo para habilitar o envio do resumo por WhatsApp.
+            </div>
+            )
           ) : null}
 
           <Button

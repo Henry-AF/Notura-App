@@ -198,6 +198,7 @@ export interface RecentMeetingsTableProps {
   onRetry: (id: string) => void;
   onViewProcessing: (id: string) => void;
   onRowClick: (id: string) => void;
+  dataOnboarding?: string;
 }
 
 export function RecentMeetingsTable({
@@ -206,9 +207,11 @@ export function RecentMeetingsTable({
   onRetry,
   onViewProcessing,
   onRowClick,
+  dataOnboarding,
 }: RecentMeetingsTableProps) {
   return (
     <div
+      data-onboarding={dataOnboarding}
       className="rounded-[14px] p-3 sm:p-5"
       style={{
         background: "rgb(var(--cn-card))",

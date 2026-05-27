@@ -11,6 +11,7 @@ import SplitText from "@/components/ui/split-text";
 export interface DashboardHeaderProps {
   userName: string;
   meetingsProcessedToday: number;
+  newMeetingOnboardingId?: string;
 }
 
 function getGreeting(): { text: string; emoji: string } {
@@ -23,6 +24,7 @@ function getGreeting(): { text: string; emoji: string } {
 export function DashboardHeader({
   userName,
   meetingsProcessedToday,
+  newMeetingOnboardingId,
 }: DashboardHeaderProps) {
   const greeting = useMemo(() => getGreeting(), []);
 
@@ -66,7 +68,7 @@ export function DashboardHeader({
       descriptionClassName="max-w-none"
       actions={
         <Button asChild size="lg" className="rounded-full px-6">
-          <Link href="/dashboard/recording">
+          <Link href="/dashboard/recording" data-onboarding={newMeetingOnboardingId}>
             <Plus className="h-[18px] w-[18px]" />
             Nova reunião
           </Link>

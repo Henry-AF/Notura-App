@@ -20,6 +20,10 @@ import {
   getPreferredRecordingMimeType,
   type MeetingRecordingCapture,
 } from "@/lib/meetings/recording-session";
+import {
+  acquireRecordingWakeLock,
+  type RecordingWakeLock,
+} from "@/lib/meetings/recording-wake-lock";
 import { submitRecordedMeeting } from "@/app/dashboard/recording/recording-api";
 import { RecordingOverlay, type RecordingOverlayStage } from "./RecordingOverlay";
 import type { RecordingMode, RecordingSetupValues } from "./RecordingSetupCard";
@@ -171,6 +175,7 @@ export function RecordingSessionProvider({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const captureCleanupRef = useRef<(() => void) | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const wakeLockRef = useRef<RecordingWakeLock | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -187,6 +192,12 @@ export function RecordingSessionProvider({
     captureCleanupRef.current = null;
     mediaStreamRef.current = null;
   }, [clearTimer]);
+
+  const releaseWakeLock = useCallback(() => {
+    const wakeLock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    void wakeLock?.release();
+  }, []);
 
   const resetRecordingState = useCallback(() => {
     cleanupRecorderResources();
@@ -205,6 +216,29 @@ export function RecordingSessionProvider({
   useEffect(() => {
     return () => cleanupRecorderResources();
   }, [cleanupRecorderResources]);
+
+  useEffect(() => {
+    if (overlayStage !== "recording" || isPaused) {
+      releaseWakeLock();
+      return;
+    }
+
+    let isCancelled = false;
+
+    void acquireRecordingWakeLock().then((wakeLock) => {
+      if (isCancelled) {
+        void wakeLock.release();
+        return;
+      }
+
+      wakeLockRef.current = wakeLock;
+    });
+
+    return () => {
+      isCancelled = true;
+      releaseWakeLock();
+    };
+  }, [isPaused, overlayStage, releaseWakeLock]);
 
   useEffect(() => {
     if (overlayStage !== "recording" || isPaused) {

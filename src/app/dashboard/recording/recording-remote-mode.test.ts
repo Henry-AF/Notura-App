@@ -27,6 +27,7 @@ describe("recording page remote mode", () => {
     expect(provider).toContain('values.recordingMode === "remote"');
     expect(provider).toContain("captureCleanupRef");
     expect(provider).toContain("RecordingOverlay");
+    expect(provider).toContain("acquireRecordingWakeLock");
   });
 
   it("supports pausing, continuing, and resuming a stopped recording", () => {

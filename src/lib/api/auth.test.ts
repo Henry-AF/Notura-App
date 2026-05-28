@@ -52,7 +52,7 @@ describe("route auth helper", () => {
     const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));
 
     const response = await handler(new Request("http://localhost"), {
-      params: {},
+      params: Promise.resolve({}),
     });
 
     expect(response.status).toBe(401);
@@ -79,7 +79,7 @@ describe("route auth helper", () => {
     );
 
     const response = await handler(new Request("http://localhost"), {
-      params: { id: "meeting-1" },
+      params: Promise.resolve({ id: "meeting-1" }),
     });
 
     expect(response.status).toBe(200);
@@ -90,6 +90,26 @@ describe("route auth helper", () => {
       hasAdminClient: true,
       resourceId: "meeting-1",
     });
+  });
+
+  it("resolves async route params before calling the wrapped handler", async () => {
+    createServerSupabase.mockReturnValue(
+      createServerClient({ id: "user-1", email: "user@example.com" })
+    );
+
+    createServiceRoleClient.mockReturnValue({ from: vi.fn() });
+
+    const mod = await import("./auth");
+    const handler = mod.withAuth<{ id: string }>(async (_request, { params }) =>
+      NextResponse.json({ resourceId: params.id })
+    );
+
+    const response = await handler(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "meeting-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ resourceId: "meeting-1" });
   });
 
   it("authenticates mobile requests with a Supabase Bearer access token", async () => {
@@ -116,7 +136,7 @@ describe("route auth helper", () => {
           Authorization: "Bearer mobile-access-token",
         },
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
 
     expect(response.status).toBe(200);
@@ -141,7 +161,7 @@ describe("route auth helper", () => {
           Authorization: "Bearer invalid-token",
         },
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
 
     expect(response.status).toBe(401);

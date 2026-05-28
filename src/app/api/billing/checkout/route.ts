@@ -55,7 +55,7 @@ async function readCheckoutBody(request: NextRequest): Promise<CreateCheckoutBod
   }
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.billingCheckout,
   async (request: NextRequest, { auth }) => {
     try {

@@ -20,12 +20,16 @@ type OwnedResourceRow = {
 
 export interface RouteAuthContext {
   user: User;
-  supabase: ReturnType<typeof createServerSupabase>;
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>;
   supabaseAdmin: SupabaseClient<Database>;
 }
 
 interface RouteContext<TParams extends RouteParams> {
   params: TParams;
+}
+
+interface NextRouteContext<TParams extends RouteParams> {
+  params: Promise<TParams>;
 }
 
 interface AuthenticatedRouteContext<TParams extends RouteParams>
@@ -64,7 +68,7 @@ function readBearerAccessToken(request: Request): string | null {
 }
 
 export async function requireAuth(request?: Request): Promise<RouteAuthContext> {
-  const supabase = createServerSupabase();
+  const supabase = await createServerSupabase();
   const bearerAccessToken = request ? readBearerAccessToken(request) : null;
   const {
     data: { user },
@@ -105,14 +109,14 @@ export async function requireOwnership(
 }
 
 export function withAuth<
-  TParams extends RouteParams = RouteParams,
+  TParams extends RouteParams = Record<string, never>,
   TRequest extends Request = Request
 >(
   handler: AuthenticatedRouteHandler<TParams, TRequest>
 ) {
   return async (
     request: TRequest,
-    context: RouteContext<TParams>
+    context: NextRouteContext<TParams>
   ): Promise<Response> => {
     const requestId = createRequestId(request);
     const route = getRoutePath(request);
@@ -122,7 +126,9 @@ export function withAuth<
     try {
       const auth = await requireAuth(request);
       userId = auth.user.id;
-      const response = await handler(request, { ...context, auth });
+      const maybeContext = context as NextRouteContext<TParams> | undefined;
+      const params = maybeContext ? await maybeContext.params : ({} as TParams);
+      const response = await handler(request, { params, auth });
       withRequestIdHeader(response, requestId);
 
       logStructured("info", {

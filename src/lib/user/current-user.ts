@@ -78,7 +78,7 @@ export async function getCurrentUserForIdentity(
 }
 
 export async function getCurrentUserFromRequest(): Promise<CurrentUser | null> {
-  const supabase = createServerSupabase();
+  const supabase = await createServerSupabase();
   const {
     data: { user },
     error,

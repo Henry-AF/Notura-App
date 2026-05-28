@@ -21,6 +21,10 @@ interface RouteContext<TParams extends RouteParams> {
   params: TParams;
 }
 
+interface NextRouteContext<TParams extends RouteParams> {
+  params: Promise<TParams>;
+}
+
 interface AuthenticatedRouteContext<TParams extends RouteParams>
   extends RouteContext<TParams> {
   auth: RouteAuthContext;
@@ -43,7 +47,7 @@ type PublicRateLimitedHandler<
 ) => Promise<Response>;
 
 export function withAuthRateLimit<
-  TParams extends RouteParams = RouteParams,
+  TParams extends RouteParams = Record<string, never>,
   TRequest extends Request = Request
 >(
   policy: RateLimitPolicy,
@@ -67,12 +71,15 @@ export function withAuthRateLimit<
 
 export function withPublicRateLimit<
   TRequest extends Request = Request,
-  TContext = undefined
+  TParams extends RouteParams = Record<string, never>
 >(
   policy: RateLimitPolicy,
-  handler: PublicRateLimitedHandler<TRequest, TContext>
+  handler: PublicRateLimitedHandler<TRequest, RouteContext<TParams>>
 ) {
-  return async (request: TRequest, context: TContext): Promise<Response> => {
+  return async (
+    request: TRequest,
+    context: NextRouteContext<TParams>
+  ): Promise<Response> => {
     const requestId = createRequestId(request);
     const route = getRoutePath(request);
     const startedAt = Date.now();
@@ -98,7 +105,9 @@ export function withPublicRateLimit<
         return limitedResponse;
       }
 
-      const response = await handler(request, context);
+      const maybeContext = context as NextRouteContext<TParams> | undefined;
+      const params = maybeContext ? await maybeContext.params : ({} as TParams);
+      const response = await handler(request, { params });
       attachRateLimitHeaders(response, decision.headers);
       withRequestIdHeader(response, requestId);
 

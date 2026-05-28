@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     return redirectToLogin(requestUrl);
   }
 
-  const supabase = createServerSupabase();
+  const supabase = await createServerSupabase();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {

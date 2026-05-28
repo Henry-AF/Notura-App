@@ -43,7 +43,7 @@ function resolveCheckoutCustomerId(
   throw new AbacatePayCustomerNotReadyError();
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.abacatepayCheckout,
   async (request: NextRequest, { auth }) => {
   const startedAt = Date.now();

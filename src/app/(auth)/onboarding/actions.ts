@@ -15,7 +15,7 @@ interface SaveOnboardingProfileResult {
 export async function saveOnboardingProfile(
   input: SaveOnboardingProfileInput
 ): Promise<SaveOnboardingProfileResult> {
-  const supabase = createServerSupabase();
+  const supabase = await createServerSupabase();
   const {
     data: { user },
     error: authError,

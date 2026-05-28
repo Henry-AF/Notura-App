@@ -41,7 +41,7 @@ function buildDefaultMeetingTitle(meetingDate: string): string {
   return `Reunião ${meetingDate}`;
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
   async (req: NextRequest, { auth }) => {
     const startedAt = Date.now();

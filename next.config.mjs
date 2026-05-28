@@ -1,4 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import { fileURLToPath } from "node:url";
+
 // In development, disable TLS certificate verification to work around
 // corporate proxies that intercept HTTPS with their own certificates.
 // This only affects the local dev server — production (Vercel) is unaffected.
@@ -8,6 +10,7 @@ if (process.env.NODE_ENV === "development") {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: fileURLToPath(new URL(".", import.meta.url)),
   experimental: {
     webpackBuildWorker: false,
   },

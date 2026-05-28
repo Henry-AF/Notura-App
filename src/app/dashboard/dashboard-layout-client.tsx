@@ -16,6 +16,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import posthog from "posthog-js";
 import { Logo, LogoFull } from "@/components/logo";
 import { SidebarPlanWidget } from "@/components/dashboard/SidebarPlanWidget";
 import { WhatsAppSupportButton } from "@/components/dashboard/WhatsAppSupportButton";
@@ -142,6 +143,8 @@ function UserDropdown({
 
   const handleLogout = useCallback(async () => {
     try {
+      posthog.capture("user_logged_out");
+      posthog.reset();
       await logoutCurrentUser();
       router.replace("/login");
       router.refresh();

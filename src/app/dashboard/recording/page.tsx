@@ -23,6 +23,7 @@ import {
   createMeetingGroup,
   type MeetingGroupOption,
 } from "@/lib/meeting-groups-client";
+import posthog from "posthog-js";
 import { fetchRecordingDefaults } from "./recording-api";
 import { submitUploadedMeeting } from "./recording-upload-api";
 
@@ -498,6 +499,12 @@ function RecordingPageInner() {
             onUploadProgress: setUploadProgress,
           });
 
+          posthog.capture("meeting_upload_submitted", {
+            file_type: uploadFile.type,
+            file_size_mb: Math.round(uploadFile.size / (1024 * 1024) * 10) / 10,
+            has_group: Boolean(values.groupId),
+            has_whatsapp: Boolean(values.whatsappNumber),
+          });
           router.push(`/dashboard/processing?id=${meetingId}`);
         } catch (error) {
           show(
@@ -513,7 +520,13 @@ function RecordingPageInner() {
 
       try {
         await startRecording(values);
+        posthog.capture("meeting_recording_started", {
+          recording_mode: values.recordingMode,
+          has_group: Boolean(values.groupId),
+          has_whatsapp: Boolean(values.whatsappNumber),
+        });
       } catch (error) {
+        posthog.captureException(error instanceof Error ? error : new Error(String(error)));
         show(
           error instanceof Error
             ? error.message

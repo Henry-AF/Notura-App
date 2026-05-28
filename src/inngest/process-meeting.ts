@@ -621,6 +621,7 @@ async function runSummaryStep(input: {
   supabase: ServiceRoleClient;
   jobId: string;
   meetingId: string;
+  userId: string;
   transcript: string;
   durationSeconds: number | null;
 }) {
@@ -631,7 +632,8 @@ async function runSummaryStep(input: {
       try {
         return await generateMeetingSummary(
           input.transcript,
-          input.durationSeconds
+          input.durationSeconds,
+          { distinctId: input.userId, traceId: input.meetingId }
         );
       } catch (error) {
         throw toProviderQueueError("gemini", error);
@@ -1116,6 +1118,7 @@ async function runSummarySaveAndDelivery(
     supabase,
     jobId,
     meetingId: eventData.meetingId,
+    userId: eventData.userId,
     transcript: transcription.transcript,
     durationSeconds: transcription.durationSeconds,
   });

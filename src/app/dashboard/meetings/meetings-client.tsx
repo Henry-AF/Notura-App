@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { Plus, RefreshCw, Search, Sparkles, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -156,6 +157,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
   const [cancelingMeetingId, setCancelingMeetingId] = useState<string | null>(null);
 
   const handleRetry = useCallback(async (id: string) => {
+    posthog.capture("meeting_retry_clicked", { meeting_id: id });
     try {
       const response = await fetch(`/api/meetings/${id}/retry`, { method: "POST" });
       if (!response.ok) throw new Error("retry failed");

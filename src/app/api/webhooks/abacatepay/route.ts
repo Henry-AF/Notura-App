@@ -20,6 +20,7 @@ import {
   getErrorMessage,
   logStructured,
 } from "@/lib/observability";
+import { getPostHogClient } from "@/lib/posthog-server";
 import type { Plan } from "@/types/database";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
@@ -363,6 +364,12 @@ async function handleSubscriptionCanceled(
         return NextResponse.json({ error: message }, { status: 500 });
       }
 
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: parsed.userId,
+        event: "subscription_canceled",
+        properties: { provider: "abacatepay" },
+      });
       console.log(`[webhook-abacatepay] subscription.canceled userId=${parsed.userId}`);
       return NextResponse.json({ received: true });
     }
@@ -390,6 +397,12 @@ async function handleSubscriptionCanceled(
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
+    const posthogOnCancel = getPostHogClient();
+    posthogOnCancel.capture({
+      distinctId: customerId,
+      event: "subscription_canceled",
+      properties: { provider: "abacatepay" },
+    });
     console.log(`[webhook-abacatepay] subscription.canceled customerId=${customerId}`);
   }
 

@@ -6,6 +6,7 @@
 //   - generateMeetingSummary(transcript) → meeting summary envelope
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { randomUUID } from "node:crypto";
 import {
   GoogleGenerativeAI,
   TaskType,
@@ -16,7 +17,13 @@ import {
   type GeminiMeetingParticipantDraft,
   type StructuredSummaryDraft,
 } from "@/lib/meetings/summary-structured";
+import { getPostHogClient } from "@/lib/posthog-server";
 import type { MeetingJSON } from "@/types/database";
+
+export interface GeminiObservabilityOptions {
+  distinctId?: string;
+  traceId?: string;
+}
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -123,6 +130,8 @@ type EmbedContentRequestWithDimensionality = EmbedContentRequest & {
 interface GeminiTextGenerationResult {
   text: string;
   modelName: (typeof TEXT_MODEL_NAMES)[number];
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 interface GeminiGenerateContentRequestOptions {
@@ -492,6 +501,8 @@ async function generateTextWithFallback(
       return {
         text: result.response.text(),
         modelName,
+        inputTokens: result.response.usageMetadata?.promptTokenCount,
+        outputTokens: result.response.usageMetadata?.candidatesTokenCount,
       };
     } catch (error) {
       if (
@@ -659,12 +670,32 @@ function normalizeMeetingQuestionAnswer(
 
 export async function generateMeetingSummary(
   transcript: string,
-  durationSeconds?: number | null
+  durationSeconds?: number | null,
+  phOptions?: GeminiObservabilityOptions
 ): Promise<MeetingSummaryResult> {
+  const traceId = phOptions?.traceId ?? randomUUID();
+  const startedAt = Date.now();
+
   const generation = await generateTextWithFallback(
     SYSTEM_SUMMARIZE,
     buildMeetingSummaryPrompt(transcript, durationSeconds)
   );
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: phOptions?.distinctId ?? "server",
+    event: "$ai_generation",
+    properties: {
+      $ai_trace_id: traceId,
+      $ai_span_name: "generate_meeting_summary",
+      $ai_model: generation.modelName,
+      $ai_provider: "google",
+      $ai_input_tokens: generation.inputTokens,
+      $ai_output_tokens: generation.outputTokens,
+      $ai_latency: (Date.now() - startedAt) / 1000,
+    },
+  });
+
   const text = generation.text;
 
   if (!text) throw new Error("Gemini returned empty response for meeting summary");
@@ -692,9 +723,13 @@ export async function generateMeetingSummary(
 
 export async function generateEmbedding(
   text: string,
-  options: GenerateEmbeddingOptions = {}
+  options: GenerateEmbeddingOptions = {},
+  phOptions?: GeminiObservabilityOptions
 ): Promise<number[]> {
-  return withRetry(async () => {
+  const traceId = phOptions?.traceId ?? randomUUID();
+  const startedAt = Date.now();
+
+  const values = await withRetry(async () => {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL_NAME });
     const request: EmbedContentRequestWithDimensionality = {
@@ -707,23 +742,60 @@ export async function generateEmbedding(
     };
 
     const result = await model.embedContent(request);
-    const values = result.embedding.values;
+    const embedding = result.embedding.values;
 
-    if (values.length !== EMBEDDING_OUTPUT_DIMENSIONS) {
+    if (embedding.length !== EMBEDDING_OUTPUT_DIMENSIONS) {
       throw new Error("Gemini returned an embedding with unexpected dimensions");
     }
 
-    return values;
+    return embedding;
   });
+
+  if (phOptions) {
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: phOptions.distinctId ?? "server",
+      event: "$ai_embedding",
+      properties: {
+        $ai_trace_id: traceId,
+        $ai_span_name: "generate_embedding",
+        $ai_model: EMBEDDING_MODEL_NAME,
+        $ai_provider: "google",
+        $ai_latency: (Date.now() - startedAt) / 1000,
+      },
+    });
+  }
+
+  return values;
 }
 
 export async function answerMeetingQuestionFromChunks(
-  input: MeetingQuestionAnswerInput
+  input: MeetingQuestionAnswerInput,
+  phOptions?: GeminiObservabilityOptions
 ): Promise<MeetingQuestionAnswerResult> {
+  const traceId = phOptions?.traceId ?? randomUUID();
+  const startedAt = Date.now();
+
   const generation = await generateTextWithFallback(
     SYSTEM_ANSWER_FROM_TRANSCRIPT,
     buildMeetingQuestionPrompt(input)
   );
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: phOptions?.distinctId ?? "server",
+    event: "$ai_generation",
+    properties: {
+      $ai_trace_id: traceId,
+      $ai_span_name: "answer_meeting_question",
+      $ai_model: generation.modelName,
+      $ai_provider: "google",
+      $ai_input_tokens: generation.inputTokens,
+      $ai_output_tokens: generation.outputTokens,
+      $ai_latency: (Date.now() - startedAt) / 1000,
+    },
+  });
+
   const text = generation.text;
   if (!text) throw new Error("Gemini returned empty response for meeting chat");
 

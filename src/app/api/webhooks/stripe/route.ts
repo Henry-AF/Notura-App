@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { getPostHogClient } from "@/lib/posthog-server";
 import {
   captureObservedError,
   createTraceId,
@@ -160,6 +161,12 @@ export const POST = withPublicRateLimit<NextRequest>(
           },
           supabase
         );
+        const posthog = getPostHogClient();
+        posthog.capture({
+          distinctId: userId,
+          event: "checkout_completed",
+          properties: { plan, provider: "stripe" },
+        });
         console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
         break;
       }
@@ -258,6 +265,12 @@ export const POST = withPublicRateLimit<NextRequest>(
         }
 
         await downgradeToFree({ stripeCustomerId: customerId }, supabase);
+        const posthogOnCancel = getPostHogClient();
+        posthogOnCancel.capture({
+          distinctId: customerId,
+          event: "subscription_canceled",
+          properties: { provider: "stripe" },
+        });
         console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
         break;
       }

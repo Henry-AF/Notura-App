@@ -73,6 +73,23 @@ async function syncStripeSubscriptionState(
   }
 }
 
+async function loadUserIdByStripeCustomerId(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  stripeCustomerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .select("user_id")
+    .eq("stripe_customer_id", stripeCustomerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing account for Stripe customer: ${error.message}`);
+  }
+
+  return data?.user_id ?? null;
+}
+
 export const POST = withPublicRateLimit<NextRequest>(
   RATE_LIMIT_POLICIES.stripeWebhook,
   async (request: NextRequest) => {
@@ -264,13 +281,16 @@ export const POST = withPublicRateLimit<NextRequest>(
           break;
         }
 
+        const userId = await loadUserIdByStripeCustomerId(supabase, customerId);
         await downgradeToFree({ stripeCustomerId: customerId }, supabase);
         const posthogOnCancel = getPostHogClient();
-        posthogOnCancel.capture({
-          distinctId: customerId,
-          event: "subscription_canceled",
-          properties: { provider: "stripe" },
-        });
+        if (userId) {
+          posthogOnCancel.capture({
+            distinctId: userId,
+            event: "subscription_canceled",
+            properties: { provider: "stripe", stripe_customer_id: customerId },
+          });
+        }
         console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
         break;
       }

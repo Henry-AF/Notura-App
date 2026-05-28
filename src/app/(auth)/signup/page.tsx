@@ -53,7 +53,7 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -66,8 +66,10 @@ export default function SignupPage() {
         return;
       }
 
-      posthog.identify(email, { email, name });
-      posthog.capture("user_signed_up", { method: "email", email });
+      if (data.user) {
+        posthog.identify(data.user.id);
+        posthog.capture("user_signed_up", { method: "email" });
+      }
       router.push("/onboarding");
     } catch (signupError) {
       setError(formatSignupError(signupError));

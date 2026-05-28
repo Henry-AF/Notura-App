@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -40,8 +40,10 @@ export default function LoginPage() {
         return;
       }
 
-      posthog.identify(email, { email });
-      posthog.capture("user_logged_in", { method: "email" });
+      if (data.user) {
+        posthog.identify(data.user.id);
+        posthog.capture("user_logged_in", { method: "email" });
+      }
       router.replace("/dashboard");
     } catch {
       setError("Ocorreu um erro inesperado. Tente novamente.");

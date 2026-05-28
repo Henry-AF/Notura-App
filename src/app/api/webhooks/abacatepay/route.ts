@@ -118,6 +118,23 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
   );
 }
 
+async function loadUserIdByAbacatePayCustomerId(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  abacatepayCustomerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .select("user_id")
+    .eq("abacatepay_customer_id", abacatepayCustomerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing account for AbacatePay customer: ${error.message}`);
+  }
+
+  return data?.user_id ?? null;
+}
+
 type PeriodEndSource = {
   currentPeriodEnd?: string;
   current_period_end?: string;
@@ -397,12 +414,15 @@ async function handleSubscriptionCanceled(
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
+    const userId = await loadUserIdByAbacatePayCustomerId(supabase, customerId);
     const posthogOnCancel = getPostHogClient();
-    posthogOnCancel.capture({
-      distinctId: customerId,
-      event: "subscription_canceled",
-      properties: { provider: "abacatepay" },
-    });
+    if (userId) {
+      posthogOnCancel.capture({
+        distinctId: userId,
+        event: "subscription_canceled",
+        properties: { provider: "abacatepay", abacatepay_customer_id: customerId },
+      });
+    }
     console.log(`[webhook-abacatepay] subscription.canceled customerId=${customerId}`);
   }
 

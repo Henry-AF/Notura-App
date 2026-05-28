@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { createBillingCheckout } from "@/lib/billing-gateway";
 import type { BillingGatewaySource } from "@/lib/billing-gateway";
 import { BillingGatewayError } from "@/lib/billing-gateway-errors";
@@ -55,7 +56,7 @@ async function readCheckoutBody(request: NextRequest): Promise<CreateCheckoutBod
   }
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.billingCheckout,
   async (request: NextRequest, { auth }) => {
     try {
@@ -76,6 +77,17 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
         source: normalizeCheckoutSource(body.source),
         requestOrigin: new URL(request.url).origin,
         billingCycle: resolveBillingCycle(body.billingCycle),
+      });
+
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: auth.user.id,
+        event: "checkout_started",
+        properties: {
+          plan,
+          billing_cycle: resolveBillingCycle(body.billingCycle),
+          source: normalizeCheckoutSource(body.source),
+        },
       });
 
       return NextResponse.json(result);

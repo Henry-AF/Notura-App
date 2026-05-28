@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
 import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -52,7 +53,7 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -65,6 +66,10 @@ export default function SignupPage() {
         return;
       }
 
+      if (data.user) {
+        posthog.identify(data.user.id);
+        posthog.capture("user_signed_up", { method: "email" });
+      }
       router.push("/onboarding");
     } catch (signupError) {
       setError(formatSignupError(signupError));

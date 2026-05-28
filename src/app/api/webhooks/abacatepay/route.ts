@@ -20,6 +20,7 @@ import {
   getErrorMessage,
   logStructured,
 } from "@/lib/observability";
+import { getPostHogClient } from "@/lib/posthog-server";
 import type { Plan } from "@/types/database";
 
 const WEBHOOK_SECRET = process.env.ABACATEPAY_WEBHOOK_SECRET;
@@ -115,6 +116,23 @@ function readEventCustomerId(data: AbacatePayWebhookEvent["data"]): string | und
     data.checkout?.customerId ??
     data.subscription?.customerId
   );
+}
+
+async function loadUserIdByAbacatePayCustomerId(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  abacatepayCustomerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .select("user_id")
+    .eq("abacatepay_customer_id", abacatepayCustomerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing account for AbacatePay customer: ${error.message}`);
+  }
+
+  return data?.user_id ?? null;
 }
 
 type PeriodEndSource = {
@@ -363,6 +381,12 @@ async function handleSubscriptionCanceled(
         return NextResponse.json({ error: message }, { status: 500 });
       }
 
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: parsed.userId,
+        event: "subscription_canceled",
+        properties: { provider: "abacatepay" },
+      });
       console.log(`[webhook-abacatepay] subscription.canceled userId=${parsed.userId}`);
       return NextResponse.json({ received: true });
     }
@@ -390,6 +414,15 @@ async function handleSubscriptionCanceled(
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
+    const userId = await loadUserIdByAbacatePayCustomerId(supabase, customerId);
+    const posthogOnCancel = getPostHogClient();
+    if (userId) {
+      posthogOnCancel.capture({
+        distinctId: userId,
+        event: "subscription_canceled",
+        properties: { provider: "abacatepay", abacatepay_customer_id: customerId },
+      });
+    }
     console.log(`[webhook-abacatepay] subscription.canceled customerId=${customerId}`);
   }
 

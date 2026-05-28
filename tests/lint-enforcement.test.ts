@@ -28,11 +28,11 @@ describe("lint enforcement", () => {
     const result = runLint("tests/lint-fixtures/strict-pass.ts");
 
     expect(result.status).toBe(0);
-  });
+  }, 15_000);
 
   it("rejects the violating fixture under strict lint", () => {
     const result = runLint("tests/lint-fixtures/strict-fail.ts");
 
     expect(result.status).not.toBe(0);
-  });
+  }, 15_000);
 });

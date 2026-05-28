@@ -134,10 +134,10 @@ export function Silk({
         iTime:         { value: 0 },
         iResolution:   { value: new Float32Array([1, 1]) },
         uColor:        { value: new Float32Array([1, 1, 1]) },
-        uSpeed:        { value: speed },
-        uScale:        { value: scale },
-        uRotation:     { value: rotation },
-        uNoiseIntensity: { value: noiseIntensity },
+        uSpeed:        { value: 5 },
+        uScale:        { value: 1 },
+        uRotation:     { value: 0 },
+        uNoiseIntensity: { value: 1.5 },
       },
     });
 
@@ -221,7 +221,7 @@ export function Silk({
     u.uRotation.value     = rotation;
     u.uNoiseIntensity.value = noiseIntensity;
     u.uColor.value        = new Float32Array(hexToRgb(color));
-  }, [color, speed, scale, noiseIntensity, rotation]);
+  }, [color, noiseIntensity, rotation, scale, speed]);
 
   return (
     <div

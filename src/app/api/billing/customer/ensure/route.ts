@@ -22,7 +22,7 @@ async function readEnsureCustomerBody(
   }
 }
 
-export const POST = withAuth<Record<string, string>, NextRequest>(
+export const POST = withAuth<Record<string, never>, NextRequest>(
   async (request: NextRequest, { auth }) => {
     try {
       const body = await readEnsureCustomerBody(request);

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { withPublicRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { getPostHogClient } from "@/lib/posthog-server";
 import {
   captureObservedError,
   createTraceId,
@@ -70,6 +71,23 @@ async function syncStripeSubscriptionState(
   if (error) {
     throw new Error(`Failed to sync Stripe subscription state: ${error.message}`);
   }
+}
+
+async function loadUserIdByStripeCustomerId(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  stripeCustomerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .select("user_id")
+    .eq("stripe_customer_id", stripeCustomerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing account for Stripe customer: ${error.message}`);
+  }
+
+  return data?.user_id ?? null;
 }
 
 export const POST = withPublicRateLimit<NextRequest>(
@@ -160,6 +178,12 @@ export const POST = withPublicRateLimit<NextRequest>(
           },
           supabase
         );
+        const posthog = getPostHogClient();
+        posthog.capture({
+          distinctId: userId,
+          event: "checkout_completed",
+          properties: { plan, provider: "stripe" },
+        });
         console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
         break;
       }
@@ -257,7 +281,16 @@ export const POST = withPublicRateLimit<NextRequest>(
           break;
         }
 
+        const userId = await loadUserIdByStripeCustomerId(supabase, customerId);
         await downgradeToFree({ stripeCustomerId: customerId }, supabase);
+        const posthogOnCancel = getPostHogClient();
+        if (userId) {
+          posthogOnCancel.capture({
+            distinctId: userId,
+            event: "subscription_canceled",
+            properties: { provider: "stripe", stripe_customer_id: customerId },
+          });
+        }
         console.log(`[stripe-webhook] Downgraded customer ${customerId} to free`);
         break;
       }

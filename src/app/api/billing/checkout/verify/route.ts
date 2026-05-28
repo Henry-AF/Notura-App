@@ -16,7 +16,7 @@ async function readVerifyBody(request: NextRequest): Promise<VerifyCheckoutBody>
   }
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.billingCheckoutVerify,
   async (request: NextRequest, { auth }) => {
     try {

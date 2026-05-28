@@ -6,19 +6,20 @@ import { MeetingDetailClient } from "./meeting-detail-client";
 export default async function MeetingDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   let initialMeeting: MeetingDetailData | null = null;
 
   try {
-    initialMeeting = await fetchMeetingDetail(params.id);
+    initialMeeting = await fetchMeetingDetail(id);
   } catch {
     initialMeeting = null;
   }
 
   return (
     <ToastProvider>
-      <MeetingDetailClient id={params.id} initialMeeting={initialMeeting} />
+      <MeetingDetailClient id={id} initialMeeting={initialMeeting} />
     </ToastProvider>
   );
 }

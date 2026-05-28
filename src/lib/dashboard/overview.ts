@@ -73,7 +73,7 @@ function getStartOfDayIso(now: Date): string {
 }
 
 async function getAuthenticatedUser() {
-  const supabaseAuth = createServerSupabase();
+  const supabaseAuth = await createServerSupabase();
   const {
     data: { user },
     error,

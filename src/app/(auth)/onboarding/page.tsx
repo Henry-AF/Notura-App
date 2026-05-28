@@ -17,6 +17,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import posthog from "posthog-js";
 import {
   BillingCycleProvider,
   useBillingCycle,
@@ -654,6 +655,7 @@ function OnboardingPageContent() {
         return;
       }
 
+      posthog.capture("onboarding_phone_saved");
       setStep(2);
     } catch {
       setError("Ocorreu um erro inesperado ao salvar seu número.");
@@ -667,12 +669,14 @@ function OnboardingPageContent() {
     setError(null);
 
     if (selectedPlan === "free") {
+      posthog.capture("onboarding_plan_selected", { plan: "free", billing_cycle: billingCycle });
       setLoading(false);
       setStep(3);
       return;
     }
 
     if (selectedPlan === "enterprise") {
+      posthog.capture("onboarding_plan_selected", { plan: "enterprise" });
       setLoading(false);
       window.open(getPricingPlan("enterprise").contactHref, "_blank", "noopener,noreferrer");
       return;
@@ -683,6 +687,8 @@ function OnboardingPageContent() {
       setError("Plano inválido para checkout.");
       return;
     }
+
+    posthog.capture("onboarding_plan_selected", { plan: selectedPlan, billing_cycle: billingCycle });
 
     try {
       const checkout = await startOnboardingCheckout(
@@ -695,6 +701,7 @@ function OnboardingPageContent() {
       }
 
       if (checkout.checkoutUrl) {
+        posthog.capture("onboarding_checkout_started", { plan: selectedPlan, billing_cycle: billingCycle });
         window.location.assign(checkout.checkoutUrl);
       }
     } catch (checkoutError) {
@@ -725,7 +732,10 @@ function OnboardingPageContent() {
             loading={loading}
             onPhoneChange={setPhone}
             onContinue={handleSavePhone}
-            onSkip={() => setStep(2)}
+            onSkip={() => {
+              posthog.capture("onboarding_phone_skipped");
+              setStep(2);
+            }}
           />
         ) : step === 2 ? (
           <PlanStep
@@ -740,7 +750,10 @@ function OnboardingPageContent() {
             onContinue={handleSelectPlan}
           />
         ) : (
-          <SuccessStep onContinue={() => router.push("/dashboard")} />
+          <SuccessStep onContinue={() => {
+            posthog.capture("onboarding_completed");
+            router.push("/dashboard");
+          }} />
         )}
       </div>
     </OnboardingShell>

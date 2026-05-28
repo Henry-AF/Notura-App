@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
 import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -28,7 +29,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -39,6 +40,10 @@ export default function LoginPage() {
         return;
       }
 
+      if (data.user) {
+        posthog.identify(data.user.id);
+        posthog.capture("user_logged_in", { method: "email" });
+      }
       router.replace("/dashboard");
     } catch {
       setError("Ocorreu um erro inesperado. Tente novamente.");

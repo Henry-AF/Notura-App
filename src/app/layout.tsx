@@ -33,10 +33,6 @@ export default function RootLayout({
       className={`${plusJakarta.variable} ${inter.variable}`}
     >
       <head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
-        />
         {/* Restore saved theme before first paint to avoid flash on dashboard */}
         <script
           dangerouslySetInnerHTML={{

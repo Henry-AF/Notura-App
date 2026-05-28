@@ -25,7 +25,7 @@ function getStripeSubscriptionId(account: StripeSubscriptionAccount): string | n
   return account.stripe_subscription_id ?? null;
 }
 
-export const PATCH = withAuth<Record<string, string>, NextRequest>(
+export const PATCH = withAuth<Record<string, never>, NextRequest>(
   async (request: NextRequest, { auth }) => {
     try {
       const body = await readAutoRenewBody(request);

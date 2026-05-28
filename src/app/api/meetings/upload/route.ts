@@ -18,7 +18,7 @@ interface UploadInitPayload {
   fileSize?: unknown;
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsUpload,
   async (request: NextRequest, { auth }) => {
     const { quotaStatus } = await getBillingStatus(auth.user.id);

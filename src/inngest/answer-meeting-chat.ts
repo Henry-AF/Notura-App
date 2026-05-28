@@ -519,7 +519,11 @@ export const answerMeetingChat = inngest.createFunction(
         },
         () =>
           step.run("embed-question", () =>
-            generateEmbedding(chat.question, { taskType: TaskType.RETRIEVAL_QUERY })
+            generateEmbedding(
+              chat.question,
+              { taskType: TaskType.RETRIEVAL_QUERY },
+              { distinctId: chat.user_id, traceId: chat.id }
+            )
           )
       );
       metricState.questionEmbeddingGenerated = true;
@@ -566,7 +570,10 @@ export const answerMeetingChat = inngest.createFunction(
         },
         () =>
           step.run("answer-from-chunks", () =>
-            answerMeetingQuestionFromChunks({ question: chat.question, chunks: sources })
+            answerMeetingQuestionFromChunks(
+              { question: chat.question, chunks: sources },
+              { distinctId: chat.user_id, traceId: chat.id }
+            )
           )
       );
       metricState.answerText = answer.answer;

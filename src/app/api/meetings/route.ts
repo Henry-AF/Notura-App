@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/auth";
 import { getOwnedMeetingsForAuth } from "@/lib/meetings/list";
 
-export const GET = withAuth<Record<string, string>, NextRequest>(async (
+export const GET = withAuth<Record<string, never>, NextRequest>(async (
   _request: NextRequest,
   { auth }
 ) => {

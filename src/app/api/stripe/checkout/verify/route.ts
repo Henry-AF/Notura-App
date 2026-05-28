@@ -13,7 +13,7 @@ interface VerifyCheckoutBody {
   sessionId?: string;
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.stripeCheckoutVerify,
   async (request: NextRequest, { auth }) => {
     const startedAt = Date.now();

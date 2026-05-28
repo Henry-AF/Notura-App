@@ -8,7 +8,7 @@ import {
   getOwnedMeetingGroupsSnapshotForAuth,
 } from "@/lib/meeting-groups";
 
-export const GET = withAuth<Record<string, string>, NextRequest>(async (
+export const GET = withAuth<Record<string, never>, NextRequest>(async (
   _request: NextRequest,
   { auth }
 ) => {
@@ -23,7 +23,7 @@ export const GET = withAuth<Record<string, string>, NextRequest>(async (
   }
 });
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingGroupsCreate,
   async (request: NextRequest, { auth }) => {
   try {

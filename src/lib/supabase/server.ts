@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { getSupabaseBrowserConfig, getSupabaseServiceRoleKey } from "@/lib/env";
 import type { Database } from "@/types/database";
 
-export function createServerSupabase() {
-  const cookieStore = cookies();
+export async function createServerSupabase() {
+  const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseBrowserConfig();
   return createServerClient<Database>(
     url,

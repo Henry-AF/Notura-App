@@ -18,6 +18,7 @@ import {
   normalizeWhatsappNumber,
 } from "@/lib/meetings/whatsapp-number";
 import { captureObservedError, createTraceId } from "@/lib/observability";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { getObjectMetadata } from "@/lib/r2";
 import type { MeetingStatus, MeetingSource, WhatsAppStatus } from "@/types/database";
 
@@ -41,7 +42,7 @@ function buildDefaultMeetingTitle(meetingDate: string): string {
   return `Reunião ${meetingDate}`;
 }
 
-export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
+export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
   RATE_LIMIT_POLICIES.meetingsProcess,
   async (req: NextRequest, { auth }) => {
     const startedAt = Date.now();
@@ -134,6 +135,16 @@ export const POST = withAuthRateLimit<Record<string, string>, NextRequest>(
     const { quotaStatus } = await getBillingStatus(auth.user.id);
 
     if (!quotaStatus.allowed) {
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: auth.user.id,
+        event: "meeting_quota_exceeded",
+        properties: {
+          quota_code: quotaStatus.code,
+          meetings_used: quotaStatus.meetingsUsed,
+          quota_limit: quotaStatus.quotaLimit,
+        },
+      });
       return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
     }
 

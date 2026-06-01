@@ -7,7 +7,7 @@ import {
   createTraceId,
   logStructured,
 } from "@/lib/observability";
-import { getPlanMonthlyLimit } from "@/lib/plans";
+import { getPlanMonthlyLimit, isPaidPlan } from "@/lib/plans";
 import { getStripe } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingCycle } from "@/lib/pricing";
@@ -82,6 +82,8 @@ interface ConsumedQuotaRow {
   current_period_end: string | null;
 }
 
+const ABACATEPAY_RENEWAL_RETRY_GRACE_MS = 72 * 60 * 60 * 1000;
+
 export interface AbacatePayAutoRenewStatus {
   autoRenewEnabled: boolean;
   currentPeriodEnd: string | null;
@@ -92,6 +94,17 @@ export interface BillingRenewalContext {
   userId: string;
   plan: Exclude<Plan, "free">;
   currentPeriodEnd: string | null;
+}
+
+export type BillingEntitlementState = "free" | "active" | "expired" | "grace";
+
+export interface BillingEntitlementStatus {
+  plan: Plan;
+  effectivePlan: Plan;
+  status: BillingEntitlementState;
+  isPaidActive: boolean;
+  isExpired: boolean;
+  isInGrace: boolean;
 }
 
 export function getMonthlyMeetingLimit(plan: Plan): number | null {
@@ -142,6 +155,73 @@ function getEffectiveMeetingsUsed(
 ): number {
   if (isQuotaWindowExpired(account, now)) return 0;
   return getMeetingsUsed(account);
+}
+
+function hasAbacatePayRetryGrace(
+  account: Partial<
+    Pick<
+      BillingAccount,
+      "abacatepay_auto_renew_enabled" | "abacatepay_renewal_status"
+    >
+  > &
+    Pick<BillingAccount, "current_period_end">,
+  now: Date
+): boolean {
+  if (
+    account.abacatepay_auto_renew_enabled !== true ||
+    account.abacatepay_renewal_status !== "retrying"
+  ) {
+    return false;
+  }
+
+  const periodEnd = parseBillingDate(account.current_period_end);
+  if (!periodEnd) return false;
+
+  return periodEnd.getTime() + ABACATEPAY_RENEWAL_RETRY_GRACE_MS > now.getTime();
+}
+
+function isSubscriptionExpired(
+  currentPeriodEnd: string | null,
+  now: Date
+): boolean {
+  const periodEnd = parseBillingDate(currentPeriodEnd);
+  return !periodEnd || periodEnd.getTime() <= now.getTime();
+}
+
+export function getBillingEntitlementStatus(
+  account: Pick<BillingAccount, "plan" | "current_period_end"> &
+    Partial<
+      Pick<
+        BillingAccount,
+        "abacatepay_auto_renew_enabled" | "abacatepay_renewal_status"
+      >
+    >,
+  now: Date = new Date()
+): BillingEntitlementStatus {
+  const plan = account.plan as Plan;
+  if (!isPaidPlan(plan)) {
+    return {
+      plan,
+      effectivePlan: "free",
+      status: "free",
+      isPaidActive: false,
+      isExpired: false,
+      isInGrace: false,
+    };
+  }
+
+  const isExpired = isSubscriptionExpired(account.current_period_end, now);
+  const isInGrace = isExpired && hasAbacatePayRetryGrace(account, now);
+  const isPaidActive = !isExpired || isInGrace;
+
+  return {
+    plan,
+    effectivePlan: isPaidActive ? plan : "free",
+    status: isInGrace ? "grace" : isExpired ? "expired" : "active",
+    isPaidActive,
+    isExpired,
+    isInGrace,
+  };
 }
 
 function getQuotaMessage(
@@ -591,17 +671,11 @@ export function getMeetingQuotaStatus(
 ): MeetingQuotaStatus {
   const plan = account.plan as Plan;
   const meetingsUsed = getEffectiveMeetingsUsed(account, now);
-  const quotaLimit = getMeetingQuotaLimit(plan);
-  const hasAbacatePayRetryGrace =
-    account.abacatepay_auto_renew_enabled === true &&
-    account.abacatepay_renewal_status === "retrying";
+  const entitlement = getBillingEntitlementStatus(account, now);
+  const quotaPlan = entitlement.effectivePlan;
+  const quotaLimit = getMeetingQuotaLimit(quotaPlan);
 
-  if (
-    plan !== "free" &&
-    !hasAbacatePayRetryGrace &&
-    (!account.current_period_end ||
-      new Date(account.current_period_end).getTime() <= now.getTime())
-  ) {
+  if (isPaidPlan(plan) && !entitlement.isPaidActive) {
     return {
       allowed: false,
       code: "subscription_expired",
@@ -613,7 +687,7 @@ export function getMeetingQuotaStatus(
 
   if (meetingsUsed >= quotaLimit) {
     const code =
-      plan === "free" ? "lifetime_quota_exceeded" : "period_quota_exceeded";
+      quotaPlan === "free" ? "lifetime_quota_exceeded" : "period_quota_exceeded";
     return {
       allowed: false,
       code,
@@ -822,10 +896,12 @@ export async function getBillingStatus(userId: string): Promise<{
   meetingsUsed: number;
   monthlyLimit: number | null;
   quotaStatus: MeetingQuotaStatus;
+  entitlement: BillingEntitlementStatus;
 }> {
   const billingAccount = await getOrCreateBillingAccount(userId);
   const meetingsUsed = getEffectiveMeetingsUsed(billingAccount);
-  const monthlyLimit = getMonthlyMeetingLimit(billingAccount.plan as Plan);
+  const entitlement = getBillingEntitlementStatus(billingAccount);
+  const monthlyLimit = getMonthlyMeetingLimit(entitlement.effectivePlan);
   const quotaStatus = getMeetingQuotaStatus(billingAccount);
 
   return {
@@ -834,5 +910,6 @@ export async function getBillingStatus(userId: string): Promise<{
     meetingsUsed,
     monthlyLimit,
     quotaStatus,
+    entitlement,
   };
 }

@@ -12,6 +12,15 @@ vi.mock("@/lib/billing", () => ({
   getBillingStatus,
 }));
 
+const activeEntitlement = {
+  plan: "pro",
+  effectivePlan: "pro",
+  status: "active",
+  isPaidActive: true,
+  isExpired: false,
+  isInGrace: false,
+};
+
 function createProfileClient() {
   const maybeSingle = vi.fn().mockResolvedValue({
     data: {
@@ -28,24 +37,25 @@ function createProfileClient() {
   return { from };
 }
 
-describe("current user server mapper", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
+beforeEach(() => {
+  vi.resetModules();
+  vi.clearAllMocks();
 
-    createServiceRoleClient.mockReturnValue(createProfileClient());
-    getBillingStatus.mockResolvedValue({
-      billingAccount: {
-        plan: "pro",
-        current_period_end: "2026-05-27T12:00:00.000Z",
-        abacatepay_auto_renew_enabled: false,
-        abacatepay_renewal_status: "active",
-      },
-      meetingsThisMonth: 12,
-      monthlyLimit: 30,
-    });
+  createServiceRoleClient.mockReturnValue(createProfileClient());
+  getBillingStatus.mockResolvedValue({
+    billingAccount: {
+      plan: "pro",
+      current_period_end: "2026-05-27T12:00:00.000Z",
+      abacatepay_auto_renew_enabled: false,
+      abacatepay_renewal_status: "active",
+    },
+    meetingsThisMonth: 12,
+    monthlyLimit: 30,
+    entitlement: activeEntitlement,
   });
+});
 
+describe("current user renewal state", () => {
   it("exposes AbacatePay renewal state to settings clients", async () => {
     const mod = await import("./current-user");
 
@@ -63,7 +73,9 @@ describe("current user server mapper", () => {
       abacatepayRenewalStatus: "active",
     });
   });
+});
 
+describe("current user entitlements", () => {
   it("exposes WhatsApp summary access as false for free users", async () => {
     getBillingStatus.mockResolvedValueOnce({
       billingAccount: {
@@ -72,6 +84,14 @@ describe("current user server mapper", () => {
       },
       meetingsThisMonth: 1,
       monthlyLimit: 3,
+      entitlement: {
+        plan: "free",
+        effectivePlan: "free",
+        status: "free",
+        isPaidActive: false,
+        isExpired: false,
+        isInGrace: false,
+      },
     });
     const mod = await import("./current-user");
 
@@ -85,7 +105,9 @@ describe("current user server mapper", () => {
       canSendWhatsAppSummary: false,
     });
   });
+});
 
+describe("current user billing provider selection", () => {
   it("prefers Stripe renewal state when the active subscription is on Stripe", async () => {
     getBillingStatus.mockResolvedValueOnce({
       billingAccount: {
@@ -100,6 +122,7 @@ describe("current user server mapper", () => {
       },
       meetingsThisMonth: 12,
       monthlyLimit: 30,
+      entitlement: activeEntitlement,
     });
     const mod = await import("./current-user");
 
@@ -131,6 +154,7 @@ describe("current user server mapper", () => {
       },
       meetingsThisMonth: 12,
       monthlyLimit: 30,
+      entitlement: activeEntitlement,
     });
     const mod = await import("./current-user");
 
@@ -145,6 +169,45 @@ describe("current user server mapper", () => {
       renewalStatus: "active",
       abacatepayAutoRenewEnabled: true,
       abacatepayRenewalStatus: "active",
+    });
+  });
+});
+
+describe("current user expired entitlement", () => {
+  it("does not expose paid feature access for an expired paid billing account", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "team",
+        active_billing_provider: "abacatepay",
+        current_period_end: "2026-05-29T12:00:00.000Z",
+        abacatepay_auto_renew_enabled: true,
+        abacatepay_renewal_status: "active",
+      },
+      meetingsThisMonth: 12,
+      monthlyLimit: 3,
+      entitlement: {
+        plan: "team",
+        effectivePlan: "free",
+        status: "expired",
+        isPaidActive: false,
+        isExpired: true,
+        isInGrace: false,
+      },
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      plan: "free",
+      effectivePlan: "free",
+      billingEntitlementStatus: "expired",
+      isPaidPlanActive: false,
+      canSendWhatsAppSummary: false,
+      monthlyLimit: 3,
     });
   });
 });

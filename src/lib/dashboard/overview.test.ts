@@ -118,6 +118,9 @@ describe("dashboard overview", () => {
       billingAccount: { plan: "free" },
       meetingsThisMonth: 2,
       monthlyLimit: 3,
+      entitlement: {
+        effectivePlan: "free",
+      },
     });
 
     const mod = await import("./overview");
@@ -127,5 +130,27 @@ describe("dashboard overview", () => {
       p_user_id: "user-1",
     });
     expect(result.hoursSaved).toBe(1);
+  });
+
+  it("uses the effective entitlement plan when a paid subscription has expired", async () => {
+    createServerSupabase.mockReturnValue(
+      createServerClient({ id: "user-1", email: "ana@example.com" })
+    );
+    const { client } = createDashboardSupabaseClient();
+    createServiceRoleClient.mockReturnValue(client);
+    getBillingStatus.mockResolvedValue({
+      billingAccount: { plan: "pro" },
+      meetingsThisMonth: 9,
+      monthlyLimit: 3,
+      entitlement: {
+        effectivePlan: "free",
+      },
+    });
+
+    const mod = await import("./overview");
+    const result = await mod.getDashboardOverview();
+
+    expect(result.plan).toBe("free");
+    expect(result.monthlyLimit).toBe(3);
   });
 });

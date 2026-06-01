@@ -20,6 +20,7 @@ export function SettingsToggle({
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-disabled={disabled ? true : undefined}
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
@@ -34,18 +35,9 @@ export function SettingsToggle({
       }}
     >
       <span
-        style={{
-          position: "absolute",
-          top: "3px",
-          left: checked ? "23px" : "3px",
-          width: "18px",
-          height: "18px",
-          borderRadius: "50%",
-          background: "#FFFFFF",
-          transition: "left 0.2s ease",
-          display: "block",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-        }}
+        className={`absolute left-[3px] top-[3px] block size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-transform duration-200 ease ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
       />
     </button>
   );

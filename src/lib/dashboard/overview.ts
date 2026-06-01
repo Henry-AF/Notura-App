@@ -102,7 +102,7 @@ async function fetchCompletedMeetingSeconds(
 
   if (!rpcResult.error) {
     return {
-      data: Number(rpcResult.data ?? 0),
+      data: Number(rpcResult.data),
       error: null,
     };
   }
@@ -127,7 +127,7 @@ async function fetchCompletedMeetingSeconds(
     };
   }
 
-  const totalSeconds = (fallbackResult.data ?? []).reduce(
+  const totalSeconds = fallbackResult.data.reduce(
     (sum, meeting) => sum + (meeting.duration_seconds ?? 0),
     0
   );
@@ -221,7 +221,7 @@ function mapDashboardOverview(
 
   return {
     userName: toUserName(results.profileResult.data?.name, user.email ?? null),
-    plan: results.billingStatus.billingAccount.plan as Plan,
+    plan: results.billingStatus.entitlement.effectivePlan,
     meetingsThisMonth: results.billingStatus.meetingsThisMonth,
     monthlyLimit: results.billingStatus.monthlyLimit,
     recentMeetings: (results.recentMeetingsResult.data ?? []).map((meeting) => ({

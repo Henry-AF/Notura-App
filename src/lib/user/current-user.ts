@@ -1,10 +1,8 @@
 import { getBillingStatus } from "@/lib/billing";
-import { isPaidPlan } from "@/lib/plans";
 import {
   createServerSupabase,
   createServiceRoleClient,
 } from "@/lib/supabase/server";
-import type { Plan } from "@/types/database";
 import type { CurrentUser, CurrentUserIdentity } from "./current-user-types";
 
 function toUserName(name: string | null | undefined, email: string | null) {
@@ -43,20 +41,39 @@ function resolveBillingProvider(billingAccount: {
   return billingAccount.stripe_subscription_id ? "stripe" : "abacatepay";
 }
 
+function resolveRenewalState(billingAccount: {
+  active_billing_provider?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_auto_renew_enabled?: boolean | null;
+  stripe_renewal_status?: string | null;
+  abacatepay_auto_renew_enabled?: boolean | null;
+  abacatepay_renewal_status?: string | null;
+}) {
+  const billingProvider = resolveBillingProvider(billingAccount);
+  if (billingProvider === "stripe") {
+    return {
+      billingProvider,
+      autoRenewEnabled: billingAccount.stripe_auto_renew_enabled ?? true,
+      renewalStatus: billingAccount.stripe_renewal_status ?? "idle",
+    };
+  }
+
+  return {
+    billingProvider,
+    autoRenewEnabled: billingAccount.abacatepay_auto_renew_enabled ?? true,
+    renewalStatus: billingAccount.abacatepay_renewal_status ?? "idle",
+  };
+}
+
 export async function getCurrentUserForIdentity(
   identity: CurrentUserIdentity
 ): Promise<CurrentUser> {
   const { profile, billingStatus } = await loadCurrentUserData(identity.id);
   const billingAccount = billingStatus.billingAccount;
-  const plan = billingAccount.plan as Plan;
-  const billingProvider = resolveBillingProvider(billingAccount);
-  const usesStripe = billingProvider === "stripe";
-  const autoRenewEnabled = usesStripe
-    ? billingAccount.stripe_auto_renew_enabled ?? true
-    : billingAccount.abacatepay_auto_renew_enabled ?? true;
-  const renewalStatus = usesStripe
-    ? billingAccount.stripe_renewal_status ?? "idle"
-    : billingAccount.abacatepay_renewal_status ?? "idle";
+  const entitlement = billingStatus.entitlement;
+  const plan = entitlement.effectivePlan;
+  const { billingProvider, autoRenewEnabled, renewalStatus } =
+    resolveRenewalState(billingAccount);
 
   return {
     id: identity.id,
@@ -65,10 +82,13 @@ export async function getCurrentUserForIdentity(
     company: profile?.company ?? "",
     whatsappNumber: profile?.whatsapp_number ?? "",
     plan,
-    canSendWhatsAppSummary: isPaidPlan(plan),
+    effectivePlan: entitlement.effectivePlan,
+    billingEntitlementStatus: entitlement.status,
+    isPaidPlanActive: entitlement.isPaidActive,
+    canSendWhatsAppSummary: entitlement.isPaidActive,
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
-    currentPeriodEnd: billingAccount.current_period_end ?? null,
+    currentPeriodEnd: billingAccount.current_period_end,
     billingProvider,
     autoRenewEnabled,
     renewalStatus,

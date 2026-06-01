@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isPaidPlan, isPlan } from "@/lib/plans";
+import { getBillingEntitlementStatus } from "@/lib/billing";
+import { isPlan } from "@/lib/plans";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Database, Plan } from "@/types/database";
+import type { BillingAccount, Database, Plan } from "@/types/database";
 
 export const WHATSAPP_SUMMARY_PAID_PLAN_REQUIRED_MESSAGE =
   "Envio do resumo pelo WhatsApp está disponível apenas para assinantes dos planos Pro e Platinum.";
@@ -22,11 +23,14 @@ export class WhatsAppSummaryPaidPlanRequiredError extends Error {
 
 export async function getWhatsAppSummaryAccess(
   userId: string,
-  supabase: SupabaseClient<Database> = createServiceRoleClient()
+  supabase: SupabaseClient<Database> = createServiceRoleClient(),
+  now: Date = new Date()
 ): Promise<WhatsAppSummaryAccess> {
   const { data, error } = await supabase
     .from("billing_accounts")
-    .select("plan")
+    .select(
+      "plan, current_period_end, abacatepay_auto_renew_enabled, abacatepay_renewal_status"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -35,9 +39,20 @@ export async function getWhatsAppSummaryAccess(
   }
 
   const plan = isPlan(data?.plan) ? data.plan : "free";
+  const entitlement = getBillingEntitlementStatus(
+    {
+      plan,
+      current_period_end: data?.current_period_end ?? null,
+      abacatepay_auto_renew_enabled:
+        data?.abacatepay_auto_renew_enabled as BillingAccount["abacatepay_auto_renew_enabled"],
+      abacatepay_renewal_status:
+        data?.abacatepay_renewal_status as BillingAccount["abacatepay_renewal_status"],
+    },
+    now
+  );
 
   return {
-    canSend: isPaidPlan(plan),
+    canSend: entitlement.isPaidActive,
     plan,
   };
 }

@@ -116,6 +116,35 @@ describe("billing helpers", () => {
     expect(from).not.toHaveBeenCalledWith("meetings");
   });
 
+  it("reports free quota limits for expired paid subscriptions", async () => {
+    const { client } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        meetings_used: 9,
+        current_period_end: "2026-05-27T12:00:00.000Z",
+        abacatepay_auto_renew_enabled: false,
+        abacatepay_renewal_status: "active",
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    const status = await mod.getBillingStatus("user-1");
+
+    expect(status.entitlement).toMatchObject({
+      effectivePlan: "free",
+      status: "expired",
+      isPaidActive: false,
+    });
+    expect(status.monthlyLimit).toBe(3);
+    expect(status.quotaStatus).toMatchObject({
+      allowed: false,
+      code: "subscription_expired",
+      quotaLimit: 3,
+    });
+  });
+
   it("classifies free lifetime and paid period quota states", async () => {
     const mod = await import("./billing");
     const now = new Date("2026-04-27T12:00:00.000Z");
@@ -143,7 +172,7 @@ describe("billing helpers", () => {
     ).toMatchObject({
       allowed: false,
       code: "subscription_expired",
-      quotaLimit: 30,
+      quotaLimit: 3,
     });
 
     expect(
@@ -220,6 +249,80 @@ describe("billing helpers", () => {
     ).toMatchObject({
       allowed: false,
       code: "subscription_expired",
+    });
+  });
+
+  it("resolves paid entitlements from the subscription period, not just the stored plan", async () => {
+    const mod = await import("./billing");
+    const now = new Date("2026-06-01T12:00:00.000Z");
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-05-29T12:00:00.000Z",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      plan: "team",
+      effectivePlan: "free",
+      status: "expired",
+      isPaidActive: false,
+      isExpired: true,
+      isInGrace: false,
+    });
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-06-29T12:00:00.000Z",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "team",
+      status: "active",
+      isPaidActive: true,
+      isExpired: false,
+      isInGrace: false,
+    });
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-05-30T12:00:00.000Z",
+          abacatepay_auto_renew_enabled: true,
+          abacatepay_renewal_status: "retrying",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "team",
+      status: "grace",
+      isPaidActive: true,
+      isExpired: true,
+      isInGrace: true,
+    });
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-05-29T11:59:59.000Z",
+          abacatepay_auto_renew_enabled: true,
+          abacatepay_renewal_status: "retrying",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "free",
+      status: "expired",
+      isPaidActive: false,
+      isExpired: true,
+      isInGrace: false,
     });
   });
 

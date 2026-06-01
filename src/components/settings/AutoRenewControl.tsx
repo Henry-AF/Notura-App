@@ -6,11 +6,21 @@ import { useThemeColors } from "@/lib/theme-context";
 import type { Plan } from "@/types/database";
 import { SettingsToggle } from "./SettingsToggle";
 
+export type SubscriptionStatus = "free" | "active" | "expired" | "grace";
+
+const PERIOD_END_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 export interface AutoRenewControlProps {
   plan: Plan;
   currentPeriodEnd: string | null;
   autoRenewEnabled: boolean;
   renewalStatus: string;
+  subscriptionStatus?: SubscriptionStatus;
   pending?: boolean;
   onChange: (enabled: boolean) => void;
 }
@@ -21,24 +31,51 @@ function formatPeriodEnd(value: string | null): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
 
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+  return PERIOD_END_FORMATTER.format(date);
+}
+
+function isPeriodExpired(value: string | null): boolean {
+  if (!value) return false;
+
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.getTime() <= Date.now();
+}
+
+function resolveSubscriptionStatus(
+  plan: Plan,
+  currentPeriodEnd: string | null,
+  renewalStatus: string,
+  subscriptionStatus: SubscriptionStatus | undefined
+): SubscriptionStatus {
+  if (subscriptionStatus) return subscriptionStatus;
+  if (plan === "free") return "free";
+  if (!isPeriodExpired(currentPeriodEnd)) return "active";
+  return renewalStatus === "retrying" ? "grace" : "expired";
 }
 
 function getDescription(
   autoRenewEnabled: boolean,
   renewalStatus: string,
-  currentPeriodEnd: string | null
+  currentPeriodEnd: string | null,
+  subscriptionStatus: SubscriptionStatus
 ) {
   if (renewalStatus === "suspended") {
     return "Renovação suspensa após tentativas sem sucesso.";
   }
 
   const formattedDate = formatPeriodEnd(currentPeriodEnd);
+  if (subscriptionStatus === "expired") {
+    return formattedDate
+      ? `Assinatura vencida em ${formattedDate}.`
+      : "Assinatura vencida.";
+  }
+
+  if (subscriptionStatus === "grace") {
+    return formattedDate
+      ? `Estamos tentando renovar sua assinatura desde ${formattedDate}.`
+      : "Estamos tentando renovar sua assinatura.";
+  }
+
   if (!formattedDate) {
     return "Renovação vinculada ao ciclo atual.";
   }
@@ -50,11 +87,23 @@ function getDescription(
   return `Plano ativo até ${formattedDate}.`;
 }
 
+function getTitle(
+  autoRenewEnabled: boolean,
+  subscriptionStatus: SubscriptionStatus
+): string {
+  if (subscriptionStatus === "expired") return "Assinatura vencida";
+  if (subscriptionStatus === "grace") return "Renovação em processamento";
+  return autoRenewEnabled
+    ? "Renovação automática ativa"
+    : "Renovação automática desativada";
+}
+
 export function AutoRenewControl({
   plan,
   currentPeriodEnd,
   autoRenewEnabled,
   renewalStatus,
+  subscriptionStatus,
   pending = false,
   onChange,
 }: AutoRenewControlProps) {
@@ -64,14 +113,23 @@ export function AutoRenewControl({
     return null;
   }
 
-  const disabled = pending || renewalStatus === "suspended";
-  const title = autoRenewEnabled
-    ? "Renovação automática ativa"
-    : "Renovação automática desativada";
+  const resolvedStatus = resolveSubscriptionStatus(
+    plan,
+    currentPeriodEnd,
+    renewalStatus,
+    subscriptionStatus
+  );
+  const disabled =
+    pending ||
+    renewalStatus === "suspended" ||
+    resolvedStatus === "expired" ||
+    resolvedStatus === "grace";
+  const title = getTitle(autoRenewEnabled, resolvedStatus);
   const description = getDescription(
     autoRenewEnabled,
     renewalStatus,
-    currentPeriodEnd
+    currentPeriodEnd,
+    resolvedStatus
   );
 
   return (
@@ -80,7 +138,7 @@ export function AutoRenewControl({
       style={{ background: c.card2, borderColor: c.border }}
     >
       <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+        className="flex size-10 shrink-0 items-center justify-center rounded-lg"
         style={{
           background: autoRenewEnabled
             ? "rgba(104,81,255,0.14)"
@@ -89,11 +147,11 @@ export function AutoRenewControl({
         }}
       >
         {pending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="size-4 animate-spin" />
         ) : autoRenewEnabled ? (
-          <RefreshCcw className="h-4 w-4" />
+          <RefreshCcw className="size-4" />
         ) : (
-          <Clock3 className="h-4 w-4" />
+          <Clock3 className="size-4" />
         )}
       </div>
 

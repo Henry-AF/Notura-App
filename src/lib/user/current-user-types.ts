@@ -1,3 +1,4 @@
+import type { BillingEntitlementState } from "@/lib/billing";
 import type { Plan } from "@/types/database";
 
 export interface CurrentUser {
@@ -7,6 +8,9 @@ export interface CurrentUser {
   company: string;
   whatsappNumber: string;
   plan: Plan;
+  effectivePlan: Plan;
+  billingEntitlementStatus: BillingEntitlementState;
+  isPaidPlanActive: boolean;
   canSendWhatsAppSummary: boolean;
   meetingsThisMonth: number;
   monthlyLimit: number | null;

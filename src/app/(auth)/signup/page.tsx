@@ -69,6 +69,7 @@ export default function SignupPage() {
       if (data.user) {
         posthog.identify(data.user.id);
         posthog.capture("user_signed_up", { method: "email" });
+        void fetch("/api/email/welcome", { method: "POST", keepalive: true });
       }
       router.push("/onboarding");
     } catch (signupError) {

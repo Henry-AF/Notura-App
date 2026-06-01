@@ -138,6 +138,36 @@ export interface Database {
         }
         Relationships: []
       }
+      email_deliveries: {
+        Row: {
+          id: string
+          user_id: string
+          email_type: string
+          campaign: string
+          resend_email_id: string | null
+          sent_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          email_type: string
+          campaign: string
+          resend_email_id?: string | null
+          sent_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          email_type?: string
+          campaign?: string
+          resend_email_id?: string | null
+          sent_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       meeting_groups: {
         Row: {
           id: string
@@ -931,6 +961,7 @@ export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["Row"]
+export type EmailDelivery = Database["public"]["Tables"]["email_deliveries"]["Row"]
 export type MeetingTranscriptChunk =
   Database["public"]["Tables"]["meeting_transcript_chunks"]["Row"]
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]

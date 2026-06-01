@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
+import { Suspense } from "react";
+import { EmailReturnTracker } from "@/components/analytics/email-return-tracker";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -40,7 +42,12 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        <Suspense fallback={null}>
+          <EmailReturnTracker />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

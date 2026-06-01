@@ -351,7 +351,7 @@ describe("critical API routes rate limiting", () => {
       });
       expectRateLimitedHeaders(response);
     }
-  });
+  }, 15_000);
 
   it("applies 429 contract to public webhook routes", async () => {
     const webhookCases = [

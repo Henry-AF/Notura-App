@@ -101,6 +101,11 @@ export const RATE_LIMIT_POLICIES = {
     limit: 30,
     windowMs: 60_000,
   },
+  posthogEmailWebhook: {
+    bucket: "api:email/posthog",
+    limit: 60,
+    windowMs: 60_000,
+  },
   internalHealth: {
     bucket: "api:internal/health",
     limit: 240,

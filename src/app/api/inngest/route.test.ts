@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   processMeeting: { id: "process-meeting" },
   applyAbacatePayRenewal: { id: "billing-abacatepay-renewal-confirmed" },
   renewAbacatePaySubscription: { id: "renew-abacatepay-subscription" },
+  sendUserInactivityEmails: { id: "send-user-inactivity-emails" },
   serve: vi.fn(() => ({
     GET: vi.fn(),
     POST: vi.fn(),
@@ -52,6 +53,10 @@ vi.mock("@/inngest/abacatepay-renewal", () => ({
   applyAbacatePayRenewal: mocks.applyAbacatePayRenewal,
 }));
 
+vi.mock("@/inngest/user-inactivity-email", () => ({
+  sendUserInactivityEmails: mocks.sendUserInactivityEmails,
+}));
+
 vi.mock("@/lib/observability", () => ({
   captureObservedError: vi.fn(),
   createRequestId: () => "request-id",
@@ -81,6 +86,7 @@ describe("/api/inngest route", () => {
         mocks.preindexMeetingRag,
         mocks.renewAbacatePaySubscription,
         mocks.applyAbacatePayRenewal,
+        mocks.sendUserInactivityEmails,
       ])
     );
   });

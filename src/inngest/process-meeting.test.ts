@@ -255,7 +255,8 @@ describe("processMeeting", () => {
 
     expect(mocks.generateMeetingSummary).toHaveBeenCalledWith(
       "[00:00] Speaker A: Transcricao completa",
-      6480
+      6480,
+      { distinctId: "user-1", traceId: "meeting-1" }
     );
   });
 

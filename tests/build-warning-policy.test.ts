@@ -13,6 +13,14 @@ describe("build warning policy", () => {
     expect(layout).not.toContain('rel="stylesheet"');
   });
 
+  it("renders the root theme script without raw HTML injection", () => {
+    const layout = readText("src/app/layout.tsx");
+
+    expect(layout).not.toContain("dangerouslySetInnerHTML");
+    expect(layout).toContain("<script>{`");
+    expect(layout).toContain("localStorage.getItem('notura-theme')");
+  });
+
   it("sets the output tracing root explicitly for worktree builds", () => {
     const config = readText("next.config.mjs");
 

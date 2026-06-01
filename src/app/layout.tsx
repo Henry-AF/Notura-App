@@ -34,11 +34,7 @@ export default function RootLayout({
     >
       <head>
         {/* Restore saved theme before first paint to avoid flash on dashboard */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('notura-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})()`,
-          }}
-        />
+        <script>{`(function(){try{var t=localStorage.getItem('notura-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})()`}</script>
       </head>
       <body className="min-h-dvh">{children}</body>
     </html>

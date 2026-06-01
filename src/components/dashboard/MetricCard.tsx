@@ -79,11 +79,10 @@ export function MetricCard({
   value,
   trend,
 }: MetricCardProps) {
-  const numericValue = typeof value === "number" ? value : NaN;
-  const displayValue = isNaN(numericValue)
-    ? (value as string)
-    : // eslint-disable-next-line react-hooks/rules-of-hooks
-      useCountUp(numericValue);
+  const isNumericValue = typeof value === "number";
+  const numericValue = isNumericValue ? value : 0;
+  const animatedValue = useCountUp(numericValue);
+  const displayValue = isNumericValue ? animatedValue : value;
 
   return (
     <div
@@ -138,7 +137,7 @@ export function MetricCard({
           lineHeight: 1,
         }}
       >
-        {typeof displayValue === "number" ? displayValue : value}
+        {displayValue}
       </p>
     </div>
   );

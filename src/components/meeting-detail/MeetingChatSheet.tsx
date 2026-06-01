@@ -434,7 +434,8 @@ export function MeetingChatSheet({
   // Focus textarea when sheet opens
   useEffect(() => {
     if (open && mode === "new") {
-      setTimeout(() => textareaRef.current?.focus(), 200);
+      const focusTimer = setTimeout(() => textareaRef.current?.focus(), 200);
+      return () => clearTimeout(focusTimer);
     }
   }, [mode, open]);
 
@@ -781,7 +782,8 @@ export function MeetingArchivedChatsSheet({
 
   useEffect(() => {
     if (open && mode === "new") {
-      setTimeout(() => textareaRef.current?.focus(), 200);
+      const focusTimer = setTimeout(() => textareaRef.current?.focus(), 200);
+      return () => clearTimeout(focusTimer);
     }
   }, [mode, open]);
 

@@ -21,7 +21,8 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
   useEffect(() => {
     if (isOpen) {
       setTyped("");
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const focusTimer = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(focusTimer);
     }
   }, [isOpen]);
 

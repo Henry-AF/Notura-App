@@ -2,7 +2,15 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Mic, Monitor, Upload, ArrowUp, Clock, ChevronRight } from "lucide-react";
+import {
+  Mic,
+  Monitor,
+  Upload,
+  ArrowUp,
+  Plus,
+  SlidersHorizontal,
+  Clock,
+} from "lucide-react";
 import GradientText from "@/components/ui/gradient-text";
 import type { Meeting } from "@/components/dashboard";
 
@@ -17,28 +25,16 @@ const AI_PROMPTS = [
   "Tarefas pendentes atribuídas à equipe jurídica",
 ];
 
+const SUBTITLES = [
+  "O que analisamos hoje?",
+  "Qual reunião quer explorar?",
+  "Sobre o que quer saber?",
+];
+
 const RECORDING_MODES = [
-  {
-    key: "presencial",
-    icon: Mic,
-    label: "Gravação Presencial",
-    description: "Pelo microfone do dispositivo",
-    color: "#6851FF",
-  },
-  {
-    key: "remota",
-    icon: Monitor,
-    label: "Gravação Remota",
-    description: "Capture áudio de reunião online",
-    color: "#059669",
-  },
-  {
-    key: "upload",
-    icon: Upload,
-    label: "Enviar Arquivo",
-    description: "Processe uma gravação existente",
-    color: "#D97706",
-  },
+  { key: "presencial", icon: Mic,     label: "Gravação Presencial",  color: "#6851FF" },
+  { key: "remota",     icon: Monitor, label: "Gravação Remota",       color: "#059669" },
+  { key: "upload",     icon: Upload,  label: "Enviar Arquivo",        color: "#D97706" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,53 +75,32 @@ function AnimatedPlaceholder({ prompts }: { prompts: string[] }) {
   );
 }
 
-// ─── RecordingPill ────────────────────────────────────────────────────────────
+// ─── AnimatedSubtitle ─────────────────────────────────────────────────────────
 
-interface RecordingPillProps {
-  icon: React.ElementType;
-  label: string;
-  description: string;
-  color: string;
-}
+function AnimatedSubtitle({ subtitles }: { subtitles: string[] }) {
+  const [index, setIndex] = useState(0);
 
-function RecordingPill({ icon: Icon, label, description, color }: RecordingPillProps) {
-  const [hovered, setHovered] = useState(false);
+  useEffect(() => {
+    const id = setInterval(
+      () => setIndex((i) => (i + 1) % subtitles.length),
+      5000
+    );
+    return () => clearInterval(id);
+  }, [subtitles.length]);
+
   return (
-    <button
-      type="button"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="flex flex-1 items-center gap-3.5 rounded-2xl border bg-card px-5 py-3.5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 active:scale-[0.98]"
-      style={{
-        borderColor: hovered ? `${color}60` : `${color}25`,
-        backgroundColor: hovered ? `${color}08` : undefined,
-        boxShadow: hovered ? `0 4px 20px ${color}18` : undefined,
-      }}
-    >
-      {/* Icon bubble */}
-      <div
-        className="flex size-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200"
-        style={{
-          background: `${color}15`,
-          color,
-          boxShadow: hovered ? `0 0 12px ${color}28` : undefined,
-        }}
+    <AnimatePresence mode="wait">
+      <motion.span
+        key={index}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.4, ease: "easeInOut" }}
+        className="inline-block"
       >
-        <Icon size={16} />
-      </div>
-
-      {/* Text */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold text-foreground">{label}</p>
-        <p className="truncate text-[11px] text-muted-foreground">{description}</p>
-      </div>
-
-      <ChevronRight
-        size={14}
-        className="shrink-0 transition-colors duration-150"
-        style={{ color: hovered ? color : "rgb(var(--muted-foreground) / 0.35)" }}
-      />
-    </button>
+        {subtitles[index]}
+      </motion.span>
+    </AnimatePresence>
   );
 }
 
@@ -143,30 +118,35 @@ export function PrototipoClient({ userName, meetings }: PrototipoClientProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.35 }}
-      className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center px-6 py-14"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="px-8 pb-20 pt-16"
     >
-      <div className="flex w-full max-w-2xl flex-col gap-6">
+      <div className="mx-auto w-full max-w-[680px]">
 
-        {/* ── Heading ─────────────────────────────────────────────────────────── */}
-        <h1 className="text-center text-[28px] font-bold tracking-tight text-foreground">
-          {greeting.text},{" "}
-          <GradientText
-            colors={["#7C3AED", "#A855F7", "#C084FC", "#A855F7", "#7C3AED"]}
-            animationSpeed={4}
-            showBorder={false}
-          >
-            {userName}
-          </GradientText>{" "}
-          {greeting.emoji}
-        </h1>
+        {/* ── Two-line heading ────────────────────────────────────────────────── */}
+        <div className="mb-7 leading-tight">
+          <h1 className="text-[38px] font-bold tracking-tight text-foreground">
+            {greeting.text},{" "}
+            <GradientText
+              colors={["#7C3AED", "#A855F7", "#C084FC", "#A855F7", "#7C3AED"]}
+              animationSpeed={4}
+              showBorder={false}
+            >
+              {userName}
+            </GradientText>{" "}
+            {greeting.emoji}
+          </h1>
+          <h2 className="text-[38px] font-bold tracking-tight text-muted-foreground/45">
+            <AnimatedSubtitle subtitles={SUBTITLES} />
+          </h2>
+        </div>
 
-        {/* ── Claude-style chat input ──────────────────────────────────────────── */}
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-md transition-shadow duration-300 focus-within:shadow-[0_0_0_2px_rgba(104,81,255,0.12),0_4px_32px_rgba(104,81,255,0.07)]">
-          {/* Textarea area */}
-          <div className="relative px-5 pb-2 pt-5">
+        {/* ── Input ───────────────────────────────────────────────────────────── */}
+        <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-shadow duration-200 focus-within:shadow-[0_0_0_2px_rgba(104,81,255,0.13)]">
+          {/* Textarea */}
+          <div className="relative px-5 pb-1 pt-5">
             {query === "" && (
               <div className="pointer-events-none absolute left-5 top-5 text-[15px] text-muted-foreground/50">
                 <AnimatedPlaceholder prompts={AI_PROMPTS} />
@@ -175,7 +155,7 @@ export function PrototipoClient({ userName, meetings }: PrototipoClientProps) {
             <textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              rows={4}
+              rows={3}
               className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) e.preventDefault();
@@ -184,29 +164,50 @@ export function PrototipoClient({ userName, meetings }: PrototipoClientProps) {
           </div>
 
           {/* Bottom toolbar */}
-          <div className="flex items-center justify-between border-t border-border/50 px-5 py-3">
-            <span className="text-[11px] text-muted-foreground/40">
-              Shift+Enter para nova linha
-            </span>
+          <div className="flex items-center gap-2 px-4 pb-3 pt-1">
+            {/* Left actions */}
+            <button
+              type="button"
+              className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Plus size={15} />
+            </button>
+            <button
+              type="button"
+              className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <SlidersHorizontal size={14} />
+            </button>
+
+            <div className="flex-1" />
+
+            {/* Send */}
             <button
               type="button"
               disabled={query.trim().length === 0}
-              className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-all duration-150 disabled:opacity-25 hover:bg-primary/90 active:scale-95"
+              className="flex size-9 items-center justify-center rounded-xl bg-foreground text-background shadow-sm transition-all duration-150 disabled:opacity-20 hover:opacity-80 active:scale-95"
             >
-              <ArrowUp size={15} />
+              <ArrowUp size={16} />
             </button>
           </div>
         </div>
 
-        {/* ── Recording pills ──────────────────────────────────────────────────── */}
-        <div className="flex gap-3">
-          {RECORDING_MODES.map(({ key, ...rest }) => (
-            <RecordingPill key={key} {...rest} />
+        {/* ── Recording chips ──────────────────────────────────────────────────── */}
+        <div className="mb-10 flex flex-wrap gap-2">
+          {RECORDING_MODES.map(({ key, icon: Icon, label, color }) => (
+            <button
+              key={key}
+              type="button"
+              className="group flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-[13px] font-medium text-foreground/70 shadow-sm transition-all duration-150 hover:border-border/0 hover:bg-accent hover:text-foreground active:scale-[0.97]"
+            >
+              <Icon size={13} style={{ color }} />
+              {label}
+            </button>
           ))}
         </div>
 
-        {/* ── Two-column: Recentes + Grupos ───────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-8 pt-2">
+        {/* ── PostHog two-column ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-10">
 
           {/* RECENTES */}
           <div>
@@ -222,7 +223,7 @@ export function PrototipoClient({ userName, meetings }: PrototipoClientProps) {
                   <li key={m.id}>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+                      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-[13px] text-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
                     >
                       <span className="size-1.5 shrink-0 rounded-full bg-primary/40" />
                       <span className="truncate">{m.title}</span>
@@ -235,10 +236,10 @@ export function PrototipoClient({ userName, meetings }: PrototipoClientProps) {
 
           {/* GRUPOS */}
           <div>
-            <p className="mb-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
               ✦ Grupos
             </p>
-            <p className="px-1.5 text-sm text-muted-foreground/40">
+            <p className="px-1.5 text-[13px] text-muted-foreground/40">
               Nenhum grupo ainda.
             </p>
           </div>

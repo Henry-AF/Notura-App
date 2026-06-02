@@ -6,8 +6,8 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
-  useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Maximize2, Square } from "lucide-react";
@@ -38,6 +38,51 @@ interface RecordingSessionContextValue {
   hasActiveSession: boolean;
   isStarting: boolean;
   startRecording: (values: RecordingSetupValues) => Promise<void>;
+}
+
+type RecordingSessionState = {
+  isStarting: boolean;
+  overlayStage: RecordingOverlayStage | null;
+  isMinimized: boolean;
+  isPaused: boolean;
+  elapsedSeconds: number;
+  recordedBlob: Blob | null;
+  recordedAt: Date | null;
+  meetingDraft: MeetingDraft | null;
+  uploadProgress: number;
+  overlayError: string | null;
+};
+
+type RecordingSessionAction =
+  | { type: "patched"; value: Partial<RecordingSessionState> }
+  | { type: "elapsedTicked" }
+  | { type: "reset" };
+
+const initialRecordingSessionState: RecordingSessionState = {
+  isStarting: false,
+  overlayStage: null,
+  isMinimized: false,
+  isPaused: false,
+  elapsedSeconds: 0,
+  recordedBlob: null,
+  recordedAt: null,
+  meetingDraft: null,
+  uploadProgress: 0,
+  overlayError: null,
+};
+
+function recordingSessionReducer(
+  state: RecordingSessionState,
+  action: RecordingSessionAction
+): RecordingSessionState {
+  switch (action.type) {
+    case "patched":
+      return { ...state, ...action.value };
+    case "elapsedTicked":
+      return { ...state, elapsedSeconds: state.elapsedSeconds + 1 };
+    case "reset":
+      return initialRecordingSessionState;
+  }
 }
 
 interface MinimizedRecordingControllerProps {
@@ -109,16 +154,16 @@ function MinimizedRecordingController({
       >
         <span
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+            "flex size-9 shrink-0 items-center justify-center rounded-full",
             isSaving
               ? "bg-notura-primary/15 text-notura-primary"
               : "bg-red-500/15 text-red-500"
           )}
         >
           {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="size-4 animate-spin" />
           ) : (
-            <span className="h-2.5 w-2.5 rounded-full bg-current" />
+            <span className="size-2.5 rounded-full bg-current" />
           )}
         </span>
         <span className="min-w-0">
@@ -135,17 +180,17 @@ function MinimizedRecordingController({
             {elapsedLabel}
           </span>
         </span>
-        <Maximize2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Maximize2 className="size-4 shrink-0 text-muted-foreground" />
       </button>
 
       {isRecording ? (
         <button
           type="button"
           onClick={onStop}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
           aria-label="Encerrar gravação"
         >
-          <Square className="h-4 w-4" />
+          <Square className="size-4" />
         </button>
       ) : null}
     </div>
@@ -159,28 +204,33 @@ export function RecordingSessionProvider({
 }) {
   const router = useRouter();
 
-  const [isStarting, setIsStarting] = useState(false);
-  const [overlayStage, setOverlayStage] =
-    useState<RecordingOverlayStage | null>(null);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [recordedAt, setRecordedAt] = useState<Date | null>(null);
-  const [meetingDraft, setMeetingDraft] = useState<MeetingDraft | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    recordingSessionReducer,
+    initialRecordingSessionState
+  );
+  const {
+    isStarting,
+    overlayStage,
+    isMinimized,
+    isPaused,
+    elapsedSeconds,
+    recordedBlob,
+    recordedAt,
+    meetingDraft,
+    uploadProgress,
+    overlayError,
+  } = state;
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const captureCleanupRef = useRef<(() => void) | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const wakeLockRef = useRef<RecordingWakeLock | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<number | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
-      clearInterval(timerRef.current);
+      window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
   }, []);
@@ -202,15 +252,7 @@ export function RecordingSessionProvider({
   const resetRecordingState = useCallback(() => {
     cleanupRecorderResources();
     recordedChunksRef.current = [];
-    setRecordedBlob(null);
-    setRecordedAt(null);
-    setMeetingDraft(null);
-    setElapsedSeconds(0);
-    setUploadProgress(0);
-    setOverlayError(null);
-    setOverlayStage(null);
-    setIsMinimized(false);
-    setIsPaused(false);
+    dispatch({ type: "reset" });
   }, [cleanupRecorderResources]);
 
   useEffect(() => {
@@ -246,8 +288,8 @@ export function RecordingSessionProvider({
       return;
     }
 
-    timerRef.current = setInterval(() => {
-      setElapsedSeconds((current) => current + 1);
+    timerRef.current = window.setInterval(() => {
+      dispatch({ type: "elapsedTicked" });
     }, 1000);
 
     return () => clearTimer();
@@ -264,9 +306,10 @@ export function RecordingSessionProvider({
         throw new Error("Seu navegador não suporta gravação de áudio nesta página.");
       }
 
-      setIsStarting(true);
-      setOverlayError(null);
-      setIsMinimized(false);
+      dispatch({
+        type: "patched",
+        value: { isStarting: true, overlayError: null, isMinimized: false },
+      });
 
       try {
         let capture: MeetingRecordingCapture | null = null;
@@ -297,21 +340,26 @@ export function RecordingSessionProvider({
           throw error;
         }
 
-        setMeetingDraft({
-          whatsappNumber: values.whatsappNumber,
-          groupId: values.groupId ?? null,
-          recordingMode: values.recordingMode,
+        dispatch({
+          type: "patched",
+          value: {
+            meetingDraft: {
+              whatsappNumber: values.whatsappNumber,
+              groupId: values.groupId ?? null,
+              recordingMode: values.recordingMode,
+            },
+            elapsedSeconds: 0,
+            recordedBlob: null,
+            recordedAt: null,
+            uploadProgress: 0,
+            isPaused: false,
+            overlayStage: "recording",
+          },
         });
-        setElapsedSeconds(0);
-        setRecordedBlob(null);
-        setRecordedAt(null);
-        setUploadProgress(0);
-        setIsPaused(false);
-        setOverlayStage("recording");
       } catch (error) {
         throw new Error(getStartRecordingErrorMessage(error, values.recordingMode));
       } finally {
-        setIsStarting(false);
+        dispatch({ type: "patched", value: { isStarting: false } });
       }
     },
     []
@@ -337,7 +385,7 @@ export function RecordingSessionProvider({
     }
 
     recorder.pause();
-    setIsPaused(true);
+    dispatch({ type: "patched", value: { isPaused: true } });
   }, []);
 
   const resumePausedRecording = useCallback(() => {
@@ -347,7 +395,7 @@ export function RecordingSessionProvider({
     }
 
     recorder.resume();
-    setIsPaused(false);
+    dispatch({ type: "patched", value: { isPaused: false } });
   }, []);
 
   const handlePauseToggle = useCallback(() => {
@@ -454,20 +502,31 @@ export function RecordingSessionProvider({
 
   const handleStopRecording = useCallback(async () => {
     clearTimer();
-    setIsMinimized(false);
-    setIsPaused(false);
+    dispatch({
+      type: "patched",
+      value: { isMinimized: false, isPaused: false },
+    });
 
     try {
       const nextBlob = await snapshotActiveRecording();
-      setRecordedBlob(nextBlob);
-      setRecordedAt(new Date());
-      setIsPaused(true);
-      setOverlayStage("confirm");
+      dispatch({
+        type: "patched",
+        value: {
+          recordedBlob: nextBlob,
+          recordedAt: new Date(),
+          isPaused: true,
+          overlayStage: "confirm",
+        },
+      });
     } catch (error) {
       cleanupRecorderResources();
-      setOverlayError(
-        error instanceof Error ? error.message : "Erro ao encerrar a gravação."
-      );
+      dispatch({
+        type: "patched",
+        value: {
+          overlayError:
+            error instanceof Error ? error.message : "Erro ao encerrar a gravação.",
+        },
+      });
       resetRecordingState();
     }
   }, [
@@ -484,28 +543,44 @@ export function RecordingSessionProvider({
 
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state !== "paused") {
-      setOverlayError("Não foi possível retomar a gravação.");
+      dispatch({
+        type: "patched",
+        value: { overlayError: "Não foi possível retomar a gravação." },
+      });
       return;
     }
 
     recorder.resume();
-    setRecordedBlob(null);
-    setRecordedAt(null);
-    setOverlayError(null);
-    setIsPaused(false);
-    setOverlayStage("recording");
+    dispatch({
+      type: "patched",
+      value: {
+        recordedBlob: null,
+        recordedAt: null,
+        overlayError: null,
+        isPaused: false,
+        overlayStage: "recording",
+      },
+    });
   }, [isStarting, meetingDraft, overlayStage]);
 
   const handleSaveRecording = useCallback(async () => {
     if (!meetingDraft) {
-      setOverlayError("Nenhuma gravação pronta para envio.");
+      dispatch({
+        type: "patched",
+        value: { overlayError: "Nenhuma gravação pronta para envio." },
+      });
       return;
     }
 
-    setOverlayStage("saving");
-    setIsMinimized(false);
-    setOverlayError(null);
-    setUploadProgress(0);
+    dispatch({
+      type: "patched",
+      value: {
+        overlayStage: "saving",
+        isMinimized: false,
+        overlayError: null,
+        uploadProgress: 0,
+      },
+    });
 
     try {
       const recording = mediaRecorderRef.current
@@ -513,8 +588,13 @@ export function RecordingSessionProvider({
         : recordedBlob;
 
       if (!recording) {
-        setOverlayError("Nenhuma gravação pronta para envio.");
-        setOverlayStage("confirm");
+        dispatch({
+          type: "patched",
+          value: {
+            overlayError: "Nenhuma gravação pronta para envio.",
+            overlayStage: "confirm",
+          },
+        });
         return;
       }
 
@@ -524,18 +604,23 @@ export function RecordingSessionProvider({
         groupId: meetingDraft.groupId,
         recording,
         recordedAt: recordedAt ?? new Date(),
-        onUploadProgress: setUploadProgress,
+        onUploadProgress: (uploadProgress) =>
+          dispatch({ type: "patched", value: { uploadProgress } }),
       });
 
       resetRecordingState();
       router.push(`/dashboard/processing?id=${meetingId}`);
     } catch (error) {
       console.error("[recording] failed to save recording", error);
-      setOverlayError(
-        "Sua gravação foi salva. Houve um erro no processamento, mas você pode tentar novamente na tela de reuniões."
-      );
-      setOverlayStage("confirm");
-      setIsMinimized(false);
+      dispatch({
+        type: "patched",
+        value: {
+          overlayError:
+            "Sua gravação foi salva. Houve um erro no processamento, mas você pode tentar novamente na tela de reuniões.",
+          overlayStage: "confirm",
+          isMinimized: false,
+        },
+      });
     }
   }, [
     cleanupRecorderResources,
@@ -575,7 +660,9 @@ export function RecordingSessionProvider({
           onDiscard={resetRecordingState}
           onSave={handleSaveRecording}
           onClose={overlayError ? resetRecordingState : undefined}
-          onMinimize={() => setIsMinimized(true)}
+          onMinimize={() =>
+            dispatch({ type: "patched", value: { isMinimized: true } })
+          }
         />
       ) : null}
 
@@ -585,7 +672,9 @@ export function RecordingSessionProvider({
           elapsedLabel={elapsedLabel}
           uploadProgress={uploadProgress}
           isPaused={isPaused}
-          onExpand={() => setIsMinimized(false)}
+          onExpand={() =>
+            dispatch({ type: "patched", value: { isMinimized: false } })
+          }
           onStop={handleStopRecording}
         />
       ) : null}

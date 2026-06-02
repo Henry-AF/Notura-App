@@ -47,7 +47,7 @@ export function QuickActionCard({ label, href, colors }: QuickActionCardProps) {
         <p className="text-[13px] font-bold leading-snug text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.4)]">
           {label}
         </p>
-        <ArrowRight className="h-4 w-4 shrink-0 text-white/80 transition-transform duration-200 group-hover:translate-x-1" />
+        <ArrowRight className="size-4 shrink-0 text-white/80 transition-transform duration-200 group-hover:translate-x-1" />
       </div>
     </Link>
   );

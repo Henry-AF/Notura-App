@@ -34,7 +34,7 @@ function PageHeaderBreadcrumbs({
         return (
           <React.Fragment key={`${item.label}-${index}`}>
             {index > 0 ? (
-              <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
+              <ChevronRight className="size-3 text-muted-foreground/60" />
             ) : null}
             {item.href && !isLast ? (
               <Link

@@ -58,10 +58,10 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm }: ConfirmDeleteModalPr
       >
         {/* Icon */}
         <div
-          className="flex h-12 w-12 items-center justify-center rounded-xl"
+          className="flex size-12 items-center justify-center rounded-xl"
           style={{ background: "rgba(255,107,107,0.12)" }}
         >
-          <AlertTriangle className="h-6 w-6" style={{ color: "#FF6B6B" }} />
+          <AlertTriangle className="size-6" style={{ color: "#FF6B6B" }} />
         </div>
 
         {/* Title */}
@@ -157,10 +157,10 @@ export function DangerZone({ onDeleteAccount }: DangerZoneProps) {
         {/* Left: icon + text */}
         <div className="flex items-start gap-3 sm:items-center">
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg"
             style={{ background: "rgba(255,107,107,0.12)" }}
           >
-            <AlertTriangle className="h-4.5 w-4.5" style={{ color: "#FFA94D" }} />
+            <AlertTriangle className="size-4.5" style={{ color: "#FFA94D" }} />
           </div>
           <div>
             <p className="text-sm font-semibold" style={{ color: "#FF6B6B" }}>

@@ -32,7 +32,7 @@ export function UpgradeButton({
         className
       )}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {loading ? <Loader2 className="size-4 animate-spin" /> : null}
       {label}
     </button>
   );

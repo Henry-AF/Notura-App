@@ -97,7 +97,7 @@ export function SmartSummaryCard({
       </div>
 
       <div className="mt-4 flex items-start gap-2 border-t pt-4">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
           AI
         </div>
         <span className="text-xs italic text-muted-foreground">

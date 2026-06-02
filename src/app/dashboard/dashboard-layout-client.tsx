@@ -109,7 +109,7 @@ function CreateButton({ onNavigate, collapsible }: { onNavigate?: () => void; co
           onClick={onNavigate}
           className="flex w-full items-center justify-center rounded-xl bg-gradient-to-br from-notura-primary to-violet-500 p-2.5 text-white transition-all active:scale-[0.98] group-hover:hidden"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" />
         </Link>
       )}
       <Link
@@ -120,7 +120,7 @@ function CreateButton({ onNavigate, collapsible }: { onNavigate?: () => void; co
           collapsible && "hidden group-hover:flex"
         )}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="size-4" />
         Nova reunião
       </Link>
     </div>
@@ -162,7 +162,7 @@ function UserDropdown({
       className="animate-slide-up absolute bottom-full left-0 right-0 z-50 mb-1 rounded-xl border border-notura-border/50 bg-notura-bg-secondary p-1.5 shadow-xl"
     >
       <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <Avatar className="h-8 w-8 shrink-0">
+        <Avatar className="size-8 shrink-0">
           <AvatarFallback
             name={user.name}
             className="bg-notura-primary/20 text-xs text-notura-primary"
@@ -191,7 +191,7 @@ function UserDropdown({
         }}
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-notura-ink-secondary transition-colors hover:bg-notura-surface hover:text-notura-ink"
       >
-        <Settings className="h-3.5 w-3.5 shrink-0" />
+        <Settings className="size-3.5 shrink-0" />
         Configurações
       </button>
 
@@ -201,7 +201,7 @@ function UserDropdown({
         onClick={() => void handleLogout()}
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-[#FF6B6B] transition-colors hover:bg-[rgba(255,107,107,0.1)]"
       >
-        <LogOut className="h-3.5 w-3.5 shrink-0" />
+        <LogOut className="size-3.5 shrink-0" />
         Sair
       </button>
     </div>
@@ -243,7 +243,7 @@ function SidebarNavigation({ onNavigate, collapsible }: { onNavigate?: () => voi
           >
             <Icon
               className={cn(
-                "h-[18px] w-[18px] shrink-0",
+                "size-[18px] shrink-0",
                 active && "text-notura-primary"
               )}
             />
@@ -332,7 +332,7 @@ function SidebarFooter({
             collapsible && "justify-center group-hover:justify-start"
           )}
         >
-          <Avatar className="h-8 w-8 shrink-0">
+          <Avatar className="size-8 shrink-0">
             <AvatarFallback
               name={user.name}
               className="bg-notura-primary/20 text-xs text-notura-primary"
@@ -458,7 +458,7 @@ function MobileSidebar({
             onClick={onClose}
             className="rounded-md p-1 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
           >
-            <X className="h-5 w-5" />
+            <X className="size-5" />
           </button>
         </div>
 
@@ -539,7 +539,7 @@ export function DashboardLayoutClient({
               onClick={() => setMobileOpen(true)}
               className="rounded-md p-1.5 text-notura-ink-secondary hover:bg-notura-surface hover:text-notura-ink"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="size-5" />
             </button>
             <Link href="/dashboard">
               <Logo size={24} />

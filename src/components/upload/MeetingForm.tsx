@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useReducer } from "react";
 import { MessageSquare, Loader2, Zap } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { validateMeetingDate } from "@/lib/meetings/meeting-date";
@@ -37,6 +37,58 @@ interface MeetingFormProps {
 
 type WhatsappNumberSource = "account" | "custom";
 
+type MeetingFormState = {
+  meetingDate: string;
+  selectedMeetingDate: Date | undefined;
+  whatsappSource: WhatsappNumberSource;
+  customWhatsappNumber: string;
+  hasTouchedWhatsappSource: boolean;
+};
+
+type MeetingFormAction =
+  | { type: "dateChanged"; date: Date | undefined }
+  | { type: "whatsappSourceChanged"; value: WhatsappNumberSource }
+  | { type: "customWhatsappChanged"; value: string }
+  | { type: "accountSourceSelected" }
+  | { type: "customSourceSelected" };
+
+const initialMeetingFormState: MeetingFormState = {
+  meetingDate: "",
+  selectedMeetingDate: undefined,
+  whatsappSource: "account",
+  customWhatsappNumber: "",
+  hasTouchedWhatsappSource: false,
+};
+
+function meetingFormReducer(
+  state: MeetingFormState,
+  action: MeetingFormAction
+): MeetingFormState {
+  switch (action.type) {
+    case "dateChanged":
+      return {
+        ...state,
+        selectedMeetingDate: action.date,
+        meetingDate: action.date ? formatDateToYmd(action.date) : "",
+      };
+    case "whatsappSourceChanged":
+      return {
+        ...state,
+        whatsappSource: action.value,
+        hasTouchedWhatsappSource: true,
+      };
+    case "customWhatsappChanged":
+      return {
+        ...state,
+        customWhatsappNumber: maskBrazilianPhoneInput(action.value),
+      };
+    case "accountSourceSelected":
+      return { ...state, whatsappSource: "account" };
+    case "customSourceSelected":
+      return { ...state, whatsappSource: "custom" };
+  }
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const labelCls =
@@ -62,12 +114,18 @@ export function MeetingForm({
   canSendWhatsAppSummary = true,
   fileField,
 }: MeetingFormProps) {
-  const [meetingDate, setMeetingDate] = useState("");
-  const [selectedMeetingDate, setSelectedMeetingDate] = useState<Date | undefined>();
-  const [whatsappSource, setWhatsappSource] = useState<WhatsappNumberSource>("account");
-  const [customWhatsappNumber, setCustomWhatsappNumber] = useState("");
-  const [hasTouchedWhatsappSource, setHasTouchedWhatsappSource] = useState(false);
-  const [today] = useState(() => new Date());
+  const [state, dispatch] = useReducer(
+    meetingFormReducer,
+    initialMeetingFormState
+  );
+  const {
+    meetingDate,
+    selectedMeetingDate,
+    whatsappSource,
+    customWhatsappNumber,
+    hasTouchedWhatsappSource,
+  } = state;
+  const today = useMemo(() => new Date(), []);
 
   const accountWhatsappNumberNormalized = normalizeWhatsappNumber(
     accountWhatsappNumber
@@ -82,12 +140,12 @@ export function MeetingForm({
     if (!canSendWhatsAppSummary) return;
 
     if (!hasAccountWhatsappNumber && whatsappSource === "account") {
-      setWhatsappSource("custom");
+      dispatch({ type: "customSourceSelected" });
       return;
     }
 
     if (hasAccountWhatsappNumber && !hasTouchedWhatsappSource) {
-      setWhatsappSource("account");
+      dispatch({ type: "accountSourceSelected" });
     }
   }, [
     canSendWhatsAppSummary,
@@ -97,12 +155,11 @@ export function MeetingForm({
   ]);
 
   const handleDateChange = (date: Date | undefined) => {
-    setSelectedMeetingDate(date);
-    setMeetingDate(date ? formatDateToYmd(date) : "");
+    dispatch({ type: "dateChanged", date });
   };
 
   const handleCustomWhatsappChange = (value: string) => {
-    setCustomWhatsappNumber(maskBrazilianPhoneInput(value));
+    dispatch({ type: "customWhatsappChanged", value });
   };
 
   const selectedWhatsappRaw =
@@ -163,8 +220,10 @@ export function MeetingForm({
           <Select
             value={whatsappSource}
             onValueChange={(value) => {
-              setHasTouchedWhatsappSource(true);
-              setWhatsappSource(value as WhatsappNumberSource);
+              dispatch({
+                type: "whatsappSourceChanged",
+                value: value as WhatsappNumberSource,
+              });
             }}
           >
             <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
@@ -181,7 +240,7 @@ export function MeetingForm({
           </Select>
           {whatsappSource === "custom" ? (
             <div className="relative">
-              <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="tel"
                 placeholder="(00) 00000-0000"
@@ -208,12 +267,12 @@ export function MeetingForm({
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin" />
               Processando...
             </>
           ) : (
             <>
-              Processar reunião <Zap className="h-4 w-4" />
+              Processar reunião <Zap className="size-4" />
             </>
           )}
         </button>

@@ -61,22 +61,22 @@ function MeetingRow({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 w-8 rounded-md p-0 text-primary"
+            className="size-8 rounded-md p-0 text-primary"
             onClick={() => onViewProcessing(meeting.id)}
             aria-label="Ver processamento"
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="size-4" />
           </Button>
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 w-8 rounded-md p-0 text-destructive"
+            className="size-8 rounded-md p-0 text-destructive"
             onClick={() => onCancel(meeting.id)}
             disabled={isCanceling}
             aria-label="Cancelar processamento"
           >
-            <XCircle className="h-4 w-4" />
+            <XCircle className="size-4" />
           </Button>
         </>
       ) : null}
@@ -85,11 +85,11 @@ function MeetingRow({
           type="button"
           size="sm"
           variant="ghost"
-          className="h-8 w-8 rounded-md p-0 text-destructive"
+          className="size-8 rounded-md p-0 text-destructive"
           onClick={() => onRetry(meeting.id)}
           aria-label="Reprocessar reunião"
         >
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="size-4" />
         </Button>
       ) : null}
     </div>
@@ -106,14 +106,14 @@ function MeetingRow({
       className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_140px_92px] sm:gap-2 sm:px-3 sm:py-3"
     >
       {/* ── Mobile-only standalone avatar ──────────────────────────── */}
-      <Avatar className="h-9 w-9 shrink-0 sm:hidden">
+      <Avatar className="size-9 shrink-0 sm:hidden">
         <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
       </Avatar>
 
       {/* ── Column 1: title ─────────────────────────────────────────── */}
       <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
         {/* Desktop avatar (inside column 1) */}
-        <Avatar className="hidden h-8 w-8 shrink-0 sm:flex">
+        <Avatar className="hidden size-8 shrink-0 sm:flex">
           <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
         </Avatar>
 
@@ -214,7 +214,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
         actions={
           <Button asChild size="lg" className="rounded-full px-6">
             <Link href="/dashboard/recording">
-              <Plus className="h-[18px] w-[18px]" />
+              <Plus className="size-[18px]" />
               Nova reunião
             </Link>
           </Button>
@@ -224,7 +224,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
       <FilterBar
         left={
           <div className="relative max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar por título..."
@@ -239,7 +239,7 @@ export function MeetingsClient({ initialMeetings }: MeetingsClientProps) {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                 aria-label="Limpar busca"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </button>
             ) : null}
           </div>

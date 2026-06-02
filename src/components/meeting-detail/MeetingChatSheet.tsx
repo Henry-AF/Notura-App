@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -98,7 +105,7 @@ function SourceAccordion({ sources }: { sources: MeetingChatSource[] }) {
         className="flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wide text-primary transition-colors hover:opacity-80"
       >
         <ChevronRight
-          className="h-3 w-3 transition-transform duration-150"
+          className="size-3 transition-transform duration-150"
           style={{ transform: open ? "rotate(90deg)" : "none" }}
         />
         Fontes ({sources.length})
@@ -247,8 +254,8 @@ function ChatAnswerCard({
 function ArchivedChatsEmptyState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-        <MessageSquareText className="h-6 w-6 text-primary/70" />
+      <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+        <MessageSquareText className="size-6 text-primary/70" />
       </div>
       <div>
         <p className="text-sm font-semibold text-foreground">Nenhum chat arquivado</p>
@@ -288,7 +295,7 @@ function ArchivedChatListItem({
             minute: "2-digit",
           }).format(new Date(chat.createdAt))}</p>
         </div>
-        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       </div>
       <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-foreground/72">
         {getChatResponseText(chat)}
@@ -335,7 +342,7 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
               {[0, 150, 300].map((delay) => (
                 <span
                   key={delay}
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary/50"
+                  className="size-1.5 animate-bounce rounded-full bg-primary/50"
                   style={{ animationDelay: `${delay}ms` }}
                 />
               ))}
@@ -362,8 +369,8 @@ function ChatEntryItem({ entry }: { entry: ChatEntry }) {
 function EmptyState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-        <Sparkles className="h-6 w-6 text-primary/70" />
+      <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+        <Sparkles className="size-6 text-primary/70" />
       </div>
       <div>
         <p className="text-sm font-semibold text-foreground">Analise esta reunião</p>
@@ -383,6 +390,214 @@ const TRANSITION_EASING = "cubic-bezier(0.3,0,0.1,1)";
 
 type ChatSheetMode = "new" | "archived";
 type ArchivedPane = "list" | "detail";
+
+type MeetingChatSheetState = {
+  question: string;
+  entries: ChatEntry[];
+  processing: boolean;
+  mode: ChatSheetMode;
+  archivedPane: ArchivedPane;
+  archivedChats: MeetingChatResponse[];
+  archivedLoading: boolean;
+  archivedError: string | null;
+  selectedArchivedChatId: string | null;
+};
+
+type MeetingChatSheetAction =
+  | { type: "questionChanged"; value: string }
+  | { type: "closed" }
+  | { type: "archivedListOpened" }
+  | { type: "archivedChatOpened"; chatId: string }
+  | { type: "archivedDetailClosed" }
+  | { type: "newModeOpened" }
+  | { type: "archivedLoadingStarted" }
+  | { type: "archivedLoaded"; chats: MeetingChatResponse[] }
+  | { type: "archivedLoadFailed"; message: string }
+  | { type: "submitStarted"; entry: ChatEntry }
+  | { type: "submitSucceeded"; entryId: number; chat: MeetingChatResponse }
+  | { type: "submitFailed"; entryId: number; message: string }
+  | { type: "processingFinished" };
+
+const initialMeetingChatSheetState: MeetingChatSheetState = {
+  question: "",
+  entries: [],
+  processing: false,
+  mode: "new",
+  archivedPane: "list",
+  archivedChats: [],
+  archivedLoading: false,
+  archivedError: null,
+  selectedArchivedChatId: null,
+};
+
+function meetingChatSheetReducer(
+  state: MeetingChatSheetState,
+  action: MeetingChatSheetAction
+): MeetingChatSheetState {
+  switch (action.type) {
+    case "questionChanged":
+      return { ...state, question: action.value };
+    case "closed":
+      return {
+        ...state,
+        mode: "new",
+        archivedPane: "list",
+        selectedArchivedChatId: null,
+        archivedError: null,
+      };
+    case "archivedListOpened":
+      return { ...state, mode: "archived", archivedPane: "list", selectedArchivedChatId: null };
+    case "archivedChatOpened":
+      return { ...state, mode: "archived", archivedPane: "detail", selectedArchivedChatId: action.chatId };
+    case "archivedDetailClosed":
+      return { ...state, archivedPane: "list", selectedArchivedChatId: null };
+    case "newModeOpened":
+      return { ...state, mode: "new" };
+    case "archivedLoadingStarted":
+      return { ...state, archivedLoading: true, archivedError: null };
+    case "archivedLoaded": {
+      const selectedArchivedChatId =
+        state.selectedArchivedChatId &&
+        action.chats.some((chat) => chat.id === state.selectedArchivedChatId)
+          ? state.selectedArchivedChatId
+          : null;
+      return {
+        ...state,
+        archivedChats: action.chats,
+        archivedLoading: false,
+        selectedArchivedChatId,
+        archivedPane: selectedArchivedChatId ? state.archivedPane : "list",
+      };
+    }
+    case "archivedLoadFailed":
+      return { ...state, archivedLoading: false, archivedError: action.message };
+    case "submitStarted":
+      return {
+        ...state,
+        entries: [...state.entries, action.entry],
+        question: "",
+        processing: true,
+      };
+    case "submitSucceeded":
+      return {
+        ...state,
+        archivedChats: [
+          action.chat,
+          ...state.archivedChats.filter((chat) => chat.id !== action.chat.id),
+        ],
+        entries: state.entries.map((entry) =>
+          entry.id === action.entryId ? { ...entry, response: action.chat } : entry
+        ),
+      };
+    case "submitFailed":
+      return {
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === action.entryId ? { ...entry, error: action.message } : entry
+        ),
+      };
+    case "processingFinished":
+      return { ...state, processing: false };
+  }
+}
+
+type ArchivedChatsSheetState = {
+  mode: ChatSheetMode;
+  question: string;
+  entries: ChatEntry[];
+  processing: boolean;
+  createdChats: MeetingChatResponse[];
+  selectedChatId: string | null;
+  archivedPane: ArchivedPane;
+};
+
+type ArchivedChatsSheetAction =
+  | { type: "propsSynced"; open: boolean; initialChatId: string | null }
+  | { type: "selectedChatMissing" }
+  | { type: "archivedListOpened" }
+  | { type: "archivedChatOpened"; chatId: string }
+  | { type: "archivedDetailClosed" }
+  | { type: "newModeOpened" }
+  | { type: "questionChanged"; value: string }
+  | { type: "submitStarted"; entry: ChatEntry }
+  | { type: "submitSucceeded"; entryId: number; chat: MeetingChatResponse }
+  | { type: "submitFailed"; entryId: number; message: string }
+  | { type: "processingFinished" };
+
+function createArchivedChatsSheetState(
+  initialChatId: string | null
+): ArchivedChatsSheetState {
+  return {
+    mode: "archived",
+    question: "",
+    entries: [],
+    processing: false,
+    createdChats: [],
+    selectedChatId: initialChatId,
+    archivedPane: initialChatId ? "detail" : "list",
+  };
+}
+
+function archivedChatsSheetReducer(
+  state: ArchivedChatsSheetState,
+  action: ArchivedChatsSheetAction
+): ArchivedChatsSheetState {
+  switch (action.type) {
+    case "propsSynced":
+      return action.open
+        ? {
+            ...state,
+            mode: "archived",
+            archivedPane: action.initialChatId ? "detail" : "list",
+            selectedChatId: action.initialChatId,
+          }
+        : createArchivedChatsSheetState(action.initialChatId);
+    case "selectedChatMissing":
+      return { ...state, selectedChatId: null, archivedPane: "list" };
+    case "archivedListOpened":
+      return { ...state, mode: "archived", archivedPane: "list", selectedChatId: null };
+    case "archivedChatOpened":
+      return {
+        ...state,
+        mode: "archived",
+        archivedPane: "detail",
+        selectedChatId: action.chatId,
+      };
+    case "archivedDetailClosed":
+      return { ...state, archivedPane: "list", selectedChatId: null };
+    case "newModeOpened":
+      return { ...state, mode: "new" };
+    case "questionChanged":
+      return { ...state, question: action.value };
+    case "submitStarted":
+      return {
+        ...state,
+        entries: [...state.entries, action.entry],
+        question: "",
+        processing: true,
+      };
+    case "submitSucceeded":
+      return {
+        ...state,
+        createdChats: [
+          action.chat,
+          ...state.createdChats.filter((chat) => chat.id !== action.chat.id),
+        ],
+        entries: state.entries.map((entry) =>
+          entry.id === action.entryId ? { ...entry, response: action.chat } : entry
+        ),
+      };
+    case "submitFailed":
+      return {
+        ...state,
+        entries: state.entries.map((entry) =>
+          entry.id === action.entryId ? { ...entry, error: action.message } : entry
+        ),
+      };
+    case "processingFinished":
+      return { ...state, processing: false };
+  }
+}
 
 export interface MeetingChatSheetProps {
   meetingId: string;
@@ -404,15 +619,21 @@ export function MeetingChatSheet({
   open,
   onOpenChange,
 }: MeetingChatSheetProps) {
-  const [question, setQuestion] = useState("");
-  const [entries, setEntries] = useState<ChatEntry[]>([]);
-  const [processing, setProcessing] = useState(false);
-  const [mode, setMode] = useState<ChatSheetMode>("new");
-  const [archivedPane, setArchivedPane] = useState<ArchivedPane>("list");
-  const [archivedChats, setArchivedChats] = useState<MeetingChatResponse[]>([]);
-  const [archivedLoading, setArchivedLoading] = useState(false);
-  const [archivedError, setArchivedError] = useState<string | null>(null);
-  const [selectedArchivedChatId, setSelectedArchivedChatId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(
+    meetingChatSheetReducer,
+    initialMeetingChatSheetState
+  );
+  const {
+    question,
+    entries,
+    processing,
+    mode,
+    archivedPane,
+    archivedChats,
+    archivedLoading,
+    archivedError,
+    selectedArchivedChatId,
+  } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -441,32 +662,22 @@ export function MeetingChatSheet({
 
   useEffect(() => {
     if (!open) {
-      setMode("new");
-      setArchivedPane("list");
-      setSelectedArchivedChatId(null);
-      setArchivedError(null);
+      dispatch({ type: "closed" });
     }
   }, [open]);
 
   const loadArchivedChats = useCallback(async () => {
-    setArchivedLoading(true);
-    setArchivedError(null);
+    dispatch({ type: "archivedLoadingStarted" });
 
     try {
       const chats = await fetchMeetingArchivedChats(meetingId);
-      setArchivedChats(chats);
-      if (selectedArchivedChatId && !chats.some((chat) => chat.id === selectedArchivedChatId)) {
-        setSelectedArchivedChatId(null);
-        setArchivedPane("list");
-      }
+      dispatch({ type: "archivedLoaded", chats });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Erro ao carregar chats arquivados.";
-      setArchivedError(message);
-    } finally {
-      setArchivedLoading(false);
+      dispatch({ type: "archivedLoadFailed", message });
     }
-  }, [meetingId, selectedArchivedChatId]);
+  }, [meetingId]);
 
   useEffect(() => {
     if (open && mode === "archived") {
@@ -479,38 +690,30 @@ export function MeetingChatSheet({
     if (!trimmed || processing || isOverLimit) return;
 
     const id = nextEntryId();
-    setEntries((prev) => [...prev, { id, question: trimmed, response: null, error: null }]);
-    setQuestion("");
-    setProcessing(true);
+    dispatch({
+      type: "submitStarted",
+      entry: { id, question: trimmed, response: null, error: null },
+    });
 
     try {
       const { chatId } = await createMeetingChat(meetingId, trimmed);
       const result = await waitForMeetingChat(meetingId, chatId);
-      setArchivedChats((prev) => [result, ...prev.filter((chat) => chat.id !== result.id)]);
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, response: result } : e))
-      );
+      dispatch({ type: "submitSucceeded", entryId: id, chat: result });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Erro ao processar pergunta.";
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, error: message } : e))
-      );
+      dispatch({ type: "submitFailed", entryId: id, message });
     } finally {
-      setProcessing(false);
+      dispatch({ type: "processingFinished" });
     }
   }, [isOverLimit, meetingId, processing, question]);
 
   const openArchivedList = useCallback(() => {
-    setMode("archived");
-    setArchivedPane("list");
-    setSelectedArchivedChatId(null);
+    dispatch({ type: "archivedListOpened" });
   }, []);
 
   const openArchivedChat = useCallback((chat: MeetingChatResponse) => {
-    setMode("archived");
-    setArchivedPane("detail");
-    setSelectedArchivedChatId(chat.id);
+    dispatch({ type: "archivedChatOpened", chatId: chat.id });
   }, []);
 
   const handleKeyDown = useCallback(
@@ -531,17 +734,14 @@ export function MeetingChatSheet({
             <button
               type="button"
               aria-label="Voltar para lista de chats arquivados"
-              onClick={() => {
-                setArchivedPane("list");
-                setSelectedArchivedChatId(null);
-              }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-muted text-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-accent"
+              onClick={() => dispatch({ type: "archivedDetailClosed" })}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-muted text-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-accent"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="size-4" />
             </button>
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="size-4 text-primary" />
             </div>
           )}
           <div className="min-w-0">
@@ -562,7 +762,7 @@ export function MeetingChatSheet({
           onClick={() => onOpenChange(false)}
           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <X className="h-4 w-4" />
+          <X className="size-4" />
         </button>
       </div>
 
@@ -571,7 +771,7 @@ export function MeetingChatSheet({
           <div className="grid grid-cols-2 gap-1">
             <button
               type="button"
-              onClick={() => setMode("new")}
+              onClick={() => dispatch({ type: "newModeOpened" })}
               className={cn(
                 "rounded-[14px] px-3 py-2 text-sm font-medium transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
                 mode === "new"
@@ -606,7 +806,9 @@ export function MeetingChatSheet({
           <textarea
             ref={textareaRef}
             value={question}
-            onChange={(e) => setQuestion(e.target.value)}
+            onChange={(e) =>
+              dispatch({ type: "questionChanged", value: e.target.value })
+            }
             onKeyDown={handleKeyDown}
             disabled={processing}
             placeholder="Quais prazos foram combinados?"
@@ -621,9 +823,9 @@ export function MeetingChatSheet({
             onClick={() => void handleSubmit()}
             disabled={!question.trim() || processing || isOverLimit}
             aria-label="Enviar pergunta"
-            className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+            className="absolute bottom-2.5 right-2.5 flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
           >
-            <Send className="h-3.5 w-3.5" />
+            <Send className="size-3.5" />
           </button>
         </div>
 
@@ -729,15 +931,20 @@ export function MeetingArchivedChatsSheet({
   chats,
   initialChatId = null,
 }: MeetingArchivedChatsSheetProps) {
-  const [mode, setMode] = useState<ChatSheetMode>("archived");
-  const [question, setQuestion] = useState("");
-  const [entries, setEntries] = useState<ChatEntry[]>([]);
-  const [processing, setProcessing] = useState(false);
-  const [createdChats, setCreatedChats] = useState<MeetingChatResponse[]>([]);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId);
-  const [archivedPane, setArchivedPane] = useState<ArchivedPane>(
-    initialChatId ? "detail" : "list"
+  const [state, dispatch] = useReducer(
+    archivedChatsSheetReducer,
+    initialChatId,
+    createArchivedChatsSheetState
   );
+  const {
+    mode,
+    question,
+    entries,
+    processing,
+    createdChats,
+    selectedChatId,
+    archivedPane,
+  } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -752,25 +959,12 @@ export function MeetingArchivedChatsSheet({
     question.length > MAX_CHARS || countSentences(question) > MAX_SENTENCES;
 
   useEffect(() => {
-    if (!open) {
-      setMode("archived");
-      setQuestion("");
-      setEntries([]);
-      setProcessing(false);
-      setArchivedPane(initialChatId ? "detail" : "list");
-      setSelectedChatId(initialChatId);
-      return;
-    }
-
-    setMode("archived");
-    setArchivedPane(initialChatId ? "detail" : "list");
-    setSelectedChatId(initialChatId);
+    dispatch({ type: "propsSynced", open, initialChatId });
   }, [initialChatId, open]);
 
   useEffect(() => {
     if (selectedChatId && !visibleChats.some((chat) => chat.id === selectedChatId)) {
-      setSelectedChatId(null);
-      setArchivedPane("list");
+      dispatch({ type: "selectedChatMissing" });
     }
   }, [selectedChatId, visibleChats]);
 
@@ -798,25 +992,21 @@ export function MeetingArchivedChatsSheet({
     if (!meetingId || !trimmed || processing || isOverLimit) return;
 
     const id = nextEntryId();
-    setEntries((prev) => [...prev, { id, question: trimmed, response: null, error: null }]);
-    setQuestion("");
-    setProcessing(true);
+    dispatch({
+      type: "submitStarted",
+      entry: { id, question: trimmed, response: null, error: null },
+    });
 
     try {
       const { chatId } = await createMeetingChat(meetingId, trimmed);
       const result = await waitForMeetingChat(meetingId, chatId);
-      setCreatedChats((prev) => [result, ...prev.filter((chat) => chat.id !== result.id)]);
-      setEntries((prev) =>
-        prev.map((entry) => (entry.id === id ? { ...entry, response: result } : entry))
-      );
+      dispatch({ type: "submitSucceeded", entryId: id, chat: result });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Erro ao processar pergunta.";
-      setEntries((prev) =>
-        prev.map((entry) => (entry.id === id ? { ...entry, error: message } : entry))
-      );
+      dispatch({ type: "submitFailed", entryId: id, message });
     } finally {
-      setProcessing(false);
+      dispatch({ type: "processingFinished" });
     }
   }, [isOverLimit, meetingId, processing, question]);
 
@@ -831,9 +1021,7 @@ export function MeetingArchivedChatsSheet({
   );
 
   function openArchivedList() {
-    setMode("archived");
-    setArchivedPane("list");
-    setSelectedChatId(null);
+    dispatch({ type: "archivedListOpened" });
   }
 
   return (
@@ -849,17 +1037,14 @@ export function MeetingArchivedChatsSheet({
                 <button
                   type="button"
                   aria-label="Voltar para lista de chats arquivados"
-                  onClick={() => {
-                    setArchivedPane("list");
-                    setSelectedChatId(null);
-                  }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-muted text-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-accent"
+                  onClick={() => dispatch({ type: "archivedDetailClosed" })}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/50 bg-muted text-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-accent"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="size-4" />
                 </button>
               ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Sparkles className="size-4 text-primary" />
                 </div>
               )}
               <div className="min-w-0">
@@ -880,7 +1065,7 @@ export function MeetingArchivedChatsSheet({
               onClick={() => onOpenChange(false)}
               className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
             </button>
           </div>
 
@@ -889,7 +1074,7 @@ export function MeetingArchivedChatsSheet({
               <div className="grid grid-cols-2 gap-1">
                 <button
                   type="button"
-                  onClick={() => setMode("new")}
+                  onClick={() => dispatch({ type: "newModeOpened" })}
                   className={cn(
                     "rounded-[14px] px-3 py-2 text-sm font-medium transition-all duration-300 ease-[cubic-bezier(0.3,0,0.1,1)]",
                     mode === "new"
@@ -923,7 +1108,9 @@ export function MeetingArchivedChatsSheet({
               <textarea
                 ref={textareaRef}
                 value={question}
-                onChange={(event) => setQuestion(event.target.value)}
+                onChange={(event) =>
+                  dispatch({ type: "questionChanged", value: event.target.value })
+                }
                 onKeyDown={handleKeyDown}
                 disabled={processing}
                 placeholder="Quais prazos foram combinados?"
@@ -938,9 +1125,9 @@ export function MeetingArchivedChatsSheet({
                 onClick={() => void handleSubmit()}
                 disabled={!question.trim() || processing || isOverLimit}
                 aria-label="Enviar pergunta"
-                className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+                className="absolute bottom-2.5 right-2.5 flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all duration-200 hover:scale-[0.98] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="size-3.5" />
               </button>
             </div>
 
@@ -1000,11 +1187,9 @@ export function MeetingArchivedChatsSheet({
                 <ArchivedChatListItem
                   key={chat.id}
                   chat={chat}
-                  onOpen={(item) => {
-                    setMode("archived");
-                    setSelectedChatId(item.id);
-                    setArchivedPane("detail");
-                  }}
+                  onOpen={(item) =>
+                    dispatch({ type: "archivedChatOpened", chatId: item.id })
+                  }
                 />
               ))}
             </div>

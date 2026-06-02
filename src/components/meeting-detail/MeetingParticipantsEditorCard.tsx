@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useReducer } from "react";
 import {
   Building2,
   Check,
@@ -18,6 +18,120 @@ import type { MeetingParticipantDisplay } from "@/app/dashboard/meetings/[id]/me
 
 type ParticipantRole = "participant" | "entity";
 type ParticipantGroupId = "participants" | "entities";
+
+type ParticipantsEditorState = {
+  drafts: Record<string, string>;
+  roleDrafts: Record<string, ParticipantRole>;
+  editingId: string | null;
+  draftName: string;
+  mergePanelId: string | null;
+  collapsedGroups: Record<ParticipantGroupId, boolean>;
+  savingId: string | null;
+  mergingId: string | null;
+  savedId: string | null;
+};
+
+type ParticipantsEditorAction =
+  | { type: "rowsSynced"; rows: MeetingParticipantDisplay[] }
+  | { type: "editingStarted"; id: string; draftName: string }
+  | { type: "editingCanceled" }
+  | { type: "draftNameChanged"; value: string }
+  | { type: "savingStarted"; id: string }
+  | { type: "rowSaved"; id: string; name: string; role: ParticipantRole }
+  | { type: "saveReverted"; id: string; name: string; role: ParticipantRole }
+  | { type: "saveFinished" }
+  | { type: "roleDraftChanged"; id: string; role: ParticipantRole }
+  | { type: "mergingStarted"; id: string }
+  | { type: "mergingFinished" }
+  | { type: "savedCleared" }
+  | { type: "mergePanelToggled"; id: string }
+  | { type: "collapsedGroupToggled"; groupId: ParticipantGroupId };
+
+function createParticipantsEditorState(
+  rows: MeetingParticipantDisplay[]
+): ParticipantsEditorState {
+  return {
+    drafts: buildDrafts(rows),
+    roleDrafts: buildRoleDrafts(rows),
+    editingId: null,
+    draftName: "",
+    mergePanelId: null,
+    collapsedGroups: {
+      participants: false,
+      entities: false,
+    },
+    savingId: null,
+    mergingId: null,
+    savedId: null,
+  };
+}
+
+function participantsEditorReducer(
+  state: ParticipantsEditorState,
+  action: ParticipantsEditorAction
+): ParticipantsEditorState {
+  switch (action.type) {
+    case "rowsSynced":
+      return {
+        ...state,
+        drafts: buildDrafts(action.rows),
+        roleDrafts: buildRoleDrafts(action.rows),
+      };
+    case "editingStarted":
+      return {
+        ...state,
+        mergePanelId: null,
+        editingId: action.id,
+        draftName: action.draftName,
+      };
+    case "editingCanceled":
+      return { ...state, editingId: null, draftName: "" };
+    case "draftNameChanged":
+      return { ...state, draftName: action.value };
+    case "savingStarted":
+      return { ...state, savingId: action.id, savedId: null };
+    case "rowSaved":
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.id]: action.name },
+        roleDrafts: { ...state.roleDrafts, [action.id]: action.role },
+        savedId: action.id,
+      };
+    case "saveReverted":
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.id]: action.name },
+        roleDrafts: { ...state.roleDrafts, [action.id]: action.role },
+      };
+    case "saveFinished":
+      return { ...state, editingId: null, draftName: "", savingId: null };
+    case "roleDraftChanged":
+      return {
+        ...state,
+        mergePanelId: null,
+        roleDrafts: { ...state.roleDrafts, [action.id]: action.role },
+      };
+    case "mergingStarted":
+      return { ...state, mergingId: action.id, savedId: null };
+    case "mergingFinished":
+      return { ...state, mergingId: null };
+    case "savedCleared":
+      return { ...state, savedId: null };
+    case "mergePanelToggled":
+      return {
+        ...state,
+        mergePanelId: state.mergePanelId === action.id ? null : action.id,
+      };
+    case "collapsedGroupToggled":
+      return {
+        ...state,
+        collapsedGroups: {
+          ...state.collapsedGroups,
+          [action.groupId]: !state.collapsedGroups[action.groupId],
+        },
+      };
+  }
+}
 
 export interface MeetingParticipantsEditorCardProps {
   participants: MeetingParticipantDisplay[];
@@ -45,40 +159,38 @@ export function MeetingParticipantsEditorCard({
     () => [...participants, ...entities].filter((row) => row.id),
     [entities, participants]
   );
-  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
-    buildDrafts(rows)
+  const [state, dispatch] = useReducer(
+    participantsEditorReducer,
+    rows,
+    createParticipantsEditorState
   );
-  const [roleDrafts, setRoleDrafts] = useState<Record<string, ParticipantRole>>(
-    () => buildRoleDrafts(rows)
-  );
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [mergePanelId, setMergePanelId] = useState<string | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<
-    Record<ParticipantGroupId, boolean>
-  >({
-    participants: false,
-    entities: false,
-  });
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [mergingId, setMergingId] = useState<string | null>(null);
-  const [savedId, setSavedId] = useState<string | null>(null);
+  const {
+    drafts,
+    roleDrafts,
+    editingId,
+    draftName,
+    mergePanelId,
+    collapsedGroups,
+    savingId,
+    mergingId,
+    savedId,
+  } = state;
 
   useEffect(() => {
-    setDrafts(buildDrafts(rows));
-    setRoleDrafts(buildRoleDrafts(rows));
+    dispatch({ type: "rowsSynced", rows });
   }, [rows]);
 
   function beginEditing(row: MeetingParticipantDisplay) {
     if (!row.id) return;
-    setMergePanelId(null);
-    setEditingId(row.id);
-    setDraftName(drafts[row.id] ?? row.name);
+    dispatch({
+      type: "editingStarted",
+      id: row.id,
+      draftName: drafts[row.id] ?? row.name,
+    });
   }
 
   function cancelEditing() {
-    setEditingId(null);
-    setDraftName("");
+    dispatch({ type: "editingCanceled" });
   }
 
   async function persistRow(
@@ -97,30 +209,28 @@ export function MeetingParticipantsEditorCard({
       return;
     }
 
-    setSavingId(row.id);
-    setSavedId(null);
+    dispatch({ type: "savingStarted", id: row.id });
     try {
       const updated = await onSaveParticipant(row.id, nextName, role);
-      setDrafts((current) => ({ ...current, [row.id as string]: updated.name }));
-      setRoleDrafts((current) => ({
-        ...current,
-        [row.id as string]: updated.role ?? role,
-      }));
-      setSavedId(row.id);
-      window.setTimeout(() => setSavedId(null), 1800);
+      dispatch({
+        type: "rowSaved",
+        id: row.id,
+        name: updated.name,
+        role: updated.role ?? role,
+      });
+      window.setTimeout(() => dispatch({ type: "savedCleared" }), 1800);
     } catch (error) {
-      setDrafts((current) => ({ ...current, [row.id as string]: row.name }));
-      setRoleDrafts((current) => ({
-        ...current,
-        [row.id as string]: row.role ?? "participant",
-      }));
+      dispatch({
+        type: "saveReverted",
+        id: row.id,
+        name: row.name,
+        role: row.role ?? "participant",
+      });
       onError?.(
         error instanceof Error ? error.message : "Erro ao atualizar nome."
       );
     } finally {
-      setEditingId(null);
-      setDraftName("");
-      setSavingId(null);
+      dispatch({ type: "saveFinished" });
     }
   }
 
@@ -136,8 +246,7 @@ export function MeetingParticipantsEditorCard({
     if (!row.id) return;
     const currentRole = roleDrafts[row.id] ?? row.role ?? "participant";
     const nextRole = currentRole === "participant" ? "entity" : "participant";
-    setMergePanelId(null);
-    setRoleDrafts((current) => ({ ...current, [row.id as string]: nextRole }));
+    dispatch({ type: "roleDraftChanged", id: row.id, role: nextRole });
     await persistRow(row, drafts[row.id] ?? row.name, nextRole);
   }
 
@@ -148,8 +257,7 @@ export function MeetingParticipantsEditorCard({
     if (!row.id || !target.id) return;
     if (!window.confirm(`Mesclar "${row.name}" com "${target.name}"?`)) return;
 
-    setMergingId(row.id);
-    setSavedId(null);
+    dispatch({ type: "mergingStarted", id: row.id });
     try {
       await onMergeParticipant(row.id, target.id);
     } catch (error) {
@@ -157,15 +265,12 @@ export function MeetingParticipantsEditorCard({
         error instanceof Error ? error.message : "Erro ao mesclar participantes."
       );
     } finally {
-      setMergingId(null);
+      dispatch({ type: "mergingFinished" });
     }
   }
 
   function toggleCollapsedGroup(groupId: ParticipantGroupId) {
-    setCollapsedGroups((current) => ({
-      ...current,
-      [groupId]: !current[groupId],
-    }));
+    dispatch({ type: "collapsedGroupToggled", groupId });
   }
 
   return (
@@ -177,7 +282,7 @@ export function MeetingParticipantsEditorCard({
       <div className="space-y-5">
         <ParticipantGroup
           groupId="participants"
-          icon={<Users className="h-4 w-4" />}
+          icon={<Users className="size-4" />}
           label="Participantes"
           isCollapsed={collapsedGroups.participants}
           rows={participants}
@@ -192,19 +297,21 @@ export function MeetingParticipantsEditorCard({
           availableMergeOptions={participants}
           isParticipantGroup
           onBeginEditing={beginEditing}
-          onDraftNameChange={setDraftName}
+          onDraftNameChange={(value) =>
+            dispatch({ type: "draftNameChanged", value })
+          }
           onCancelEditing={cancelEditing}
           onFinishEditing={finishEditing}
           onToggleRole={toggleRole}
           onToggleMergePanel={(id) =>
-            setMergePanelId((current) => (current === id ? null : id))
+            dispatch({ type: "mergePanelToggled", id })
           }
           onToggleCollapsed={toggleCollapsedGroup}
           onMerge={mergeRow}
         />
         <ParticipantGroup
           groupId="entities"
-          icon={<Building2 className="h-4 w-4" />}
+          icon={<Building2 className="size-4" />}
           label="Entidades citadas"
           isCollapsed={collapsedGroups.entities}
           rows={entities}
@@ -218,12 +325,14 @@ export function MeetingParticipantsEditorCard({
           mergePanelId={mergePanelId}
           availableMergeOptions={[]}
           onBeginEditing={beginEditing}
-          onDraftNameChange={setDraftName}
+          onDraftNameChange={(value) =>
+            dispatch({ type: "draftNameChanged", value })
+          }
           onCancelEditing={cancelEditing}
           onFinishEditing={finishEditing}
           onToggleRole={toggleRole}
           onToggleMergePanel={(id) =>
-            setMergePanelId((current) => (current === id ? null : id))
+            dispatch({ type: "mergePanelToggled", id })
           }
           onToggleCollapsed={toggleCollapsedGroup}
           onMerge={mergeRow}
@@ -304,7 +413,7 @@ function ParticipantGroup({
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+          className={`size-4 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
         />
       </button>
       {!isCollapsed ? (
@@ -387,7 +496,7 @@ function ParticipantRow({
   return (
     <div className="group rounded-lg border bg-background/70 p-3 transition-colors hover:bg-muted/30">
       <div className="flex items-center gap-3">
-        <Avatar className="h-9 w-9 border border-border">
+        <Avatar className="size-9 border border-border">
           <AvatarFallback name={displayName} className="text-[11px] font-semibold" />
         </Avatar>
         <div className="min-w-0 flex-1">
@@ -416,7 +525,7 @@ function ParticipantRow({
             >
               {displayName}
               <Pencil
-                className="ml-1.5 inline h-3 w-3 align-[-1px] text-muted-foreground"
+                className="ml-1.5 inline size-3 align-[-1px] text-muted-foreground"
                 aria-hidden="true"
               />
             </button>
@@ -435,8 +544,8 @@ function ParticipantRow({
           />
         ) : null}
         <RolePill role={role} disabled={isSaving} onClick={() => { void onToggleRole(row); }} />
-        {isSaving ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
-        {isSaved && !isSaving ? <Check className="h-4 w-4 text-emerald-500" /> : null}
+        {isSaving ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null}
+        {isSaved && !isSaving ? <Check className="size-4 text-emerald-500" /> : null}
       </div>
       {showMergePanel && canMerge ? (
         <MergePanel
@@ -467,12 +576,12 @@ function MergeButton({
       disabled={isMerging}
       onClick={() => onToggleMergePanel(row.id as string)}
       aria-label={`Abrir mesclagem de ${row.name}`}
-      className="h-8 w-8 shrink-0 border border-border/70 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+      className="size-8 shrink-0 border border-border/70 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
     >
       {isMerging ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Loader2 className="size-4 animate-spin" />
       ) : (
-        <GitMerge className="h-4 w-4" />
+        <GitMerge className="size-4" />
       )}
     </Button>
   );

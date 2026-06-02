@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useReducer } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ProfileCard,
@@ -47,39 +47,52 @@ function clearPaymentSearch(pathname: string) {
   window.history.replaceState(null, "", pathname);
 }
 
-// ─── Inner page ───────────────────────────────────────────────────────────────
+type SettingsPageState = {
+  loading: boolean;
+  name: string;
+  email: string;
+  company: string;
+  rawPlan: "free" | "pro" | "team";
+  planName: string;
+  meetingsUsed: number;
+  meetingsTotal: number | null;
+  currentPeriodEnd: string | null;
+  autoRenewEnabled: boolean;
+  renewalStatus: string;
+  autoRenewSaving: boolean;
+  showPlanModal: boolean;
+  integrations: Integration[];
+  preferences: Preference[];
+};
 
-function SettingsPageInner() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const { show } = useToast();
-  const { theme, toggleTheme } = useTheme();
-  const [loading, setLoading] = useState(true);
+type SettingsPageAction =
+  | { type: "userApplied"; user: CurrentUser }
+  | { type: "loadingChanged"; value: boolean }
+  | { type: "themeSynced"; isDark: boolean }
+  | { type: "preferenceChanged"; id: string; value: boolean }
+  | { type: "autoRenewSavingChanged"; value: boolean }
+  | {
+      type: "autoRenewUpdated";
+      autoRenewEnabled: boolean;
+      currentPeriodEnd: string | null;
+      renewalStatus: string;
+    }
+  | { type: "planModalChanged"; value: boolean };
 
-  // Profile fields
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
-  const [rawPlan, setRawPlan] = useState<"free" | "pro" | "team">("free");
+function buildIntegrations(user: CurrentUser): Integration[] {
+  return [
+    {
+      id: "whatsapp",
+      name: "WhatsApp",
+      icon: "💬",
+      phone: user.whatsappNumber,
+      status: user.whatsappNumber ? "connected" : "disconnected",
+    },
+  ];
+}
 
-  // Subscription fields
-  const [planName, setPlanName] = useState(getPlanTitle("free"));
-  const [meetingsUsed, setMeetingsUsed] = useState(0);
-  const [meetingsTotal, setMeetingsTotal] = useState<number | null>(3);
-  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
-  const [autoRenewEnabled, setAutoRenewEnabled] = useState(true);
-  const [renewalStatus, setRenewalStatus] = useState("idle");
-  const [autoRenewSaving, setAutoRenewSaving] = useState(false);
-
-  // Modal
-  const [showPlanModal, setShowPlanModal] = useState(false);
-
-  // Integrations & preferences
-  const [integrations, setIntegrations] = useState<Integration[]>([
-    { id: "whatsapp", name: "WhatsApp", icon: "💬", phone: "", status: "disconnected" },
-  ]);
-  const [preferences, setPreferences] = useState<Preference[]>([
+function buildPreferences(isDark: boolean): Preference[] {
+  return [
     {
       id: "resume_notifications",
       icon: "🔔",
@@ -92,30 +105,118 @@ function SettingsPageInner() {
       icon: "🌙",
       name: "Modo Escuro",
       description: "Interface em tons profundos",
-      enabled: theme === "dark",
+      enabled: isDark,
     },
-  ]);
+  ];
+}
 
-  const applyUser = useCallback((user: CurrentUser) => {
-    setName(user.name);
-    setEmail(user.email);
-    setCompany(user.company);
-    setRawPlan(user.plan);
-    setPlanName(getPlanName(user.plan));
-    setMeetingsUsed(user.meetingsThisMonth);
-    setMeetingsTotal(user.monthlyLimit);
-    setCurrentPeriodEnd(user.currentPeriodEnd ?? null);
-    setAutoRenewEnabled(user.autoRenewEnabled ?? true);
-    setRenewalStatus(user.renewalStatus ?? "idle");
-    setIntegrations([
+function settingsPageReducer(
+  state: SettingsPageState,
+  action: SettingsPageAction
+): SettingsPageState {
+  switch (action.type) {
+    case "userApplied":
+      return {
+        ...state,
+        name: action.user.name,
+        email: action.user.email,
+        company: action.user.company,
+        rawPlan: action.user.plan,
+        planName: getPlanName(action.user.plan),
+        meetingsUsed: action.user.meetingsThisMonth,
+        meetingsTotal: action.user.monthlyLimit,
+        currentPeriodEnd: action.user.currentPeriodEnd ?? null,
+        autoRenewEnabled: action.user.autoRenewEnabled ?? true,
+        renewalStatus: action.user.renewalStatus ?? "idle",
+        integrations: buildIntegrations(action.user),
+      };
+    case "loadingChanged":
+      return { ...state, loading: action.value };
+    case "themeSynced":
+      return {
+        ...state,
+        preferences: state.preferences.map((preference) =>
+          preference.id === "dark_mode"
+            ? { ...preference, enabled: action.isDark }
+            : preference
+        ),
+      };
+    case "preferenceChanged":
+      return {
+        ...state,
+        preferences: state.preferences.map((preference) =>
+          preference.id === action.id
+            ? { ...preference, enabled: action.value }
+            : preference
+        ),
+      };
+    case "autoRenewSavingChanged":
+      return { ...state, autoRenewSaving: action.value };
+    case "autoRenewUpdated":
+      return {
+        ...state,
+        autoRenewEnabled: action.autoRenewEnabled,
+        currentPeriodEnd: action.currentPeriodEnd,
+        renewalStatus: action.renewalStatus,
+      };
+    case "planModalChanged":
+      return { ...state, showPlanModal: action.value };
+  }
+}
+
+// ─── Inner page ───────────────────────────────────────────────────────────────
+
+function SettingsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { show } = useToast();
+  const { theme, toggleTheme } = useTheme();
+  const [state, dispatch] = useReducer(settingsPageReducer, {
+    loading: true,
+    name: "",
+    email: "",
+    company: "",
+    rawPlan: "free",
+    planName: getPlanTitle("free"),
+    meetingsUsed: 0,
+    meetingsTotal: 3,
+    currentPeriodEnd: null,
+    autoRenewEnabled: true,
+    renewalStatus: "idle",
+    autoRenewSaving: false,
+    showPlanModal: false,
+    integrations: [
       {
         id: "whatsapp",
         name: "WhatsApp",
         icon: "💬",
-        phone: user.whatsappNumber,
-        status: user.whatsappNumber ? "connected" : "disconnected",
+        phone: "",
+        status: "disconnected",
       },
-    ]);
+    ],
+    preferences: buildPreferences(theme === "dark"),
+  });
+  const {
+    loading,
+    name,
+    email,
+    company,
+    rawPlan,
+    planName,
+    meetingsUsed,
+    meetingsTotal,
+    currentPeriodEnd,
+    autoRenewEnabled,
+    renewalStatus,
+    autoRenewSaving,
+    showPlanModal,
+    integrations,
+    preferences,
+  } = state;
+
+  const applyUser = useCallback((user: CurrentUser) => {
+    dispatch({ type: "userApplied", user });
   }, []);
 
   const loadUser = useCallback(async () => {
@@ -125,7 +226,7 @@ function SettingsPageInner() {
     } catch {
       show("Erro ao carregar configurações.", "error");
     } finally {
-      setLoading(false);
+      dispatch({ type: "loadingChanged", value: false });
     }
   }, [applyUser, show]);
 
@@ -155,7 +256,7 @@ function SettingsPageInner() {
     let cancelled = false;
 
     async function verifyPayment() {
-      setLoading(true);
+      dispatch({ type: "loadingChanged", value: true });
 
       try {
         await verifySettingsPayment(sessionId);
@@ -172,7 +273,7 @@ function SettingsPageInner() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          dispatch({ type: "loadingChanged", value: false });
           clearPaymentSearch(pathname);
         }
       }
@@ -187,9 +288,7 @@ function SettingsPageInner() {
 
   // Sync dark_mode pref with actual theme
   useEffect(() => {
-    setPreferences((prev) =>
-      prev.map((p) => (p.id === "dark_mode" ? { ...p, enabled: theme === "dark" } : p))
-    );
+    dispatch({ type: "themeSynced", isDark: theme === "dark" });
   }, [theme]);
 
   const handleProfileSave = useCallback(
@@ -251,9 +350,7 @@ function SettingsPageInner() {
         toggleTheme();
         return;
       }
-      setPreferences((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, enabled: value } : p))
-      );
+      dispatch({ type: "preferenceChanged", id, value });
       show("Preferência atualizada.", "success");
     },
     [show, toggleTheme]
@@ -261,13 +358,16 @@ function SettingsPageInner() {
 
   const handleAutoRenewChange = useCallback(
     async (enabled: boolean) => {
-      setAutoRenewSaving(true);
+      dispatch({ type: "autoRenewSavingChanged", value: true });
 
       try {
         const status = await updateBillingAutoRenew(enabled);
-        setAutoRenewEnabled(status.autoRenewEnabled);
-        setCurrentPeriodEnd(status.currentPeriodEnd);
-        setRenewalStatus(status.renewalStatus);
+        dispatch({
+          type: "autoRenewUpdated",
+          autoRenewEnabled: status.autoRenewEnabled,
+          currentPeriodEnd: status.currentPeriodEnd,
+          renewalStatus: status.renewalStatus,
+        });
         notifyUserUpdated();
         show(
           status.autoRenewEnabled
@@ -278,7 +378,7 @@ function SettingsPageInner() {
       } catch {
         show("Erro ao atualizar renovação automática.", "error");
       } finally {
-        setAutoRenewSaving(false);
+        dispatch({ type: "autoRenewSavingChanged", value: false });
       }
     },
     [show]
@@ -338,7 +438,9 @@ function SettingsPageInner() {
               renewalStatus={renewalStatus}
               autoRenewSaving={autoRenewSaving}
               onAutoRenewChange={handleAutoRenewChange}
-              onChangePlan={() => setShowPlanModal(true)}
+              onChangePlan={() =>
+                dispatch({ type: "planModalChanged", value: true })
+              }
             />
           </div>
         </div>
@@ -377,7 +479,7 @@ function SettingsPageInner() {
       {showPlanModal && (
         <PlanModal
           currentPlan={rawPlan}
-          onClose={() => setShowPlanModal(false)}
+          onClose={() => dispatch({ type: "planModalChanged", value: false })}
           onSuccess={() => {
             void fetchCurrentUser()
               .then((user) => {

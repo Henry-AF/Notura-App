@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useReducer } from "react";
 import { useToast } from "@/components/upload/Toast";
 import { PageHeader, PageShell, SectionCard } from "@/components/ui/app";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -26,6 +26,40 @@ export interface MeetingEditClientProps {
 
 const NO_GROUP_VALUE = "__none__";
 
+type MeetingEditState = {
+  title: string;
+  meetingDate: string;
+  groupId: string | null;
+  selectedDate: Date | undefined;
+  saving: boolean;
+};
+
+type MeetingEditAction =
+  | { type: "titleChanged"; value: string }
+  | { type: "groupChanged"; value: string | null }
+  | { type: "dateChanged"; value: Date | undefined }
+  | { type: "savingChanged"; value: boolean };
+
+function meetingEditReducer(
+  state: MeetingEditState,
+  action: MeetingEditAction
+): MeetingEditState {
+  switch (action.type) {
+    case "titleChanged":
+      return { ...state, title: action.value };
+    case "groupChanged":
+      return { ...state, groupId: action.value };
+    case "dateChanged":
+      return {
+        ...state,
+        selectedDate: action.value,
+        meetingDate: action.value ? formatDateToYmd(action.value) : "",
+      };
+    case "savingChanged":
+      return { ...state, saving: action.value };
+  }
+}
+
 function parseYmdDate(value: string): Date | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
 
@@ -48,15 +82,14 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
   const today = useMemo(() => new Date(), []);
   const initialGroupId = initialMeeting?.groupId ?? null;
 
-  const [title, setTitle] = useState(initialMeeting?.title ?? "");
-  const [meetingDate, setMeetingDate] = useState(initialMeeting?.meetingDate ?? "");
-  const [groupId, setGroupId] = useState<string | null>(
-    initialGroupId
-  );
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    parseYmdDate(initialMeeting?.meetingDate ?? "")
-  );
-  const [saving, setSaving] = useState(false);
+  const [state, dispatch] = useReducer(meetingEditReducer, {
+    title: initialMeeting?.title ?? "",
+    meetingDate: initialMeeting?.meetingDate ?? "",
+    groupId: initialGroupId,
+    selectedDate: parseYmdDate(initialMeeting?.meetingDate ?? ""),
+    saving: false,
+  });
+  const { title, meetingDate, groupId, selectedDate, saving } = state;
 
   if (!initialMeeting) {
     return (
@@ -94,7 +127,7 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
       return;
     }
 
-    setSaving(true);
+    dispatch({ type: "savingChanged", value: true });
     try {
       await updateMeetingEditableFields(id, {
         title: trimmedTitle,
@@ -110,7 +143,7 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
         error instanceof Error ? error.message : "Erro ao salvar reunião.",
         "error"
       );
-      setSaving(false);
+      dispatch({ type: "savingChanged", value: false });
     }
   }
 
@@ -134,7 +167,9 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
             </label>
             <Input
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) =>
+                dispatch({ type: "titleChanged", value: event.target.value })
+              }
               placeholder="Título da reunião"
               className="h-10 rounded-lg"
               disabled={saving}
@@ -148,7 +183,10 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
             <Select
               value={groupId ?? NO_GROUP_VALUE}
               onValueChange={(value) =>
-                setGroupId(value === NO_GROUP_VALUE ? null : value)
+                dispatch({
+                  type: "groupChanged",
+                  value: value === NO_GROUP_VALUE ? null : value,
+                })
               }
               disabled={saving}
             >
@@ -172,10 +210,7 @@ export function MeetingEditClient({ id, initialMeeting }: MeetingEditClientProps
             </label>
             <DatePicker
               value={selectedDate}
-              onChange={(date) => {
-                setSelectedDate(date);
-                setMeetingDate(date ? formatDateToYmd(date) : "");
-              }}
+              onChange={(date) => dispatch({ type: "dateChanged", value: date })}
               maxDate={today}
               placeholder="Selecione a data"
               disabled={saving}

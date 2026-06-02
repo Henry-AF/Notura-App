@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ChevronRight, X } from "lucide-react";
@@ -34,6 +34,83 @@ function getInitialRecordingMode(mode: string | null): RecordingMode {
   if (mode === "remote") return "remote";
   if (mode === "upload") return "upload";
   return "in-person";
+}
+
+type RecordingPageState = {
+  accountWhatsappNumber: string;
+  canSendWhatsAppSummary: boolean;
+  meetingGroups: MeetingGroupOption[];
+  selectedGroupId: string | null;
+  isUploadSubmitting: boolean;
+  recordingMode: RecordingMode;
+  uploadFile: File | null;
+  uploadPreviewProgress: number;
+  uploadTimeRemaining: string;
+  uploadProgress: number;
+  pendingNavigationHref: string | null;
+};
+
+type RecordingPageAction =
+  | {
+      type: "defaultsLoaded";
+      accountWhatsappNumber: string;
+      canSendWhatsAppSummary: boolean;
+      meetingGroups: MeetingGroupOption[];
+    }
+  | { type: "recordingModeChanged"; value: RecordingMode }
+  | { type: "uploadFileSelected"; file: File }
+  | { type: "uploadPreviewTick"; progress: number; timeRemaining: string }
+  | { type: "uploadReset" }
+  | { type: "uploadStarted" }
+  | { type: "uploadProgressChanged"; value: number }
+  | { type: "uploadFinished" }
+  | { type: "pendingNavigationChanged"; value: string | null }
+  | { type: "selectedGroupChanged"; value: string | null }
+  | { type: "groupCreated"; option: MeetingGroupOption };
+
+function recordingPageReducer(
+  state: RecordingPageState,
+  action: RecordingPageAction
+): RecordingPageState {
+  switch (action.type) {
+    case "defaultsLoaded":
+      return {
+        ...state,
+        accountWhatsappNumber: action.accountWhatsappNumber,
+        canSendWhatsAppSummary: action.canSendWhatsAppSummary,
+        meetingGroups: action.meetingGroups,
+      };
+    case "recordingModeChanged":
+      return { ...state, recordingMode: action.value };
+    case "uploadFileSelected":
+      return { ...state, uploadFile: action.file };
+    case "uploadPreviewTick":
+      return {
+        ...state,
+        uploadPreviewProgress: action.progress,
+        uploadTimeRemaining: action.timeRemaining,
+      };
+    case "uploadReset":
+      return {
+        ...state,
+        uploadFile: null,
+        uploadPreviewProgress: 0,
+        uploadTimeRemaining: "",
+        uploadProgress: 0,
+      };
+    case "uploadStarted":
+      return { ...state, isUploadSubmitting: true, uploadProgress: 0 };
+    case "uploadProgressChanged":
+      return { ...state, uploadProgress: action.value };
+    case "uploadFinished":
+      return { ...state, isUploadSubmitting: false };
+    case "pendingNavigationChanged":
+      return { ...state, pendingNavigationHref: action.value };
+    case "selectedGroupChanged":
+      return { ...state, selectedGroupId: action.value };
+    case "groupCreated":
+      return { ...state, meetingGroups: [action.option, ...state.meetingGroups] };
+  }
 }
 
 const GRAINIENT_COLORS = {
@@ -83,7 +160,7 @@ function RecordingPageHeader({ mode }: { mode: RecordingMode }) {
           <Link href="/dashboard" className="transition-colors hover:text-white/90">
             Dashboard
           </Link>
-          <ChevronRight className="h-3 w-3 text-white/40" />
+          <ChevronRight className="size-3 text-white/40" />
           <span className="text-white/80">{breadcrumb}</span>
         </nav>
         <h1 className="font-display text-[28px] font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)] sm:text-3xl">
@@ -160,13 +237,13 @@ function UploadLeaveWarningDialog({
         <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-4 sm:px-6 sm:pt-5">
           <div className="flex min-w-0 items-start gap-3">
             <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px]"
+              className="flex size-10 shrink-0 items-center justify-center rounded-[14px]"
               style={{
                 background: "rgba(104,81,255,0.12)",
                 color: "#6851FF",
               }}
             >
-              <AlertTriangle className="h-5 w-5" />
+              <AlertTriangle className="size-5" />
             </div>
             <div className="min-w-0">
               <h2
@@ -190,10 +267,10 @@ function UploadLeaveWarningDialog({
             type="button"
             onClick={onCancel}
             aria-label="Fechar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
             style={{ background: c.card2, color: c.ink2 }}
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
@@ -290,38 +367,48 @@ function RecordingPageInner() {
     startRecording,
   } = useRecordingSession();
 
-  const [accountWhatsappNumber, setAccountWhatsappNumber] = useState("");
-  const [canSendWhatsAppSummary, setCanSendWhatsAppSummary] = useState(false);
-  const [meetingGroups, setMeetingGroups] = useState<MeetingGroupOption[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [isUploadSubmitting, setIsUploadSubmitting] = useState(false);
-  const [recordingMode, setRecordingMode] = useState<RecordingMode>(
-    getInitialRecordingMode(searchParams.get("mode"))
-  );
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadPreviewProgress, setUploadPreviewProgress] = useState(0);
-  const [uploadTimeRemaining, setUploadTimeRemaining] = useState("");
-  const [, setUploadProgress] = useState(0);
-  const [pendingNavigationHref, setPendingNavigationHref] = useState<
-    string | null
-  >(null);
+  const [state, dispatch] = useReducer(recordingPageReducer, {
+    accountWhatsappNumber: "",
+    canSendWhatsAppSummary: false,
+    meetingGroups: [],
+    selectedGroupId: null,
+    isUploadSubmitting: false,
+    recordingMode: getInitialRecordingMode(searchParams.get("mode")),
+    uploadFile: null,
+    uploadPreviewProgress: 0,
+    uploadTimeRemaining: "",
+    uploadProgress: 0,
+    pendingNavigationHref: null,
+  });
+  const {
+    accountWhatsappNumber,
+    canSendWhatsAppSummary,
+    meetingGroups,
+    selectedGroupId,
+    isUploadSubmitting,
+    recordingMode,
+    uploadFile,
+    uploadPreviewProgress,
+    uploadTimeRemaining,
+    uploadProgress,
+    pendingNavigationHref,
+  } = state;
 
-  const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadTimerRef = useRef<number | null>(null);
   const uploadStartTimeRef = useRef<number>(0);
+  const uploadPreviewProgressRef = useRef(0);
 
   const clearUploadPreviewTimer = useCallback(() => {
     if (uploadTimerRef.current) {
-      clearInterval(uploadTimerRef.current);
+      window.clearInterval(uploadTimerRef.current);
       uploadTimerRef.current = null;
     }
   }, []);
 
   const resetUploadState = useCallback(() => {
     clearUploadPreviewTimer();
-    setUploadFile(null);
-    setUploadPreviewProgress(0);
-    setUploadTimeRemaining("");
-    setUploadProgress(0);
+    uploadPreviewProgressRef.current = 0;
+    dispatch({ type: "uploadReset" });
   }, [clearUploadPreviewTimer]);
 
   const isStarting = isUploadSubmitting || isRecordingStarting;
@@ -351,9 +438,12 @@ function RecordingPageInner() {
       try {
         const defaults = await fetchRecordingDefaults();
         if (!cancelled) {
-          setAccountWhatsappNumber(defaults.accountWhatsappNumber);
-          setCanSendWhatsAppSummary(defaults.canSendWhatsAppSummary);
-          setMeetingGroups(defaults.meetingGroups);
+          dispatch({
+            type: "defaultsLoaded",
+            accountWhatsappNumber: defaults.accountWhatsappNumber,
+            canSendWhatsAppSummary: defaults.canSendWhatsAppSummary,
+            meetingGroups: defaults.meetingGroups,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -376,7 +466,10 @@ function RecordingPageInner() {
   }, [clearUploadPreviewTimer, show]);
 
   useEffect(() => {
-    setRecordingMode(getInitialRecordingMode(searchParams.get("mode")));
+    dispatch({
+      type: "recordingModeChanged",
+      value: getInitialRecordingMode(searchParams.get("mode")),
+    });
   }, [searchParams]);
 
   useEffect(() => {
@@ -394,29 +487,30 @@ function RecordingPageInner() {
   const startUploadPreviewProgress = useCallback(() => {
     clearUploadPreviewTimer();
     uploadStartTimeRef.current = Date.now();
-    setUploadPreviewProgress(0);
-    setUploadTimeRemaining("");
+    uploadPreviewProgressRef.current = 0;
+    dispatch({ type: "uploadPreviewTick", progress: 0, timeRemaining: "" });
 
-    uploadTimerRef.current = setInterval(() => {
-      setUploadPreviewProgress((current) => {
-        const next = Math.min(current + Math.random() * 8 + 6, 100);
-        const elapsed = (Date.now() - uploadStartTimeRef.current) / 1000;
-        const rate = next / elapsed;
-        const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
-        setUploadTimeRemaining(next >= 100 ? "" : `${remaining}s restantes`);
-
-        if (next >= 100) {
-          clearUploadPreviewTimer();
-        }
-
-        return next;
+    uploadTimerRef.current = window.setInterval(() => {
+      const next = Math.min(uploadPreviewProgressRef.current + Math.random() * 8 + 6, 100);
+      uploadPreviewProgressRef.current = next;
+      const elapsed = (Date.now() - uploadStartTimeRef.current) / 1000;
+      const rate = next / elapsed;
+      const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
+      dispatch({
+        type: "uploadPreviewTick",
+        progress: next,
+        timeRemaining: next >= 100 ? "" : `${remaining}s restantes`,
       });
+
+      if (next >= 100) {
+        clearUploadPreviewTimer();
+      }
     }, 200);
   }, [clearUploadPreviewTimer]);
 
   const handleFile = useCallback(
     (file: File) => {
-      setUploadFile(file);
+      dispatch({ type: "uploadFileSelected", file });
       startUploadPreviewProgress();
     },
     [startUploadPreviewProgress]
@@ -448,7 +542,7 @@ function RecordingPageInner() {
 
       event.preventDefault();
       event.stopPropagation();
-      setPendingNavigationHref(nextUrl.href);
+      dispatch({ type: "pendingNavigationChanged", value: nextUrl.href });
     },
     [hasSelectedUploadFile]
   );
@@ -461,14 +555,14 @@ function RecordingPageInner() {
   }, [handlePageClickCapture, hasSelectedUploadFile]);
 
   const handleCancelPendingNavigation = useCallback(() => {
-    setPendingNavigationHref(null);
+    dispatch({ type: "pendingNavigationChanged", value: null });
   }, []);
 
   const handleConfirmPendingNavigation = useCallback(() => {
     if (!pendingNavigationHref) return;
 
     const nextHref = pendingNavigationHref;
-    setPendingNavigationHref(null);
+    dispatch({ type: "pendingNavigationChanged", value: null });
     resetUploadState();
 
     const nextUrl = new URL(nextHref, window.location.href);
@@ -487,8 +581,7 @@ function RecordingPageInner() {
           return;
         }
 
-        setIsUploadSubmitting(true);
-        setUploadProgress(0);
+        dispatch({ type: "uploadStarted" });
 
         try {
           const meetingId = await submitUploadedMeeting({
@@ -496,7 +589,8 @@ function RecordingPageInner() {
             whatsappNumber: values.whatsappNumber,
             file: uploadFile,
             groupId: values.groupId,
-            onUploadProgress: setUploadProgress,
+            onUploadProgress: (value) =>
+              dispatch({ type: "uploadProgressChanged", value }),
           });
 
           posthog.capture("meeting_upload_submitted", {
@@ -512,7 +606,7 @@ function RecordingPageInner() {
             "error"
           );
         } finally {
-          setIsUploadSubmitting(false);
+          dispatch({ type: "uploadFinished" });
         }
 
         return;
@@ -548,7 +642,7 @@ function RecordingPageInner() {
         return;
       }
 
-      setRecordingMode(mode);
+      dispatch({ type: "recordingModeChanged", value: mode });
       if (mode !== "upload") {
         resetUploadState();
       }
@@ -561,7 +655,7 @@ function RecordingPageInner() {
     async (name: string) => {
       const group = await createMeetingGroup(name);
       const option = { id: group.id, name: group.name };
-      setMeetingGroups((current) => [option, ...current]);
+      dispatch({ type: "groupCreated", option });
       return option;
     },
     []
@@ -583,7 +677,9 @@ function RecordingPageInner() {
               meetingGroups={meetingGroups}
               selectedGroupId={selectedGroupId}
               onRecordingModeChange={handleRecordingModeChange}
-              onGroupIdChange={setSelectedGroupId}
+              onGroupIdChange={(value) =>
+                dispatch({ type: "selectedGroupChanged", value })
+              }
               onCreateGroup={handleCreateGroup}
               onStart={handleStartRecording}
               onValidationError={(message) => show(message, "warning")}

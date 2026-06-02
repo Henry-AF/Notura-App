@@ -89,7 +89,7 @@ export function RecordingOverlay({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm sm:items-center sm:p-6">
-      <Card className="h-full w-full rounded-none border-0 bg-card sm:h-auto sm:max-w-xl sm:rounded-3xl sm:border sm:border-border/80">
+      <Card className="size-full rounded-none border-0 bg-card sm:h-auto sm:max-w-xl sm:rounded-3xl sm:border sm:border-border/80">
         <CardContent className="flex h-full flex-col justify-center px-6 py-10 sm:px-8">
           {(onMinimize || (hasError && onClose)) ? (
             <div className="mb-4 flex justify-end gap-2 sm:-mt-4">
@@ -100,7 +100,7 @@ export function RecordingOverlay({
                   onClick={onMinimize}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <Minimize2 className="h-5 w-5" />
+                  <Minimize2 className="size-5" />
                 </button>
               ) : null}
               {hasError && onClose ? (
@@ -110,7 +110,7 @@ export function RecordingOverlay({
                   onClick={onClose}
                   className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="size-5" />
                 </button>
               ) : null}
             </div>
@@ -157,7 +157,7 @@ export function RecordingOverlay({
             </div>
 
             <div className="flex items-center gap-3 rounded-full border border-border/70 bg-background px-5 py-2.5">
-              <TimerReset className="h-4 w-4 text-primary" />
+              <TimerReset className="size-4 text-primary" />
               <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
                 {elapsedLabel}
               </span>
@@ -202,9 +202,9 @@ export function RecordingOverlay({
                   onClick={onPauseToggle}
                   icon={
                     isPaused ? (
-                      <Play className="h-4 w-4" />
+                      <Play className="size-4" />
                     ) : (
-                      <Pause className="h-4 w-4" />
+                      <Pause className="size-4" />
                     )
                   }
                 >
@@ -212,7 +212,7 @@ export function RecordingOverlay({
                 </RecordingActionButton>
                 <RecordingActionButton
                   onClick={onStop}
-                  icon={<Square className="h-4 w-4" />}
+                  icon={<Square className="size-4" />}
                 >
                   Encerrar gravação
                 </RecordingActionButton>
@@ -220,7 +220,7 @@ export function RecordingOverlay({
             ) : isSaving ? (
               <RecordingActionButton
                 disabled
-                icon={<Loader2 className="h-4 w-4 animate-spin" />}
+                icon={<Loader2 className="size-4 animate-spin" />}
               >
                 Enviando arquivo...
               </RecordingActionButton>
@@ -229,20 +229,20 @@ export function RecordingOverlay({
                 <RecordingActionButton
                   variant="outline"
                   onClick={onDiscard}
-                  icon={<Trash2 className="h-4 w-4" />}
+                  icon={<Trash2 className="size-4" />}
                 >
                   Descartar gravação
                 </RecordingActionButton>
                 <RecordingActionButton
                   variant="outline"
                   onClick={onResumeRecording}
-                  icon={<Play className="h-4 w-4" />}
+                  icon={<Play className="size-4" />}
                 >
                   Retomar gravação
                 </RecordingActionButton>
                 <RecordingActionButton
                   onClick={onSave}
-                  icon={<Sparkles className="h-4 w-4" />}
+                  icon={<Sparkles className="size-4" />}
                 >
                   Gerar sumário
                 </RecordingActionButton>

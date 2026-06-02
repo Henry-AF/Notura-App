@@ -327,13 +327,13 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
           >
             <div className="flex items-start gap-3">
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                className="flex size-11 shrink-0 items-center justify-center rounded-xl"
                 style={{
                   background: CHECKOUT_SUPPORT_MODAL_TONE.background,
                   color: CHECKOUT_SUPPORT_MODAL_TONE.actionBackground,
                 }}
               >
-                <AlertTriangle className="h-5 w-5" />
+                <AlertTriangle className="size-5" />
               </div>
               <div>
                 <h2 className="font-display text-xl font-bold" style={{ color: c.ink }}>
@@ -348,10 +348,10 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
               type="button"
               aria-label="Fechar"
               onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full transition-colors"
               style={{ background: c.card2, color: c.ink3 }}
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
             </button>
           </div>
 
@@ -448,7 +448,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            className="flex size-9 items-center justify-center rounded-full transition-colors"
             style={{ background: c.card2, color: c.ink3 }}
             onMouseEnter={(event) => {
               event.currentTarget.style.background = c.border;
@@ -457,7 +457,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
               event.currentTarget.style.background = c.card2;
             }}
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
@@ -513,10 +513,10 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                 ) : null}
 
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-xl"
+                  className="flex size-9 items-center justify-center rounded-xl"
                   style={{ background: plan.iconBg }}
                 >
-                  <plan.icon className="h-4 w-4" style={{ color: plan.iconColor }} />
+                  <plan.icon className="size-4" style={{ color: plan.iconColor }} />
                 </div>
 
                 <div className="mt-3">
@@ -557,7 +557,7 @@ function PlanModalContent({ currentPlan, onClose, onSuccess }: PlanModalProps) {
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
                       <Check
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                        className="mt-0.5 size-3.5 shrink-0"
                         style={{
                           color: plan.highlight
                             ? "#6851FF"

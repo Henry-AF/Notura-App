@@ -21,7 +21,7 @@ export function AiInsightTip() {
 
       {/* Label */}
       <div className="flex items-center gap-1.5">
-        <Sparkles className="h-3 w-3 text-[#BB5288]" />
+        <Sparkles className="size-3 text-[#BB5288]" />
         <span
           style={{
             fontSize: "9px",

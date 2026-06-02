@@ -43,14 +43,14 @@ function ParticipantAvatars({
       {visible.map((participant, index) => (
         <Avatar
           key={`${participant.name}-${index}`}
-          className="-ml-2 h-7 w-7 border-2 border-background first:ml-0"
+          className="-ml-2 size-7 border-2 border-background first:ml-0"
         >
           <AvatarFallback name={participant.name} className="text-[10px] font-semibold" />
         </Avatar>
       ))}
       {extra > 0 ? (
         <div
-          className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground"
+          className="-ml-2 flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold text-muted-foreground"
           aria-label={`${extra} participantes adicionais`}
           title={`${participants.length} participantes no total`}
         >
@@ -99,7 +99,7 @@ export function MeetingHeader({
       description={
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
+            <Calendar className="size-4" />
             {date}
           </span>
           <StatusBadge status={statusLabel(status)} />
@@ -118,7 +118,7 @@ export function MeetingHeader({
               disabled={isRetrying}
               className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950 sm:w-auto"
             >
-              <RefreshCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+              <RefreshCw className={`size-4 ${isRetrying ? "animate-spin" : ""}`} />
               {isRetrying ? "Reprocessando..." : "Reprocessar"}
             </Button>
           ) : null}
@@ -131,7 +131,7 @@ export function MeetingHeader({
               disabled={isCancelingProcessing}
               className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto"
             >
-              <XCircle className="h-4 w-4" />
+              <XCircle className="size-4" />
               {isCancelingProcessing ? "Cancelando..." : "Cancelar processamento"}
             </Button>
           ) : null}
@@ -143,7 +143,7 @@ export function MeetingHeader({
               onClick={onChat}
               className="w-full border-0 bg-[linear-gradient(135deg,rgba(94,76,235,0.92)_0%,rgba(59,130,246,0.82)_100%)] text-white shadow-[0_10px_24px_rgba(94,76,235,0.28),0_4px_12px_rgba(59,130,246,0.18)] transition-all duration-200 hover:scale-[0.99] hover:brightness-105 sm:w-auto"
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="size-4" />
               Perguntar para a IA
               <span className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-white/20 text-white/90">
                 BETA
@@ -157,7 +157,7 @@ export function MeetingHeader({
             onClick={onShare}
             className="w-full sm:w-auto"
           >
-            <Share2 className="h-4 w-4" />
+            <Share2 className="size-4" />
             Compartilhar
           </Button>
           <Button
@@ -167,7 +167,7 @@ export function MeetingHeader({
             onClick={onEdit}
             className="w-full sm:w-auto"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="size-4" />
             Editar
           </Button>
           <Button
@@ -177,7 +177,7 @@ export function MeetingHeader({
             onClick={onDelete}
             className="w-full sm:w-auto"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-4" />
             Excluir
           </Button>
         </div>

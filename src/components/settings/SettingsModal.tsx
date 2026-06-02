@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useReducer, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -58,30 +58,8 @@ function buildUserData(user: CurrentUser): UserData {
   };
 }
 
-export function SettingsModal({
-  currentUser,
-  onClose,
-  onUpgradeClick,
-  onUserChange,
-}: {
-  currentUser: CurrentUser;
-  onClose: () => void;
-  onUpgradeClick: () => void;
-  onUserChange?: (user: CurrentUser) => void;
-}) {
-  const c = useThemeColors();
-  const { isDark, setTheme } = useTheme();
-  const router = useRouter();
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const modalFrameMinHeight = "min(560px, 90dvh)";
-
-  const [tab, setTab] = useState<Tab>("profile");
-  const [saving, setSaving] = useState(false);
-  const [autoRenewSaving, setAutoRenewSaving] = useState(false);
-  const [data, setData] = useState<UserData>(() => buildUserData(currentUser));
-  const [name, setName] = useState(currentUser.name);
-  const [company, setCompany] = useState(currentUser.company);
-  const [prefs, setPrefs] = useState<Pref[]>([
+function buildPrefs(isDark: boolean): Pref[] {
+  return [
     {
       id: "whatsapp",
       icon: "💬",
@@ -103,13 +81,134 @@ export function SettingsModal({
       description: "Usar tema escuro no painel",
       enabled: isDark,
     },
-  ]);
+  ];
+}
+
+type SettingsModalState = {
+  tab: Tab;
+  saving: boolean;
+  autoRenewSaving: boolean;
+  data: UserData;
+  name: string;
+  company: string;
+  prefs: Pref[];
+};
+
+type SettingsModalAction =
+  | { type: "tabChanged"; tab: Tab }
+  | { type: "fieldChanged"; field: "name" | "company"; value: string }
+  | { type: "currentUserChanged"; data: UserData }
+  | { type: "darkModeSynced"; isDark: boolean }
+  | { type: "preferenceToggled"; prefId: string }
+  | { type: "savingChanged"; value: boolean }
+  | { type: "profileSaved"; data: UserData }
+  | { type: "autoRenewSavingChanged"; value: boolean }
+  | {
+      type: "autoRenewUpdated";
+      currentPeriodEnd: string | null;
+      autoRenewEnabled: boolean;
+      renewalStatus: string;
+    };
+
+function createSettingsModalState({
+  currentUser,
+  isDark,
+}: {
+  currentUser: CurrentUser;
+  isDark: boolean;
+}): SettingsModalState {
+  const data = buildUserData(currentUser);
+  return {
+    tab: "profile",
+    saving: false,
+    autoRenewSaving: false,
+    data,
+    name: data.name,
+    company: data.company,
+    prefs: buildPrefs(isDark),
+  };
+}
+
+function settingsModalReducer(
+  state: SettingsModalState,
+  action: SettingsModalAction
+): SettingsModalState {
+  switch (action.type) {
+    case "tabChanged":
+      return { ...state, tab: action.tab };
+    case "fieldChanged":
+      return { ...state, [action.field]: action.value };
+    case "currentUserChanged":
+      return {
+        ...state,
+        data: action.data,
+        name: action.data.name,
+        company: action.data.company,
+      };
+    case "darkModeSynced":
+      return {
+        ...state,
+        prefs: state.prefs.map((pref) =>
+          pref.id === "darkMode" ? { ...pref, enabled: action.isDark } : pref
+        ),
+      };
+    case "preferenceToggled":
+      return {
+        ...state,
+        prefs: state.prefs.map((pref) =>
+          pref.id === action.prefId ? { ...pref, enabled: !pref.enabled } : pref
+        ),
+      };
+    case "savingChanged":
+      return { ...state, saving: action.value };
+    case "profileSaved":
+      return {
+        ...state,
+        data: action.data,
+        name: action.data.name,
+        company: action.data.company,
+      };
+    case "autoRenewSavingChanged":
+      return { ...state, autoRenewSaving: action.value };
+    case "autoRenewUpdated":
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          currentPeriodEnd: action.currentPeriodEnd,
+          autoRenewEnabled: action.autoRenewEnabled,
+          renewalStatus: action.renewalStatus,
+        },
+      };
+  }
+}
+
+export function SettingsModal({
+  currentUser,
+  onClose,
+  onUpgradeClick,
+  onUserChange,
+}: {
+  currentUser: CurrentUser;
+  onClose: () => void;
+  onUpgradeClick: () => void;
+  onUserChange?: (user: CurrentUser) => void;
+}) {
+  const c = useThemeColors();
+  const { isDark, setTheme } = useTheme();
+  const router = useRouter();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const modalFrameMinHeight = "min(560px, 90dvh)";
+
+  const [state, dispatch] = useReducer(
+    settingsModalReducer,
+    { currentUser, isDark },
+    createSettingsModalState
+  );
+  const { tab, saving, autoRenewSaving, data, name, company, prefs } = state;
 
   useEffect(() => {
-    const nextData = buildUserData(currentUser);
-    setData(nextData);
-    setName(nextData.name);
-    setCompany(nextData.company);
+    dispatch({ type: "currentUserChanged", data: buildUserData(currentUser) });
   }, [currentUser]);
 
   useEffect(() => {
@@ -124,15 +223,11 @@ export function SettingsModal({
   }, [onClose]);
 
   useEffect(() => {
-    setPrefs((previous) =>
-      previous.map((pref) =>
-        pref.id === "darkMode" ? { ...pref, enabled: isDark } : pref
-      )
-    );
+    dispatch({ type: "darkModeSynced", isDark });
   }, [isDark]);
 
   async function handleSaveProfile() {
-    setSaving(true);
+    dispatch({ type: "savingChanged", value: true });
 
     try {
       const updatedUser = await updateCurrentUser({
@@ -140,13 +235,11 @@ export function SettingsModal({
         company: company.trim(),
       });
       const nextData = buildUserData(updatedUser);
-      setData(nextData);
-      setName(nextData.name);
-      setCompany(nextData.company);
+      dispatch({ type: "profileSaved", data: nextData });
       onUserChange?.(updatedUser);
       prewarmBillingCustomerInBackground("settings");
     } finally {
-      setSaving(false);
+      dispatch({ type: "savingChanged", value: false });
     }
   }
 
@@ -161,16 +254,16 @@ export function SettingsModal({
   }
 
   async function handleAutoRenewChange(enabled: boolean) {
-    setAutoRenewSaving(true);
+    dispatch({ type: "autoRenewSavingChanged", value: true });
 
     try {
       const status = await updateBillingAutoRenew(enabled);
-      setData((previous) => ({
-        ...previous,
+      dispatch({
+        type: "autoRenewUpdated",
         currentPeriodEnd: status.currentPeriodEnd,
         autoRenewEnabled: status.autoRenewEnabled,
         renewalStatus: status.renewalStatus,
-      }));
+      });
       onUserChange?.({
         ...currentUser,
         currentPeriodEnd: status.currentPeriodEnd,
@@ -182,7 +275,7 @@ export function SettingsModal({
     } catch (error) {
       console.error("[settings-modal] auto renew update failed", error);
     } finally {
-      setAutoRenewSaving(false);
+      dispatch({ type: "autoRenewSavingChanged", value: false });
     }
   }
 
@@ -204,13 +297,13 @@ export function SettingsModal({
     "w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors";
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "profile", label: "Perfil", icon: <User className="h-4 w-4" /> },
+    { id: "profile", label: "Perfil", icon: <User className="size-4" /> },
     {
       id: "preferences",
       label: "Preferências",
-      icon: <Bell className="h-4 w-4" />,
+      icon: <Bell className="size-4" />,
     },
-    { id: "plan", label: "Plano", icon: <CreditCard className="h-4 w-4" /> },
+    { id: "plan", label: "Plano", icon: <CreditCard className="size-4" /> },
   ];
 
   return (
@@ -241,7 +334,7 @@ export function SettingsModal({
         {/* ── Mobile: compact header (avatar + name + close) ─────────── */}
         <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-1 sm:hidden">
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
             style={{ background: "linear-gradient(135deg, #3B2A7A, #7C3AED)" }}
           >
             {initials}
@@ -257,11 +350,11 @@ export function SettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg"
             style={{ color: c.ink3 }}
             aria-label="Fechar"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
@@ -274,7 +367,7 @@ export function SettingsModal({
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              onClick={() => dispatch({ type: "tabChanged", tab: item.id })}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors"
               style={{
                 background: tab === item.id ? "rgba(104,81,255,0.12)" : "transparent",
@@ -293,19 +386,19 @@ export function SettingsModal({
           style={{ background: c.card2, borderRight: `1px solid ${c.border}` }}
         >
           <div className="px-5 pb-5 pt-6">
-            <div className="relative mx-auto mb-3 h-16 w-16">
+            <div className="relative mx-auto mb-3 size-16">
               <div
-                className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
+                className="flex size-16 items-center justify-center rounded-full text-xl font-bold text-white"
                 style={{ background: "linear-gradient(135deg, #3B2A7A, #7C3AED)" }}
               >
                 {initials}
               </div>
               <button
                 type="button"
-                className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full text-white"
+                className="absolute bottom-0 right-0 flex size-6 items-center justify-center rounded-full text-white"
                 style={{ background: "#6851FF" }}
               >
-                <Pencil className="h-2.5 w-2.5" />
+                <Pencil className="size-2.5" />
               </button>
             </div>
             <p className="text-center text-sm font-semibold" style={{ color: c.ink }}>
@@ -321,7 +414,7 @@ export function SettingsModal({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setTab(item.id)}
+                onClick={() => dispatch({ type: "tabChanged", tab: item.id })}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all"
                 style={{
                   background: tab === item.id ? "rgba(104,81,255,0.12)" : "transparent",
@@ -330,7 +423,7 @@ export function SettingsModal({
               >
                 {item.icon}
                 {item.label}
-                {tab === item.id && <ChevronRight className="ml-auto h-3.5 w-3.5" />}
+                {tab === item.id && <ChevronRight className="ml-auto size-3.5" />}
               </button>
             ))}
           </nav>
@@ -348,7 +441,7 @@ export function SettingsModal({
                 event.currentTarget.style.background = "transparent";
               }}
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="size-4" />
               Sair
             </button>
           </div>
@@ -380,7 +473,7 @@ export function SettingsModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+              className="flex size-8 items-center justify-center rounded-lg transition-colors"
               style={{ color: c.ink3 }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.background = c.card2;
@@ -389,7 +482,7 @@ export function SettingsModal({
                 event.currentTarget.style.background = "transparent";
               }}
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
             </button>
           </div>
 
@@ -406,7 +499,13 @@ export function SettingsModal({
                   <input
                     type="text"
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    onChange={(event) =>
+                      dispatch({
+                        type: "fieldChanged",
+                        field: "name",
+                        value: event.target.value,
+                      })
+                    }
                     className={inputCls}
                     style={{
                       background: c.inputBg,
@@ -450,7 +549,13 @@ export function SettingsModal({
                   <input
                     type="text"
                     value={company}
-                    onChange={(event) => setCompany(event.target.value)}
+                    onChange={(event) =>
+                      dispatch({
+                        type: "fieldChanged",
+                        field: "company",
+                        value: event.target.value,
+                      })
+                    }
                     className={inputCls}
                     placeholder="Nome da sua empresa"
                     style={{
@@ -490,7 +595,7 @@ export function SettingsModal({
                     style={{ background: c.card2 }}
                   >
                     <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg"
+                      className="flex size-9 shrink-0 items-center justify-center rounded-lg text-lg"
                       style={{ background: "rgba(104,81,255,0.15)" }}
                     >
                       {pref.icon}
@@ -506,26 +611,16 @@ export function SettingsModal({
                     <button
                       type="button"
                       onClick={() => {
-                        setPrefs((previous) =>
-                          previous.map((item) => {
-                            if (item.id !== pref.id) {
-                              return item;
-                            }
-
-                            const nextEnabled = !item.enabled;
-                            if (item.id === "darkMode") {
-                              setTheme(nextEnabled ? "dark" : "light");
-                            }
-
-                            return { ...item, enabled: nextEnabled };
-                          })
-                        );
+                        if (pref.id === "darkMode") {
+                          setTheme(pref.enabled ? "light" : "dark");
+                        }
+                        dispatch({ type: "preferenceToggled", prefId: pref.id });
                       }}
                       className="relative h-5 w-9 shrink-0 rounded-full transition-colors"
                       style={{ background: pref.enabled ? "#6851FF" : c.border }}
                     >
                       <span
-                        className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
+                        className="absolute top-0.5 size-4 rounded-full bg-white shadow transition-all"
                         style={{
                           left: pref.enabled ? "calc(100% - 18px)" : "2px",
                         }}
@@ -556,7 +651,7 @@ export function SettingsModal({
                       </p>
                     </div>
                     <div
-                      className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+                      className="flex size-12 items-center justify-center rounded-full text-2xl"
                       style={{ background: "rgba(104,81,255,0.15)" }}
                     >
                       {data.plan === "pro"
@@ -641,7 +736,7 @@ export function SettingsModal({
               className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium"
               style={{ color: "#FF6B6B", background: "rgba(255,107,107,0.06)" }}
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="size-4" />
               Sair da conta
             </button>
           </div>

@@ -9,7 +9,7 @@ interface RouteLoadingProps {
 function RouteLoadingContent() {
   return (
     <div className="flex h-full min-h-[40vh] flex-1 items-center justify-center">
-      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+      <Loader2 className="size-7 animate-spin text-primary" />
     </div>
   );
 }

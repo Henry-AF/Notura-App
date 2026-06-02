@@ -178,19 +178,22 @@ describe("answerMeetingChat", () => {
 
     await runJob();
 
-    expect(mocks.answerMeetingQuestionFromChunks).toHaveBeenCalledWith({
-      question: "Qual foi o prazo?",
-      chunks: [
-        {
-          chunkId: "chunk-1",
-          similarity: 0.82,
-          startMs: 0,
-          endMs: 1000,
-          speaker: "A",
-          text: "O prazo foi sexta.",
-        },
-      ],
-    });
+    expect(mocks.answerMeetingQuestionFromChunks).toHaveBeenCalledWith(
+      {
+        question: "Qual foi o prazo?",
+        chunks: [
+          {
+            chunkId: "chunk-1",
+            similarity: 0.82,
+            startMs: 0,
+            endMs: 1000,
+            speaker: "A",
+            text: "O prazo foi sexta.",
+          },
+        ],
+      },
+      { distinctId: "user-1", traceId: "chat-1" }
+    );
     expect(supabase.updates).toContainEqual(
       expect.objectContaining({
         status: "completed",

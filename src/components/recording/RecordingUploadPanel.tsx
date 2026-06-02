@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useRef } from "react";
 import { CheckCircle, FileAudio, Loader2 } from "lucide-react";
 import {
   AiInsightTip,
@@ -17,6 +17,54 @@ interface RecordingUploadPanelProps {
   onValidationError: (message: string) => void;
   onUnexpectedError: (message: string) => void;
   onUploadComplete: (meetingId: string) => void;
+}
+
+type UploadPanelState = {
+  file: File | null;
+  progress: number;
+  timeRemaining: string;
+  isUploading: boolean;
+  uploadPct: number;
+};
+
+type UploadPanelAction =
+  | { type: "fileSelected"; file: File }
+  | { type: "previewReset" }
+  | { type: "previewTick"; progress: number; timeRemaining: string }
+  | { type: "uploadStarted" }
+  | { type: "uploadProgressChanged"; value: number }
+  | { type: "uploadFailed" };
+
+const initialUploadPanelState: UploadPanelState = {
+  file: null,
+  progress: 0,
+  timeRemaining: "",
+  isUploading: false,
+  uploadPct: 0,
+};
+
+function uploadPanelReducer(
+  state: UploadPanelState,
+  action: UploadPanelAction
+): UploadPanelState {
+  switch (action.type) {
+    case "fileSelected":
+      return { ...state, file: action.file, progress: 0, timeRemaining: "" };
+    case "previewReset":
+      return initialUploadPanelState;
+    case "previewTick":
+      return {
+        ...state,
+        progress: action.progress,
+        timeRemaining: action.timeRemaining,
+      };
+    case "uploadStarted":
+      return { ...state, isUploading: true, uploadPct: 0 };
+    case "uploadProgressChanged":
+      return { ...state, uploadPct: action.value };
+    case "uploadFailed":
+      return { ...state, isUploading: false, uploadPct: 0 };
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -46,9 +94,9 @@ function UploadingOverlay({
         background: "rgb(var(--cn-card))",
       }}
     >
-      <div className="relative flex h-20 w-20 items-center justify-center">
+      <div className="relative flex size-20 items-center justify-center">
         <svg
-          className="absolute inset-0 h-full w-full -rotate-90"
+          className="absolute inset-0 size-full -rotate-90"
           viewBox="0 0 100 100"
           fill="none"
         >
@@ -72,13 +120,13 @@ function UploadingOverlay({
           </defs>
         </svg>
         <div
-          className="flex h-12 w-12 items-center justify-center rounded-full"
+          className="flex size-12 items-center justify-center rounded-full"
           style={{ background: "rgba(245,158,11,0.18)" }}
         >
           {isDone ? (
-            <CheckCircle className="h-6 w-6 text-[#4ECB71]" />
+            <CheckCircle className="size-6 text-[#4ECB71]" />
           ) : (
-            <FileAudio className="h-6 w-6 text-[#F59E0B]" />
+            <FileAudio className="size-6 text-[#F59E0B]" />
           )}
         </div>
       </div>
@@ -96,7 +144,7 @@ function UploadingOverlay({
         {steps.map((step, index) => (
           <div key={step.label} className="flex items-center gap-3">
             <div
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+              className="flex size-6 shrink-0 items-center justify-center rounded-full"
               style={{
                 background: step.done
                   ? "rgba(78,203,113,0.15)"
@@ -106,9 +154,9 @@ function UploadingOverlay({
               }}
             >
               {step.done ? (
-                <CheckCircle className="h-3.5 w-3.5 text-[#4ECB71]" />
+                <CheckCircle className="size-3.5 text-[#4ECB71]" />
               ) : step.active ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F59E0B]" />
+                <Loader2 className="size-3.5 animate-spin text-[#F59E0B]" />
               ) : (
                 <span
                   className="text-[10px] font-bold"
@@ -139,10 +187,10 @@ function UploadingOverlay({
 }
 
 function clearIntervalRef(
-  ref: React.MutableRefObject<ReturnType<typeof setInterval> | null>
+  ref: React.MutableRefObject<number | null>
 ) {
   if (ref.current) {
-    clearInterval(ref.current);
+    window.clearInterval(ref.current);
     ref.current = null;
   }
 }
@@ -154,41 +202,43 @@ export function RecordingUploadPanel({
   onUnexpectedError,
   onUploadComplete,
 }: RecordingUploadPanelProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadPct, setUploadPct] = useState(0);
+  const [state, dispatch] = useReducer(
+    uploadPanelReducer,
+    initialUploadPanelState
+  );
+  const { file, progress, timeRemaining, isUploading, uploadPct } = state;
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const previewProgressRef = useRef(0);
 
   const startUploadPreviewProgress = useCallback(() => {
     clearIntervalRef(intervalRef);
     startTimeRef.current = Date.now();
-    setProgress(0);
-    setTimeRemaining("");
+    previewProgressRef.current = 0;
+    dispatch({ type: "previewTick", progress: 0, timeRemaining: "" });
 
-    intervalRef.current = setInterval(() => {
-      setProgress((current) => {
-        const next = Math.min(current + Math.random() * 8 + 6, 100);
-        const elapsed = (Date.now() - startTimeRef.current) / 1000;
-        const rate = next / elapsed;
-        const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
-        setTimeRemaining(next >= 100 ? "" : `${remaining}s restantes`);
-
-        if (next >= 100) {
-          clearIntervalRef(intervalRef);
-        }
-
-        return next;
+    intervalRef.current = window.setInterval(() => {
+      const next = Math.min(previewProgressRef.current + Math.random() * 8 + 6, 100);
+      previewProgressRef.current = next;
+      const elapsed = (Date.now() - startTimeRef.current) / 1000;
+      const rate = next / elapsed;
+      const remaining = rate > 0 ? Math.round((100 - next) / rate) : 0;
+      dispatch({
+        type: "previewTick",
+        progress: next,
+        timeRemaining: next >= 100 ? "" : `${remaining}s restantes`,
       });
+
+      if (next >= 100) {
+        clearIntervalRef(intervalRef);
+      }
     }, 200);
   }, []);
 
   const handleFile = useCallback(
     (nextFile: File) => {
-      setFile(nextFile);
+      dispatch({ type: "fileSelected", file: nextFile });
       startUploadPreviewProgress();
     },
     [startUploadPreviewProgress]
@@ -196,11 +246,8 @@ export function RecordingUploadPanel({
 
   const resetUploadSelection = useCallback(() => {
     clearIntervalRef(intervalRef);
-    setFile(null);
-    setProgress(0);
-    setTimeRemaining("");
-    setIsUploading(false);
-    setUploadPct(0);
+    previewProgressRef.current = 0;
+    dispatch({ type: "previewReset" });
   }, []);
 
   const handleSubmit = useCallback(
@@ -209,15 +256,15 @@ export function RecordingUploadPanel({
         return;
       }
 
-      setIsUploading(true);
-      setUploadPct(0);
+      dispatch({ type: "uploadStarted" });
 
       try {
         const meetingId = await submitUploadedMeeting({
           meetingDate: data.meetingDate,
           whatsappNumber: data.whatsappNumber,
           file,
-          onUploadProgress: setUploadPct,
+          onUploadProgress: (value) =>
+            dispatch({ type: "uploadProgressChanged", value }),
         });
 
         onUploadComplete(meetingId);
@@ -225,8 +272,7 @@ export function RecordingUploadPanel({
         onUnexpectedError(
           error instanceof Error ? error.message : "Erro inesperado no upload."
         );
-        setIsUploading(false);
-        setUploadPct(0);
+        dispatch({ type: "uploadFailed" });
       }
     },
     [file, onUnexpectedError, onUploadComplete]

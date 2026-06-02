@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useReducer } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import posthog from "posthog-js";
@@ -29,27 +29,80 @@ function formatSignupError(error: unknown): string {
   return details.length > 0 ? `${message} (${details.join(" | ")})` : message;
 }
 
+type SignupState = {
+  name: string;
+  email: string;
+  password: string;
+  showPassword: boolean;
+  agreed: boolean;
+  loading: boolean;
+  googleLoading: boolean;
+  error: string | null;
+};
+
+type SignupAction =
+  | { type: "fieldChanged"; field: "name" | "email" | "password"; value: string }
+  | { type: "showPasswordToggled" }
+  | { type: "agreementChanged"; value: boolean }
+  | { type: "loadingChanged"; value: boolean }
+  | { type: "googleLoadingChanged"; value: boolean }
+  | { type: "errorChanged"; value: string | null };
+
+const initialSignupState: SignupState = {
+  name: "",
+  email: "",
+  password: "",
+  showPassword: false,
+  agreed: false,
+  loading: false,
+  googleLoading: false,
+  error: null,
+};
+
+function signupReducer(state: SignupState, action: SignupAction): SignupState {
+  switch (action.type) {
+    case "fieldChanged":
+      return { ...state, [action.field]: action.value };
+    case "showPasswordToggled":
+      return { ...state, showPassword: !state.showPassword };
+    case "agreementChanged":
+      return { ...state, agreed: action.value };
+    case "loadingChanged":
+      return { ...state, loading: action.value };
+    case "googleLoadingChanged":
+      return { ...state, googleLoading: action.value };
+    case "errorChanged":
+      return { ...state, error: action.value };
+  }
+}
+
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [agreed, setAgreed] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(signupReducer, initialSignupState);
+  const {
+    name,
+    email,
+    password,
+    showPassword,
+    agreed,
+    loading,
+    googleLoading,
+    error,
+  } = state;
 
   async function handleSignup(event: React.FormEvent) {
     event.preventDefault();
 
     if (!agreed) {
-      setError("Você precisa aceitar os Termos de Uso e Privacidade.");
+      dispatch({
+        type: "errorChanged",
+        value: "Você precisa aceitar os Termos de Uso e Privacidade.",
+      });
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    dispatch({ type: "loadingChanged", value: true });
+    dispatch({ type: "errorChanged", value: null });
 
     try {
       const supabase = createClient();
@@ -62,7 +115,7 @@ export default function SignupPage() {
       });
 
       if (authError) {
-        setError(authError.message);
+        dispatch({ type: "errorChanged", value: authError.message });
         return;
       }
 
@@ -72,19 +125,22 @@ export default function SignupPage() {
       }
       router.push("/onboarding");
     } catch (signupError) {
-      setError(formatSignupError(signupError));
+      dispatch({ type: "errorChanged", value: formatSignupError(signupError) });
     } finally {
-      setLoading(false);
+      dispatch({ type: "loadingChanged", value: false });
     }
   }
 
   async function handleGoogleAuth() {
     if (!agreed) {
-      setError("Você precisa aceitar os Termos de Uso e Privacidade para continuar.");
+      dispatch({
+        type: "errorChanged",
+        value: "Você precisa aceitar os Termos de Uso e Privacidade para continuar.",
+      });
       return;
     }
-    setGoogleLoading(true);
-    setError(null);
+    dispatch({ type: "googleLoadingChanged", value: true });
+    dispatch({ type: "errorChanged", value: null });
     try {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -93,11 +149,14 @@ export default function SignupPage() {
           redirectTo: buildOAuthCallbackUrl(window.location.origin, "/onboarding"),
         },
       });
-      if (oauthError) setError(oauthError.message);
+      if (oauthError) dispatch({ type: "errorChanged", value: oauthError.message });
     } catch {
-      setError("Não foi possível conectar com o Google. Tente novamente.");
+      dispatch({
+        type: "errorChanged",
+        value: "Não foi possível conectar com o Google. Tente novamente.",
+      });
     } finally {
-      setGoogleLoading(false);
+      dispatch({ type: "googleLoadingChanged", value: false });
     }
   }
 
@@ -132,7 +191,7 @@ export default function SignupPage() {
             "Redirecionando..."
           ) : (
             <>
-              <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="size-4" viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   fill="#4285F4"
@@ -173,13 +232,19 @@ export default function SignupPage() {
             Nome completo
           </label>
           <div className="relative">
-            <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="name"
               type="text"
               placeholder="Como devemos te chamar?"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "name",
+                  value: event.target.value,
+                })
+              }
               className="pl-9"
               required
             />
@@ -191,13 +256,19 @@ export default function SignupPage() {
             E-mail
           </label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="email"
               type="email"
               placeholder="nome@empresa.com"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "email",
+                  value: event.target.value,
+                })
+              }
               className="pl-9"
               required
             />
@@ -209,24 +280,30 @@ export default function SignupPage() {
             Senha
           </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="Mínimo 8 caracteres"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "password",
+                  value: event.target.value,
+                })
+              }
               className="pl-9 pr-9"
               minLength={8}
               required
             />
             <button
               type="button"
-              onClick={() => setShowPassword((value) => !value)}
+              onClick={() => dispatch({ type: "showPasswordToggled" })}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
               aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </div>
@@ -235,7 +312,9 @@ export default function SignupPage() {
           <Checkbox
             id="terms"
             checked={agreed}
-            onCheckedChange={(value) => setAgreed(Boolean(value))}
+            onCheckedChange={(value) =>
+              dispatch({ type: "agreementChanged", value: Boolean(value) })
+            }
             className="mt-0.5"
           />
           <label htmlFor="terms" className="text-sm leading-relaxed text-muted-foreground">
@@ -249,7 +328,7 @@ export default function SignupPage() {
 
         <Button type="submit" className="w-full rounded-full" disabled={loading}>
           {loading ? "Criando conta..." : "Criar conta gratuitamente"}
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="size-4" />
         </Button>
       </form>
     </AuthShell>

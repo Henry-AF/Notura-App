@@ -87,7 +87,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
           type="button"
           title="Ver processo"
           onClick={() => onViewProcessing(meeting.id)}
-          className="flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
+          className="flex size-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
           style={{ background: "rgb(var(--cn-card2))", color: "#A29BFE" }}
         >
           <Sparkles style={{ width: 14, height: 14 }} />
@@ -98,7 +98,7 @@ export function MeetingRow({ meeting, onRetry, onViewProcessing, onClick }: Meet
           type="button"
           title="Reprocessar"
           onClick={() => onRetry(meeting.id)}
-          className="flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
+          className="flex size-[30px] items-center justify-center rounded-lg transition-colors hover:opacity-80"
           style={{ background: "rgba(255,107,107,0.1)", color: "#FF6B6B" }}
         >
           <RefreshCw style={{ width: 14, height: 14 }} />

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useState } from "react";
 import Link from "next/link";
 import {
   Pencil,
@@ -51,7 +51,7 @@ const SELECT_PLACEHOLDER = "__placeholder__";
 
 function GroupAvatar({ name }: { name: string }) {
   return (
-    <Avatar className="h-10 w-10 rounded-lg">
+    <Avatar className="size-10 rounded-lg">
       <AvatarFallback name={name} className="rounded-lg text-xs font-semibold" />
     </Avatar>
   );
@@ -103,7 +103,7 @@ function GroupDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+              {isSaving ? <RefreshCw className="size-4 animate-spin" /> : null}
               Salvar grupo
             </Button>
           </DialogFooter>
@@ -151,7 +151,7 @@ function DeleteGroupDialog({
             Cancelar
           </Button>
           <Button type="button" variant="destructive" disabled={isSaving} onClick={onConfirm}>
-            {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
             Deletar
           </Button>
         </DialogFooter>
@@ -214,12 +214,12 @@ function MeetingRow({
 }) {
   return (
     <article className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/40 sm:grid sm:grid-cols-[1fr_120px_120px_48px] sm:gap-2 sm:px-3 sm:py-3">
-      <Avatar className="h-9 w-9 shrink-0 sm:hidden">
+      <Avatar className="size-9 shrink-0 sm:hidden">
         <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
       </Avatar>
 
       <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
-        <Avatar className="hidden h-8 w-8 shrink-0 sm:flex">
+        <Avatar className="hidden size-8 shrink-0 sm:flex">
           <AvatarFallback name={meeting.title} className="text-[11px] font-semibold" />
         </Avatar>
 
@@ -252,11 +252,11 @@ function MeetingRow({
         type="button"
         size="sm"
         variant="ghost"
-        className="h-8 w-8 rounded-md p-0 sm:justify-self-end"
+        className="size-8 rounded-md p-0 sm:justify-self-end"
         onClick={() => onRemove(meeting.id)}
         aria-label="Remover do grupo"
       >
-        <X className="h-4 w-4" />
+        <X className="size-4" />
       </Button>
     </article>
   );
@@ -325,11 +325,11 @@ function SelectedGroupPanel({
             </SelectContent>
           </Select>
           <Button type="button" variant="outline" size="sm" onClick={() => onEdit(group)}>
-            <Pencil className="h-4 w-4" />
+            <Pencil className="size-4" />
             <span className="hidden sm:inline">Editar</span>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => onDelete(group)}>
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-4" />
             <span className="hidden sm:inline">Deletar</span>
           </Button>
         </div>
@@ -366,15 +366,62 @@ function SelectedGroupPanel({
 }
 
 export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
-  const [data, setData] = useState<GroupsPageData>(initialData);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
-    initialData.groups[0]?.id ?? null
+  type GroupsClientState = {
+    data: GroupsPageData;
+    selectedGroupId: string | null;
+    editingGroup: GroupsPageGroup | null;
+    deleteTarget: GroupsPageGroup | null;
+    isCreateOpen: boolean;
+    isSaving: boolean;
+    error: string | null;
+  };
+  type GroupsClientAction =
+    | { type: "patched"; value: Partial<GroupsClientState> }
+    | { type: "reloaded"; data: GroupsPageData }
+    | { type: "groupSaved"; groupId: string }
+    | { type: "deleteStarted" };
+  const [state, dispatch] = useReducer(
+    (current: GroupsClientState, action: GroupsClientAction): GroupsClientState => {
+      switch (action.type) {
+        case "patched":
+          return { ...current, ...action.value };
+        case "reloaded":
+          return {
+            ...current,
+            data: action.data,
+            selectedGroupId:
+              current.selectedGroupId ?? action.data.groups[0]?.id ?? null,
+          };
+        case "groupSaved":
+          return {
+            ...current,
+            selectedGroupId: action.groupId,
+            isCreateOpen: false,
+            editingGroup: null,
+          };
+        case "deleteStarted":
+          return { ...current, deleteTarget: null, selectedGroupId: null };
+      }
+    },
+    {
+      data: initialData,
+      selectedGroupId: initialData.groups[0]?.id ?? null,
+      editingGroup: null,
+      deleteTarget: null,
+      isCreateOpen: false,
+      isSaving: false,
+      error: null,
+    }
   );
-  const [editingGroup, setEditingGroup] = useState<GroupsPageGroup | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<GroupsPageGroup | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    selectedGroupId,
+    editingGroup,
+    deleteTarget,
+    isCreateOpen,
+    isSaving,
+    error,
+  } = state;
 
   const selectedGroup = useMemo(
     () => data.groups.find((group) => group.id === selectedGroupId) ?? null,
@@ -388,44 +435,46 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
   );
 
   async function reload() {
-    setError(null);
+    dispatch({ type: "patched", value: { error: null } });
     const nextData = await fetchGroupsPageData();
-    setData(nextData);
-    setSelectedGroupId((current) => current ?? nextData.groups[0]?.id ?? null);
+    dispatch({ type: "reloaded", data: nextData });
   }
 
   async function saveGroup(name: string, groupId?: string) {
-    setIsSaving(true);
+    dispatch({ type: "patched", value: { isSaving: true } });
     try {
       const group = groupId ? await renameGroup(groupId, name) : await createGroup(name);
       await reload();
-      setSelectedGroupId(group.id);
-      setIsCreateOpen(false);
-      setEditingGroup(null);
+      dispatch({ type: "groupSaved", groupId: group.id });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar grupo.");
+      dispatch({
+        type: "patched",
+        value: { error: err instanceof Error ? err.message : "Erro ao salvar grupo." },
+      });
     } finally {
-      setIsSaving(false);
+      dispatch({ type: "patched", value: { isSaving: false } });
     }
   }
 
   async function handleDeleteGroup() {
     if (!deleteTarget) return;
-    setIsSaving(true);
+    dispatch({ type: "patched", value: { isSaving: true } });
     try {
       await removeGroup(deleteTarget.id);
-      setDeleteTarget(null);
-      setSelectedGroupId(null);
+      dispatch({ type: "deleteStarted" });
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao deletar grupo.");
+      dispatch({
+        type: "patched",
+        value: { error: err instanceof Error ? err.message : "Erro ao deletar grupo." },
+      });
     } finally {
-      setIsSaving(false);
+      dispatch({ type: "patched", value: { isSaving: false } });
     }
   }
 
   async function handleMoveMeeting(meetingId: string, groupId: string | null) {
-    setError(null);
+    dispatch({ type: "patched", value: { error: null } });
     await moveMeetingToGroup(meetingId, groupId);
     await reload();
   }
@@ -437,8 +486,12 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
         title="Grupos"
         description="Organize reunioes por cliente, projeto ou contexto."
         actions={
-          <Button size="lg" className="rounded-full px-6" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-[18px] w-[18px]" />
+          <Button
+            size="lg"
+            className="rounded-full px-6"
+            onClick={() => dispatch({ type: "patched", value: { isCreateOpen: true } })}
+          >
+            <Plus className="size-[18px]" />
             Novo grupo
           </Button>
         }
@@ -455,7 +508,9 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
           <GroupList
             groups={data.groups}
             selectedId={selectedGroupId}
-            onSelect={setSelectedGroupId}
+            onSelect={(selectedGroupId) =>
+              dispatch({ type: "patched", value: { selectedGroupId } })
+            }
           />
         </SectionCard>
 
@@ -463,8 +518,12 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
           group={selectedGroup}
           meetings={selectedMeetings}
           addableMeetings={addableMeetings}
-          onEdit={setEditingGroup}
-          onDelete={setDeleteTarget}
+          onEdit={(editingGroup) =>
+            dispatch({ type: "patched", value: { editingGroup } })
+          }
+          onDelete={(deleteTarget) =>
+            dispatch({ type: "patched", value: { deleteTarget } })
+          }
           onAddMeeting={(meetingId) => void handleMoveMeeting(meetingId, selectedGroupId)}
           onRemoveMeeting={(meetingId) => void handleMoveMeeting(meetingId, null)}
         />
@@ -475,7 +534,9 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
         title="Criar grupo"
         initialName=""
         isSaving={isSaving}
-        onOpenChange={setIsCreateOpen}
+        onOpenChange={(isCreateOpen) =>
+          dispatch({ type: "patched", value: { isCreateOpen } })
+        }
         onSubmit={(name) => saveGroup(name)}
       />
       <GroupDialog
@@ -483,14 +544,24 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
         title="Editar grupo"
         initialName={editingGroup?.name ?? ""}
         isSaving={isSaving}
-        onOpenChange={(open) => setEditingGroup(open ? editingGroup : null)}
+        onOpenChange={(open) =>
+          dispatch({
+            type: "patched",
+            value: { editingGroup: open ? editingGroup : null },
+          })
+        }
         onSubmit={(name) => saveGroup(name, editingGroup?.id)}
       />
       <DeleteGroupDialog
         group={deleteTarget}
         open={Boolean(deleteTarget)}
         isSaving={isSaving}
-        onOpenChange={(open) => setDeleteTarget(open ? deleteTarget : null)}
+        onOpenChange={(open) =>
+          dispatch({
+            type: "patched",
+            value: { deleteTarget: open ? deleteTarget : null },
+          })
+        }
         onConfirm={handleDeleteGroup}
       />
     </PageShell>

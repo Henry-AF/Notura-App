@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useReducer, useRef } from "react";
 import { X, Plus, Trash2, Calendar, AlignLeft, Flag, User, Link2 } from "lucide-react";
 import type { Task } from "./TaskCard";
 
@@ -17,6 +17,55 @@ export interface TaskEditModalProps {
   onSave: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+}
+
+type TaskAssignee = { name: string; avatarUrl?: string };
+
+type TaskEditState = {
+  title: string;
+  description: string;
+  priority: Task["priority"];
+  dueDate: string;
+  meetingId: string;
+  assignees: TaskAssignee[];
+  newName: string;
+  showDeleteConfirm: boolean;
+};
+
+type TaskEditAction =
+  | {
+      type: "fieldChanged";
+      field: "title" | "description" | "dueDate" | "meetingId" | "newName";
+      value: string;
+    }
+  | { type: "priorityChanged"; value: Task["priority"] }
+  | { type: "assigneeAdded"; name: string }
+  | { type: "assigneeRemoved"; index: number }
+  | { type: "deleteConfirmChanged"; value: boolean };
+
+function taskEditReducer(
+  state: TaskEditState,
+  action: TaskEditAction
+): TaskEditState {
+  switch (action.type) {
+    case "fieldChanged":
+      return { ...state, [action.field]: action.value };
+    case "priorityChanged":
+      return { ...state, priority: action.value };
+    case "assigneeAdded":
+      return {
+        ...state,
+        assignees: [...state.assignees, { name: action.name }],
+        newName: "",
+      };
+    case "assigneeRemoved":
+      return {
+        ...state,
+        assignees: state.assignees.filter((_, index) => index !== action.index),
+      };
+    case "deleteConfirmChanged":
+      return { ...state, showDeleteConfirm: action.value };
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -45,16 +94,26 @@ export function TaskEditModal({
   onDelete,
   onClose,
 }: TaskEditModalProps) {
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [priority, setPriority] = useState(task.priority);
-  const [dueDate, setDueDate] = useState(task.dueDate ?? "");
-  const [meetingId, setMeetingId] = useState(task.meetingId ?? meetings[0]?.id ?? "");
-  const [assignees, setAssignees] = useState<{ name: string; avatarUrl?: string }[]>(
-    task.assignees ?? (task.assignee ? [task.assignee] : [])
-  );
-  const [newName, setNewName] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [state, dispatch] = useReducer(taskEditReducer, {
+    title: task.title,
+    description: task.description ?? "",
+    priority: task.priority,
+    dueDate: task.dueDate ?? "",
+    meetingId: task.meetingId ?? meetings[0]?.id ?? "",
+    assignees: task.assignees ?? (task.assignee ? [task.assignee] : []),
+    newName: "",
+    showDeleteConfirm: false,
+  });
+  const {
+    title,
+    description,
+    priority,
+    dueDate,
+    meetingId,
+    assignees,
+    newName,
+    showDeleteConfirm,
+  } = state;
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -84,12 +143,11 @@ export function TaskEditModal({
   function addAssignee() {
     const name = newName.trim();
     if (!name) return;
-    setAssignees((prev) => [...prev, { name }]);
-    setNewName("");
+    dispatch({ type: "assigneeAdded", name });
   }
 
   function removeAssignee(i: number) {
-    setAssignees((prev) => prev.filter((_, idx) => idx !== i));
+    dispatch({ type: "assigneeRemoved", index: i });
   }
 
   const LABEL: React.CSSProperties = {
@@ -205,7 +263,13 @@ export function TaskEditModal({
             <textarea
               ref={titleRef}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "title",
+                  value: e.target.value,
+                })
+              }
               rows={2}
               style={{ ...INPUT, fontWeight: 600, fontSize: 15, resize: "vertical" }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
@@ -221,7 +285,13 @@ export function TaskEditModal({
             </label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "description",
+                  value: e.target.value,
+                })
+              }
               placeholder="Descreva o que precisa ser feito..."
               rows={3}
               style={{ ...INPUT, resize: "vertical" }}
@@ -238,7 +308,13 @@ export function TaskEditModal({
             </label>
             <select
               value={meetingId}
-              onChange={(e) => setMeetingId(e.target.value)}
+              onChange={(e) =>
+                dispatch({
+                  type: "fieldChanged",
+                  field: "meetingId",
+                  value: e.target.value,
+                })
+              }
               disabled={meetings.length === 0}
               style={INPUT}
               onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
@@ -278,7 +354,7 @@ export function TaskEditModal({
                   return (
                     <button
                       key={p}
-                      onClick={() => setPriority(p)}
+                      onClick={() => dispatch({ type: "priorityChanged", value: p })}
                       style={{
                         flex: 1,
                         padding: "7px 0",
@@ -318,7 +394,13 @@ export function TaskEditModal({
               <input
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) =>
+                  dispatch({
+                    type: "fieldChanged",
+                    field: "dueDate",
+                    value: e.target.value,
+                  })
+                }
                 style={{ ...INPUT, colorScheme: "dark", color: dueDate ? "rgb(var(--cn-ink))" : "rgb(var(--cn-muted))" }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "rgb(var(--cn-input-border))")}
@@ -404,7 +486,13 @@ export function TaskEditModal({
                 type="text"
                 placeholder="Nome do responsável"
                 value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                onChange={(e) =>
+                  dispatch({
+                    type: "fieldChanged",
+                    field: "newName",
+                    value: e.target.value,
+                  })
+                }
                 onKeyDown={(e) => e.key === "Enter" && addAssignee()}
                 style={{ ...INPUT, flex: 1 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "#6C5CE7")}
@@ -486,7 +574,9 @@ export function TaskEditModal({
                 Excluir
               </button>
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() =>
+                  dispatch({ type: "deleteConfirmChanged", value: false })
+                }
                 style={{
                   padding: "5px 12px",
                   background: "transparent",
@@ -503,7 +593,9 @@ export function TaskEditModal({
             </div>
           ) : (
             <button
-              onClick={() => setShowDeleteConfirm(true)}
+              onClick={() =>
+                dispatch({ type: "deleteConfirmChanged", value: true })
+              }
               style={{
                 display: "flex",
                 alignItems: "center",

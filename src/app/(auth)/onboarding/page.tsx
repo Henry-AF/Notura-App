@@ -5,8 +5,10 @@ import {
   Suspense,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -104,11 +106,78 @@ interface PaymentRedirectOptions {
   setBillingCycle: (value: BillingCycle) => void;
   pathname: string;
   searchParams: SearchParamsReader;
-  setError: (value: string | null) => void;
-  setLoading: (value: boolean) => void;
-  setPaymentVerifying: (value: boolean) => void;
-  setSelectedPlan: (value: PricingPlanType) => void;
-  setStep: (value: OnboardingStep) => void;
+  dispatch: Dispatch<OnboardingAction>;
+}
+
+type OnboardingState = {
+  step: OnboardingStep;
+  phone: string;
+  selectedPlan: PricingPlanType;
+  loading: boolean;
+  error: string | null;
+  paymentVerifying: boolean;
+};
+
+type OnboardingAction =
+  | { type: "phoneChanged"; value: string }
+  | { type: "planChanged"; value: PricingPlanType }
+  | { type: "stepChanged"; value: OnboardingStep }
+  | { type: "requestStarted" }
+  | { type: "requestFinished" }
+  | { type: "errorChanged"; value: string | null }
+  | { type: "paymentCanceled" }
+  | { type: "paymentVerificationStarted" }
+  | { type: "paymentVerified" }
+  | { type: "paymentVerificationFailed"; message: string }
+  | { type: "paymentVerificationFinished" };
+
+const initialOnboardingState: OnboardingState = {
+  step: 1,
+  phone: "",
+  selectedPlan: "free",
+  loading: false,
+  error: null,
+  paymentVerifying: false,
+};
+
+function onboardingReducer(
+  state: OnboardingState,
+  action: OnboardingAction
+): OnboardingState {
+  switch (action.type) {
+    case "phoneChanged":
+      return { ...state, phone: action.value };
+    case "planChanged":
+      return { ...state, selectedPlan: action.value };
+    case "stepChanged":
+      return { ...state, step: action.value };
+    case "requestStarted":
+      return { ...state, loading: true, error: null };
+    case "requestFinished":
+      return { ...state, loading: false };
+    case "errorChanged":
+      return { ...state, error: action.value };
+    case "paymentCanceled":
+      return {
+        ...state,
+        step: 2,
+        error: "Pagamento cancelado. Você pode tentar novamente quando quiser.",
+      };
+    case "paymentVerificationStarted":
+      return {
+        ...state,
+        step: 2,
+        paymentVerifying: true,
+        loading: true,
+        error: null,
+      };
+    case "paymentVerified":
+      return { ...state, step: 3 };
+    case "paymentVerificationFailed":
+      return { ...state, step: 2, error: action.message };
+    case "paymentVerificationFinished":
+      return { ...state, paymentVerifying: false, loading: false };
+  }
 }
 
 const onboardingHighlights = [
@@ -144,7 +213,7 @@ function OnboardingShell({ children }: { children: ReactNode }) {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(104,81,255,0.14),transparent_45%)] bg-background px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between pb-6">
         <Link href="/" className="inline-flex items-center gap-2 text-foreground">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <Sparkles className="size-5 text-primary" />
           <span className="font-display text-xl font-bold">Notura</span>
         </Link>
       </div>
@@ -219,8 +288,8 @@ function StepIndicator({ step }: { step: OnboardingStep }) {
 function StepIntro({ icon: Icon, title, description }: StepIntroProps) {
   return (
     <div className="space-y-4 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
-        <Icon className="h-6 w-6 text-violet-600" />
+      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-violet-100">
+        <Icon className="size-6 text-violet-600" />
       </div>
       <PageHeader
         title={title}
@@ -274,7 +343,7 @@ function PhoneStep({
         <div className="space-y-3">
           <Button className="w-full rounded-full" onClick={onContinue} disabled={loading || !phone}>
             {loading ? "Salvando..." : "Continuar"}
-            <ArrowRight className="ml-1 h-4 w-4" />
+            <ArrowRight className="ml-1 size-4" />
           </Button>
 
           <button
@@ -305,11 +374,11 @@ function PlanOptionButton({ plan, selected, onSelect }: PlanOptionButtonProps) {
       <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
         <div
           className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+            "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
             selected ? "border-violet-500 bg-violet-600" : "border-notura-border"
           )}
         >
-          {selected ? <Check className="h-3 w-3 text-white" /> : null}
+          {selected ? <Check className="size-3 text-white" /> : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -442,7 +511,7 @@ function SuccessStep({ onContinue }: SuccessStepProps) {
       <div className="mx-auto max-w-sm space-y-3 text-left">
         {successChecklist.map((item, index) => (
           <div key={item} className="flex items-start gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
               {index + 1}
             </span>
             <p className="text-sm text-notura-ink">{item}</p>
@@ -452,7 +521,7 @@ function SuccessStep({ onContinue }: SuccessStepProps) {
 
       <Button className="w-full rounded-full" onClick={onContinue}>
         Ir para o dashboard
-        <ArrowRight className="ml-1 h-4 w-4" />
+        <ArrowRight className="ml-1 size-4" />
       </Button>
     </div>
   );
@@ -462,11 +531,7 @@ function usePaymentRedirect({
   setBillingCycle,
   pathname,
   searchParams,
-  setError,
-  setLoading,
-  setPaymentVerifying,
-  setSelectedPlan,
-  setStep,
+  dispatch,
 }: PaymentRedirectOptions) {
   useEffect(() => {
     const payment = searchParams.get("payment");
@@ -483,7 +548,7 @@ function usePaymentRedirect({
       ? planParam
       : resolvePricingPlanFromInternalPlan(planParam);
     if (pricingPlan) {
-      setSelectedPlan(pricingPlan);
+      dispatch({ type: "planChanged", value: pricingPlan });
     }
 
     if (billingCycleParam === "monthly" || billingCycleParam === "yearly") {
@@ -491,8 +556,7 @@ function usePaymentRedirect({
     }
 
     if (payment === "canceled") {
-      setStep(2);
-      setError("Pagamento cancelado. Você pode tentar novamente quando quiser.");
+      dispatch({ type: "paymentCanceled" });
       clearCurrentSearch(pathname);
       return;
     }
@@ -504,10 +568,7 @@ function usePaymentRedirect({
     let cancelled = false;
 
     async function runVerification() {
-      setStep(2);
-      setPaymentVerifying(true);
-      setLoading(true);
-      setError(null);
+      dispatch({ type: "paymentVerificationStarted" });
 
       try {
         await verifyOnboardingPayment({
@@ -516,7 +577,7 @@ function usePaymentRedirect({
         });
 
         if (!cancelled) {
-          setStep(3);
+          dispatch({ type: "paymentVerified" });
           clearCurrentSearch(pathname);
         }
       } catch (verifyError) {
@@ -525,14 +586,12 @@ function usePaymentRedirect({
             verifyError instanceof Error
               ? verifyError.message
               : "Pagamento não confirmado.";
-          setError(message);
-          setStep(2);
+          dispatch({ type: "paymentVerificationFailed", message });
           clearCurrentSearch(pathname);
         }
       } finally {
         if (!cancelled) {
-          setPaymentVerifying(false);
-          setLoading(false);
+          dispatch({ type: "paymentVerificationFinished" });
         }
       }
     }
@@ -546,11 +605,7 @@ function usePaymentRedirect({
     setBillingCycle,
     pathname,
     searchParams,
-    setError,
-    setLoading,
-    setPaymentVerifying,
-    setSelectedPlan,
-    setStep,
+    dispatch,
   ]);
 }
 
@@ -624,67 +679,63 @@ function OnboardingPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { billingCycle, setBillingCycle } = useBillingCycle();
-  const [step, setStep] = useState<OnboardingStep>(1);
-  const [phone, setPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState<PricingPlanType>("free");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [paymentVerifying, setPaymentVerifying] = useState(false);
+  const [state, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
+  const { step, phone, selectedPlan, loading, error, paymentVerifying } = state;
 
   usePaymentRedirect({
     setBillingCycle,
     pathname,
     searchParams,
-    setError,
-    setLoading,
-    setPaymentVerifying,
-    setSelectedPlan,
-    setStep,
+    dispatch,
   });
   const prewarmReady = useCheckoutPrewarm(step);
 
   async function handleSavePhone() {
-    setLoading(true);
-    setError(null);
+    dispatch({ type: "requestStarted" });
 
     try {
       const result = await saveOnboardingProfile({ whatsappNumber: phone });
 
       if (!result.success) {
-        setError(result.error ?? "Não foi possível salvar seu número.");
+        dispatch({
+          type: "errorChanged",
+          value: result.error ?? "Não foi possível salvar seu número.",
+        });
         return;
       }
 
       posthog.capture("onboarding_phone_saved");
-      setStep(2);
+      dispatch({ type: "stepChanged", value: 2 });
     } catch {
-      setError("Ocorreu um erro inesperado ao salvar seu número.");
+      dispatch({
+        type: "errorChanged",
+        value: "Ocorreu um erro inesperado ao salvar seu número.",
+      });
     } finally {
-      setLoading(false);
+      dispatch({ type: "requestFinished" });
     }
   }
 
   async function handleSelectPlan() {
-    setLoading(true);
-    setError(null);
+    dispatch({ type: "requestStarted" });
 
     if (selectedPlan === "free") {
       posthog.capture("onboarding_plan_selected", { plan: "free", billing_cycle: billingCycle });
-      setLoading(false);
-      setStep(3);
+      dispatch({ type: "requestFinished" });
+      dispatch({ type: "stepChanged", value: 3 });
       return;
     }
 
     if (selectedPlan === "enterprise") {
       posthog.capture("onboarding_plan_selected", { plan: "enterprise" });
-      setLoading(false);
+      dispatch({ type: "requestFinished" });
       window.open(getPricingPlan("enterprise").contactHref, "_blank", "noopener,noreferrer");
       return;
     }
 
     if (!isCheckoutPlan(selectedPlan)) {
-      setLoading(false);
-      setError("Plano inválido para checkout.");
+      dispatch({ type: "requestFinished" });
+      dispatch({ type: "errorChanged", value: "Plano inválido para checkout." });
       return;
     }
 
@@ -696,7 +747,7 @@ function OnboardingPageContent() {
       );
 
       if (checkout.alreadyActive) {
-        setStep(3);
+        dispatch({ type: "stepChanged", value: 3 });
         return;
       }
 
@@ -709,9 +760,9 @@ function OnboardingPageContent() {
         checkoutError instanceof Error
           ? checkoutError.message
           : "Falha ao iniciar o pagamento.";
-      setError(message);
+      dispatch({ type: "errorChanged", value: message });
     } finally {
-      setLoading(false);
+      dispatch({ type: "requestFinished" });
     }
   }
 
@@ -730,11 +781,11 @@ function OnboardingPageContent() {
             phone={phone}
             error={error}
             loading={loading}
-            onPhoneChange={setPhone}
+            onPhoneChange={(value) => dispatch({ type: "phoneChanged", value })}
             onContinue={handleSavePhone}
             onSkip={() => {
               posthog.capture("onboarding_phone_skipped");
-              setStep(2);
+              dispatch({ type: "stepChanged", value: 2 });
             }}
           />
         ) : step === 2 ? (
@@ -746,7 +797,7 @@ function OnboardingPageContent() {
             prewarmReady={prewarmReady}
             selectedPlan={selectedPlan}
             onBillingCycleChange={setBillingCycle}
-            onPlanChange={setSelectedPlan}
+            onPlanChange={(plan) => dispatch({ type: "planChanged", value: plan })}
             onContinue={handleSelectPlan}
           />
         ) : (

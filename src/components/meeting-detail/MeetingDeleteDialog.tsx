@@ -129,10 +129,10 @@ export function MeetingDeleteDialog({
             <div className="flex items-center gap-3">
               {/* Warning icon */}
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px]"
+                className="flex size-10 shrink-0 items-center justify-center rounded-[14px]"
                 style={{ background: "rgba(239,68,68,0.1)", color: "#EF4444" }}
               >
-                <AlertTriangle className="h-5 w-5" />
+                <AlertTriangle className="size-5" />
               </div>
               <div>
                 <h2
@@ -152,10 +152,10 @@ export function MeetingDeleteDialog({
               type="button"
               onClick={() => onOpenChange(false)}
               aria-label="Fechar"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70"
               style={{ background: c.card2, color: c.ink2 }}
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
             </button>
           </div>
 
@@ -204,8 +204,8 @@ export function MeetingDeleteDialog({
                 }}
               >
                 {copied
-                  ? <Check className="h-3.5 w-3.5" />
-                  : <Copy className="h-3.5 w-3.5" />}
+                  ? <Check className="size-3.5" />
+                  : <Copy className="size-3.5" />}
                 {copied ? "Resumo copiado!" : "Copiar resumo inteligente"}
               </button>
               {!hasSummary && (
@@ -260,7 +260,7 @@ export function MeetingDeleteDialog({
                   transition: "background 0.2s, box-shadow 0.2s, transform 0.15s cubic-bezier(0.3,0,0.1,1)",
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-4" />
                 {isDeleting ? "Excluindo..." : "Excluir reunião"}
               </button>
               <button

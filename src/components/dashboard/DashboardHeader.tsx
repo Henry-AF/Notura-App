@@ -67,7 +67,7 @@ export function DashboardHeader({
       actions={
         <Button asChild size="lg" className="rounded-full px-6">
           <Link href="/dashboard/recording">
-            <Plus className="h-[18px] w-[18px]" />
+            <Plus className="size-[18px]" />
             Nova reunião
           </Link>
         </Button>

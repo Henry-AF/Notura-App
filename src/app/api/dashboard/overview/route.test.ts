@@ -109,6 +109,14 @@ describe("GET /api/dashboard/overview", () => {
       billingAccount: { plan: "pro" },
       meetingsThisMonth: 4,
       monthlyLimit: 30,
+      entitlement: {
+        plan: "pro",
+        effectivePlan: "pro",
+        status: "active",
+        isPaidActive: true,
+        isExpired: false,
+        isInGrace: false,
+      },
     });
 
     const mod = await import("./route");

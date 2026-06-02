@@ -44,10 +44,10 @@ export function UploadProgressCard({
       <div className="flex items-start gap-3">
         {/* File icon */}
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center"
+          className="flex size-10 shrink-0 items-center justify-center"
           style={{ background: "rgba(104,81,255,0.15)", borderRadius: "10px" }}
         >
-          <FileAudio className="h-5 w-5 text-[#6851FF]" />
+          <FileAudio className="size-5 text-[#6851FF]" />
         </div>
 
         {/* File info */}
@@ -64,7 +64,7 @@ export function UploadProgressCard({
           className="shrink-0 rounded-full p-1 text-[#606060] transition-colors hover:bg-[#2E2E2E] hover:text-[#A0A0A0]"
           aria-label="Remover arquivo"
         >
-          <X className="h-4 w-4" />
+          <X className="size-4" />
         </button>
       </div>
 

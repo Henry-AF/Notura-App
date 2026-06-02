@@ -10,7 +10,7 @@ describe("effect cleanup policy", () => {
   it("cleans up the recording elapsed-time interval", () => {
     const source = readSource("src/components/recording/RecordingSessionProvider.tsx");
 
-    expect(source).toContain("timerRef.current = setInterval(() => {");
+    expect(source).toMatch(/timerRef\.current = (?:window\.)?setInterval\(\(\) => \{/);
     expect(source).toContain("return () => clearTimer();");
   });
 

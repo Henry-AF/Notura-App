@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense, useEffect, useReducer } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -139,9 +139,9 @@ function AnimatedWaveform({ active }: { active: boolean }) {
 
 function SpinningRing({ done }: { done: boolean }) {
   return (
-    <div className="relative flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
+    <div className="relative flex size-24 items-center justify-center sm:h-28 sm:w-28">
       <svg
-        className="absolute inset-0 h-full w-full -rotate-90"
+        className="absolute inset-0 size-full -rotate-90"
         viewBox="0 0 100 100"
         fill="none"
       >
@@ -175,14 +175,14 @@ function SpinningRing({ done }: { done: boolean }) {
       </svg>
       <div
         className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-full transition-all duration-500 sm:h-16 sm:w-16",
+          "flex size-14 items-center justify-center rounded-full transition-all duration-500 sm:h-16 sm:w-16",
           done ? "bg-notura-success/15" : "bg-notura-primary/15"
         )}
       >
         {done ? (
-          <CheckCircle className="h-7 w-7 text-notura-success sm:h-8 sm:w-8" />
+          <CheckCircle className="size-7 text-notura-success sm:h-8 sm:w-8" />
         ) : (
-          <Sparkles className="h-7 w-7 text-notura-primary sm:h-8 sm:w-8" />
+          <Sparkles className="size-7 text-notura-primary sm:h-8 sm:w-8" />
         )}
       </div>
     </div>
@@ -206,18 +206,18 @@ function StepRow({ step, status }: { step: Step; status: StepStatus }) {
     >
       <div
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-10 sm:w-10",
+          "flex size-9 shrink-0 items-center justify-center rounded-xl transition-all duration-300 sm:h-10 sm:w-10",
           status === "done"    && "bg-notura-success/15",
           status === "active"  && "bg-notura-primary/15",
           status === "pending" && "bg-notura-surface"
         )}
       >
         {status === "done" ? (
-          <CheckCircle className="h-4 w-4 text-notura-success sm:h-5 sm:w-5" />
+          <CheckCircle className="size-4 text-notura-success sm:h-5 sm:w-5" />
         ) : (
           <Icon
             className={cn(
-              "h-4 w-4 sm:h-5 sm:w-5",
+              "size-4 sm:h-5 sm:w-5",
               status === "active" ? "text-notura-primary" : "text-notura-ink-secondary"
             )}
           />
@@ -239,7 +239,7 @@ function StepRow({ step, status }: { step: Step; status: StepStatus }) {
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="inline-block h-1 w-1 rounded-full bg-notura-primary"
+                  className="inline-block size-1 rounded-full bg-notura-primary"
                   style={{
                     animation: "dotBounce 1.2s ease-in-out infinite",
                     animationDelay: `${i * 0.2}s`,
@@ -267,9 +267,9 @@ function StepRow({ step, status }: { step: Step; status: StepStatus }) {
         )}
         {status === "active" && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-notura-primary/15 px-2.5 py-1 text-[11px] font-medium text-notura-primary">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute h-full w-full animate-ping rounded-full bg-notura-primary opacity-60" />
-              <span className="h-1.5 w-1.5 rounded-full bg-notura-primary" />
+            <span className="relative flex size-1.5">
+              <span className="absolute size-full animate-ping rounded-full bg-notura-primary opacity-60" />
+              <span className="size-1.5 rounded-full bg-notura-primary" />
             </span>
             Em curso
           </span>
@@ -287,22 +287,62 @@ interface MeetingMeta {
   decisionCount: number;
 }
 
+type ProcessingState = {
+  currentStep: number;
+  done: boolean;
+  failed: boolean;
+  elapsed: number;
+  meta: MeetingMeta;
+};
+
+type ProcessingAction =
+  | { type: "elapsedTicked" }
+  | {
+      type: "pollCompleted";
+      meta: MeetingMeta;
+      currentStep: number;
+      status: "completed" | "failed" | "processing";
+    };
+
+const initialProcessingState: ProcessingState = {
+  currentStep: 0,
+  done: false,
+  failed: false,
+  elapsed: 0,
+  meta: { title: null, taskCount: 0, decisionCount: 0 },
+};
+
+function processingReducer(
+  state: ProcessingState,
+  action: ProcessingAction
+): ProcessingState {
+  switch (action.type) {
+    case "elapsedTicked":
+      return { ...state, elapsed: state.elapsed + 1 };
+    case "pollCompleted":
+      return {
+        ...state,
+        meta: action.meta,
+        currentStep: action.currentStep,
+        done: action.status === "completed",
+        failed: action.status === "failed",
+      };
+  }
+}
+
 function ProcessingPageContent() {
   const router = useRouter();
   const params = useSearchParams();
   const meetingId = params.get("id");
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [done, setDone] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [meta, setMeta] = useState<MeetingMeta>({ title: null, taskCount: 0, decisionCount: 0 });
+  const [state, dispatch] = useReducer(processingReducer, initialProcessingState);
+  const { currentStep, done, failed, elapsed, meta } = state;
 
   // Wall-clock elapsed counter
   useEffect(() => {
     if (done || failed) return;
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    const t = window.setInterval(() => dispatch({ type: "elapsedTicked" }), 1000);
+    return () => window.clearInterval(t);
   }, [done, failed]);
 
   // Poll meeting status from Supabase every 4 seconds
@@ -318,23 +358,36 @@ function ProcessingPageContent() {
         const data = await fetchMeetingStatus(currentMeetingId);
         if (cancelled) return;
 
-        setMeta({
+        const meta = {
           title: data.title ?? null,
           taskCount: data.taskCount,
           decisionCount: data.decisionCount,
-        });
+        };
 
         if (data.status === "completed") {
-          setCurrentStep(STEPS.length);
-          setDone(true);
-          setTimeout(() => {
+          dispatch({
+            type: "pollCompleted",
+            meta,
+            currentStep: STEPS.length,
+            status: "completed",
+          });
+          window.setTimeout(() => {
             router.push(`/dashboard/meetings/${currentMeetingId}`);
           }, 3000);
         } else if (data.status === "failed") {
-          setCurrentStep(findStepIndex(data.processingStep));
-          setFailed(true);
+          dispatch({
+            type: "pollCompleted",
+            meta,
+            currentStep: findStepIndex(data.processingStep),
+            status: "failed",
+          });
         } else {
-          setCurrentStep(findStepIndex(data.processingStep));
+          dispatch({
+            type: "pollCompleted",
+            meta,
+            currentStep: findStepIndex(data.processingStep),
+            status: "processing",
+          });
         }
       } catch {
         // ignore transient network errors
@@ -342,10 +395,10 @@ function ProcessingPageContent() {
     }
 
     void poll();
-    const interval = setInterval(poll, 4000);
+    const interval = window.setInterval(poll, 4000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      window.clearInterval(interval);
     };
   }, [meetingId, done, failed, router]);
 
@@ -364,8 +417,8 @@ function ProcessingPageContent() {
   if (failed) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-20 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
-          <AlertTriangle className="h-8 w-8 text-red-400" />
+        <div className="flex size-16 items-center justify-center rounded-full bg-red-500/10">
+          <AlertTriangle className="size-8 text-red-400" />
         </div>
         <div>
           <h2 className="font-manrope font-extrabold text-xl text-notura-ink">
@@ -418,7 +471,7 @@ function ProcessingPageContent() {
         )}
       >
         <div
-          className="pointer-events-none absolute -top-16 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-700"
+          className="pointer-events-none absolute -top-16 left-1/2 size-64 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-700"
           style={{
             background: done
               ? "rgba(34,197,94,0.07)"
@@ -469,7 +522,7 @@ function ProcessingPageContent() {
                       boxShadow: "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
                     }}
                   >
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles className="size-4" />
                     Ver resumo
                   </button>
                 </Link>
@@ -499,7 +552,7 @@ function ProcessingPageContent() {
                       : "Finalizando..."}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
+                    <Clock className="size-3" />
                     {elapsedStr}
                   </span>
                 </div>

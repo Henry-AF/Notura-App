@@ -59,20 +59,20 @@ function ToastCard({
   const Icon = ICONS[toast.type];
 
   useEffect(() => {
-    const showTimer = setTimeout(() => setVisible(true), 10);
-    const hideTimer = setTimeout(() => {
+    const showTimer = window.setTimeout(() => setVisible(true), 10);
+    const hideTimer = window.setTimeout(() => {
       setVisible(false);
-      setTimeout(onDismiss, 320);
+      window.setTimeout(onDismiss, 320);
     }, 3500);
     return () => {
-      clearTimeout(showTimer);
-      clearTimeout(hideTimer);
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
     };
   }, [onDismiss]);
 
   const handleDismiss = () => {
     setVisible(false);
-    setTimeout(onDismiss, 320);
+    window.setTimeout(onDismiss, 320);
   };
 
   return (
@@ -94,7 +94,7 @@ function ToastCard({
       className="flex items-start gap-3 shadow-lg"
     >
       <Icon
-        className="mt-0.5 h-4 w-4 shrink-0"
+        className="mt-0.5 size-4 shrink-0"
         style={{ color: BORDER_COLORS[toast.type] }}
       />
       <p className="flex-1 text-sm" style={{ color: "rgb(var(--cn-ink))" }}>{toast.message}</p>
@@ -105,7 +105,7 @@ function ToastCard({
         onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-ink2))")}
         onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgb(var(--cn-muted))")}
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="size-3.5" />
       </button>
     </div>
   );

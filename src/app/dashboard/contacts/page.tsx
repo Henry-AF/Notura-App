@@ -173,13 +173,13 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           {/* Icon wrapper */}
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              "flex size-10 shrink-0 items-center justify-center rounded-xl",
               connected ? "bg-notura-primary/15" : "bg-notura-surface-2"
             )}
           >
             <Icon
               className={cn(
-                "h-5 w-5",
+                "size-5",
                 connected ? "text-notura-primary" : "text-notura-ink-secondary"
               )}
             />
@@ -200,7 +200,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
         {/* Status badge */}
         {connected ? (
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-notura-success/15 px-2.5 py-1 text-xs font-medium text-notura-success">
-            <span className="h-1.5 w-1.5 rounded-full bg-notura-success" />
+            <span className="size-1.5 rounded-full bg-notura-success" />
             Conectado
           </span>
         ) : !integration.available ? (
@@ -209,7 +209,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           </span>
         ) : (
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-notura-surface-2 px-2.5 py-1 text-xs font-medium text-notura-ink-secondary">
-            <span className="h-1.5 w-1.5 rounded-full bg-notura-muted" />
+            <span className="size-1.5 rounded-full bg-notura-muted" />
             Desconectado
           </span>
         )}
@@ -226,7 +226,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
           onClick={() => setConnected(false)}
           className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-notura-border/40 bg-notura-surface-2 px-4 py-2 text-sm font-medium text-notura-ink-secondary transition-colors hover:bg-notura-processing/10 hover:text-notura-processing hover:border-notura-processing/30"
         >
-          <XCircle className="h-4 w-4" />
+          <XCircle className="size-4" />
           Desconectar
         </button>
       ) : integration.available ? (
@@ -239,7 +239,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
               "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
           }}
         >
-          <ExternalLink className="h-4 w-4" />
+          <ExternalLink className="size-4" />
           Conectar
         </button>
       ) : (
@@ -278,9 +278,9 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
           </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2"
+            className="flex size-8 items-center justify-center rounded-full bg-notura-surface text-notura-ink-secondary transition-colors hover:bg-notura-surface-2"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
@@ -304,7 +304,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
               WhatsApp *
             </label>
             <div className="relative">
-              <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-notura-ink-secondary" />
+              <Phone className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-notura-ink-secondary" />
               <input
                 type="tel"
                 value={phone}
@@ -372,7 +372,7 @@ function ContactRow({
     <div className="group relative flex items-center gap-4 rounded-xl border border-notura-border/20 bg-notura-surface px-4 py-3 transition-all duration-150 hover:border-notura-border/40 hover:bg-notura-surface-2">
       {/* Avatar */}
       <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-notura-ink"
+        className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-notura-ink"
         style={{ backgroundColor: contact.color }}
       >
         {contact.initials}
@@ -385,7 +385,7 @@ function ContactRow({
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             <span className="flex items-center gap-1 text-xs text-notura-ink-secondary">
-            <Phone className="h-3 w-3" />
+            <Phone className="size-3" />
             {contact.phone}
           </span>
           {contact.email && (
@@ -408,11 +408,11 @@ function ContactRow({
       >
         {contact.active ? (
           <>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Ativo
+            <CheckCircle2 className="size-3.5" /> Ativo
           </>
         ) : (
           <>
-            <XCircle className="h-3.5 w-3.5" /> Inativo
+            <XCircle className="size-3.5" /> Inativo
           </>
         )}
       </button>
@@ -420,7 +420,7 @@ function ContactRow({
       {/* Mobile status dot */}
       <span
         className={cn(
-          "h-2.5 w-2.5 shrink-0 rounded-full sm:hidden",
+          "size-2.5 shrink-0 rounded-full sm:hidden",
           contact.active ? "bg-notura-success" : "bg-notura-muted"
         )}
       />
@@ -429,9 +429,9 @@ function ContactRow({
       <div className="relative shrink-0">
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-notura-ink-secondary transition-colors hover:bg-notura-surface-2 hover:text-notura-ink"
+          className="flex size-8 items-center justify-center rounded-full text-notura-ink-secondary transition-colors hover:bg-notura-surface-2 hover:text-notura-ink"
         >
-          <MoreVertical className="h-4 w-4" />
+          <MoreVertical className="size-4" />
         </button>
 
         {menuOpen && (
@@ -445,7 +445,7 @@ function ContactRow({
                 onClick={() => setMenuOpen(false)}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-notura-ink transition-colors hover:bg-notura-surface"
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <Pencil className="size-3.5" />
                 Editar
               </button>
               <button
@@ -455,7 +455,7 @@ function ContactRow({
                 }}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-notura-processing transition-colors hover:bg-notura-processing/10"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="size-3.5" />
                 Remover
               </button>
             </div>
@@ -521,7 +521,7 @@ export default function ContactsPage() {
                   "0 10px 15px -3px rgba(104,81,255,0.2), 0 4px 6px -4px rgba(104,81,255,0.2)",
               }}
             >
-              <UserPlus className="h-4 w-4" />
+              <UserPlus className="size-4" />
               Adicionar contato
             </button>
           }
@@ -532,8 +532,8 @@ export default function ContactsPage() {
           {/* Section heading */}
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
-                <Phone className="h-4 w-4 text-notura-primary" />
+              <div className="flex size-7 items-center justify-center rounded-lg bg-notura-primary/15">
+                <Phone className="size-4 text-notura-primary" />
               </div>
               <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
                 Contatos WhatsApp
@@ -548,7 +548,7 @@ export default function ContactsPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-notura-ink-secondary" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-notura-ink-secondary" />
               <input
                 type="text"
                 value={search}
@@ -597,8 +597,8 @@ export default function ContactsPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-notura-border/20 bg-notura-surface py-14">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-notura-surface-2">
-                <Search className="h-5 w-5 text-notura-ink-secondary" />
+              <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-notura-surface-2">
+                <Search className="size-5 text-notura-ink-secondary" />
               </div>
               <p className="text-sm font-medium text-notura-ink">
                 Nenhum contato encontrado
@@ -619,12 +619,12 @@ export default function ContactsPage() {
           {contacts.length > 0 && (
             <div className="mt-3 flex items-center gap-4 px-1 text-xs text-notura-ink-secondary">
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-notura-success" />
+                <span className="size-2 rounded-full bg-notura-success" />
                 {activeCount} ativo{activeCount !== 1 ? "s" : ""}
               </span>
               {inactiveCount > 0 && (
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-notura-muted" />
+                  <span className="size-2 rounded-full bg-notura-muted" />
                   {inactiveCount} inativo{inactiveCount !== 1 ? "s" : ""}
                 </span>
               )}
@@ -636,8 +636,8 @@ export default function ContactsPage() {
         <section>
           {/* Section heading */}
           <div className="mb-5 flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-notura-primary/15">
-              <Zap className="h-4 w-4 text-notura-primary" />
+            <div className="flex size-7 items-center justify-center rounded-lg bg-notura-primary/15">
+              <Zap className="size-4 text-notura-primary" />
             </div>
             <h2 className="font-manrope font-extrabold tracking-[-0.2px] text-notura-ink">
               Integrações

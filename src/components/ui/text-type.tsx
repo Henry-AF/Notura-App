@@ -30,6 +30,52 @@ export interface TextTypeProps
   reverseMode?: boolean;
 }
 
+type TextTypeState = {
+  displayedText: string;
+  currentCharIndex: number;
+  isDeleting: boolean;
+  currentTextIndex: number;
+  isVisible: boolean;
+};
+
+type TextTypeAction =
+  | { type: "visible" }
+  | { type: "advanceText"; textCount: number }
+  | { type: "deleteChar" }
+  | { type: "typeChar"; char: string }
+  | { type: "startDeleting" };
+
+function textTypeReducer(
+  state: TextTypeState,
+  action: TextTypeAction
+): TextTypeState {
+  switch (action.type) {
+    case "visible":
+      return { ...state, isVisible: true };
+    case "advanceText":
+      return {
+        ...state,
+        isDeleting: false,
+        currentTextIndex: (state.currentTextIndex + 1) % action.textCount,
+        currentCharIndex: 0,
+      };
+    case "deleteChar":
+      return {
+        ...state,
+        displayedText: state.displayedText.slice(0, -1),
+        currentCharIndex: Math.max(state.currentCharIndex - 1, 0),
+      };
+    case "typeChar":
+      return {
+        ...state,
+        displayedText: state.displayedText + action.char,
+        currentCharIndex: state.currentCharIndex + 1,
+      };
+    case "startDeleting":
+      return { ...state, isDeleting: true };
+  }
+}
+
 export default function TextType({
   text,
   as: Component = "div",
@@ -51,11 +97,20 @@ export default function TextType({
   reverseMode = false,
   ...props
 }: TextTypeProps) {
-  const [displayedText, setDisplayedText] = React.useState("");
-  const [currentCharIndex, setCurrentCharIndex] = React.useState(0);
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [currentTextIndex, setCurrentTextIndex] = React.useState(0);
-  const [isVisible, setIsVisible] = React.useState(!startOnVisible);
+  const [state, dispatch] = React.useReducer(textTypeReducer, {
+    displayedText: "",
+    currentCharIndex: 0,
+    isDeleting: false,
+    currentTextIndex: 0,
+    isVisible: !startOnVisible,
+  });
+  const {
+    displayedText,
+    currentCharIndex,
+    isDeleting,
+    currentTextIndex,
+    isVisible,
+  } = state;
 
   const cursorRef = React.useRef<HTMLSpanElement | null>(null);
   const containerRef = React.useRef<HTMLElement | null>(null);
@@ -82,7 +137,7 @@ export default function TextType({
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setIsVisible(true);
+            dispatch({ type: "visible" });
           }
         });
       },
@@ -118,7 +173,7 @@ export default function TextType({
       ? currentSentence.split("").reverse().join("")
       : currentSentence;
 
-    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let timeout: number | undefined;
 
     if (isDeleting) {
       if (displayedText.length === 0) {
@@ -128,42 +183,36 @@ export default function TextType({
           return;
         }
 
-        timeout = setTimeout(() => {
-          setIsDeleting(false);
-          setCurrentTextIndex((previous) => (previous + 1) % textArray.length);
-          setCurrentCharIndex(0);
+        timeout = window.setTimeout(() => {
+          dispatch({ type: "advanceText", textCount: textArray.length });
         }, pauseDuration);
       } else {
-        timeout = setTimeout(() => {
-          setDisplayedText((previous) => previous.slice(0, -1));
-          setCurrentCharIndex((previous) => Math.max(previous - 1, 0));
+        timeout = window.setTimeout(() => {
+          dispatch({ type: "deleteChar" });
         }, deletingSpeed);
       }
 
-      return () => clearTimeout(timeout);
+      return () => window.clearTimeout(timeout);
     }
 
     if (currentCharIndex < processedSentence.length) {
       const delay = displayedText === "" && currentCharIndex === 0 ? initialDelay : 0;
-      timeout = setTimeout(() => {
-        setDisplayedText(
-          (previous) => previous + processedSentence[currentCharIndex]
-        );
-        setCurrentCharIndex((previous) => previous + 1);
+      timeout = window.setTimeout(() => {
+        dispatch({ type: "typeChar", char: processedSentence[currentCharIndex] });
       }, delay + getTypingSpeed());
 
-      return () => clearTimeout(timeout);
+      return () => window.clearTimeout(timeout);
     }
 
     if (!loop && currentTextIndex === textArray.length - 1) {
       return;
     }
 
-    timeout = setTimeout(() => {
-      setIsDeleting(true);
+    timeout = window.setTimeout(() => {
+      dispatch({ type: "startDeleting" });
     }, pauseDuration);
 
-    return () => clearTimeout(timeout);
+    return () => window.clearTimeout(timeout);
   }, [
     currentCharIndex,
     currentTextIndex,

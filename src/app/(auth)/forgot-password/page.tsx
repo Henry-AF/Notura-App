@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
       {success ? (
         <div className="space-y-4 rounded-3xl border border-primary/20 bg-primary/5 p-5">
           <div className="flex items-center gap-3 text-primary">
-            <CheckCircle2 className="h-5 w-5" />
+            <CheckCircle2 className="size-5" />
             <p className="font-semibold">Link enviado</p>
           </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
               E-mail
             </label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="email"
                 type="email"
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
 
           <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Enviando..." : "Enviar link de recuperacao"}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="size-4" />
           </Button>
         </form>
       )}

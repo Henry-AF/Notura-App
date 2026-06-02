@@ -45,7 +45,7 @@ export function PreferencesCard({ preferences, onToggle }: PreferencesCardProps)
           >
             {/* Icon */}
             <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg"
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-lg"
               style={{ background: "rgba(104,81,255,0.15)" }}
             >
               {pref.icon}

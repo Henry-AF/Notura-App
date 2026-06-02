@@ -127,7 +127,7 @@ export default function GradientText({
           className="pointer-events-none absolute inset-0 rounded-[inherit]"
           style={{ ...gradientStyle, backgroundPosition }}
         >
-          <span className="absolute left-1/2 top-1/2 h-[calc(100%-2px)] w-[calc(100%-2px)] -translate-x-1/2 -translate-y-1/2 rounded-[inherit] bg-background" />
+          <span className="absolute left-1/2 top-1/2 size-[calc(100%-2px)] -translate-x-1/2 -translate-y-1/2 rounded-[inherit] bg-background" />
         </motion.span>
       ) : null}
       <motion.span

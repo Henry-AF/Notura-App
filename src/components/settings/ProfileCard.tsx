@@ -64,7 +64,7 @@ export function ProfileCard({
         {/* Avatar */}
         <div className="relative shrink-0">
           <div
-            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full"
+            className="flex size-20 items-center justify-center overflow-hidden rounded-full"
             style={{
               background: avatarUrl
                 ? undefined
@@ -76,7 +76,7 @@ export function ProfileCard({
               <img
                 src={avatarUrl}
                 alt={name}
-                className="h-full w-full object-cover"
+                className="size-full object-cover"
               />
             ) : (
               <span className="font-display text-2xl font-bold text-white">
@@ -89,11 +89,11 @@ export function ProfileCard({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full shadow-md transition-opacity hover:opacity-90"
+            className="absolute bottom-0 right-0 flex size-7 items-center justify-center rounded-full shadow-md transition-opacity hover:opacity-90"
             style={{ background: "#6851FF" }}
             aria-label="Editar avatar"
           >
-            <Pencil className="h-3 w-3 text-white" />
+            <Pencil className="size-3 text-white" />
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" />
         </div>

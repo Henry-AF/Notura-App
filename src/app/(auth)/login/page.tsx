@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useReducer, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
@@ -13,19 +13,60 @@ import { Input } from "@/components/ui/input";
 
 const loginBreadcrumbs = [{ label: "Acesso" }, { label: "Entrar" }];
 
+type LoginState = {
+  email: string;
+  password: string;
+  showPassword: boolean;
+  loading: boolean;
+  googleLoading: boolean;
+  error: string | null;
+};
+
+type LoginAction =
+  | { type: "fieldChanged"; field: "email" | "password"; value: string }
+  | { type: "showPasswordToggled" }
+  | { type: "loginStarted" }
+  | { type: "loginFinished" }
+  | { type: "googleStarted" }
+  | { type: "googleFinished" }
+  | { type: "errorChanged"; value: string | null };
+
+const initialLoginState: LoginState = {
+  email: "",
+  password: "",
+  showPassword: false,
+  loading: false,
+  googleLoading: false,
+  error: null,
+};
+
+function loginReducer(state: LoginState, action: LoginAction): LoginState {
+  switch (action.type) {
+    case "fieldChanged":
+      return { ...state, [action.field]: action.value };
+    case "showPasswordToggled":
+      return { ...state, showPassword: !state.showPassword };
+    case "loginStarted":
+      return { ...state, loading: true, error: null };
+    case "loginFinished":
+      return { ...state, loading: false };
+    case "googleStarted":
+      return { ...state, googleLoading: true, error: null };
+    case "googleFinished":
+      return { ...state, googleLoading: false };
+    case "errorChanged":
+      return { ...state, error: action.value };
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(loginReducer, initialLoginState);
+  const { email, password, showPassword, loading, googleLoading, error } = state;
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
-    setError(null);
+    dispatch({ type: "loginStarted" });
 
     try {
       const supabase = createClient();
@@ -35,8 +76,8 @@ export default function LoginPage() {
       });
 
       if (authError) {
-        setError(authError.message);
-        setLoading(false);
+        dispatch({ type: "errorChanged", value: authError.message });
+        dispatch({ type: "loginFinished" });
         return;
       }
 
@@ -46,8 +87,11 @@ export default function LoginPage() {
       }
       router.replace("/dashboard");
     } catch {
-      setError("Ocorreu um erro inesperado. Tente novamente.");
-      setLoading(false);
+      dispatch({
+        type: "errorChanged",
+        value: "Ocorreu um erro inesperado. Tente novamente.",
+      });
+      dispatch({ type: "loginFinished" });
     }
   }
 
@@ -56,8 +100,7 @@ export default function LoginPage() {
   }
 
   async function handleGoogleAuth() {
-    setGoogleLoading(true);
-    setError(null);
+    dispatch({ type: "googleStarted" });
     try {
       const supabase = createClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -67,12 +110,15 @@ export default function LoginPage() {
         },
       });
       if (oauthError) {
-        setError(oauthError.message);
-        setGoogleLoading(false);
+        dispatch({ type: "errorChanged", value: oauthError.message });
+        dispatch({ type: "googleFinished" });
       }
     } catch {
-      setError("Não foi possível conectar com o Google. Tente novamente.");
-      setGoogleLoading(false);
+      dispatch({
+        type: "errorChanged",
+        value: "Não foi possível conectar com o Google. Tente novamente.",
+      });
+      dispatch({ type: "googleFinished" });
     }
   }
 
@@ -91,9 +137,15 @@ export default function LoginPage() {
     >
       <LoginForm
         email={email} error={error} loading={loading} password={password}
-        showPassword={showPassword} onEmailChange={setEmail}
-        onPasswordChange={setPassword} onSubmit={handleLoginSubmit}
-        onTogglePassword={() => setShowPassword((value) => !value)}
+        showPassword={showPassword}
+        onEmailChange={(value) =>
+          dispatch({ type: "fieldChanged", field: "email", value })
+        }
+        onPasswordChange={(value) =>
+          dispatch({ type: "fieldChanged", field: "password", value })
+        }
+        onSubmit={handleLoginSubmit}
+        onTogglePassword={() => dispatch({ type: "showPasswordToggled" })}
       />
       <AuthDivider />
       <GoogleAuthButton disabled={loading} loading={googleLoading} onClick={handleGoogleClick} />
@@ -151,7 +203,7 @@ function EmailField({ email, onEmailChange }: EmailFieldProps) {
         E-mail
       </label>
       <div className="relative">
-        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id="email"
           type="email"
@@ -194,7 +246,7 @@ function PasswordField({
         </Link>
       </div>
       <div className="relative">
-        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id="password"
           type={showPassword ? "text" : "password"}
@@ -211,7 +263,7 @@ function PasswordField({
           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
           aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
         >
-          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
       </div>
     </div>
@@ -222,7 +274,7 @@ function SubmitButton({ loading }: { loading: boolean }) {
   return (
     <Button type="submit" className="w-full rounded-full" disabled={loading}>
       {loading ? "Entrando..." : "Entrar"}
-      <ArrowRight className="h-4 w-4" />
+      <ArrowRight className="size-4" />
     </Button>
   );
 }
@@ -268,7 +320,7 @@ function GoogleAuthButton({ disabled, loading, onClick }: GoogleAuthButtonProps)
 
 function GoogleIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="size-4" viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
         fill="#4285F4"

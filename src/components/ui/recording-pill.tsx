@@ -24,9 +24,9 @@ function RecordingPill({ elapsedSeconds, onStop, className }: RecordingPillProps
         className
       )}
     >
-      <span className="relative flex h-3 w-3">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-        <span className="relative inline-flex h-3 w-3 rounded-full bg-white" />
+      <span className="relative flex size-3">
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-75" />
+        <span className="relative inline-flex size-3 rounded-full bg-white" />
       </span>
       <span className="text-sm font-medium">Gravando</span>
       <span className="font-mono text-sm tabular-nums">
@@ -34,10 +34,10 @@ function RecordingPill({ elapsedSeconds, onStop, className }: RecordingPillProps
       </span>
       <button
         onClick={onStop}
-        className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
+        className="ml-1 flex size-7 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
         aria-label="Parar gravacao"
       >
-        <Square className="h-3.5 w-3.5 fill-white text-white" />
+        <Square className="size-3.5 fill-white text-white" />
       </button>
     </div>
   );

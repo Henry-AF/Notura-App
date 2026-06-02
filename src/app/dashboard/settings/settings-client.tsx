@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useReducer } from "react";
 import {
   User,
   MessageCircle,
@@ -67,29 +67,73 @@ function getInitialRole(role: string | null) {
   return "outro";
 }
 
+type SettingsClientState = {
+  name: string;
+  role: string;
+  company: string;
+  whatsappNumber: string;
+  whatsappConnected: boolean;
+  testSending: boolean;
+  notifyWhatsapp: boolean;
+  notifyEmail: boolean;
+};
+
+type SettingsClientAction =
+  | { type: "fieldChanged"; field: "name" | "role" | "company" | "whatsappNumber"; value: string }
+  | { type: "testSendingChanged"; value: boolean }
+  | { type: "notifyWhatsappChanged"; value: boolean }
+  | { type: "notifyEmailChanged"; value: boolean };
+
+function settingsClientReducer(
+  state: SettingsClientState,
+  action: SettingsClientAction
+): SettingsClientState {
+  switch (action.type) {
+    case "fieldChanged":
+      return { ...state, [action.field]: action.value };
+    case "testSendingChanged":
+      return { ...state, testSending: action.value };
+    case "notifyWhatsappChanged":
+      return { ...state, notifyWhatsapp: action.value };
+    case "notifyEmailChanged":
+      return { ...state, notifyEmail: action.value };
+  }
+}
+
 export function SettingsClient({
   initialProfile,
   initialPlan,
 }: SettingsClientProps) {
-  const [name, setName] = useState(initialProfile.name);
-  const [role, setRole] = useState(getInitialRole(initialProfile.role));
-  const [company, setCompany] = useState(initialProfile.company);
-
-  const [whatsappNumber, setWhatsappNumber] = useState(
-    initialProfile.whatsappNumber
-  );
-  const [whatsappConnected] = useState(Boolean(initialProfile.whatsappNumber));
-  const [testSending, setTestSending] = useState(false);
-
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
-  const [notifyEmail, setNotifyEmail] = useState(false);
+  const [state, dispatch] = useReducer(settingsClientReducer, {
+    name: initialProfile.name,
+    role: getInitialRole(initialProfile.role),
+    company: initialProfile.company,
+    whatsappNumber: initialProfile.whatsappNumber,
+    whatsappConnected: Boolean(initialProfile.whatsappNumber),
+    testSending: false,
+    notifyWhatsapp: true,
+    notifyEmail: false,
+  });
+  const {
+    name,
+    role,
+    company,
+    whatsappNumber,
+    whatsappConnected,
+    testSending,
+    notifyWhatsapp,
+    notifyEmail,
+  } = state;
 
   const planCard = presentPlanCard(initialPlan);
   const planInitial = planCard.badgeLabel[0] ?? "A";
 
   const handleTestWhatsapp = () => {
-    setTestSending(true);
-    setTimeout(() => setTestSending(false), 2000);
+    dispatch({ type: "testSendingChanged", value: true });
+    window.setTimeout(
+      () => dispatch({ type: "testSendingChanged", value: false }),
+      2000
+    );
   };
 
   return (
@@ -107,7 +151,7 @@ export function SettingsClient({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-notura-secondary" />
+              <User className="size-5 text-notura-secondary" />
               Perfil
             </CardTitle>
             <CardDescription>
@@ -122,7 +166,13 @@ export function SettingsClient({
                 </label>
                 <Input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "fieldChanged",
+                      field: "name",
+                      value: e.target.value,
+                    })
+                  }
                   placeholder="Seu nome"
                 />
               </div>
@@ -130,7 +180,12 @@ export function SettingsClient({
                 <label className="mb-1.5 block text-sm font-medium text-notura-ink">
                   Cargo / Área
                 </label>
-                <Select value={role} onValueChange={setRole}>
+                <Select
+                  value={role}
+                  onValueChange={(value) =>
+                    dispatch({ type: "fieldChanged", field: "role", value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -151,7 +206,13 @@ export function SettingsClient({
               </label>
               <Input
                 value={company}
-                onChange={(e) => setCompany(e.target.value)}
+                onChange={(e) =>
+                  dispatch({
+                    type: "fieldChanged",
+                    field: "company",
+                    value: e.target.value,
+                  })
+                }
                 placeholder="Nome da empresa"
               />
             </div>
@@ -162,7 +223,7 @@ export function SettingsClient({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-violet-600" />
+              <MessageCircle className="size-5 text-violet-600" />
               WhatsApp
             </CardTitle>
             <CardDescription>
@@ -177,7 +238,13 @@ export function SettingsClient({
                 </label>
                 <Input
                   value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "fieldChanged",
+                      field: "whatsappNumber",
+                      value: e.target.value,
+                    })
+                  }
                   placeholder="+55 (11) 99999-9999"
                 />
               </div>
@@ -188,7 +255,7 @@ export function SettingsClient({
                 onClick={handleTestWhatsapp}
                 disabled={testSending}
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="size-3.5" />
                 {testSending ? "Enviando..." : "Testar envio"}
               </Button>
             </div>
@@ -196,7 +263,7 @@ export function SettingsClient({
             <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5">
               <span
                 className={cn(
-                  "h-2.5 w-2.5 rounded-full",
+                  "size-2.5 rounded-full",
                   whatsappConnected ? "bg-emerald-500" : "bg-red-500"
                 )}
               />
@@ -210,7 +277,7 @@ export function SettingsClient({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-notura-secondary" />
+              <CreditCard className="size-5 text-notura-secondary" />
               Plano
             </CardTitle>
             <CardDescription>
@@ -220,7 +287,7 @@ export function SettingsClient({
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-violet-100">
                   <span className="font-display text-sm font-bold text-violet-700">
                     {planInitial}
                   </span>
@@ -254,7 +321,7 @@ export function SettingsClient({
             </div>
 
             <Button variant="secondary" size="sm" className="gap-2">
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="size-3.5" />
               Gerenciar plano
             </Button>
           </CardContent>
@@ -263,7 +330,7 @@ export function SettingsClient({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-notura-secondary" />
+              <Bell className="size-5 text-notura-secondary" />
               Notificações
             </CardTitle>
             <CardDescription>
@@ -282,7 +349,12 @@ export function SettingsClient({
               </div>
               <Switch
                 checked={notifyWhatsapp}
-                onCheckedChange={setNotifyWhatsapp}
+                onCheckedChange={(value) =>
+                  dispatch({
+                    type: "notifyWhatsappChanged",
+                    value: Boolean(value),
+                  })
+                }
               />
             </div>
             <Separator />
@@ -297,7 +369,9 @@ export function SettingsClient({
               </div>
               <Switch
                 checked={notifyEmail}
-                onCheckedChange={setNotifyEmail}
+                onCheckedChange={(value) =>
+                  dispatch({ type: "notifyEmailChanged", value: Boolean(value) })
+                }
               />
             </div>
           </CardContent>
@@ -306,7 +380,7 @@ export function SettingsClient({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Plug className="h-5 w-5 text-notura-secondary" />
+              <Plug className="size-5 text-notura-secondary" />
               Integrações
             </CardTitle>
             <CardDescription>
@@ -316,8 +390,8 @@ export function SettingsClient({
           <CardContent className="space-y-1">
             <div className="flex items-center justify-between rounded-md px-1 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
-                  <Video className="h-4.5 w-4.5 text-blue-600" />
+                <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50">
+                  <Video className="size-4.5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-notura-ink">Zoom</p>
@@ -335,8 +409,8 @@ export function SettingsClient({
 
             <div className="flex items-center justify-between rounded-md px-1 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50">
-                  <CalendarIcon className="h-4.5 w-4.5 text-red-600" />
+                <div className="flex size-9 items-center justify-center rounded-lg bg-red-50">
+                  <CalendarIcon className="size-4.5 text-red-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-notura-ink">
@@ -354,8 +428,8 @@ export function SettingsClient({
 
             <div className="flex items-center justify-between rounded-md px-1 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50">
-                  <Hash className="h-4.5 w-4.5 text-purple-600" />
+                <div className="flex size-9 items-center justify-center rounded-lg bg-purple-50">
+                  <Hash className="size-4.5 text-purple-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-notura-ink">Slack</p>

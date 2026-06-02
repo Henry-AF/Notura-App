@@ -1,7 +1,7 @@
 ﻿"use client";
 /* eslint-disable max-lines-per-function, complexity */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   MeetingDeleteDialog,
@@ -68,7 +68,7 @@ function ProcessingState({
 }) {
   return (
     <SectionCard className="rounded-xl px-6 py-12 text-center">
-      <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+      <div className="mx-auto mb-4 size-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
       <p className="text-sm font-semibold text-sky-500">Processando reunião com {clientName}</p>
       <p className="mt-1 text-xs text-muted-foreground">
         O resumo e as tarefas serão gerados em instantes.
@@ -166,6 +166,44 @@ const EMPTY_MEETING_DETAIL: MeetingDetailData = {
   openItems: [],
 };
 
+type MeetingDetailState = {
+  meetingStatus: "completed" | "processing" | "failed" | "scheduled";
+  isRetrying: boolean;
+  isCancelingProcessing: boolean;
+  tasks: MeetingTask[];
+  editingTask: Task | null;
+  draftColumnId: string | null;
+  taskColumnById: Record<string, MeetingTaskColumnId>;
+  activeTab: MeetingTab;
+  isChatOpen: boolean;
+  isDeleteDialogOpen: boolean;
+  isDeletingMeeting: boolean;
+};
+
+type MeetingDetailAction =
+  | { type: "patched"; value: Partial<MeetingDetailState> }
+  | { type: "tasksUpdated"; updater: (tasks: MeetingTask[]) => MeetingTask[] }
+  | {
+      type: "taskColumnsUpdated";
+      updater: (
+        columns: Record<string, MeetingTaskColumnId>
+      ) => Record<string, MeetingTaskColumnId>;
+    };
+
+function meetingDetailReducer(
+  state: MeetingDetailState,
+  action: MeetingDetailAction
+): MeetingDetailState {
+  switch (action.type) {
+    case "patched":
+      return { ...state, ...action.value };
+    case "tasksUpdated":
+      return { ...state, tasks: action.updater(state.tasks) };
+    case "taskColumnsUpdated":
+      return { ...state, taskColumnById: action.updater(state.taskColumnById) };
+  }
+}
+
 // ─── Client page ──────────────────────────────────────────────────────────────
 
 export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientProps) {
@@ -174,39 +212,45 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   const meeting = initialMeeting ?? EMPTY_MEETING_DETAIL;
 
   // Meeting info
-  const [clientName] = useState(meeting.clientName);
-  const [meetingDate] = useState(meeting.meetingDate);
-  const [meetingStatus, setMeetingStatus] = useState<
-    "completed" | "processing" | "failed" | "scheduled"
-  >(meeting.meetingStatus);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [isCancelingProcessing, setIsCancelingProcessing] = useState(false);
-  const [detectedParticipants] = useState<
-    MeetingParticipantDisplay[]
-  >(meeting.participants);
-  const [detectedEntities] = useState<
-    MeetingParticipantDisplay[]
-  >(meeting.entities);
+  const clientName = meeting.clientName;
+  const meetingDate = meeting.meetingDate;
+  const detectedParticipants = meeting.participants;
+  const detectedEntities = meeting.entities;
 
   // Summary content
-  const [summary] = useState(meeting.summary);
-  const [nextStep] = useState(meeting.nextStep);
-  const [keyDecision] = useState(meeting.keyDecision);
-  const [alertPoint] = useState(meeting.alertPoint);
-  const [transcript] = useState<string | null>(meeting.transcript);
+  const summary = meeting.summary;
+  const nextStep = meeting.nextStep;
+  const keyDecision = meeting.keyDecision;
+  const alertPoint = meeting.alertPoint;
+  const transcript = meeting.transcript;
 
   // Tasks & files
-  const [tasks, setTasks] = useState<MeetingTask[]>(meeting.tasks);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
-  const [taskColumnById, setTaskColumnById] = useState<
-    Record<string, MeetingTaskColumnId>
-  >(() => buildInitialTaskColumnMap(meeting.tasks));
-
-  const [activeTab, setActiveTab] = useState<MeetingTab>("summary");
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeletingMeeting, setIsDeletingMeeting] = useState(false);
+  const [state, dispatch] = useReducer(meetingDetailReducer, {
+    meetingStatus: meeting.meetingStatus,
+    isRetrying: false,
+    isCancelingProcessing: false,
+    tasks: meeting.tasks,
+    editingTask: null,
+    draftColumnId: null,
+    taskColumnById: buildInitialTaskColumnMap(meeting.tasks),
+    activeTab: "summary",
+    isChatOpen: false,
+    isDeleteDialogOpen: false,
+    isDeletingMeeting: false,
+  });
+  const {
+    meetingStatus,
+    isRetrying,
+    isCancelingProcessing,
+    tasks,
+    editingTask,
+    draftColumnId,
+    taskColumnById,
+    activeTab,
+    isChatOpen,
+    isDeleteDialogOpen,
+    isDeletingMeeting,
+  } = state;
   const taskColumns = useMemo(
     () => buildMeetingTaskColumns(tasks, taskColumnById),
     [taskColumnById, tasks]
@@ -244,10 +288,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   }, [id, meetingStatus]);
 
   const handleRetry = useCallback(async () => {
-    setIsRetrying(true);
+    dispatch({ type: "patched", value: { isRetrying: true } });
     try {
       await retryMeetingProcessing(id);
-      setMeetingStatus("processing");
+      dispatch({ type: "patched", value: { meetingStatus: "processing" } });
       show("Reunião colocada em fila de reprocessamento.", "success");
     } catch (error) {
       show(
@@ -255,15 +299,15 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         "error"
       );
     } finally {
-      setIsRetrying(false);
+      dispatch({ type: "patched", value: { isRetrying: false } });
     }
   }, [id, show]);
 
   const handleCancelProcessing = useCallback(async () => {
-    setIsCancelingProcessing(true);
+    dispatch({ type: "patched", value: { isCancelingProcessing: true } });
     try {
       await cancelMeetingProcessing(id);
-      setMeetingStatus("failed");
+      dispatch({ type: "patched", value: { meetingStatus: "failed" } });
       show("Processamento cancelado. Você pode reprocessar depois.", "success");
     } catch (error) {
       show(
@@ -273,26 +317,31 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         "error"
       );
     } finally {
-      setIsCancelingProcessing(false);
+      dispatch({ type: "patched", value: { isCancelingProcessing: false } });
     }
   }, [id, show]);
 
   // ─── Decisions & open items for tabs ─────────────────────────────────────
-  const [decisions] = useState(meeting.decisions);
-  const [openItems] = useState(meeting.openItems);
+  const decisions = meeting.decisions;
+  const openItems = meeting.openItems;
 
   function isDraftTask(taskId: string) {
     return taskId.startsWith("task-draft-");
   }
 
   const handleAddTask = useCallback((columnId: string) => {
-    setDraftColumnId(columnId);
-    setEditingTask({
-      id: `task-draft-${Date.now()}`,
-      title: "Nova tarefa",
-      priority: "media",
-      columnId,
-      meetingId: id,
+    dispatch({
+      type: "patched",
+      value: {
+        draftColumnId: columnId,
+        editingTask: {
+          id: `task-draft-${Date.now()}`,
+          title: "Nova tarefa",
+          priority: "media",
+          columnId,
+          meetingId: id,
+        },
+      },
     });
   }, [id]);
 
@@ -310,14 +359,19 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         meetingId: id,
       });
       const persistedColumnId = persistedTask.columnId as MeetingTaskColumnId;
-      setTasks((prev) =>
-        upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
-      );
-      setTaskColumnById((prev) => ({
-        ...prev,
-        [persistedTask.id]: toMeetingTaskColumnId(persistedColumnId),
-      }));
-      setDraftColumnId(null);
+      dispatch({
+        type: "tasksUpdated",
+        updater: (prev) =>
+          upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask)),
+      });
+      dispatch({
+        type: "taskColumnsUpdated",
+        updater: (prev) => ({
+          ...prev,
+          [persistedTask.id]: toMeetingTaskColumnId(persistedColumnId),
+        }),
+      });
+      dispatch({ type: "patched", value: { draftColumnId: null } });
       return;
     }
 
@@ -327,27 +381,38 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       dueDate: updates.dueDate,
       assigneeName,
     });
-    setTasks((prev) =>
-      upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
-    );
-    setTaskColumnById((prev) => ({
-      ...prev,
-      [taskId]: toMeetingTaskColumnId(persistedTask.columnId),
-    }));
+    dispatch({
+      type: "tasksUpdated",
+      updater: (prev) =>
+        upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask)),
+    });
+    dispatch({
+      type: "taskColumnsUpdated",
+      updater: (prev) => ({
+        ...prev,
+        [taskId]: toMeetingTaskColumnId(persistedTask.columnId),
+      }),
+    });
   }, [draftColumnId, id]);
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     if (isDraftTask(taskId)) {
-      setDraftColumnId(null);
+      dispatch({ type: "patched", value: { draftColumnId: null } });
       return;
     }
 
     await deleteTaskById(taskId);
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    setTaskColumnById((prev) => {
-      const next = { ...prev };
-      delete next[taskId];
-      return next;
+    dispatch({
+      type: "tasksUpdated",
+      updater: (prev) => prev.filter((task) => task.id !== taskId),
+    });
+    dispatch({
+      type: "taskColumnsUpdated",
+      updater: (prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      },
     });
   }, []);
 
@@ -376,27 +441,46 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       const previousColumnId =
         taskColumnById[movedTaskId] ?? toMeetingTaskColumnId(source.droppableId);
 
-      setTaskColumnById((prev) => ({
-        ...prev,
-        [movedTaskId]: destinationColumnId,
-      }));
-      setTasks((prev) => setMeetingTaskStatus(prev, movedTaskId, destinationColumnId));
+      dispatch({
+        type: "taskColumnsUpdated",
+        updater: (prev) => ({
+          ...prev,
+          [movedTaskId]: destinationColumnId,
+        }),
+      });
+      dispatch({
+        type: "tasksUpdated",
+        updater: (prev) =>
+          setMeetingTaskStatus(prev, movedTaskId, destinationColumnId),
+      });
 
       try {
         const persistedTask = await updateTaskById(movedTaskId, { status: destinationColumnId });
-        setTasks((prev) =>
-          upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask))
-        );
-        setTaskColumnById((prev) => ({
-          ...prev,
-          [movedTaskId]: toMeetingTaskColumnId(persistedTask.columnId),
-        }));
+        dispatch({
+          type: "tasksUpdated",
+          updater: (prev) =>
+            upsertMeetingTask(prev, mapBoardTaskToMeetingTask(persistedTask)),
+        });
+        dispatch({
+          type: "taskColumnsUpdated",
+          updater: (prev) => ({
+            ...prev,
+            [movedTaskId]: toMeetingTaskColumnId(persistedTask.columnId),
+          }),
+        });
       } catch {
-        setTasks((prev) => prev.map((item) => (item.id === task.id ? task : item)));
-        setTaskColumnById((prev) => ({
-          ...prev,
-          [movedTaskId]: previousColumnId,
-        }));
+        dispatch({
+          type: "tasksUpdated",
+          updater: (prev) =>
+            prev.map((item) => (item.id === task.id ? task : item)),
+        });
+        dispatch({
+          type: "taskColumnsUpdated",
+          updater: (prev) => ({
+            ...prev,
+            [movedTaskId]: previousColumnId,
+          }),
+        });
         show("Erro ao atualizar tarefa.", "error");
       }
     },
@@ -460,7 +544,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   );
 
   const handleDeleteMeeting = useCallback(async () => {
-    setIsDeletingMeeting(true);
+    dispatch({ type: "patched", value: { isDeletingMeeting: true } });
 
     try {
       await deleteMeetingById(id);
@@ -473,8 +557,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         "error"
       );
     } finally {
-      setIsDeletingMeeting(false);
-      setIsDeleteDialogOpen(false);
+      dispatch({
+        type: "patched",
+        value: { isDeletingMeeting: false, isDeleteDialogOpen: false },
+      });
     }
   }, [id, router, show]);
 
@@ -623,7 +709,9 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
               columns={taskColumns}
               onDragEnd={(result) => { void handleTaskBoardDragEnd(result); }}
               onAddTask={handleAddTask}
-              onEditTask={setEditingTask}
+              onEditTask={(editingTask) =>
+                dispatch({ type: "patched", value: { editingTask } })
+              }
               onDeleteColumn={() => {}}
               onAddColumn={() => {}}
               allowColumnManagement={false}
@@ -798,17 +886,26 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           }
           isCancelingProcessing={isCancelingProcessing}
           onChat={
-            meetingStatus === "completed" ? () => setIsChatOpen(true) : undefined
+            meetingStatus === "completed"
+              ? () => dispatch({ type: "patched", value: { isChatOpen: true } })
+              : undefined
           }
           onShare={handleShare}
           onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
-          onDelete={() => setIsDeleteDialogOpen(true)}
+          onDelete={() =>
+            dispatch({ type: "patched", value: { isDeleteDialogOpen: true } })
+          }
         />
       </div>
 
       {/* Tabs */}
       <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
-        <MeetingTabs activeTab={activeTab} onChange={setActiveTab} />
+        <MeetingTabs
+          activeTab={activeTab}
+          onChange={(activeTab) =>
+            dispatch({ type: "patched", value: { activeTab } })
+          }
+        />
       </div>
 
       <div style={{ minWidth: 0 }}>
@@ -830,15 +927,19 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
             });
           }}
           onClose={() => {
-            setEditingTask(null);
-            setDraftColumnId(null);
+            dispatch({
+              type: "patched",
+              value: { editingTask: null, draftColumnId: null },
+            });
           }}
         />
       )}
 
       <MeetingDeleteDialog
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={(isDeleteDialogOpen) =>
+          dispatch({ type: "patched", value: { isDeleteDialogOpen } })
+        }
         meetingName={clientName}
         summary={summary}
         isDeleting={isDeletingMeeting}
@@ -850,7 +951,9 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         <MeetingChatSheet
           meetingId={id}
           open={isChatOpen}
-          onOpenChange={setIsChatOpen}
+          onOpenChange={(isChatOpen) =>
+            dispatch({ type: "patched", value: { isChatOpen } })
+          }
         />
       )}
 

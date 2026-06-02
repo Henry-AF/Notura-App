@@ -67,7 +67,7 @@ describe("meeting detail actions", () => {
     expect(participantsEditor).toContain("collapsedGroups");
     expect(participantsEditor).toContain("aria-expanded={!isCollapsed}");
     expect(participantsEditor).toContain("Pencil");
-    expect(participantsEditor).toContain("ml-1.5 inline h-3 w-3");
+    expect(participantsEditor).toMatch(/ml-1\.5 inline (?:h-3 w-3|size-3)/);
     expect(participantsEditor).not.toContain("✏️");
     expect(participantsEditor).not.toContain("opacity-0");
     expect(participantsEditor).toContain("availableMergeOptions={participants}");

@@ -26,7 +26,7 @@ export function ErrorState({
       )}
       {...props}
     >
-      <AlertTriangle className="h-6 w-6 text-destructive" />
+      <AlertTriangle className="size-6 text-destructive" />
       <h3 className="mt-3 font-display text-lg font-semibold text-foreground">{title}</h3>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
       {onRetry ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useReducer } from "react";
 import {
   Loader2,
   MessageSquare,
@@ -43,6 +43,86 @@ import {
 type WhatsappNumberSource = "account" | "custom";
 export type RecordingMode = "in-person" | "remote" | "upload";
 
+type RecordingSetupState = {
+  meetingDate: string;
+  selectedMeetingDate: Date | undefined;
+  whatsappSource: WhatsappNumberSource;
+  customWhatsappNumber: string;
+  hasTouchedWhatsappSource: boolean;
+  isCreateGroupOpen: boolean;
+  newGroupName: string;
+  isCreatingGroup: boolean;
+};
+
+type RecordingSetupAction =
+  | { type: "dateChanged"; date: Date | undefined }
+  | { type: "whatsappSourceChanged"; value: WhatsappNumberSource }
+  | { type: "customWhatsappChanged"; value: string }
+  | { type: "accountSourceSelected" }
+  | { type: "customSourceSelected" }
+  | { type: "createGroupOpenChanged"; value: boolean }
+  | { type: "newGroupNameChanged"; value: string }
+  | { type: "createGroupStarted" }
+  | { type: "createGroupFinished" }
+  | { type: "groupCreated" };
+
+const initialRecordingSetupState: RecordingSetupState = {
+  meetingDate: "",
+  selectedMeetingDate: undefined,
+  whatsappSource: "account",
+  customWhatsappNumber: "",
+  hasTouchedWhatsappSource: false,
+  isCreateGroupOpen: false,
+  newGroupName: "",
+  isCreatingGroup: false,
+};
+
+function formatDateToYmd(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function recordingSetupReducer(
+  state: RecordingSetupState,
+  action: RecordingSetupAction
+): RecordingSetupState {
+  switch (action.type) {
+    case "dateChanged":
+      return {
+        ...state,
+        selectedMeetingDate: action.date,
+        meetingDate: action.date ? formatDateToYmd(action.date) : "",
+      };
+    case "whatsappSourceChanged":
+      return {
+        ...state,
+        whatsappSource: action.value,
+        hasTouchedWhatsappSource: true,
+      };
+    case "customWhatsappChanged":
+      return {
+        ...state,
+        customWhatsappNumber: maskBrazilianPhoneInput(action.value),
+      };
+    case "accountSourceSelected":
+      return { ...state, whatsappSource: "account" };
+    case "customSourceSelected":
+      return { ...state, whatsappSource: "custom" };
+    case "createGroupOpenChanged":
+      return { ...state, isCreateGroupOpen: action.value };
+    case "newGroupNameChanged":
+      return { ...state, newGroupName: action.value };
+    case "createGroupStarted":
+      return { ...state, isCreatingGroup: true };
+    case "createGroupFinished":
+      return { ...state, isCreatingGroup: false };
+    case "groupCreated":
+      return { ...state, newGroupName: "", isCreateGroupOpen: false };
+  }
+}
+
 export interface RecordingSetupValues {
   whatsappNumber: string;
   recordingMode: RecordingMode;
@@ -67,9 +147,9 @@ interface RecordingSetupCardProps {
 }
 
 const RECORDING_MODE_OPTIONS: SegmentedControlOption<RecordingMode>[] = [
-  { value: "in-person", label: "Presencial", icon: <Mic className="h-3.5 w-3.5" /> },
-  { value: "remote", label: "Remota", icon: <MonitorUp className="h-3.5 w-3.5" /> },
-  { value: "upload", label: "Upload", icon: <UploadCloud className="h-3.5 w-3.5" /> },
+  { value: "in-person", label: "Presencial", icon: <Mic className="size-3.5" /> },
+  { value: "remote", label: "Remota", icon: <MonitorUp className="size-3.5" /> },
+  { value: "upload", label: "Upload", icon: <UploadCloud className="size-3.5" /> },
 ];
 
 const labelClassName =
@@ -92,16 +172,21 @@ export function RecordingSetupCard({
   onValidationError,
   uploadField,
 }: RecordingSetupCardProps) {
-  const [meetingDate, setMeetingDate] = useState("");
-  const [selectedMeetingDate, setSelectedMeetingDate] = useState<Date | undefined>();
-  const [whatsappSource, setWhatsappSource] =
-    useState<WhatsappNumberSource>("account");
-  const [customWhatsappNumber, setCustomWhatsappNumber] = useState("");
-  const [hasTouchedWhatsappSource, setHasTouchedWhatsappSource] = useState(false);
-  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [today] = useState(() => new Date());
+  const [state, dispatch] = useReducer(
+    recordingSetupReducer,
+    initialRecordingSetupState
+  );
+  const {
+    meetingDate,
+    selectedMeetingDate,
+    whatsappSource,
+    customWhatsappNumber,
+    hasTouchedWhatsappSource,
+    isCreateGroupOpen,
+    newGroupName,
+    isCreatingGroup,
+  } = state;
+  const today = useMemo(() => new Date(), []);
 
   const accountWhatsappNumberNormalized = normalizeWhatsappNumber(
     accountWhatsappNumber
@@ -115,12 +200,12 @@ export function RecordingSetupCard({
     if (!canSendWhatsAppSummary) return;
 
     if (!hasAccountWhatsappNumber && whatsappSource === "account") {
-      setWhatsappSource("custom");
+      dispatch({ type: "customSourceSelected" });
       return;
     }
 
     if (hasAccountWhatsappNumber && !hasTouchedWhatsappSource) {
-      setWhatsappSource("account");
+      dispatch({ type: "accountSourceSelected" });
     }
   }, [
     canSendWhatsAppSummary,
@@ -134,16 +219,8 @@ export function RecordingSetupCard({
       ? accountWhatsappNumberNormalized
       : customWhatsappNumber;
 
-  function formatDateToYmd(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
   function handleDateChange(date: Date | undefined) {
-    setSelectedMeetingDate(date);
-    setMeetingDate(date ? formatDateToYmd(date) : "");
+    dispatch({ type: "dateChanged", date });
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -195,18 +272,17 @@ export function RecordingSetupCard({
       return;
     }
 
-    setIsCreatingGroup(true);
+    dispatch({ type: "createGroupStarted" });
     try {
       const group = await onCreateGroup(trimmedName);
       onGroupIdChange?.(group.id);
-      setNewGroupName("");
-      setIsCreateGroupOpen(false);
+      dispatch({ type: "groupCreated" });
     } catch (error) {
       onValidationError(
         error instanceof Error ? error.message : "Erro ao criar grupo."
       );
     } finally {
-      setIsCreatingGroup(false);
+      dispatch({ type: "createGroupFinished" });
     }
   }
 
@@ -261,7 +337,7 @@ export function RecordingSetupCard({
               value={selectedGroupId ?? NO_GROUP_VALUE}
               onValueChange={(value) => {
                 if (value === CREATE_GROUP_VALUE) {
-                  setIsCreateGroupOpen(true);
+                  dispatch({ type: "createGroupOpenChanged", value: true });
                   return;
                 }
 
@@ -303,8 +379,10 @@ export function RecordingSetupCard({
               <Select
                 value={whatsappSource}
                 onValueChange={(value) => {
-                  setHasTouchedWhatsappSource(true);
-                  setWhatsappSource(value as WhatsappNumberSource);
+                  dispatch({
+                    type: "whatsappSourceChanged",
+                    value: value as WhatsappNumberSource,
+                  });
                 }}
               >
                 <SelectTrigger className="h-10 rounded-lg border-input bg-background text-foreground">
@@ -322,15 +400,16 @@ export function RecordingSetupCard({
 
               {whatsappSource === "custom" ? (
                 <div className="relative mt-2">
-                  <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <MessageSquare className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="tel"
                     placeholder="(00) 00000-0000"
                     value={customWhatsappNumber}
                     onChange={(event) =>
-                      setCustomWhatsappNumber(
-                        maskBrazilianPhoneInput(event.target.value)
-                      )
+                      dispatch({
+                        type: "customWhatsappChanged",
+                        value: event.target.value,
+                      })
                     }
                     className="pl-9"
                   />
@@ -350,7 +429,7 @@ export function RecordingSetupCard({
           >
             {isStarting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="size-4 animate-spin" />
                 {isUploadMode
                   ? "Preparando upload..."
                   : isRemoteRecording
@@ -359,7 +438,7 @@ export function RecordingSetupCard({
               </>
             ) : (
               <>
-                <StartIcon className="h-4 w-4" />
+                <StartIcon className="size-4" />
                 {isUploadMode
                   ? "Processar reunião"
                   : isRemoteRecording
@@ -377,11 +456,16 @@ export function RecordingSetupCard({
         </form>
       </CardContent>
 
-      <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+      <Dialog
+        open={isCreateGroupOpen}
+        onOpenChange={(value) =>
+          dispatch({ type: "createGroupOpenChanged", value })
+        }
+      >
         <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <FolderPlus className="h-5 w-5" />
+            <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FolderPlus className="size-5" />
             </div>
             <DialogTitle>Criar grupo</DialogTitle>
             <DialogDescription>
@@ -395,7 +479,12 @@ export function RecordingSetupCard({
                 autoFocus
                 maxLength={80}
                 value={newGroupName}
-                onChange={(event) => setNewGroupName(event.target.value)}
+                onChange={(event) =>
+                  dispatch({
+                    type: "newGroupNameChanged",
+                    value: event.target.value,
+                  })
+                }
                 placeholder="Ex: Cliente Acme"
               />
             </div>
@@ -403,15 +492,17 @@ export function RecordingSetupCard({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsCreateGroupOpen(false)}
+                onClick={() =>
+                  dispatch({ type: "createGroupOpenChanged", value: false })
+                }
               >
                 Cancelar
               </Button>
               <Button type="submit" disabled={isCreatingGroup}>
                 {isCreatingGroup ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <FolderPlus className="h-4 w-4" />
+                  <FolderPlus className="size-4" />
                 )}
                 Criar grupo
               </Button>

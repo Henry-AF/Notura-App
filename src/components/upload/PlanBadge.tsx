@@ -16,10 +16,10 @@ export function PlanBadge({ used, total }: PlanBadgeProps) {
     >
       {/* Icon */}
       <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center"
+        className="flex size-8 shrink-0 items-center justify-center"
         style={{ background: "rgba(104,81,255,0.12)", borderRadius: "8px" }}
       >
-        <BarChart2 className="h-4 w-4 text-[#6851FF]" />
+        <BarChart2 className="size-4 text-[#6851FF]" />
       </div>
 
       {/* Text */}

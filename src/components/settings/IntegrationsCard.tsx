@@ -98,10 +98,10 @@ function PhoneConnectModal({
         aria-modal="true"
       >
         <div
-          className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
+          className="mb-4 flex size-12 items-center justify-center rounded-xl"
           style={{ background: "#0A3D1F" }}
         >
-          <Phone className="h-6 w-6" style={{ color: "#25D366" }} />
+          <Phone className="size-6" style={{ color: "#25D366" }} />
         </div>
         <h3 className="font-display text-base font-bold" style={{ color: c.ink }}>
           Conectar WhatsApp
@@ -134,7 +134,7 @@ function PhoneConnectModal({
           {masked.length > 0 && !complete && (
             <p className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "#FF6B6B" }}>
               <span
-                className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                className="inline-flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
                 style={{ background: "#FF6B6B" }}
               >
                 !
@@ -263,7 +263,7 @@ export function IntegrationsCard({
             <div key={integration.id} className="flex items-center gap-4">
               {/* Icon */}
               <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl"
+                className="flex size-12 shrink-0 items-center justify-center rounded-xl text-2xl"
                 style={{ background: "#0A3D1F" }}
               >
                 <span style={{ color: "#25D366" }}>{integration.icon}</span>
@@ -282,7 +282,7 @@ export function IntegrationsCard({
                 {integration.status === "connected" && (
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span
-                      className="h-[7px] w-[7px] rounded-full"
+                      className="size-[7px] rounded-full"
                       style={{ background: "#4ECB71" }}
                     />
                     <span
@@ -305,7 +305,7 @@ export function IntegrationsCard({
                 <button
                   type="button"
                   onClick={() => setConfirmId(integration.id)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors hover:border-[#FF6B6B] hover:text-[#FF6B6B]"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors hover:border-[#FF6B6B] hover:text-[#FF6B6B]"
                   style={{
                     background: "transparent",
                     borderColor: c.border,
@@ -313,7 +313,7 @@ export function IntegrationsCard({
                   }}
                   aria-label={`Desconectar ${integration.name}`}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="size-4" />
                 </button>
               ) : (
                 <button

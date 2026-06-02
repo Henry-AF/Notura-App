@@ -56,7 +56,7 @@ export function DatePicker({
           )}
         >
           <span>{value ? formatDateLabel(value) : placeholder}</span>
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+          <CalendarIcon className="size-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-3">

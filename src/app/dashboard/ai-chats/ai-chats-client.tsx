@@ -107,7 +107,7 @@ function AiChatsPageHeader({ chatCount }: { chatCount: number }) {
           <Link href="/dashboard" className="transition-colors hover:text-white/90">
             Dashboard
           </Link>
-          <ChevronRight className="h-3 w-3 text-white/40" />
+          <ChevronRight className="size-3 text-white/40" />
           <span className="text-white/80">Chats IA</span>
         </nav>
         <h1 className="font-display text-[28px] font-extrabold text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.3)] sm:text-3xl">
@@ -127,7 +127,7 @@ function QuotaCard({ quota }: { quota: AiChatQuota }) {
       <div className="flex flex-col gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/75">
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="size-4" />
             Cota diária de IA
           </div>
           <div className="mt-3 flex items-end gap-2">
@@ -176,7 +176,7 @@ function MeetingFilter({
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="outline" className="min-w-[210px] justify-between rounded-xl">
           <span className="truncate" title={label}>{label}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 rounded-xl">
@@ -247,7 +247,7 @@ function ChatRow({
       )}
     >
       <div className="flex min-w-0 gap-3">
-        <Avatar className="h-10 w-10 shrink-0">
+        <Avatar className="size-10 shrink-0">
           <AvatarFallback name={chat.meetingTitle} className="bg-primary/10 text-xs font-semibold text-primary">
             {getInitials(chat.meetingTitle)}
           </AvatarFallback>
@@ -263,7 +263,7 @@ function ChatRow({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <CalendarDays className="h-3.5 w-3.5" />
+        <CalendarDays className="size-3.5" />
         <span>{formatDateTime(chat.createdAt)}</span>
       </div>
 
@@ -273,14 +273,14 @@ function ChatRow({
         type="button"
         variant="ghost"
         size="sm"
-        className="h-9 w-9 justify-self-end rounded-lg p-0 text-muted-foreground hover:text-destructive"
+        className="size-9 justify-self-end rounded-lg p-0 text-muted-foreground hover:text-destructive"
         aria-label="Excluir chat"
         onClick={(event) => {
           event.stopPropagation();
           onDelete(chat);
         }}
       >
-        <Trash2 className="h-4 w-4" />
+        <Trash2 className="size-4" />
       </Button>
     </article>
   );
@@ -311,7 +311,7 @@ function DeleteChatDialog({
             Cancelar
           </Button>
           <Button type="button" variant="destructive" onClick={onConfirm} disabled={deleting}>
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="size-4" />
             {deleting ? "Excluindo..." : "Excluir chat"}
           </Button>
         </DialogFooter>
@@ -380,7 +380,7 @@ function AiChatsFilter({
     <FilterBar
       left={
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <MessageSquareText className="h-4 w-4 text-primary" />
+          <MessageSquareText className="size-4 text-primary" />
           Histórico somente leitura das perguntas feitas para a IA
         </div>
       }

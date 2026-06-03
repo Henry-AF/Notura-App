@@ -71,6 +71,9 @@ const initialRecordingSessionState: RecordingSessionState = {
   overlayError: null,
 };
 
+const RECORDING_SAVE_FAILURE_MESSAGE =
+  "Não conseguimos salvar sua gravação para processamento. A gravação continua aberta nesta tela; confira sua conexão ou plano e tente novamente.";
+
 function recordingSessionReducer(
   state: RecordingSessionState,
   action: RecordingSessionAction
@@ -615,8 +618,7 @@ export function RecordingSessionProvider({
       dispatch({
         type: "patched",
         value: {
-          overlayError:
-            "Sua gravação foi salva. Houve um erro no processamento, mas você pode tentar novamente na tela de reuniões.",
+          overlayError: RECORDING_SAVE_FAILURE_MESSAGE,
           overlayStage: "confirm",
           isMinimized: false,
         },

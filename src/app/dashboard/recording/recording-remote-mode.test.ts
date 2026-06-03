@@ -53,4 +53,13 @@ describe("recording page remote mode", () => {
     expect(overlay).toContain("Continuar gravação");
     expect(overlay).toContain("Retomar gravação");
   });
+
+  it("does not say the recording was saved when saving fails", () => {
+    const provider = readSource(
+      "src/components/recording/RecordingSessionProvider.tsx"
+    );
+
+    expect(provider).not.toContain("Sua gravação foi salva");
+    expect(provider).toContain("Não conseguimos salvar sua gravação");
+  });
 });

@@ -14,6 +14,7 @@ interface SegmentedControlProps<T extends string = string> {
   value: T;
   onChange: (value: T) => void;
   activeClassName?: string;
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -22,11 +23,13 @@ export function SegmentedControl<T extends string = string>({
   value,
   onChange,
   activeClassName,
+  ariaLabel,
   className,
 }: SegmentedControlProps<T>) {
   return (
     <div
       role="radiogroup"
+      aria-label={ariaLabel}
       className={cn(
         "grid grid-cols-3 items-stretch gap-1 rounded-lg border border-border/60 bg-muted/50 p-1 sm:flex",
         className

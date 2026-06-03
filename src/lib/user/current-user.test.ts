@@ -51,6 +51,12 @@ beforeEach(() => {
     },
     meetingsThisMonth: 12,
     monthlyLimit: 30,
+    quotaStatus: {
+      allowed: true,
+      code: null,
+      meetingsUsed: 12,
+      quotaLimit: 30,
+    },
     entitlement: activeEntitlement,
   });
 });
@@ -84,6 +90,12 @@ describe("current user entitlements", () => {
       },
       meetingsThisMonth: 1,
       monthlyLimit: 3,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 1,
+        quotaLimit: 3,
+      },
       entitlement: {
         plan: "free",
         effectivePlan: "free",
@@ -122,6 +134,12 @@ describe("current user billing provider selection", () => {
       },
       meetingsThisMonth: 12,
       monthlyLimit: 30,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 12,
+        quotaLimit: 30,
+      },
       entitlement: activeEntitlement,
     });
     const mod = await import("./current-user");
@@ -154,6 +172,12 @@ describe("current user billing provider selection", () => {
       },
       meetingsThisMonth: 12,
       monthlyLimit: 30,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 12,
+        quotaLimit: 30,
+      },
       entitlement: activeEntitlement,
     });
     const mod = await import("./current-user");
@@ -185,6 +209,12 @@ describe("current user expired entitlement", () => {
       },
       meetingsThisMonth: 12,
       monthlyLimit: 3,
+      quotaStatus: {
+        allowed: false,
+        code: "subscription_expired",
+        meetingsUsed: 12,
+        quotaLimit: 3,
+      },
       entitlement: {
         plan: "team",
         effectivePlan: "free",
@@ -208,6 +238,45 @@ describe("current user expired entitlement", () => {
       isPaidPlanActive: false,
       canSendWhatsAppSummary: false,
       monthlyLimit: 3,
+    });
+  });
+});
+
+describe("current user meeting quota", () => {
+  it("exposes whether the user can process more meetings", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        current_period_end: null,
+      },
+      meetingsThisMonth: 3,
+      monthlyLimit: 3,
+      quotaStatus: {
+        allowed: false,
+        code: "lifetime_quota_exceeded",
+        meetingsUsed: 3,
+        quotaLimit: 3,
+      },
+      entitlement: {
+        plan: "free",
+        effectivePlan: "free",
+        status: "free",
+        isPaidActive: false,
+        isExpired: false,
+        isInGrace: false,
+      },
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      canProcessMeetings: false,
+      meetingQuotaBlockCode: "lifetime_quota_exceeded",
+      meetingQuotaLimit: 3,
     });
   });
 });

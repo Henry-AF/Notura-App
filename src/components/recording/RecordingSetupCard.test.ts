@@ -37,4 +37,17 @@ describe("RecordingSetupCard", () => {
     expect(source).toContain("Número WhatsApp para resumo");
     expect(source).toContain("whatsappNumber: canSendWhatsAppSummary");
   });
+
+  it("blocks recording and upload actions when meeting quota is exhausted", () => {
+    const source = readSource("src/components/recording/RecordingSetupCard.tsx");
+    const dropZone = readSource("src/components/upload/DropZone.tsx");
+
+    expect(source).toContain("canProcessMeetings");
+    expect(source).toContain("meetingQuotaMessage");
+    expect(source).toContain("quotaMessage");
+    expect(source).toContain("!canProcessMeetings");
+    expect(source).toContain("disabled={button.isStartDisabled}");
+    expect(dropZone).toContain("disabled?: boolean");
+    expect(dropZone).toContain("aria-disabled={disabled}");
+  });
 });

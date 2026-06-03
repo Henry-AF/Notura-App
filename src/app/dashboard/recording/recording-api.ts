@@ -1,5 +1,6 @@
 import {
   fetchMeetingUploadDefaults,
+  fetchMeetingQuotaGate as fetchMeetingUploadQuotaGate,
   initMeetingUpload,
   processUploadedMeeting,
 } from "@/lib/meetings/meeting-upload-client";
@@ -9,7 +10,14 @@ import { uploadFileToSignedUrl } from "@/lib/meetings/upload-client";
 export interface RecordingDefaults {
   accountWhatsappNumber: string;
   canSendWhatsAppSummary: boolean;
+  canProcessMeetings: boolean;
+  meetingQuotaMessage: string;
   meetingGroups: MeetingGroupOption[];
+}
+
+export interface RecordingQuotaGate {
+  canProcessMeetings: boolean;
+  meetingQuotaMessage: string;
 }
 
 export interface SubmitRecordedMeetingInput {
@@ -51,6 +59,10 @@ function getRecordedFileMetadata(recording: Blob, recordedAt: Date) {
 
 export async function fetchRecordingDefaults(): Promise<RecordingDefaults> {
   return await fetchMeetingUploadDefaults();
+}
+
+export async function fetchRecordingQuotaGate(): Promise<RecordingQuotaGate> {
+  return await fetchMeetingUploadQuotaGate();
 }
 
 export async function submitRecordedMeeting(

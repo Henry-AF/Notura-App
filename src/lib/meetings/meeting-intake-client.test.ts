@@ -1,43 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("meeting intake client", () => {
+function createJsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+function mockGroupsResponse() {
+  return createJsonResponse({
+    groups: [
+      {
+        id: "group-1",
+        name: "Acme",
+        created_at: "2026-04-16T12:00:00Z",
+        updated_at: "2026-04-16T12:00:00Z",
+        meetings_count: 0,
+      },
+    ],
+    meetings: [],
+  });
+}
+
+function mockUserResponse(user: Record<string, unknown>) {
+  return createJsonResponse({ user });
+}
+
+function mockDefaultsFetch(user: Record<string, unknown>) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    if (input === "/api/meeting-groups") {
+      return Promise.resolve(mockGroupsResponse());
+    }
+
+    return Promise.resolve(mockUserResponse(user));
+  });
+}
+
+describe("meeting intake defaults", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   it("fetches the current user's whatsapp defaults through /api/user/me", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      if (input === "/api/meeting-groups") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              groups: [
-                {
-                  id: "group-1",
-                  name: "Acme",
-                  created_at: "2026-04-16T12:00:00Z",
-                  updated_at: "2026-04-16T12:00:00Z",
-                  meetings_count: 0,
-                },
-              ],
-              meetings: [],
-            }),
-            { status: 200 }
-          )
-        );
-      }
-
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            user: {
-              whatsappNumber: "+55 (11) 99999-9999",
-              canSendWhatsAppSummary: true,
-            },
-          }),
-          { status: 200 }
-        )
-      );
+    const fetchMock = mockDefaultsFetch({
+      whatsappNumber: "+55 (11) 99999-9999",
+      canSendWhatsAppSummary: true,
+      canProcessMeetings: true,
+      meetingQuotaBlockCode: null,
+      meetingQuotaLimit: 30,
     });
 
     const mod = await import("./meeting-intake-client");
@@ -47,42 +54,53 @@ describe("meeting intake client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: true,
+      canProcessMeetings: true,
+      meetingQuotaMessage: "",
       meetingGroups: [{ id: "group-1", name: "Acme" }],
     });
   });
 
-  it("keeps WhatsApp summary disabled in defaults for non-paying users without hiding groups", async () => {
+  it("keeps WhatsApp summary disabled for non-paying users", async () => {
+    mockDefaultsFetch({
+      whatsappNumber: "+55 (11) 99999-9999",
+      canSendWhatsAppSummary: false,
+      canProcessMeetings: true,
+      meetingQuotaBlockCode: null,
+      meetingQuotaLimit: 3,
+    });
+
+    const mod = await import("./meeting-intake-client");
+    const result = await mod.fetchMeetingIntakeDefaults();
+
+    expect(result).toEqual({
+      accountWhatsappNumber: "5511999999999",
+      canSendWhatsAppSummary: false,
+      canProcessMeetings: true,
+      meetingQuotaMessage: "",
+      meetingGroups: [{ id: "group-1", name: "Acme" }],
+    });
+  });
+});
+
+describe("meeting quota gate", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("maps exhausted quota to a safe recording gate message", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (input === "/api/meeting-groups") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              groups: [
-                {
-                  id: "group-1",
-                  name: "Acme",
-                  created_at: "2026-04-16T12:00:00Z",
-                  updated_at: "2026-04-16T12:00:00Z",
-                  meetings_count: 0,
-                },
-              ],
-              meetings: [],
-            }),
-            { status: 200 }
-          )
-        );
+        return Promise.resolve(createJsonResponse({ groups: [], meetings: [] }));
       }
 
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            user: {
-              whatsappNumber: "+55 (11) 99999-9999",
-              canSendWhatsAppSummary: false,
-            },
-          }),
-          { status: 200 }
-        )
+        mockUserResponse({
+          whatsappNumber: "+55 (11) 99999-9999",
+          canSendWhatsAppSummary: false,
+          canProcessMeetings: false,
+          meetingQuotaBlockCode: "period_quota_exceeded",
+          meetingQuotaLimit: 30,
+        })
       );
     });
 
@@ -92,20 +110,46 @@ describe("meeting intake client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: false,
-      meetingGroups: [{ id: "group-1", name: "Acme" }],
+      canProcessMeetings: false,
+      meetingQuotaMessage:
+        "Você atingiu o limite de reuniões do período atual do seu plano. Faça upgrade ou aguarde a renovação para processar novas reuniões.",
+      meetingGroups: [],
     });
+  });
+
+  it("fetches only the current quota gate for start-time revalidation", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      mockUserResponse({
+        canProcessMeetings: false,
+        meetingQuotaBlockCode: "subscription_expired",
+        meetingQuotaLimit: 30,
+      })
+    );
+
+    const mod = await import("./meeting-intake-client");
+    const result = await mod.fetchMeetingQuotaGate();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/user/me", { method: "GET" });
+    expect(result).toEqual({
+      canProcessMeetings: false,
+      meetingQuotaMessage:
+        "Sua assinatura expirou. Renove seu plano para processar novas reuniões.",
+    });
+  });
+});
+
+describe("meeting upload intake", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("initializes direct upload through /api/meetings/upload", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          r2Key: "meetings/user-1/123/audio.mp3",
-          uploadUrl: "https://r2.example/upload",
-          uploadToken: "signed-upload-token",
-        }),
-        { status: 200 }
-      )
+      createJsonResponse({
+        r2Key: "meetings/user-1/123/audio.mp3",
+        uploadUrl: "https://r2.example/upload",
+        uploadToken: "signed-upload-token",
+      })
     );
 
     const mod = await import("./meeting-intake-client");
@@ -133,12 +177,7 @@ describe("meeting intake client", () => {
 
   it("creates the meeting through /api/meetings/process", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          meetingId: "meeting-1",
-        }),
-        { status: 201 }
-      )
+      createJsonResponse({ meetingId: "meeting-1" }, 201)
     );
 
     const mod = await import("./meeting-intake-client");

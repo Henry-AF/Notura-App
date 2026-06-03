@@ -18,6 +18,7 @@ export interface DatePickerProps {
   placeholder?: string;
   disabled?: boolean;
   maxDate?: Date;
+  ariaLabel?: string;
   className?: string;
 }
 
@@ -35,6 +36,7 @@ export function DatePicker({
   placeholder = "Selecionar data",
   disabled = false,
   maxDate,
+  ariaLabel,
   className,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
@@ -48,6 +50,7 @@ export function DatePicker({
         <Button
           type="button"
           variant="outline"
+          aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
             "w-full justify-between rounded-lg border-input bg-background px-3 py-2.5 text-left font-normal text-foreground hover:bg-accent",

@@ -3,6 +3,7 @@ import {
   isValidWhatsappNumber,
   normalizeWhatsappNumber,
 } from "@/lib/meetings/whatsapp-number";
+import type { MeetingQuotaBlockCode } from "@/lib/billing";
 import {
   fetchMeetingGroupOptions,
   type MeetingGroupOption,
@@ -12,6 +13,9 @@ interface CurrentUserDefaultsResponse {
   user?: {
     whatsappNumber?: string;
     canSendWhatsAppSummary?: boolean;
+    canProcessMeetings?: boolean;
+    meetingQuotaBlockCode?: MeetingQuotaBlockCode | null;
+    meetingQuotaLimit?: number;
   };
   error?: string;
 }
@@ -31,7 +35,14 @@ interface ProcessMeetingApiResponse {
 export interface MeetingIntakeDefaults {
   accountWhatsappNumber: string;
   canSendWhatsAppSummary: boolean;
+  canProcessMeetings: boolean;
+  meetingQuotaMessage: string;
   meetingGroups: MeetingGroupOption[];
+}
+
+export interface MeetingQuotaGate {
+  canProcessMeetings: boolean;
+  meetingQuotaMessage: string;
 }
 
 export interface InitMeetingUploadInput {
@@ -48,6 +59,37 @@ export interface ProcessMeetingUploadInput {
   groupId?: string | null;
 }
 
+function getMeetingQuotaMessage(
+  code: MeetingQuotaBlockCode | null | undefined
+): string {
+  if (code === "subscription_expired") {
+    return "Sua assinatura expirou. Renove seu plano para processar novas reuniões.";
+  }
+
+  if (code === "lifetime_quota_exceeded") {
+    return "Você atingiu o limite de reuniões do plano Free. Faça upgrade para processar novas reuniões.";
+  }
+
+  if (code === "period_quota_exceeded") {
+    return "Você atingiu o limite de reuniões do período atual do seu plano. Faça upgrade ou aguarde a renovação para processar novas reuniões.";
+  }
+
+  return "Você não tem quota disponível para processar novas reuniões.";
+}
+
+function mapMeetingQuotaGate(
+  user: CurrentUserDefaultsResponse["user"]
+): MeetingQuotaGate {
+  const canProcessMeetings = user?.canProcessMeetings !== false;
+
+  return {
+    canProcessMeetings,
+    meetingQuotaMessage: canProcessMeetings
+      ? ""
+      : getMeetingQuotaMessage(user.meetingQuotaBlockCode),
+  };
+}
+
 export async function fetchMeetingIntakeDefaults(): Promise<MeetingIntakeDefaults> {
   const [response, meetingGroups] = await Promise.all([
     fetch("/api/user/me", { method: "GET" }),
@@ -60,11 +102,24 @@ export async function fetchMeetingIntakeDefaults(): Promise<MeetingIntakeDefault
   }
 
   const normalized = normalizeWhatsappNumber(body.user.whatsappNumber ?? "");
+  const quotaGate = mapMeetingQuotaGate(body.user);
   return {
     accountWhatsappNumber: isValidWhatsappNumber(normalized) ? normalized : "",
     canSendWhatsAppSummary: Boolean(body.user.canSendWhatsAppSummary),
+    ...quotaGate,
     meetingGroups,
   };
+}
+
+export async function fetchMeetingQuotaGate(): Promise<MeetingQuotaGate> {
+  const response = await fetch("/api/user/me", { method: "GET" });
+  const body = await parseJson<CurrentUserDefaultsResponse>(response);
+
+  if (!response.ok || !body.user) {
+    throw new Error(normalizeError(body.error, "Erro ao validar sua quota."));
+  }
+
+  return mapMeetingQuotaGate(body.user);
 }
 
 export async function initMeetingUpload(

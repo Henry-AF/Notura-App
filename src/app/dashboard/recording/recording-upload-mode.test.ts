@@ -73,4 +73,17 @@ describe("recording page upload mode", () => {
     expect(source).not.toContain("DialogContent");
     expect(source).toContain("Continuar e sair");
   });
+
+  it("loads and revalidates meeting quota before recording or upload starts", () => {
+    const source = readSource("src/app/dashboard/recording/page.tsx");
+    const apiSource = readSource("src/app/dashboard/recording/recording-api.ts");
+
+    expect(apiSource).toContain("fetchRecordingQuotaGate");
+    expect(source).toContain("canProcessMeetings");
+    expect(source).toContain("meetingQuotaMessage");
+    expect(source).toContain("ensureCanProcessMeetings");
+    expect(source).toContain("await ensureCanProcessMeetings()");
+    expect(source).toContain("disabled={isQuotaBlocked}");
+    expect(source).toContain("setupCapabilities");
+  });
 });

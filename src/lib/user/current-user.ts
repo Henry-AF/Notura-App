@@ -71,6 +71,7 @@ export async function getCurrentUserForIdentity(
   const { profile, billingStatus } = await loadCurrentUserData(identity.id);
   const billingAccount = billingStatus.billingAccount;
   const entitlement = billingStatus.entitlement;
+  const quotaStatus = billingStatus.quotaStatus;
   const plan = entitlement.effectivePlan;
   const { billingProvider, autoRenewEnabled, renewalStatus } =
     resolveRenewalState(billingAccount);
@@ -86,6 +87,9 @@ export async function getCurrentUserForIdentity(
     billingEntitlementStatus: entitlement.status,
     isPaidPlanActive: entitlement.isPaidActive,
     canSendWhatsAppSummary: entitlement.isPaidActive,
+    canProcessMeetings: quotaStatus.allowed,
+    meetingQuotaBlockCode: quotaStatus.code,
+    meetingQuotaLimit: quotaStatus.quotaLimit,
     meetingsThisMonth: billingStatus.meetingsThisMonth,
     monthlyLimit: billingStatus.monthlyLimit,
     currentPeriodEnd: billingAccount.current_period_end,

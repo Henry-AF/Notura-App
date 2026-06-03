@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useReducer, useRef } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ChevronRight, X } from "lucide-react";
@@ -24,7 +31,10 @@ import {
   type MeetingGroupOption,
 } from "@/lib/meeting-groups-client";
 import posthog from "posthog-js";
-import { fetchRecordingDefaults } from "./recording-api";
+import {
+  fetchRecordingDefaults,
+  fetchRecordingQuotaGate,
+} from "./recording-api";
 import { submitUploadedMeeting } from "./recording-upload-api";
 
 const UPLOAD_LEAVE_WARNING_MESSAGE =
@@ -39,6 +49,8 @@ function getInitialRecordingMode(mode: string | null): RecordingMode {
 type RecordingPageState = {
   accountWhatsappNumber: string;
   canSendWhatsAppSummary: boolean;
+  canProcessMeetings: boolean;
+  meetingQuotaMessage: string;
   meetingGroups: MeetingGroupOption[];
   selectedGroupId: string | null;
   isUploadSubmitting: boolean;
@@ -55,7 +67,14 @@ type RecordingPageAction =
       type: "defaultsLoaded";
       accountWhatsappNumber: string;
       canSendWhatsAppSummary: boolean;
+      canProcessMeetings: boolean;
+      meetingQuotaMessage: string;
       meetingGroups: MeetingGroupOption[];
+    }
+  | {
+      type: "quotaGateLoaded";
+      canProcessMeetings: boolean;
+      meetingQuotaMessage: string;
     }
   | { type: "recordingModeChanged"; value: RecordingMode }
   | { type: "uploadFileSelected"; file: File }
@@ -78,7 +97,15 @@ function recordingPageReducer(
         ...state,
         accountWhatsappNumber: action.accountWhatsappNumber,
         canSendWhatsAppSummary: action.canSendWhatsAppSummary,
+        canProcessMeetings: action.canProcessMeetings,
+        meetingQuotaMessage: action.meetingQuotaMessage,
         meetingGroups: action.meetingGroups,
+      };
+    case "quotaGateLoaded":
+      return {
+        ...state,
+        canProcessMeetings: action.canProcessMeetings,
+        meetingQuotaMessage: action.meetingQuotaMessage,
       };
     case "recordingModeChanged":
       return { ...state, recordingMode: action.value };
@@ -216,18 +243,16 @@ function UploadLeaveWarningDialog({
       }}
       role="presentation"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
+      <dialog
+        open
         aria-labelledby="upload-leave-warning-title"
         aria-describedby="upload-leave-warning-description"
-        className="upload-leave-modal-panel relative w-full overflow-hidden rounded-t-[28px] shadow-2xl sm:max-w-md sm:rounded-[22px]"
+        className="upload-leave-modal-panel relative m-0 w-full overflow-hidden rounded-t-[28px] border-0 p-0 shadow-2xl sm:max-w-md sm:rounded-[22px]"
         style={{
           background: c.card,
           border: `1px solid ${c.border}`,
           boxShadow: "0 20px 44px rgba(0,0,0,0.22)",
         }}
-        onClick={(event) => event.stopPropagation()}
       >
         <div
           className="mx-auto mb-2 mt-3 h-1 w-10 shrink-0 rounded-full sm:hidden"
@@ -351,12 +376,37 @@ function UploadLeaveWarningDialog({
             }
           }
         `}</style>
-      </div>
+      </dialog>
     </div>
   );
 }
 
-function RecordingPageInner() {
+type RecordingPageController = {
+  handleCancelPendingNavigation: () => void;
+  handleConfirmPendingNavigation: () => void;
+  handleCreateGroup: (name: string) => Promise<MeetingGroupOption>;
+  handleRecordingModeChange: (mode: RecordingMode) => void;
+  handleSelectedGroupChange: (value: string | null) => void;
+  handleStartRecording: (values: RecordingSetupValues) => Promise<void>;
+  meetingGroups: MeetingGroupOption[];
+  pendingNavigationHref: string | null;
+  recordingMode: RecordingMode;
+  recordingUploadField?: React.ReactNode;
+  selectedGroupId: string | null;
+  setupCapabilities: {
+    accountWhatsappNumber: string;
+    canProcessMeetings: boolean;
+    canSendWhatsAppSummary: boolean;
+    meetingQuotaMessage: string;
+  };
+  setupStatus: {
+    hasUploadFile: boolean;
+    isStarting: boolean;
+  };
+  showWarning: (message: string) => void;
+};
+
+function useRecordingPageController(): RecordingPageController {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -370,6 +420,8 @@ function RecordingPageInner() {
   const [state, dispatch] = useReducer(recordingPageReducer, {
     accountWhatsappNumber: "",
     canSendWhatsAppSummary: false,
+    canProcessMeetings: true,
+    meetingQuotaMessage: "",
     meetingGroups: [],
     selectedGroupId: null,
     isUploadSubmitting: false,
@@ -383,6 +435,8 @@ function RecordingPageInner() {
   const {
     accountWhatsappNumber,
     canSendWhatsAppSummary,
+    canProcessMeetings,
+    meetingQuotaMessage,
     meetingGroups,
     selectedGroupId,
     isUploadSubmitting,
@@ -390,13 +444,15 @@ function RecordingPageInner() {
     uploadFile,
     uploadPreviewProgress,
     uploadTimeRemaining,
-    uploadProgress,
     pendingNavigationHref,
   } = state;
 
   const uploadTimerRef = useRef<number | null>(null);
   const uploadStartTimeRef = useRef<number>(0);
   const uploadPreviewProgressRef = useRef(0);
+  const pageClickCaptureHandlerRef = useRef<(event: MouseEvent) => void>(
+    () => {}
+  );
 
   const clearUploadPreviewTimer = useCallback(() => {
     if (uploadTimerRef.current) {
@@ -412,6 +468,7 @@ function RecordingPageInner() {
   }, [clearUploadPreviewTimer]);
 
   const isStarting = isUploadSubmitting || isRecordingStarting;
+  const isQuotaBlocked = !canProcessMeetings;
   const hasSelectedUploadFile =
     recordingMode === "upload" && Boolean(uploadFile) && !isUploadSubmitting;
 
@@ -442,6 +499,8 @@ function RecordingPageInner() {
             type: "defaultsLoaded",
             accountWhatsappNumber: defaults.accountWhatsappNumber,
             canSendWhatsAppSummary: defaults.canSendWhatsAppSummary,
+            canProcessMeetings: defaults.canProcessMeetings,
+            meetingQuotaMessage: defaults.meetingQuotaMessage,
             meetingGroups: defaults.meetingGroups,
           });
         }
@@ -548,11 +607,19 @@ function RecordingPageInner() {
   );
 
   useEffect(() => {
+    pageClickCaptureHandlerRef.current = handlePageClickCapture;
+  }, [handlePageClickCapture]);
+
+  useEffect(() => {
     if (!hasSelectedUploadFile) return;
 
-    document.addEventListener("click", handlePageClickCapture, true);
-    return () => document.removeEventListener("click", handlePageClickCapture, true);
-  }, [handlePageClickCapture, hasSelectedUploadFile]);
+    function handleDocumentClick(event: MouseEvent) {
+      pageClickCaptureHandlerRef.current(event);
+    }
+
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => document.removeEventListener("click", handleDocumentClick, true);
+  }, [hasSelectedUploadFile]);
 
   const handleCancelPendingNavigation = useCallback(() => {
     dispatch({ type: "pendingNavigationChanged", value: null });
@@ -574,8 +641,40 @@ function RecordingPageInner() {
     window.location.assign(nextUrl.href);
   }, [pendingNavigationHref, resetUploadState, router]);
 
+  const ensureCanProcessMeetings = useCallback(async () => {
+    try {
+      const quotaGate = await fetchRecordingQuotaGate();
+      dispatch({
+        type: "quotaGateLoaded",
+        canProcessMeetings: quotaGate.canProcessMeetings,
+        meetingQuotaMessage: quotaGate.meetingQuotaMessage,
+      });
+
+      if (!quotaGate.canProcessMeetings) {
+        show(quotaGate.meetingQuotaMessage, "warning");
+        return false;
+      }
+
+      return true;
+    } catch {
+      const message =
+        "Não foi possível validar sua quota agora. Tente novamente em instantes.";
+      dispatch({
+        type: "quotaGateLoaded",
+        canProcessMeetings: false,
+        meetingQuotaMessage: message,
+      });
+      show(message, "warning");
+      return false;
+    }
+  }, [show]);
+
   const handleStartRecording = useCallback(
     async (values: RecordingSetupValues) => {
+      if (!(await ensureCanProcessMeetings())) {
+        return;
+      }
+
       if (values.recordingMode === "upload") {
         if (!uploadFile || !values.meetingDate) {
           return;
@@ -629,7 +728,7 @@ function RecordingPageInner() {
         );
       }
     },
-    [router, show, startRecording, uploadFile]
+    [ensureCanProcessMeetings, router, show, startRecording, uploadFile]
   );
 
   const handleRecordingModeChange = useCallback(
@@ -661,48 +760,106 @@ function RecordingPageInner() {
     []
   );
 
+  const handleSelectedGroupChange = useCallback((value: string | null) => {
+    dispatch({ type: "selectedGroupChanged", value });
+  }, []);
+
+  const recordingUploadField = useMemo(() => {
+    if (recordingMode !== "upload") return undefined;
+
+    if (uploadFile) {
+      return (
+        <UploadProgressCard
+          file={uploadFile}
+          progress={uploadPreviewProgress}
+          timeRemaining={uploadTimeRemaining}
+          onRemove={resetUploadState}
+        />
+      );
+    }
+
+    return (
+      <DropZone
+        onFile={handleFile}
+        onError={(message) => show(message, "error")}
+        disabled={isQuotaBlocked}
+        compact
+      />
+    );
+  }, [
+    handleFile,
+    isQuotaBlocked,
+    recordingMode,
+    resetUploadState,
+    show,
+    uploadFile,
+    uploadPreviewProgress,
+    uploadTimeRemaining,
+  ]);
+
+  const setupCapabilities = useMemo(
+    () => ({
+      accountWhatsappNumber,
+      canProcessMeetings,
+      canSendWhatsAppSummary,
+      meetingQuotaMessage,
+    }),
+    [
+      accountWhatsappNumber,
+      canProcessMeetings,
+      canSendWhatsAppSummary,
+      meetingQuotaMessage,
+    ]
+  );
+
+  const setupStatus = useMemo(
+    () => ({ hasUploadFile: Boolean(uploadFile), isStarting }),
+    [isStarting, uploadFile]
+  );
+
+  const showWarning = useCallback(
+    (message: string) => show(message, "warning"),
+    [show]
+  );
+
+  return {
+    handleCancelPendingNavigation,
+    handleConfirmPendingNavigation,
+    handleCreateGroup,
+    handleRecordingModeChange,
+    handleSelectedGroupChange,
+    handleStartRecording,
+    meetingGroups,
+    pendingNavigationHref,
+    recordingMode,
+    recordingUploadField,
+    selectedGroupId,
+    setupCapabilities,
+    setupStatus,
+    showWarning,
+  };
+}
+
+function RecordingPageContent({ page }: { page: RecordingPageController }) {
   return (
     <>
       <div className="animate-fade-in min-h-full">
-        <RecordingPageHeader mode={recordingMode} />
+        <RecordingPageHeader mode={page.recordingMode} />
 
         <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <RecordingSetupCard
-              accountWhatsappNumber={accountWhatsappNumber}
-              canSendWhatsAppSummary={canSendWhatsAppSummary}
-              hasUploadFile={!!uploadFile}
-              isStarting={isStarting}
-              recordingMode={recordingMode}
-              meetingGroups={meetingGroups}
-              selectedGroupId={selectedGroupId}
-              onRecordingModeChange={handleRecordingModeChange}
-              onGroupIdChange={(value) =>
-                dispatch({ type: "selectedGroupChanged", value })
-              }
-              onCreateGroup={handleCreateGroup}
-              onStart={handleStartRecording}
-              onValidationError={(message) => show(message, "warning")}
-              uploadField={
-                recordingMode === "upload"
-                  ? uploadFile
-                    ? (
-                        <UploadProgressCard
-                          file={uploadFile}
-                          progress={uploadPreviewProgress}
-                          timeRemaining={uploadTimeRemaining}
-                          onRemove={resetUploadState}
-                        />
-                      )
-                    : (
-                        <DropZone
-                          onFile={handleFile}
-                          onError={(message) => show(message, "error")}
-                          compact
-                        />
-                      )
-                : undefined
-              }
+              capabilities={page.setupCapabilities}
+              status={page.setupStatus}
+              recordingMode={page.recordingMode}
+              meetingGroups={page.meetingGroups}
+              selectedGroupId={page.selectedGroupId}
+              onRecordingModeChange={page.handleRecordingModeChange}
+              onGroupIdChange={page.handleSelectedGroupChange}
+              onCreateGroup={page.handleCreateGroup}
+              onStart={page.handleStartRecording}
+              onValidationError={page.showWarning}
+              uploadField={page.recordingUploadField}
             />
           </div>
 
@@ -713,18 +870,25 @@ function RecordingPageInner() {
       </div>
 
       <UploadLeaveWarningDialog
-        open={Boolean(pendingNavigationHref)}
-        onCancel={handleCancelPendingNavigation}
-        onConfirm={handleConfirmPendingNavigation}
+        open={Boolean(page.pendingNavigationHref)}
+        onCancel={page.handleCancelPendingNavigation}
+        onConfirm={page.handleConfirmPendingNavigation}
       />
     </>
   );
 }
 
+function RecordingPageInner() {
+  const page = useRecordingPageController();
+  return <RecordingPageContent page={page} />;
+}
+
 export default function RecordingPage() {
   return (
     <ToastProvider>
-      <RecordingPageInner />
+      <Suspense fallback={null}>
+        <RecordingPageInner />
+      </Suspense>
     </ToastProvider>
   );
 }

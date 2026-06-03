@@ -1,4 +1,7 @@
-import type { BillingEntitlementState } from "@/lib/billing";
+import type {
+  BillingEntitlementState,
+  MeetingQuotaBlockCode,
+} from "@/lib/billing";
 import type { Plan } from "@/types/database";
 
 export interface CurrentUser {
@@ -12,6 +15,9 @@ export interface CurrentUser {
   billingEntitlementStatus: BillingEntitlementState;
   isPaidPlanActive: boolean;
   canSendWhatsAppSummary: boolean;
+  canProcessMeetings: boolean;
+  meetingQuotaBlockCode: MeetingQuotaBlockCode | null;
+  meetingQuotaLimit: number;
   meetingsThisMonth: number;
   monthlyLimit: number | null;
   currentPeriodEnd: string | null;

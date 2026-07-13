@@ -1,5 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { normalizeAuthNextPath } from "@/lib/auth-redirect";
+
+function redirectAuthenticatedFromLogin(request: NextRequest): NextResponse {
+  const nextPath = normalizeAuthNextPath(request.nextUrl.searchParams.get("redirectTo"));
+  const target = new URL(nextPath, request.nextUrl.origin);
+  return NextResponse.redirect(target);
+}
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -91,9 +98,14 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
+  // Redirect authenticated users away from the login page
+  if (user && request.nextUrl.pathname === "/login") {
+    return redirectAuthenticatedFromLogin(request);
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/:path*"],
+  matcher: ["/dashboard/:path*", "/api/:path*", "/login"],
 };

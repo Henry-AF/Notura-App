@@ -86,3 +86,82 @@ describe("middleware auth", () => {
     );
   });
 });
+
+describe("middleware login redirect", () => {
+  it("redirects an authenticated user away from /login to /dashboard", async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/login", {
+      headers: {
+        cookie: "sb-test-auth-token=abc",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost:3000/dashboard");
+  });
+
+  it("renders /login normally when there is no session", async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: null }, error: null });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/login");
+
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("redirects to a valid redirectTo destination", async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest(
+      "http://localhost:3000/login?redirectTo=%2Fdashboard%2Fsettings"
+    );
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/dashboard/settings"
+    );
+  });
+
+  it("falls back to /dashboard when redirectTo is an external URL", async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest(
+      "http://localhost:3000/login?redirectTo=https%3A%2F%2Fevil.example"
+    );
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost:3000/dashboard");
+  });
+
+  it("treats a stale refresh token on /login as unauthenticated (no redirect to dashboard)", async () => {
+    getUserMock.mockResolvedValueOnce({
+      data: { user: null },
+      error: { code: "refresh_token_not_found" },
+    });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/login", {
+      headers: {
+        cookie: "sb-test-auth-token=abc",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get("location")).toBeNull();
+  });
+});

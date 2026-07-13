@@ -14,7 +14,11 @@ import {
   MeetingChatSheet,
   WhatsAppCopyButton,
 } from "@/components/meeting-detail";
-import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
+import type {
+  MeetingExportTemplateOption,
+  MeetingTab,
+  MeetingTask,
+} from "@/components/meeting-detail";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
 import type { Task } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
@@ -29,7 +33,9 @@ import {
 import {
   cancelMeetingProcessing,
   deleteMeetingById,
+  exportMeetingAta,
   fetchMeetingStatus,
+  fetchMeetingTemplates,
   mergeMeetingParticipant,
   retryMeetingProcessing,
   updateMeetingParticipantDisplayName,
@@ -122,6 +128,15 @@ function ComingSoon({ label }: { label: string }) {
   );
 }
 
+function triggerFileDownload(url: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function buildInitialTaskColumnMap(
   meetingTasks: MeetingTask[]
 ): Record<string, MeetingTaskColumnId> {
@@ -180,6 +195,8 @@ type MeetingDetailState = {
   isChatOpen: boolean;
   isDeleteDialogOpen: boolean;
   isDeletingMeeting: boolean;
+  isExporting: boolean;
+  exportTemplates: MeetingExportTemplateOption[];
 };
 
 type MeetingDetailAction =
@@ -240,6 +257,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     isChatOpen: false,
     isDeleteDialogOpen: false,
     isDeletingMeeting: false,
+    isExporting: false,
+    exportTemplates: [],
   });
   const {
     meetingStatus,
@@ -253,6 +272,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     isChatOpen,
     isDeleteDialogOpen,
     isDeletingMeeting,
+    isExporting,
+    exportTemplates,
   } = state;
   const taskColumns = useMemo(
     () => buildMeetingTaskColumns(tasks, taskColumnById),
@@ -289,6 +310,26 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [id, meetingStatus]);
+
+  // ─── Load export templates once, in the background ───────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const templates = await fetchMeetingTemplates();
+        if (!cancelled) {
+          dispatch({ type: "patched", value: { exportTemplates: templates } });
+        }
+      } catch {
+        // silent — export button falls back to the default template
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleRetry = useCallback(async () => {
     dispatch({ type: "patched", value: { isRetrying: true } });
@@ -503,13 +544,19 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     }
   }, [id, show]);
 
-  const handleExport = useCallback(async () => {
-    show("Gerando exportação...", "warning");
+  const handleExport = useCallback(async (templateId: string) => {
+    dispatch({ type: "patched", value: { isExporting: true } });
     try {
-      await fetch(`/api/meetings/${id}/export`, { method: "POST" });
-      show("Exportação gerada com sucesso.", "success");
-    } catch {
-      show("Erro ao exportar. Tente novamente.", "error");
+      const { url, filename } = await exportMeetingAta(id, templateId);
+      triggerFileDownload(url, filename);
+      show("Ata exportada com sucesso.", "success");
+    } catch (error) {
+      show(
+        error instanceof Error ? error.message : "Erro ao exportar a ata.",
+        "error"
+      );
+    } finally {
+      dispatch({ type: "patched", value: { isExporting: false } });
     }
   }, [id, show]);
 
@@ -913,6 +960,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           onDelete={() =>
             dispatch({ type: "patched", value: { isDeleteDialogOpen: true } })
           }
+          onExport={
+            meetingStatus === "completed"
+              ? (templateId) => { void handleExport(templateId); }
+              : undefined
+          }
+          isExporting={isExporting}
+          exportTemplates={exportTemplates}
         />
       </div>
 
@@ -974,36 +1028,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           }
         />
       )}
-
-      {/* Export button via a portal-like approach — rendered as fixed button
-          top-right to supplement the existing topbar */}
-      <div
-        style={{
-          position: "fixed",
-          top: 12,
-          right: 16,
-          zIndex: 50,
-          display: "none", // Hidden; export button is in topbar slot via layout
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => { void handleExport(); }}
-          style={{
-            background: "#6C5CE7",
-            color: "#FFFFFF",
-            border: "none",
-            borderRadius: 999,
-            padding: "10px 24px",
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          Exportar
-        </button>
-      </div>
     </>
   );
 }

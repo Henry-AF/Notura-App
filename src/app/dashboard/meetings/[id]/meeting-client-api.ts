@@ -289,3 +289,58 @@ export async function deleteMeetingById(id: string): Promise<void> {
     );
   }
 }
+
+// ─── Meeting ATA export ───────────────────────────────────────────────────────
+
+export interface MeetingTemplateOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  editable: boolean;
+}
+
+export interface MeetingExportResult {
+  url: string;
+  filename: string;
+}
+
+interface MeetingTemplatesResponse {
+  templates?: MeetingTemplateOption[];
+  error?: string;
+}
+
+interface MeetingExportResponse {
+  url?: string;
+  filename?: string;
+  expiresIn?: number;
+  error?: string;
+}
+
+export async function fetchMeetingTemplates(): Promise<MeetingTemplateOption[]> {
+  const response = await fetch("/api/meeting-templates");
+  const body = await parseJson<MeetingTemplatesResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao carregar modelos de ata."));
+  }
+
+  return body.templates ?? [];
+}
+
+export async function exportMeetingAta(
+  meetingId: string,
+  templateId?: string
+): Promise<MeetingExportResult> {
+  const response = await fetch(`/api/meetings/${meetingId}/export`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(templateId ? { templateId } : {}),
+  });
+  const body = await parseJson<MeetingExportResponse>(response);
+
+  if (!response.ok || !body.url || !body.filename) {
+    throw new Error(normalizeError(body.error, "Erro ao exportar a ata."));
+  }
+
+  return { url: body.url, filename: body.filename };
+}

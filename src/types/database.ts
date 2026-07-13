@@ -877,6 +877,39 @@ export interface Database {
           }
         ]
       }
+      meeting_templates: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          r2_key: string
+          original_filename: string | null
+          placeholders: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          r2_key: string
+          original_filename?: string | null
+          placeholders?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          r2_key?: string
+          original_filename?: string | null
+          placeholders?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1005,6 +1038,8 @@ export type MeetingTranscriptChunk =
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 export type MeetingChatAiMetric =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
+export type MeetingTemplate =
+  Database["public"]["Tables"]["meeting_templates"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

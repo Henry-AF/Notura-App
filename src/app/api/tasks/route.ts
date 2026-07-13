@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
+import { getTaskBoardForUser } from "@/lib/tasks/board";
 import {
   TASK_SELECT,
-  buildTaskColumns,
-  buildTaskMeetingOptions,
   mapTaskRowToBoardTask,
   normalizeTaskStatus,
   toDatabasePriority,
-} from "./task-mapper";
+} from "@/lib/tasks/task-mapper";
 
 async function syncTaskLabels(
   supabase: ReturnType<typeof createServiceRoleClient>,
@@ -25,34 +24,20 @@ async function syncTaskLabels(
 
 export const GET = withAuth(async (request, { auth }) => {
   const url = new URL(request.url);
-  const meetingId = url.searchParams.get("meetingId");
-  const groupId = url.searchParams.get("groupId");
+  const meetingId = url.searchParams.get("meetingId") ?? undefined;
+  const groupId = url.searchParams.get("groupId") ?? undefined;
 
-  const supabase = createServiceRoleClient();
-  let query = supabase
-    .from("tasks")
-    .select(TASK_SELECT)
-    .eq("user_id", auth.user.id)
-    .order("created_at", { ascending: false });
-
-  if (meetingId) query = query.eq("meeting_id", meetingId);
-  if (groupId) query = query.eq("group_id", groupId);
-
-  const { data: tasks, error } = await query;
-  if (error) return NextResponse.json({ error: "Erro ao buscar tarefas." }, { status: 500 });
-
-  const { data: meetings, error: meetingsError } = await supabase
-    .from("meetings")
-    .select("id, title, client_name")
-    .eq("user_id", auth.user.id)
-    .order("created_at", { ascending: false });
-
-  if (meetingsError) return NextResponse.json({ error: "Erro ao buscar reuniões." }, { status: 500 });
-
-  return NextResponse.json({
-    columns: buildTaskColumns(tasks ?? []),
-    meetings: buildTaskMeetingOptions(meetings ?? []),
-  });
+  try {
+    const board = await getTaskBoardForUser(createServiceRoleClient(), auth.user.id, {
+      meetingId,
+      groupId,
+    });
+    return NextResponse.json(board);
+  } catch (error) {
+    console.error("[api/tasks] failed:", error);
+    const message = error instanceof Error ? error.message : "Erro ao buscar tarefas.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 });
 
 export const POST = withAuth(async (request, { auth }) => {
@@ -78,6 +63,10 @@ export const POST = withAuth(async (request, { auth }) => {
   );
   const isCompleted = taskStatus === "completed";
 
+  // Rule #5 exception: this is a plain insert (not upsert) because dedupe_key is
+  // freshly generated via randomUUID() above, so there is never a conflicting row
+  // to reconcile against. Upsert semantics only matter for AI-extracted tasks that
+  // reuse a stable dedupe_key across re-processing runs.
   const { data: task, error: insertError } = await supabase
     .from("tasks")
     .insert({

@@ -16,50 +16,6 @@ afterEach(() => {
   vi.resetModules();
 });
 
-// ─── fetchTaskBoardData ───────────────────────────────────────────────────────
-
-describe("fetchTaskBoardData", () => {
-  it("returns columns and meetings on success", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        columns: [{ id: "todo", title: "A Fazer", tasks: [] }],
-        meetings: [{ id: "m1", title: "Kickoff", clientName: "Acme", label: "Acme - Kickoff" }],
-      }),
-    });
-
-    const { fetchTaskBoardData } = await import("./tasks-api");
-    const result = await fetchTaskBoardData();
-
-    expect(result.columns).toHaveLength(1);
-    expect(result.meetings).toHaveLength(1);
-  });
-
-  it("forwards meetingId and groupId as query params", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ columns: [], meetings: [] }),
-    });
-
-    const { fetchTaskBoardData } = await import("./tasks-api");
-    await fetchTaskBoardData({ meetingId: "m1", groupId: "g1" });
-
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain("meetingId=m1");
-    expect(calledUrl).toContain("groupId=g1");
-  });
-
-  it("throws on API error", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: "Erro ao carregar tarefas." }),
-    });
-
-    const { fetchTaskBoardData } = await import("./tasks-api");
-    await expect(fetchTaskBoardData()).rejects.toThrow("Erro ao carregar tarefas.");
-  });
-});
-
 // ─── createTask ───────────────────────────────────────────────────────────────
 
 describe("createTask", () => {

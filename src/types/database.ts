@@ -300,6 +300,8 @@ export interface Database {
           completed: boolean
           completed_at: string | null
           created_at: string
+          source: "ai_extracted" | "manual"
+          group_id: string | null
         }
         Insert: {
           id?: string
@@ -314,6 +316,8 @@ export interface Database {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          source?: "ai_extracted" | "manual"
+          group_id?: string | null
         }
         Update: {
           id?: string
@@ -328,6 +332,8 @@ export interface Database {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          source?: "ai_extracted" | "manual"
+          group_id?: string | null
         }
         Relationships: [
           {
@@ -335,6 +341,67 @@ export interface Database {
             columns: ["meeting_id"]
             isOneToOne: false
             referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_groups"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      task_labels: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          color: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          color?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          color?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      task_label_map: {
+        Row: {
+          task_id: string
+          label_id: string
+        }
+        Insert: {
+          task_id: string
+          label_id: string
+        }
+        Update: {
+          task_id?: string
+          label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_label_map_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_label_map_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "task_labels"
             referencedColumns: ["id"]
           }
         ]
@@ -927,6 +994,8 @@ export type MeetingGroup = Database["public"]["Tables"]["meeting_groups"]["Row"]
 export type MeetingParticipant =
   Database["public"]["Tables"]["meeting_participants"]["Row"]
 export type Task = Database["public"]["Tables"]["tasks"]["Row"]
+export type TaskLabel = Database["public"]["Tables"]["task_labels"]["Row"]
+export type TaskLabelMap = Database["public"]["Tables"]["task_label_map"]["Row"]
 export type Decision = Database["public"]["Tables"]["decisions"]["Row"]
 export type OpenItem = Database["public"]["Tables"]["open_items"]["Row"]
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]

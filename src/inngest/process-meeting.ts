@@ -706,6 +706,7 @@ async function upsertSummaryTasks(
     owner: task.owner === "indefinido" ? null : task.owner,
     due_date: task.due_date,
     priority: task.priority,
+    source: "ai_extracted" as const,
   }));
   const { error } = await supabase
     .from("tasks")

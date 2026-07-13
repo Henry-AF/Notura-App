@@ -1,4 +1,7 @@
-import type { Column, Task } from "@/components/tasks";
+import type { Column, Task, TaskLabel } from "@/components/tasks";
+import { normalizeError, parseJson } from "@/lib/api-client";
+
+export type { TaskLabel };
 
 export interface TaskMeetingOption {
   id: string;
@@ -18,13 +21,25 @@ interface TaskResponse {
   error?: string;
 }
 
-interface CreateTaskInput {
+interface TaskLabelResponse {
+  label?: TaskLabel;
+  error?: string;
+}
+
+interface TaskLabelsResponse {
+  labels?: TaskLabel[];
+  error?: string;
+}
+
+export interface CreateTaskInput {
   title: string;
   priority: Task["priority"];
   columnId: string;
   meetingId: string;
   dueDate?: string;
   assigneeName?: string;
+  groupId?: string;
+  labelIds?: string[];
 }
 
 interface UpdateTaskInput {
@@ -33,37 +48,36 @@ interface UpdateTaskInput {
   dueDate?: string;
   assigneeName?: string | null;
   status?: "todo" | "in_progress" | "completed";
+  labelIds?: string[];
 }
 
-function normalizeError(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+export interface FetchTasksParams {
+  meetingId?: string;
+  groupId?: string;
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
-  return (await response.json()) as T;
+export async function fetchTaskBoardData(params?: FetchTasksParams): Promise<{
+  columns: Column[];
+  meetings: TaskMeetingOption[];
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.meetingId) searchParams.set("meetingId", params.meetingId);
+  if (params?.groupId) searchParams.set("groupId", params.groupId);
+  const query = searchParams.toString();
+  const url = query ? `/api/tasks?${query}` : "/api/tasks";
+
+  const response = await fetch(url);
+  const body = await parseJson<TaskColumnsResponse>(response);
+
+  if (!response.ok || !body.columns) {
+    throw new Error(normalizeError(body.error, "Erro ao carregar tarefas."));
+  }
+  return { columns: body.columns, meetings: body.meetings ?? [] };
 }
 
 export async function fetchTaskColumns(): Promise<Column[]> {
   const data = await fetchTaskBoardData();
   return data.columns;
-}
-
-export async function fetchTaskBoardData(): Promise<{
-  columns: Column[];
-  meetings: TaskMeetingOption[];
-}> {
-  const response = await fetch("/api/tasks", { method: "GET" });
-  const body = await parseJson<TaskColumnsResponse>(response);
-
-  if (!response.ok || !body.columns) {
-    throw new Error(body.error ?? "Erro ao carregar tarefas.");
-  }
-
-  return {
-    columns: body.columns,
-    meetings: body.meetings ?? [],
-  };
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {
@@ -77,21 +91,18 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
       due_date: input.dueDate,
       owner: input.assigneeName,
       status: input.columnId === "completed" ? "completed" : input.columnId,
+      group_id: input.groupId,
+      label_ids: input.labelIds,
     }),
   });
   const body = await parseJson<TaskResponse>(response);
-
   if (!response.ok || !body.task) {
-    throw new Error(body.error ?? "Erro ao criar tarefa.");
+    throw new Error(normalizeError(body.error, "Erro ao criar tarefa."));
   }
-
   return body.task;
 }
 
-export async function updateTaskById(
-  id: string,
-  input: UpdateTaskInput
-): Promise<Task> {
+export async function updateTaskById(id: string, input: UpdateTaskInput): Promise<Task> {
   const response = await fetch(`/api/tasks/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -101,24 +112,50 @@ export async function updateTaskById(
       due_date: input.dueDate,
       owner: input.assigneeName,
       status: input.status,
+      label_ids: input.labelIds,
     }),
   });
   const body = await parseJson<TaskResponse>(response);
-
   if (!response.ok || !body.task) {
-    throw new Error(body.error ?? "Erro ao atualizar tarefa.");
+    throw new Error(normalizeError(body.error, "Erro ao atualizar tarefa."));
   }
-
   return body.task;
 }
 
 export async function deleteTaskById(id: string): Promise<void> {
   const response = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-
   if (response.ok) return;
-
-  const body = await parseJson<{ error?: string }>(response).catch(
-    (): { error?: string } => ({})
-  );
+  const body = await parseJson<{ error?: string }>(response).catch((): { error?: string } => ({}));
   throw new Error(normalizeError(body.error, "Erro ao excluir tarefa."));
+}
+
+// ─── Task Labels ──────────────────────────────────────────────────────────────
+
+export async function fetchTaskLabels(): Promise<TaskLabel[]> {
+  const response = await fetch("/api/task-labels");
+  const body = await parseJson<TaskLabelsResponse>(response);
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao carregar labels."));
+  }
+  return body.labels ?? [];
+}
+
+export async function createTaskLabel(name: string, color: string): Promise<TaskLabel> {
+  const response = await fetch("/api/task-labels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color }),
+  });
+  const body = await parseJson<TaskLabelResponse>(response);
+  if (!response.ok || !body.label) {
+    throw new Error(normalizeError(body.error, "Erro ao criar label."));
+  }
+  return body.label;
+}
+
+export async function deleteTaskLabel(id: string): Promise<void> {
+  const response = await fetch(`/api/task-labels/${id}`, { method: "DELETE" });
+  if (response.ok) return;
+  const body = await parseJson<{ error?: string }>(response).catch((): { error?: string } => ({}));
+  throw new Error(normalizeError(body.error, "Erro ao excluir label."));
 }

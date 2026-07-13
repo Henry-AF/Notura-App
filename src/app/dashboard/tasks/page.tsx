@@ -1,10 +1,11 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
 import { PageHeader } from "@/components/ui/app";
 import { useKanban } from "@/hooks/useKanban";
-import type { Column, Task } from "@/components/tasks";
+import type { Column, Task, TaskLabel } from "@/components/tasks";
 import type { DropResult } from "@hello-pangea/dnd";
 import {
   SlidersHorizontal,
@@ -15,8 +16,10 @@ import {
 } from "lucide-react";
 import {
   createTask,
+  createTaskLabel,
   deleteTaskById,
   fetchTaskBoardData,
+  fetchTaskLabels,
   type TaskMeetingOption,
   updateTaskById,
 } from "./tasks-api";
@@ -826,26 +829,37 @@ function WorkspaceTasksList({
 }
 
 export default function TasksPage() {
-  const [tab, setTab] = useState<"lista" | "prazo">("lista");
+  const searchParams = useSearchParams();
+  const urlMeetingId = searchParams?.get("meetingId") ?? undefined;
+  const urlGroupId = searchParams?.get("groupId") ?? undefined;
+
+  const [tab, setTab] = useState<"lista" | "prazo">("prazo");
   const [initialColumns, setInitialColumns] = useState<Column[] | null>(null);
   const [meetings, setMeetings] = useState<TaskMeetingOption[]>([]);
+  const [labels, setLabels] = useState<TaskLabel[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const addTaskFnRef = useRef<((columnId: string) => void) | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await fetchTaskBoardData();
+        const [data, labelData] = await Promise.all([
+          fetchTaskBoardData({ meetingId: urlMeetingId, groupId: urlGroupId }),
+          fetchTaskLabels(),
+        ]);
         setInitialColumns(data.columns);
         setMeetings(data.meetings);
+        setLabels(labelData);
       } catch {
         setInitialColumns(COLUMN_DEFS.map((def) => ({ ...def, tasks: [] })));
         setMeetings([]);
+        setLabels([]);
       } finally {
         setLoadingData(false);
       }
     }
-    load();
+    void load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!initialColumns) return <LoadingState />;
@@ -856,6 +870,8 @@ export default function TasksPage() {
       onTabChange={setTab}
       initialColumns={initialColumns}
       meetings={meetings}
+      labels={labels}
+      onLabelsChange={setLabels}
       addTaskFnRef={addTaskFnRef}
       loading={loadingData}
     />
@@ -885,6 +901,8 @@ function TasksPageContent({
   onTabChange,
   initialColumns,
   meetings,
+  labels,
+  onLabelsChange,
   addTaskFnRef,
   loading,
 }: {
@@ -892,9 +910,13 @@ function TasksPageContent({
   onTabChange: (t: "lista" | "prazo") => void;
   initialColumns: Column[];
   meetings: TaskMeetingOption[];
+  labels: TaskLabel[];
+  onLabelsChange: (labels: TaskLabel[]) => void;
   addTaskFnRef: React.MutableRefObject<((columnId: string) => void) | null>;
   loading: boolean;
 }) {
+  const [filterPriority, setFilterPriority] = useState<"all" | Task["priority"]>("all");
+  const [filterLabelIds, setFilterLabelIds] = useState<string[]>([]);
   // Merge server columns with any custom columns stored in localStorage
   const mergedInitial = React.useMemo(() => {
     const customCols = loadCustomCols();
@@ -907,6 +929,26 @@ function TasksPageContent({
 
   const { columns, handleDragEnd, addTask, updateTask, deleteTask, addColumn: addColBase, removeColumn: removeColBase, renameColumn: renameColBase, resetColumns } =
     useKanban(mergedInitial);
+
+  const filteredColumns = useMemo(() => {
+    if (filterPriority === "all" && filterLabelIds.length === 0) return columns;
+    return columns.map((col) => ({
+      ...col,
+      tasks: col.tasks.filter((t) => {
+        if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+        if (filterLabelIds.length > 0) {
+          const taskLabelIds = t.labels?.map((l) => l.id) ?? [];
+          if (!filterLabelIds.some((id) => taskLabelIds.includes(id))) return false;
+        }
+        return true;
+      }),
+    }));
+  }, [columns, filterPriority, filterLabelIds]);
+
+  const handleCreateLabel = useCallback(async (name: string, color: string) => {
+    const newLabel = await createTaskLabel(name, color);
+    onLabelsChange([...labels, newLabel]);
+  }, [labels, onLabelsChange]);
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
@@ -976,6 +1018,7 @@ function TasksPageContent({
 
   async function handleSaveTask(id: string, updates: Partial<Task>) {
     const assigneeName = updates.assignees?.[0]?.name ?? updates.assignee?.name ?? null;
+    const labelIds = updates.labels?.map((l) => l.id);
     if (isDraftTask(id)) {
       const columnId = draftColumnId ?? editingTask?.columnId ?? "todo";
       const createdTask = await createTask({
@@ -985,6 +1028,7 @@ function TasksPageContent({
         assigneeName: assigneeName ?? undefined,
         columnId,
         meetingId: updates.meetingId ?? editingTask?.meetingId ?? meetings[0]?.id ?? "",
+        labelIds,
       });
       addTask(createdTask.columnId, createdTask);
       setDraftColumnId(null);
@@ -996,6 +1040,7 @@ function TasksPageContent({
       priority: updates.priority,
       dueDate: updates.dueDate,
       assigneeName,
+      labelIds,
     });
     updateTask(id, persistedTask);
   }
@@ -1031,8 +1076,8 @@ function TasksPageContent({
       `}</style>
 
       {/* Tab switcher */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgb(var(--cn-border))", marginBottom: 28 }}>
-        {(["lista", "prazo"] as const).map((t) => (
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgb(var(--cn-border))", marginBottom: 28, flexWrap: "wrap" }}>
+        {(["prazo", "lista"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -1043,12 +1088,57 @@ function TasksPageContent({
               color: tab === t ? "#6C5CE7" : "rgb(var(--cn-muted))",
               background: "none", border: "none", cursor: "pointer",
               borderBottom: tab === t ? "2px solid #6C5CE7" : "2px solid transparent",
-              marginBottom: -1, transition: "all 0.15s", textTransform: "capitalize",
+              marginBottom: -1, transition: "all 0.15s",
             }}
           >
-            {t === "lista" ? "Lista" : "Prazo"}
+            {t === "lista" ? "Lista" : "Kanban"}
           </button>
         ))}
+
+        {/* Global filter pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 12, paddingBottom: 8, flexWrap: "wrap" }}>
+          {(["all", "alta", "media", "baixa"] as const).map((p) => {
+            const labels_map = { all: "Todas", alta: "Alta", media: "Média", baixa: "Baixa" };
+            const active = filterPriority === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setFilterPriority(p)}
+                style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "Inter, sans-serif", fontWeight: 500,
+                  border: `1px solid ${active ? "#6C5CE7" : "rgb(var(--cn-border))"}`,
+                  background: active ? "rgba(108,92,231,0.12)" : "transparent",
+                  color: active ? "#6C5CE7" : "rgb(var(--cn-ink2))", cursor: "pointer", transition: "all 0.12s",
+                }}
+              >
+                {labels_map[p]}
+              </button>
+            );
+          })}
+          {labels.map((label) => {
+            const isActive = filterLabelIds.includes(label.id);
+            return (
+              <button
+                key={label.id}
+                type="button"
+                onClick={() =>
+                  setFilterLabelIds((prev) =>
+                    isActive ? prev.filter((id) => id !== label.id) : [...prev, label.id]
+                  )
+                }
+                style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 12, fontFamily: "Inter, sans-serif", fontWeight: 600,
+                  border: `1px solid ${isActive ? label.color : "rgb(var(--cn-border))"}`,
+                  background: isActive ? `${label.color}1A` : "transparent",
+                  color: isActive ? label.color : "rgb(var(--cn-ink2))", cursor: "pointer", transition: "all 0.12s",
+                }}
+              >
+                {label.name}
+              </button>
+            );
+          })}
+        </div>
         {/* Add task button */}
         <button
           type="button"
@@ -1071,7 +1161,7 @@ function TasksPageContent({
       {/* Tab content */}
       {tab === "lista" ? (
         <WorkspaceTasksList
-          columns={columns}
+          columns={filteredColumns}
           meetings={meetings}
           loading={loading}
           onToggleDone={handleToggleDone}
@@ -1102,7 +1192,7 @@ function TasksPageContent({
             </div>
           )}
           <KanbanBoard
-            columns={columns}
+            columns={filteredColumns}
             onDragEnd={handleDragEndWithPersist}
             onAddTask={handleAddTask}
             onEditTask={(task) => setEditingTask(task)}
@@ -1117,9 +1207,11 @@ function TasksPageContent({
         <TaskEditModal
           task={editingTask}
           meetings={meetings}
+          availableLabels={labels}
           onSave={handleSaveTask}
           onDelete={handleDeleteTask}
           onClose={() => { setEditingTask(null); setDraftColumnId(null); }}
+          onCreateLabel={handleCreateLabel}
         />
       )}
     </>

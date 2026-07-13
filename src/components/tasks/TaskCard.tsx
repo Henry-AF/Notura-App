@@ -2,6 +2,13 @@
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
+import Link from "next/link";
+
+export interface TaskLabel {
+  id: string;
+  name: string;
+  color: string;
+}
 
 export interface Task {
   id: string;
@@ -16,6 +23,9 @@ export interface Task {
   assignees?: { name: string; avatarUrl?: string }[];
   description?: string;
   generatedByAI?: boolean;
+  labels?: TaskLabel[];
+  groupId?: string | null;
+  source?: "ai_extracted" | "manual";
 }
 
 export interface TaskCardProps {
@@ -205,6 +215,28 @@ export function TaskCard({ task, index, onEdit }: TaskCardProps) {
               </p>
             )}
 
+            {/* Labels */}
+            {task.labels && task.labels.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {task.labels.map((label) => (
+                  <span
+                    key={label.id}
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: label.color,
+                      background: `${label.color}1A`,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    {label.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Footer */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -222,7 +254,7 @@ export function TaskCard({ task, index, onEdit }: TaskCardProps) {
                     {task.completedDate ?? task.dueDate}
                   </span>
                 )}
-                {task.generatedByAI && (
+                {task.source === "ai_extracted" && (
                   <span
                     style={{
                       fontFamily: "Inter, sans-serif",
@@ -240,7 +272,26 @@ export function TaskCard({ task, index, onEdit }: TaskCardProps) {
               <AssigneeAvatars assignees={allAssignees} />
             </div>
 
-            {task.meetingSource && !isDone && (
+            {task.meetingSource && task.meetingId && !isDone && (
+              <Link
+                href={`/dashboard/meetings/${task.meetingId}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: "block",
+                  marginTop: 7,
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 10.5,
+                  color: "#6C5CE7",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  textDecoration: "none",
+                }}
+              >
+                {task.meetingSource}
+              </Link>
+            )}
+            {task.meetingSource && !task.meetingId && !isDone && (
               <div
                 style={{
                   marginTop: 7,

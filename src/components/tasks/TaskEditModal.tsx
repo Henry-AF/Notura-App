@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useReducer, useRef } from "react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 import { X, Plus, Trash2, Calendar, AlignLeft, Flag, User, Link2 } from "lucide-react";
-import type { Task } from "./TaskCard";
+import type { Task, TaskLabel } from "./TaskCard";
+import { LabelPicker } from "./LabelPicker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,9 +15,11 @@ export interface TaskMeetingOption {
 export interface TaskEditModalProps {
   task: Task;
   meetings?: TaskMeetingOption[];
+  availableLabels?: TaskLabel[];
   onSave: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  onCreateLabel?: (name: string, color: string) => Promise<void>;
 }
 
 type TaskAssignee = { name: string; avatarUrl?: string };
@@ -90,10 +93,22 @@ function initials(name: string) {
 export function TaskEditModal({
   task,
   meetings = [],
+  availableLabels = [],
   onSave,
   onDelete,
   onClose,
+  onCreateLabel,
 }: TaskEditModalProps) {
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(
+    task.labels?.map((l) => l.id) ?? []
+  );
+
+  function toggleLabel(id: string) {
+    setSelectedLabelIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
   const [state, dispatch] = useReducer(taskEditReducer, {
     title: task.title,
     description: task.description ?? "",
@@ -128,6 +143,7 @@ export function TaskEditModal({
   function handleSave() {
     const trimmed = title.trim();
     if (!trimmed || !meetingId) return;
+    const selectedLabels = availableLabels.filter((l) => selectedLabelIds.includes(l.id));
     onSave(task.id, {
       title: trimmed,
       description: description.trim() || undefined,
@@ -136,6 +152,7 @@ export function TaskEditModal({
       meetingId,
       assignees: assignees.length > 0 ? assignees : undefined,
       assignee: assignees[0] ?? undefined,
+      labels: selectedLabels,
     });
     onClose();
   }
@@ -407,6 +424,18 @@ export function TaskEditModal({
               />
             </div>
           </div>
+
+          {/* Labels */}
+          {(availableLabels.length > 0 || onCreateLabel) && (
+            <div style={{ marginBottom: 16 }}>
+              <LabelPicker
+                availableLabels={availableLabels}
+                selectedIds={selectedLabelIds}
+                onToggle={toggleLabel}
+                onCreateLabel={onCreateLabel}
+              />
+            </div>
+          )}
 
           {/* Assignees */}
           <div style={{ marginBottom: 20 }}>

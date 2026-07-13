@@ -7,7 +7,11 @@ export async function middleware(request: NextRequest) {
   // Handle CORS for API routes
   if (request.nextUrl.pathname.startsWith("/api")) {
     const origin = request.headers.get("origin");
-    const allowedOrigins = ["http://localhost:11000", "http://localhost:21377"];
+    const allowedOrigins = [
+      "http://localhost:11000",
+      "http://localhost:21377",
+      "https://app.notura.com.br",
+    ];
     const isAllowedOrigin = origin && allowedOrigins.includes(origin);
 
     if (isAllowedOrigin) {

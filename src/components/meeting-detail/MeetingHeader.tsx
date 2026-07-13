@@ -1,11 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Calendar,
   MessageSquare,
   RefreshCw,
-  Share2,
   Pencil,
   Trash2,
   XCircle,
@@ -61,6 +60,60 @@ function ParticipantAvatars({
   );
 }
 
+function TitleWithEdit({
+  name,
+  onSave,
+}: {
+  name: string;
+  onSave: (newName: string) => Promise<void>;
+}) {
+  const [editingName, setEditingName] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (editingName === null) return;
+    const trimmed = editingName.trim();
+    setEditingName(null);
+    if (trimmed && trimmed !== name) {
+      await onSave(trimmed);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") { void handleSave(); }
+    if (e.key === "Escape") { setEditingName(null); }
+  }
+
+  if (editingName !== null) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        value={editingName}
+        onChange={(e) => setEditingName(e.target.value)}
+        onBlur={() => { void handleSave(); }}
+        onKeyDown={handleKeyDown}
+        aria-label="Nome da reunião"
+        className="w-full border-0 border-b-2 border-primary bg-transparent p-0 font-display text-3xl font-extrabold text-foreground outline-none"
+      />
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {name}
+      <button
+        type="button"
+        aria-label="Editar nome"
+        title="Editar nome"
+        onClick={() => setEditingName(name)}
+        className="inline-flex shrink-0 items-center justify-center rounded p-1 text-muted-foreground opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        <Pencil className="size-4" />
+      </button>
+    </span>
+  );
+}
+
 export interface MeetingHeaderProps {
   breadcrumbs: PageHeaderBreadcrumb[];
   clientName: string;
@@ -72,8 +125,7 @@ export interface MeetingHeaderProps {
   isRetrying?: boolean;
   onCancelProcessing?: () => void;
   isCancelingProcessing?: boolean;
-  onShare: () => void;
-  onEdit: () => void;
+  onRenameTitle: (name: string) => Promise<void>;
   onDelete: () => void;
 }
 
@@ -88,14 +140,13 @@ export function MeetingHeader({
   isRetrying = false,
   onCancelProcessing,
   isCancelingProcessing = false,
-  onShare,
-  onEdit,
+  onRenameTitle,
   onDelete,
 }: MeetingHeaderProps) {
   return (
     <PageHeader
       breadcrumbs={breadcrumbs}
-      title={clientName}
+      title={<TitleWithEdit name={clientName} onSave={onRenameTitle} />}
       description={
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -152,33 +203,14 @@ export function MeetingHeader({
           ) : null}
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={onShare}
-            className="w-full sm:w-auto"
-          >
-            <Share2 className="size-4" />
-            Compartilhar
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            className="w-full sm:w-auto"
-          >
-            <Pencil className="size-4" />
-            Editar
-          </Button>
-          <Button
-            type="button"
             variant="danger"
             size="sm"
             onClick={onDelete}
-            className="w-full sm:w-auto"
+            aria-label="Excluir reunião"
+            title="Excluir reunião"
+            className="w-9 px-0 sm:w-9"
           >
             <Trash2 className="size-4" />
-            Excluir
           </Button>
         </div>
       }

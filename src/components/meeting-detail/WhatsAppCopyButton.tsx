@@ -5,10 +5,15 @@ import { Clipboard, Check } from "lucide-react";
 
 export interface WhatsAppCopyButtonProps {
   text: string;
+  label?: string;
   onCopy?: () => void;
 }
 
-export function WhatsAppCopyButton({ text, onCopy }: WhatsAppCopyButtonProps) {
+export function WhatsAppCopyButton({
+  text,
+  label = "Copiar para WhatsApp",
+  onCopy,
+}: WhatsAppCopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -26,45 +31,16 @@ export function WhatsAppCopyButton({ text, onCopy }: WhatsAppCopyButtonProps) {
     <button
       type="button"
       onClick={handleCopy}
-      style={{
-        background: copied ? "#1DAA52" : "#25D366",
-        color: "#FFFFFF",
-        borderRadius: 8,
-        padding: "10px 18px",
-        fontFamily: "Inter, sans-serif",
-        fontWeight: 700,
-        fontSize: 12,
-        letterSpacing: "0.04em",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        border: "none",
-        cursor: "pointer",
-        transition: "background 0.15s, transform 0.1s",
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-      onMouseEnter={(e) => {
-        if (!copied)
-          (e.currentTarget as HTMLButtonElement).style.background = "#1DAA52";
-      }}
-      onMouseLeave={(e) => {
-        if (!copied)
-          (e.currentTarget as HTMLButtonElement).style.background = "#25D366";
-      }}
-      onMouseDown={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.97)";
-      }}
-      onMouseUp={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-      }}
+      aria-label={copied ? "Copiado!" : label}
+      className="inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-[13px] font-medium transition-opacity hover:opacity-75"
+      style={{ color: "#5341CD" }}
     >
       {copied ? (
-        <Check style={{ width: 14, height: 14 }} />
+        <Check className="size-3.5 shrink-0" />
       ) : (
-        <Clipboard style={{ width: 14, height: 14 }} />
+        <Clipboard className="size-3.5 shrink-0" />
       )}
-      {copied ? "✓ Copiado!" : "Copiar para WhatsApp"}
+      {copied ? "Copiado!" : label}
     </button>
   );
 }

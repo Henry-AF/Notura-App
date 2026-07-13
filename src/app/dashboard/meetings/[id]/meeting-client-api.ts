@@ -254,6 +254,20 @@ export async function mergeMeetingParticipant(
   };
 }
 
+// ─── Meeting title update ─────────────────────────────────────────────────────
+
+export async function updateMeetingTitle(id: string, title: string): Promise<void> {
+  const response = await fetch(`/api/meetings/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  const body = await parseJson<{ error?: string }>(response);
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao atualizar nome da reunião."));
+  }
+}
+
 // ─── Meeting delete ───────────────────────────────────────────────────────────
 
 interface MeetingDeleteResponse {

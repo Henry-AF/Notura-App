@@ -12,6 +12,7 @@ import {
   KeyDecisionCard,
   AlertPointCard,
   MeetingChatSheet,
+  WhatsAppCopyButton,
 } from "@/components/meeting-detail";
 import type { MeetingTab, MeetingTask } from "@/components/meeting-detail";
 import { KanbanBoard, TaskEditModal } from "@/components/tasks";
@@ -32,6 +33,7 @@ import {
   mergeMeetingParticipant,
   retryMeetingProcessing,
   updateMeetingParticipantDisplayName,
+  updateMeetingTitle,
 } from "./meeting-client-api";
 import type { MeetingDetailData, MeetingParticipantDisplay } from "./meeting-types";
 import {
@@ -212,7 +214,8 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   const meeting = initialMeeting ?? EMPTY_MEETING_DETAIL;
 
   // Meeting info
-  const clientName = meeting.clientName;
+  const [titleOverride, setTitleOverride] = React.useState<string | null>(null);
+  const clientName = titleOverride ?? meeting.clientName;
   const meetingDate = meeting.meetingDate;
   const detectedParticipants = meeting.participants;
   const detectedEntities = meeting.entities;
@@ -487,12 +490,18 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     [show, taskColumnById, tasks]
   );
 
-  const handleShare = useCallback(() => {
-    navigator.clipboard
-      .writeText(window.location.href)
-      .catch(() => {})
-      .finally(() => show("Link copiado para a área de transferência.", "success"));
-  }, [show]);
+  const handleRenameTitle = useCallback(async (newTitle: string) => {
+    try {
+      await updateMeetingTitle(id, newTitle);
+      setTitleOverride(newTitle);
+      show("Nome da reunião atualizado.", "success");
+    } catch (error) {
+      show(
+        error instanceof Error ? error.message : "Erro ao atualizar nome da reunião.",
+        "error"
+      );
+    }
+  }, [id, show]);
 
   const handleExport = useCallback(async () => {
     show("Gerando exportação...", "warning");
@@ -653,18 +662,28 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
               padding: "24px",
             }}
           >
-            <p
+            <div
               style={{
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgb(var(--cn-muted))",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
                 marginBottom: 16,
               }}
             >
-              Transcrição
-            </p>
+              <p
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                  color: "rgb(var(--cn-muted))",
+                  margin: 0,
+                }}
+              >
+                Transcrição
+              </p>
+              <WhatsAppCopyButton text={transcript} label="Copiar transcrição" />
+            </div>
             <pre
               style={{
                 fontFamily: "Inter, monospace",
@@ -890,8 +909,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
               ? () => dispatch({ type: "patched", value: { isChatOpen: true } })
               : undefined
           }
-          onShare={handleShare}
-          onEdit={() => router.push(`/dashboard/meetings/${id}/edit`)}
+          onRenameTitle={handleRenameTitle}
           onDelete={() =>
             dispatch({ type: "patched", value: { isDeleteDialogOpen: true } })
           }

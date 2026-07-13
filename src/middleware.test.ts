@@ -62,6 +62,40 @@ describe("middleware CORS (API)", () => {
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:11000");
     expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
   });
+
+  it("returns 204 for OPTIONS from the app.notura.com.br origin", async () => {
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/api/meetings", {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.notura.com.br",
+        "access-control-request-headers": "authorization,content-type",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://app.notura.com.br");
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe("authorization,content-type");
+  });
+
+  it("adds CORS headers on non-OPTIONS requests from the app.notura.com.br origin", async () => {
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/api/meetings", {
+      method: "GET",
+      headers: {
+        origin: "https://app.notura.com.br",
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://app.notura.com.br");
+    expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+  });
 });
 
 describe("middleware auth", () => {

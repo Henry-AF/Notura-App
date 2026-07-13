@@ -45,6 +45,8 @@ describe("new meeting api client", () => {
     expect(result).toEqual({
       accountWhatsappNumber: "5511999999999",
       canSendWhatsAppSummary: true,
+      canProcessMeetings: true,
+      meetingQuotaMessage: "",
       meetingGroups: [],
     });
   });

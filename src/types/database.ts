@@ -877,6 +877,27 @@ export interface Database {
           }
         ]
       }
+      integration_interest: {
+        Row: {
+          id: string
+          user_id: string
+          channel: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          channel: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          channel?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1005,6 +1026,8 @@ export type MeetingTranscriptChunk =
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 export type MeetingChatAiMetric =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
+export type IntegrationInterest =
+  Database["public"]["Tables"]["integration_interest"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

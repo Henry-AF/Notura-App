@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   UserPlus,
   Search,
@@ -17,10 +17,18 @@ import {
   FileText,
   Zap,
   Users,
+  Chrome,
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/app";
 import { cn } from "@/lib/utils";
+import { IntegrationWaitlistAction } from "@/components/integrations/IntegrationWaitlistAction";
+import { ToastProvider, useToast } from "@/components/upload/Toast";
+import {
+  fetchIntegrationInterest,
+  registerIntegrationInterest,
+  type IntegrationChannel,
+} from "./contacts-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +42,7 @@ interface Contact {
   color: string;
 }
 
-interface Integration {
+interface BaseIntegration {
   id: string;
   name: string;
   description: string;
@@ -44,6 +52,14 @@ interface Integration {
   available: boolean;
   category: "calendar" | "video" | "productivity" | "messaging";
 }
+
+/**
+ * "waitlist" integrations have no real connection yet — the card offers a
+ * "Quero ser avisado" waitlist action instead of a fake connect toggle.
+ */
+type Integration =
+  | (BaseIntegration & { mode?: undefined })
+  | (BaseIntegration & { mode: "waitlist"; channel: IntegrationChannel });
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -96,22 +112,39 @@ const mockContacts: Contact[] = [
 const mockIntegrations: Integration[] = [
   {
     id: "google-calendar",
-    name: "Google Calendar",
-    description: "Busca reuniões automaticamente do\nseu calendário Google.",
+    name: "Google Agenda",
+    description:
+      "Em breve — saiba quando é a próxima\nreunião do seu cliente.",
     icon: Calendar,
-    isConnected: true,
-    connectedAs: "henry@empresa.com",
+    isConnected: false,
     available: true,
     category: "calendar",
+    mode: "waitlist",
+    channel: "google_calendar",
   },
   {
     id: "zoom",
     name: "Zoom",
-    description: "Transcreve e resume suas reuniões\nZoom automaticamente.",
+    description:
+      "Em breve — avisaremos quando a transcrição\nautomática de reuniões Zoom estiver disponível.",
     icon: Video,
     isConnected: false,
     available: true,
     category: "video",
+    mode: "waitlist",
+    channel: "zoom",
+  },
+  {
+    id: "chrome-extension",
+    name: "Extensão Chrome",
+    description:
+      "Em breve — avisaremos quando a extensão para\ngravar reuniões no navegador estiver disponível.",
+    icon: Chrome,
+    isConnected: false,
+    available: true,
+    category: "productivity",
+    mode: "waitlist",
+    channel: "chrome_extension",
   },
   {
     id: "slack",
@@ -153,9 +186,75 @@ const mockIntegrations: Integration[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function IntegrationCard({ integration }: { integration: Integration }) {
+function WaitlistIntegrationCard({
+  integration,
+  registered,
+  pending,
+  onRegisterInterest,
+}: {
+  integration: Extract<Integration, { mode: "waitlist" }>;
+  registered: boolean;
+  pending: boolean;
+  onRegisterInterest: (channel: IntegrationChannel) => void;
+}) {
+  const Icon = integration.icon;
+
+  return (
+    <div className="rounded-2xl border border-notura-border/20 bg-notura-surface p-5 transition-all duration-200">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-notura-surface-2">
+            <Icon className="size-5 text-notura-ink-secondary" />
+          </div>
+          <p className="font-manrope font-extrabold text-sm tracking-[-0.2px] text-notura-ink">
+            {integration.name}
+          </p>
+        </div>
+
+        <span className="inline-flex shrink-0 items-center rounded-full bg-notura-surface-2 px-2.5 py-1 text-xs font-medium text-notura-ink-secondary">
+          Em breve
+        </span>
+      </div>
+
+      <p className="mb-5 text-sm leading-relaxed text-notura-ink-secondary">
+        {integration.description.replace("\n", " ")}
+      </p>
+
+      <IntegrationWaitlistAction
+        channel={integration.channel}
+        registered={registered}
+        pending={pending}
+        onRegister={onRegisterInterest}
+        variant="block"
+      />
+    </div>
+  );
+}
+
+function IntegrationCard({
+  integration,
+  registeredChannels,
+  registeringChannel,
+  onRegisterInterest,
+}: {
+  integration: Integration;
+  registeredChannels: IntegrationChannel[];
+  registeringChannel: IntegrationChannel | null;
+  onRegisterInterest: (channel: IntegrationChannel) => void;
+}) {
   const [connected, setConnected] = useState(integration.isConnected);
   const Icon = integration.icon;
+
+  if (integration.mode === "waitlist") {
+    return (
+      <WaitlistIntegrationCard
+        integration={integration}
+        registered={registeredChannels.includes(integration.channel)}
+        pending={registeringChannel === integration.channel}
+        onRegisterInterest={onRegisterInterest}
+      />
+    );
+  }
 
   return (
     <div
@@ -468,13 +567,35 @@ function ContactRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ContactsPage() {
+function ContactsPageInner() {
+  const { show } = useToast();
   const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"all" | "active" | "inactive">(
     "all"
   );
+  const [registeredChannels, setRegisteredChannels] = useState<
+    IntegrationChannel[]
+  >([]);
+  const [registeringChannel, setRegisteringChannel] =
+    useState<IntegrationChannel | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchIntegrationInterest()
+      .then((channels) => {
+        if (!cancelled) setRegisteredChannels(channels);
+      })
+      .catch(() => {
+        if (!cancelled) show("Erro ao carregar integrações.", "error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [show]);
 
   const filtered = contacts.filter((c) => {
     const matchSearch =
@@ -499,6 +620,25 @@ export default function ContactsPage() {
   const handleDelete = (id: string) => {
     setContacts((prev) => prev.filter((c) => c.id !== id));
   };
+
+  const handleRegisterInterest = useCallback(
+    async (channel: IntegrationChannel) => {
+      setRegisteringChannel(channel);
+
+      try {
+        await registerIntegrationInterest(channel);
+        setRegisteredChannels((prev) =>
+          prev.includes(channel) ? prev : [...prev, channel]
+        );
+        show("Você será avisado assim que essa integração estiver disponível.", "success");
+      } catch {
+        show("Erro ao registrar interesse na integração.", "error");
+      } finally {
+        setRegisteringChannel(null);
+      }
+    },
+    [show]
+  );
 
   return (
     <>
@@ -647,7 +787,13 @@ export default function ContactsPage() {
           {/* Integration grid */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {mockIntegrations.map((integration) => (
-              <IntegrationCard key={integration.id} integration={integration} />
+              <IntegrationCard
+                key={integration.id}
+                integration={integration}
+                registeredChannels={registeredChannels}
+                registeringChannel={registeringChannel}
+                onRegisterInterest={handleRegisterInterest}
+              />
             ))}
           </div>
 
@@ -665,5 +811,13 @@ export default function ContactsPage() {
       {/* ── Add Contact Modal ──────────────────────────────────────────────── */}
       {showModal && <AddContactModal onClose={() => setShowModal(false)} />}
     </>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <ToastProvider>
+      <ContactsPageInner />
+    </ToastProvider>
   );
 }

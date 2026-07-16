@@ -6,6 +6,7 @@ import {
   ProfileCard,
   SubscriptionCard,
   IntegrationsCard,
+  ComingSoonIntegrations,
   PreferencesCard,
   DangerZone,
 } from "@/components/settings";
@@ -21,7 +22,10 @@ import {
   updateCurrentUser,
   updateBillingAutoRenew,
   verifySettingsPayment,
+  fetchIntegrationInterest,
+  registerIntegrationInterest,
   type CurrentUser,
+  type IntegrationChannel,
 } from "./settings-api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,6 +67,8 @@ type SettingsPageState = {
   showPlanModal: boolean;
   integrations: Integration[];
   preferences: Preference[];
+  integrationInterestChannels: IntegrationChannel[];
+  registeringChannel: IntegrationChannel | null;
 };
 
 type SettingsPageAction =
@@ -77,7 +83,10 @@ type SettingsPageAction =
       currentPeriodEnd: string | null;
       renewalStatus: string;
     }
-  | { type: "planModalChanged"; value: boolean };
+  | { type: "planModalChanged"; value: boolean }
+  | { type: "integrationInterestLoaded"; channels: IntegrationChannel[] }
+  | { type: "integrationInterestRegistered"; channel: IntegrationChannel }
+  | { type: "registeringChannelChanged"; channel: IntegrationChannel | null };
 
 function buildIntegrations(user: CurrentUser): Integration[] {
   return [
@@ -161,6 +170,19 @@ function settingsPageReducer(
       };
     case "planModalChanged":
       return { ...state, showPlanModal: action.value };
+    case "integrationInterestLoaded":
+      return { ...state, integrationInterestChannels: action.channels };
+    case "integrationInterestRegistered":
+      return {
+        ...state,
+        integrationInterestChannels: state.integrationInterestChannels.includes(
+          action.channel
+        )
+          ? state.integrationInterestChannels
+          : [...state.integrationInterestChannels, action.channel],
+      };
+    case "registeringChannelChanged":
+      return { ...state, registeringChannel: action.channel };
   }
 }
 
@@ -196,6 +218,8 @@ function SettingsPageInner() {
       },
     ],
     preferences: buildPreferences(theme === "dark"),
+    integrationInterestChannels: [],
+    registeringChannel: null,
   });
   const {
     loading,
@@ -213,6 +237,8 @@ function SettingsPageInner() {
     showPlanModal,
     integrations,
     preferences,
+    integrationInterestChannels,
+    registeringChannel,
   } = state;
 
   const applyUser = useCallback((user: CurrentUser) => {
@@ -221,8 +247,12 @@ function SettingsPageInner() {
 
   const loadUser = useCallback(async () => {
     try {
-      const user = await fetchCurrentUser();
+      const [user, channels] = await Promise.all([
+        fetchCurrentUser(),
+        fetchIntegrationInterest(),
+      ]);
       applyUser(user);
+      dispatch({ type: "integrationInterestLoaded", channels });
     } catch {
       show("Erro ao carregar configurações.", "error");
     } finally {
@@ -384,6 +414,23 @@ function SettingsPageInner() {
     [show]
   );
 
+  const handleRegisterInterest = useCallback(
+    async (channel: IntegrationChannel) => {
+      dispatch({ type: "registeringChannelChanged", channel });
+
+      try {
+        await registerIntegrationInterest(channel);
+        dispatch({ type: "integrationInterestRegistered", channel });
+        show("Você será avisado assim que essa integração estiver disponível.", "success");
+      } catch {
+        show("Erro ao registrar interesse na integração.", "error");
+      } finally {
+        dispatch({ type: "registeringChannelChanged", channel: null });
+      }
+    },
+    [show]
+  );
+
   const handleDeleteAccount = useCallback(async () => {
     const res = await fetch("/api/user/account", { method: "DELETE" });
     if (!res.ok) {
@@ -470,6 +517,17 @@ function SettingsPageInner() {
         {/* Row 3 – full width */}
         <div
           style={{ animation: "cardFadeIn 0.3s ease-out both", animationDelay: "240ms" }}
+        >
+          <ComingSoonIntegrations
+            registeredChannels={integrationInterestChannels}
+            registeringChannel={registeringChannel}
+            onRegisterInterest={handleRegisterInterest}
+          />
+        </div>
+
+        {/* Row 4 – full width */}
+        <div
+          style={{ animation: "cardFadeIn 0.3s ease-out both", animationDelay: "300ms" }}
         >
           <DangerZone onDeleteAccount={handleDeleteAccount} />
         </div>

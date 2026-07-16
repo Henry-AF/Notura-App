@@ -19,6 +19,12 @@ export type {
   UpdateCurrentUserInput,
 } from "@/lib/user/current-user-types";
 
+export {
+  registerIntegrationInterest,
+  fetchIntegrationInterest,
+} from "@/lib/integrations/integration-interest-client";
+export type { IntegrationChannel } from "@/lib/integrations/integration-interest";
+
 interface VerifySettingsPaymentResponse {
   error?: string;
 }

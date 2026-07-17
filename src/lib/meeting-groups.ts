@@ -9,6 +9,7 @@ export interface MeetingGroupListItem {
   name: string;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   meetings_count: number;
 }
 
@@ -59,12 +60,21 @@ function countMeetingsByGroup(meetings: MeetingGroupMeeting[]) {
   }, {});
 }
 
-async function fetchGroupRows(supabaseAdmin: SupabaseAdminClient, userId: string) {
-  const { data, error } = await supabaseAdmin
+async function fetchGroupRows(
+  supabaseAdmin: SupabaseAdminClient,
+  userId: string,
+  includeArchived: boolean
+) {
+  let query = supabaseAdmin
     .from("meeting_groups")
-    .select("id, name, created_at, updated_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .select("id, name, created_at, updated_at, archived_at")
+    .eq("user_id", userId);
+
+  if (!includeArchived) {
+    query = query.is("archived_at", null);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
     throw new Error("Erro ao carregar grupos.");
@@ -92,10 +102,11 @@ async function fetchMeetingRows(
 
 export async function getMeetingGroupsSnapshotForUser(
   supabaseAdmin: SupabaseAdminClient,
-  userId: string
+  userId: string,
+  includeArchived = false
 ): Promise<MeetingGroupsSnapshot> {
   const [groups, meetings] = await Promise.all([
-    fetchGroupRows(supabaseAdmin, userId),
+    fetchGroupRows(supabaseAdmin, userId, includeArchived),
     fetchMeetingRows(supabaseAdmin, userId),
   ]);
   const counts = countMeetingsByGroup(meetings);
@@ -110,14 +121,17 @@ export async function getMeetingGroupsSnapshotForUser(
 }
 
 export async function getOwnedMeetingGroupsSnapshotForAuth(
-  auth: RouteAuthContext
+  auth: RouteAuthContext,
+  includeArchived = false
 ): Promise<MeetingGroupsSnapshot> {
-  return getMeetingGroupsSnapshotForUser(auth.supabaseAdmin, auth.user.id);
+  return getMeetingGroupsSnapshotForUser(auth.supabaseAdmin, auth.user.id, includeArchived);
 }
 
-export async function getOwnedMeetingGroupsSnapshot(): Promise<MeetingGroupsSnapshot> {
+export async function getOwnedMeetingGroupsSnapshot(
+  includeArchived = false
+): Promise<MeetingGroupsSnapshot> {
   const auth = await requireAuth();
-  return getOwnedMeetingGroupsSnapshotForAuth(auth);
+  return getOwnedMeetingGroupsSnapshotForAuth(auth, includeArchived);
 }
 
 export async function createMeetingGroupForUser(
@@ -129,7 +143,7 @@ export async function createMeetingGroupForUser(
   const { data, error } = await supabaseAdmin
     .from("meeting_groups")
     .insert({ user_id: userId, name: normalizedName })
-    .select("id, name, created_at, updated_at")
+    .select("id, name, created_at, updated_at, archived_at")
     .single();
 
   if (error || !data) {
@@ -151,7 +165,28 @@ export async function updateMeetingGroupForUser(
     .from("meeting_groups")
     .update({ name: normalizedName })
     .eq("id", groupId)
-    .select("id, name, created_at, updated_at")
+    .select("id, name, created_at, updated_at, archived_at")
+    .single();
+
+  if (error || !data) {
+    throw new Error("Erro ao atualizar grupo.");
+  }
+
+  return { ...data, meetings_count: 0 };
+}
+
+export async function setMeetingGroupArchivedForUser(
+  supabaseAdmin: SupabaseAdminClient,
+  userId: string,
+  groupId: string,
+  archived: boolean
+): Promise<MeetingGroupListItem> {
+  await requireOwnership(supabaseAdmin, "meeting_groups", groupId, userId);
+  const { data, error } = await supabaseAdmin
+    .from("meeting_groups")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", groupId)
+    .select("id, name, created_at, updated_at, archived_at")
     .single();
 
   if (error || !data) {

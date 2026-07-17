@@ -8,6 +8,7 @@ export interface MeetingGroupOption {
 export interface MeetingGroupClientItem extends MeetingGroupOption {
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
   meetingsCount: number;
 }
 
@@ -29,6 +30,7 @@ interface MeetingGroupsApiGroup {
   name: string;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   meetings_count: number;
 }
 
@@ -65,6 +67,7 @@ function mapGroup(group: MeetingGroupsApiGroup): MeetingGroupClientItem {
     name: group.name,
     createdAt: group.created_at,
     updatedAt: group.updated_at,
+    archivedAt: group.archived_at,
     meetingsCount: group.meetings_count,
   };
 }
@@ -96,8 +99,11 @@ function mapSnapshot(
   };
 }
 
-export async function fetchMeetingGroupsSnapshot() {
-  const response = await fetch("/api/meeting-groups", { method: "GET" });
+export async function fetchMeetingGroupsSnapshot(includeArchived = false) {
+  const url = includeArchived
+    ? "/api/meeting-groups?include_archived=1"
+    : "/api/meeting-groups";
+  const response = await fetch(url, { method: "GET" });
   const body = await parseJson<MeetingGroupsApiResponse>(response);
 
   if (!response.ok) {
@@ -142,6 +148,29 @@ export async function updateMeetingGroup(
 
   if (!response.ok || !body.group) {
     throw new Error(normalizeError(body.error, "Erro ao atualizar grupo."));
+  }
+
+  return mapGroup(body.group);
+}
+
+export async function archiveMeetingGroup(
+  groupId: string,
+  archived: boolean
+): Promise<MeetingGroupClientItem> {
+  const response = await fetch(`/api/meeting-groups/${groupId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ archived }),
+  });
+  const body = await parseJson<MeetingGroupMutationResponse>(response);
+
+  if (!response.ok || !body.group) {
+    throw new Error(
+      normalizeError(
+        body.error,
+        archived ? "Erro ao arquivar grupo." : "Erro ao desarquivar grupo."
+      )
+    );
   }
 
   return mapGroup(body.group);

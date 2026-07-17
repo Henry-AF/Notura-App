@@ -28,4 +28,14 @@ describe("groups client presentation", () => {
     expect(source).toContain('className="min-w-0 overflow-hidden"');
     expect(source).toContain('className="h-10 w-full min-w-0 rounded-lg sm:min-w-[220px]"');
   });
+
+  it("offers archive instead of hard delete, with an active/archived toggle", () => {
+    const source = readSource();
+
+    expect(source).toContain("Arquivar grupo?");
+    expect(source).toContain("Desarquivar");
+    expect(source).toContain("Ativos");
+    expect(source).toContain("Arquivados");
+    expect(source).not.toContain("Deletar grupo?");
+  });
 });

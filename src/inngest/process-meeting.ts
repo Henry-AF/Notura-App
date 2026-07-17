@@ -22,7 +22,12 @@ import {
   generateMeetingSummary,
   PROMPT_VERSION,
 } from "@/lib/gemini";
-import { indexMeetingTranscriptChunks } from "@/lib/meetings/rag";
+import {
+  buildCheckpointFingerprint,
+  purgeMeetingCheckpoints,
+  withCheckpoint,
+} from "@/lib/jobs/checkpoints";
+import { indexTranscriptChunksWithCheckpoints } from "@/lib/jobs/checkpointed-transcript-indexing";
 import { upsertMeetingParticipants } from "@/lib/meetings/participants";
 import { rewriteStructuredSummaryRefs } from "@/lib/meetings/summary-structured";
 import {
@@ -77,6 +82,9 @@ type TranscriptionStepResult = {
   transcript: string;
   durationSeconds: number | null;
   utterances: TranscriptResult["utterances"] | null;
+};
+type TranscriptionCheckpointPayload = TranscriptionStepResult & {
+  transcriptId: string;
 };
 type WhatsAppSummaryAccess = Awaited<ReturnType<typeof getWhatsAppSummaryAccess>>;
 type ProcessingLogStep = ProcessingStepName | "validate-event-data" | null;
@@ -454,27 +462,45 @@ async function runTranscriptionStep(input: {
   supabase: ServiceRoleClient;
   jobId: string;
   meetingId: string;
+  userId: string;
   r2Key: string;
 }): Promise<TranscriptionStepResult> {
   return runTrackedProcessingStep({
     ...input,
     name: "transcribe",
     fn: async () => {
-      const transcriptResult = await fetchAssemblyTranscript(input.r2Key);
-      const formattedTranscript = formatTranscriptText(transcriptResult);
-      const durationSeconds = resolveTranscriptDurationSeconds(transcriptResult);
+      const payload = await withCheckpoint<TranscriptionCheckpointPayload>({
+        supabase: input.supabase,
+        meetingId: input.meetingId,
+        jobId: input.jobId,
+        userId: input.userId,
+        stepName: "transcribe",
+        fingerprint: buildCheckpointFingerprint([input.r2Key]),
+        execute: async () => {
+          const transcriptResult = await fetchAssemblyTranscript(input.r2Key);
+          return {
+            transcript: formatTranscriptText(transcriptResult),
+            durationSeconds: resolveTranscriptDurationSeconds(transcriptResult),
+            utterances: transcriptResult.utterances ?? null,
+            transcriptId: transcriptResult.id,
+          };
+        },
+      });
+
+      // Idempotent materialization — runs on fresh results and checkpoint
+      // hits alike, so a Postgres outage here never re-calls AssemblyAI.
       await saveTranscriptMetadata({
         supabase: input.supabase,
         meetingId: input.meetingId,
-        transcript: formattedTranscript,
-        durationSeconds,
-        transcriptId: transcriptResult.id,
+        transcript: payload.transcript,
+        durationSeconds: payload.durationSeconds,
+        transcriptId: payload.transcriptId,
       });
 
       return {
-        transcript: formattedTranscript,
-        durationSeconds,
-        utterances: transcriptResult.utterances ?? null,
+        transcript: payload.transcript,
+        durationSeconds: payload.durationSeconds,
+        utterances: payload.utterances,
       };
     },
   });
@@ -604,9 +630,10 @@ async function runIndexTranscriptStep(input: {
     ...input,
     name: "index-transcript-chunks",
     fn: async () => {
-      await indexMeetingTranscriptChunks({
+      await indexTranscriptChunksWithCheckpoints({
         supabase: input.supabase,
         meetingId: input.meetingId,
+        jobId: input.jobId,
         userId: input.userId,
         transcript: input.transcript,
         utterances: input.utterances,
@@ -629,15 +656,28 @@ async function runSummaryStep(input: {
     ...input,
     name: "summarize-meeting",
     fn: async () => {
-      try {
-        return await generateMeetingSummary(
+      return await withCheckpoint({
+        supabase: input.supabase,
+        meetingId: input.meetingId,
+        jobId: input.jobId,
+        userId: input.userId,
+        stepName: "summarize-meeting",
+        fingerprint: buildCheckpointFingerprint([
           input.transcript,
-          input.durationSeconds,
-          { distinctId: input.userId, traceId: input.meetingId }
-        );
-      } catch (error) {
-        throw toProviderQueueError("gemini", error);
-      }
+          PROMPT_VERSION,
+        ]),
+        execute: async () => {
+          try {
+            return await generateMeetingSummary(
+              input.transcript,
+              input.durationSeconds,
+              { distinctId: input.userId, traceId: input.meetingId }
+            );
+          } catch (error) {
+            throw toProviderQueueError("gemini", error);
+          }
+        },
+      });
     },
   });
 }
@@ -890,6 +930,7 @@ async function runCleanupStep(input: {
   supabase: ServiceRoleClient;
   jobId: string;
   meetingId: string;
+  userId: string;
   r2Key: string;
 }) {
   await runTrackedProcessingStep({
@@ -911,6 +952,15 @@ async function runCleanupStep(input: {
       }
 
       await completeProcessingJob(input.supabase, input.jobId);
+
+      // Best-effort: checkpoints already served their purpose once the job
+      // completed; purging keeps the table bounded. Never fails the step.
+      await purgeMeetingCheckpoints({
+        supabase: input.supabase,
+        meetingId: input.meetingId,
+        jobId: input.jobId,
+        userId: input.userId,
+      });
     },
   });
 }
@@ -1091,6 +1141,7 @@ async function runProcessingSteps(input: ProcessingStepsInput) {
     supabase,
     jobId,
     meetingId: eventData.meetingId,
+    userId: eventData.userId,
     r2Key: eventData.r2Key,
   });
 
@@ -1149,6 +1200,7 @@ async function runSummarySaveAndDelivery(
     supabase,
     jobId,
     meetingId: eventData.meetingId,
+    userId: eventData.userId,
     r2Key: eventData.r2Key,
   });
 

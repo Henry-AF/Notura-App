@@ -8,6 +8,8 @@ export { SubscriptionCard } from "./SubscriptionCard";
 export type { SubscriptionCardProps } from "./SubscriptionCard";
 export { IntegrationsCard } from "./IntegrationsCard";
 export type { Integration, IntegrationsCardProps } from "./IntegrationsCard";
+export { ComingSoonIntegrations } from "./ComingSoonIntegrations";
+export type { ComingSoonIntegrationsProps } from "./ComingSoonIntegrations";
 export { PreferencesCard } from "./PreferencesCard";
 export type { Preference, PreferencesCardProps } from "./PreferencesCard";
 export { DangerZone } from "./DangerZone";

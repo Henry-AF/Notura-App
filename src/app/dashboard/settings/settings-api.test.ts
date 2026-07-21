@@ -143,4 +143,35 @@ describe("settings api client", () => {
       body: JSON.stringify({ source: "settings" }),
     });
   });
+
+  it("fetches registered integration interest channels", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ channels: ["zoom"] }), { status: 200 })
+    );
+
+    const mod = await import("./settings-api");
+    const channels = await mod.fetchIntegrationInterest();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/integration-interest", {
+      method: "GET",
+    });
+    expect(channels).toEqual(["zoom"]);
+  });
+
+  it("registers integration interest for a channel", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ channel: "chrome_extension" }), {
+        status: 200,
+      })
+    );
+
+    const mod = await import("./settings-api");
+    await mod.registerIntegrationInterest("chrome_extension");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/integration-interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "chrome_extension" }),
+    });
+  });
 });

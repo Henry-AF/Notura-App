@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOwnership, withAuth } from "@/lib/api/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/database";
-import { TASK_SELECT, mapTaskRowToBoardTask, normalizeTaskStatus, toDatabasePriority } from "../task-mapper";
-
-type TaskUpdate = Database["public"]["Tables"]["tasks"]["Update"];
+import { TASK_SELECT, buildUpdatePayload, mapTaskRowToBoardTask } from "@/lib/tasks/task-mapper";
 
 async function syncTaskLabels(
   supabase: ReturnType<typeof createServiceRoleClient>,
@@ -16,28 +13,6 @@ async function syncTaskLabels(
   await supabase
     .from("task_label_map")
     .insert(labelIds.map((id) => ({ task_id: taskId, label_id: id })));
-}
-
-function buildUpdatePayload(data: Record<string, unknown>): TaskUpdate {
-  const payload: TaskUpdate = {};
-  if (typeof data.description === "string") payload.description = data.description.trim();
-  if (typeof data.priority === "string") payload.priority = toDatabasePriority(data.priority);
-  if (typeof data.owner === "string" || data.owner === null) payload.owner = data.owner;
-  if (typeof data.due_date === "string" || data.due_date === null) payload.due_date = data.due_date;
-  if (typeof data.group_id === "string" || data.group_id === null) payload.group_id = data.group_id;
-  if (typeof data.status === "string" || typeof data.kanban_status === "string") {
-    const next = normalizeTaskStatus(
-      typeof data.status === "string" ? data.status : (data.kanban_status as string)
-    );
-    payload.status = next;
-    payload.completed = next === "completed";
-    payload.completed_at = next === "completed" ? new Date().toISOString() : null;
-  } else if (typeof data.completed === "boolean") {
-    payload.completed = data.completed;
-    payload.status = data.completed ? "completed" : "todo";
-    payload.completed_at = data.completed ? new Date().toISOString() : null;
-  }
-  return payload;
 }
 
 // PATCH /api/tasks/:id

@@ -934,11 +934,11 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         <TaskEditModal
           task={editingTask}
           meetings={taskMeetingOptions}
-          onSave={(taskId, updates) => {
-            void handleSaveTask(taskId, updates).catch(() => {
+          onSave={(taskId, updates) =>
+            handleSaveTask(taskId, updates).catch(() => {
               show("Erro ao salvar tarefa.", "error");
-            });
-          }}
+            })
+          }
           onDelete={(taskId) => {
             void handleDeleteTask(taskId).catch(() => {
               show("Erro ao excluir tarefa.", "error");

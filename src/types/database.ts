@@ -937,6 +937,39 @@ export interface Database {
           }
         ]
       }
+      meeting_templates: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          r2_key: string
+          original_filename: string | null
+          placeholders: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          r2_key: string
+          original_filename?: string | null
+          placeholders?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          r2_key?: string
+          original_filename?: string | null
+          placeholders?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       integration_interest: {
         Row: {
           id: string
@@ -1087,6 +1120,8 @@ export type JobCheckpoint = Database["public"]["Tables"]["job_checkpoints"]["Row
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 export type MeetingChatAiMetric =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
+export type MeetingTemplate =
+  Database["public"]["Tables"]["meeting_templates"]["Row"]
 export type IntegrationInterest =
   Database["public"]["Tables"]["integration_interest"]["Row"]
 

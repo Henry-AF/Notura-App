@@ -199,3 +199,14 @@ export function buildR2Key(userId: string, filename: string): string {
   const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `meetings/${userId}/${timestamp}/${safeFilename}`;
 }
+
+export function buildTemplateR2Key(userId: string, filename: string): string {
+  const timestamp = Date.now();
+  const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `templates/${userId}/${timestamp}/${safeFilename}`;
+}
+
+export function buildAtaExportR2Key(userId: string, meetingId: string): string {
+  const timestamp = Date.now();
+  return `ata-exports/${userId}/${meetingId}/${timestamp}.docx`;
+}

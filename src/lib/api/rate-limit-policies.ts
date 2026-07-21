@@ -31,6 +31,21 @@ export const RATE_LIMIT_POLICIES = {
     limit: 20,
     windowMs: 60_000,
   },
+  meetingTemplatesRead: {
+    bucket: "api:meeting-templates",
+    limit: 60,
+    windowMs: 60_000,
+  },
+  templateUpload: {
+    bucket: "api:meeting-templates/upload",
+    limit: 10,
+    windowMs: 60_000,
+  },
+  meetingTemplatesMutate: {
+    bucket: "api:meeting-templates/[id]",
+    limit: 30,
+    windowMs: 60_000,
+  },
   meetingParticipantsRead: {
     bucket: "api:meetings/[id]/participants",
     limit: 60,

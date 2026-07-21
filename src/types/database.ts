@@ -485,6 +485,66 @@ export interface Database {
           }
         ]
       }
+      job_checkpoints: {
+        Row: {
+          id: string
+          meeting_id: string
+          job_id: string | null
+          user_id: string
+          step_name: string
+          status: string
+          payload: Json | null
+          fingerprint: string | null
+          attempts: number
+          error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          job_id?: string | null
+          user_id: string
+          step_name: string
+          status?: string
+          payload?: Json | null
+          fingerprint?: string | null
+          attempts?: number
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          job_id?: string | null
+          user_id?: string
+          step_name?: string
+          status?: string
+          payload?: Json | null
+          fingerprint?: string | null
+          attempts?: number
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_checkpoints_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_checkpoints_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       jobs: {
         Row: {
           id: string
@@ -877,6 +937,27 @@ export interface Database {
           }
         ]
       }
+      integration_interest: {
+        Row: {
+          id: string
+          user_id: string
+          channel: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          channel: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          channel?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1002,9 +1083,12 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type BillingAccount = Database["public"]["Tables"]["billing_accounts"]["Row"]
 export type MeetingTranscriptChunk =
   Database["public"]["Tables"]["meeting_transcript_chunks"]["Row"]
+export type JobCheckpoint = Database["public"]["Tables"]["job_checkpoints"]["Row"]
 export type MeetingChat = Database["public"]["Tables"]["meeting_chats"]["Row"]
 export type MeetingChatAiMetric =
   Database["public"]["Tables"]["meeting_chat_ai_metrics"]["Row"]
+export type IntegrationInterest =
+  Database["public"]["Tables"]["integration_interest"]["Row"]
 
 // ── Dashboard view types ──────────────────────────────────────────────────────
 

@@ -70,6 +70,7 @@ describe("POST /api/abacatepay/checkout", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    delete process.env.NEXT_PUBLIC_APP_URL;
 
     createServerSupabase.mockReturnValue(createServerClient());
     createServiceRoleClient.mockReturnValue(createAdminClient());

@@ -19,6 +19,7 @@ function mapGroupsSnapshot(snapshot: MeetingGroupsSnapshot): GroupsPageData {
       name: group.name,
       createdAt: group.created_at,
       updatedAt: group.updated_at,
+      archivedAt: group.archived_at,
       meetingsCount: group.meetings_count,
     })),
     meetings: snapshot.meetings.map((meeting) => ({
@@ -43,7 +44,7 @@ export default async function GroupsPage() {
   let initialData = getEmptyGroupsPageData();
 
   try {
-    initialData = mapGroupsSnapshot(await getOwnedMeetingGroupsSnapshot());
+    initialData = mapGroupsSnapshot(await getOwnedMeetingGroupsSnapshot(true));
   } catch {
     initialData = getEmptyGroupsPageData();
   }

@@ -3,10 +3,11 @@
 import React, { useEffect, useMemo, useReducer, useState } from "react";
 import Link from "next/link";
 import {
+  Archive,
+  ArchiveRestore,
   Pencil,
   Plus,
   RefreshCw,
-  Trash2,
   X,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -37,17 +38,19 @@ import {
 } from "@/components/ui/app";
 import { formatRelativeTime } from "@/lib/utils";
 import {
+  archiveGroup,
   createGroup,
   fetchGroupsPageData,
   moveMeetingToGroup,
-  removeGroup,
   renameGroup,
+  unarchiveGroup,
   type GroupsPageData,
   type GroupsPageGroup,
   type GroupsPageMeeting,
 } from "./groups-api";
 
 const SELECT_PLACEHOLDER = "__placeholder__";
+type GroupsViewMode = "active" | "archived";
 
 function GroupAvatar({ name }: { name: string }) {
   return (
@@ -113,7 +116,7 @@ function GroupDialog({
   );
 }
 
-function DeleteGroupDialog({
+function ArchiveGroupDialog({
   group,
   open,
   isSaving,
@@ -130,9 +133,9 @@ function DeleteGroupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl">
         <DialogHeader>
-          <DialogTitle>Deletar grupo?</DialogTitle>
+          <DialogTitle>Arquivar grupo?</DialogTitle>
           <DialogDescription>
-            As reunioes permanecem salvas e ficam sem grupo.
+            As reunioes continuam vinculadas. Voce pode desarquivar o grupo quando quiser.
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
@@ -142,7 +145,7 @@ function DeleteGroupDialog({
               {group?.name ?? "Grupo"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {group?.meetingsCount ?? 0} reunioes serao desagrupadas
+              {group?.meetingsCount ?? 0} reunioes permanecem vinculadas
             </p>
           </div>
         </div>
@@ -150,9 +153,9 @@ function DeleteGroupDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="button" variant="destructive" disabled={isSaving} onClick={onConfirm}>
-            {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-            Deletar
+          <Button type="button" disabled={isSaving} onClick={onConfirm}>
+            {isSaving ? <RefreshCw className="size-4 animate-spin" /> : <Archive className="size-4" />}
+            Arquivar
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -267,7 +270,8 @@ function SelectedGroupPanel({
   meetings,
   addableMeetings,
   onEdit,
-  onDelete,
+  onArchive,
+  onUnarchive,
   onAddMeeting,
   onRemoveMeeting,
 }: {
@@ -275,7 +279,8 @@ function SelectedGroupPanel({
   meetings: GroupsPageMeeting[];
   addableMeetings: GroupsPageMeeting[];
   onEdit: (group: GroupsPageGroup) => void;
-  onDelete: (group: GroupsPageGroup) => void;
+  onArchive: (group: GroupsPageGroup) => void;
+  onUnarchive: (group: GroupsPageGroup) => void;
   onAddMeeting: (meetingId: string) => void;
   onRemoveMeeting: (meetingId: string) => void;
 }) {
@@ -288,6 +293,8 @@ function SelectedGroupPanel({
       />
     );
   }
+
+  const isArchived = Boolean(group.archivedAt);
 
   return (
     <DashboardListSection
@@ -306,32 +313,41 @@ function SelectedGroupPanel({
       }
       actions={
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Select
-            value={SELECT_PLACEHOLDER}
-            onValueChange={(meetingId) => onAddMeeting(meetingId)}
-          >
-            <SelectTrigger className="h-10 w-full min-w-0 rounded-lg sm:min-w-[220px]" disabled={addableMeetings.length === 0}>
-              <SelectValue placeholder="Adicionar reuniao" />
-            </SelectTrigger>
-            <SelectContent className="animate-none">
-              <SelectItem value={SELECT_PLACEHOLDER} disabled>
-                Adicionar reuniao
-              </SelectItem>
-              {addableMeetings.map((meeting) => (
-                <SelectItem key={meeting.id} value={meeting.id}>
-                  {meeting.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button type="button" variant="outline" size="sm" onClick={() => onEdit(group)}>
-            <Pencil className="size-4" />
-            <span className="hidden sm:inline">Editar</span>
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => onDelete(group)}>
-            <Trash2 className="size-4" />
-            <span className="hidden sm:inline">Deletar</span>
-          </Button>
+          {isArchived ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => onUnarchive(group)}>
+              <ArchiveRestore className="size-4" />
+              <span className="hidden sm:inline">Desarquivar</span>
+            </Button>
+          ) : (
+            <>
+              <Select
+                value={SELECT_PLACEHOLDER}
+                onValueChange={(meetingId) => onAddMeeting(meetingId)}
+              >
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg sm:min-w-[220px]" disabled={addableMeetings.length === 0}>
+                  <SelectValue placeholder="Adicionar reuniao" />
+                </SelectTrigger>
+                <SelectContent className="animate-none">
+                  <SelectItem value={SELECT_PLACEHOLDER} disabled>
+                    Adicionar reuniao
+                  </SelectItem>
+                  {addableMeetings.map((meeting) => (
+                    <SelectItem key={meeting.id} value={meeting.id}>
+                      {meeting.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => onEdit(group)}>
+                <Pencil className="size-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => onArchive(group)}>
+                <Archive className="size-4" />
+                <span className="hidden sm:inline">Arquivar</span>
+              </Button>
+            </>
+          )}
         </div>
       }
       header={
@@ -365,12 +381,22 @@ function SelectedGroupPanel({
   );
 }
 
+function filterGroupsByViewMode(
+  groups: GroupsPageGroup[],
+  viewMode: GroupsViewMode
+): GroupsPageGroup[] {
+  return groups.filter((group) =>
+    viewMode === "active" ? !group.archivedAt : Boolean(group.archivedAt)
+  );
+}
+
 export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
   type GroupsClientState = {
     data: GroupsPageData;
+    viewMode: GroupsViewMode;
     selectedGroupId: string | null;
     editingGroup: GroupsPageGroup | null;
-    deleteTarget: GroupsPageGroup | null;
+    archiveTarget: GroupsPageGroup | null;
     isCreateOpen: boolean;
     isSaving: boolean;
     error: string | null;
@@ -379,19 +405,21 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
     | { type: "patched"; value: Partial<GroupsClientState> }
     | { type: "reloaded"; data: GroupsPageData }
     | { type: "groupSaved"; groupId: string }
-    | { type: "deleteStarted" };
+    | { type: "archiveActionStarted" }
+    | { type: "viewModeChanged"; viewMode: GroupsViewMode };
   const [state, dispatch] = useReducer(
     (current: GroupsClientState, action: GroupsClientAction): GroupsClientState => {
       switch (action.type) {
         case "patched":
           return { ...current, ...action.value };
-        case "reloaded":
+        case "reloaded": {
+          const visible = filterGroupsByViewMode(action.data.groups, current.viewMode);
           return {
             ...current,
             data: action.data,
-            selectedGroupId:
-              current.selectedGroupId ?? action.data.groups[0]?.id ?? null,
+            selectedGroupId: current.selectedGroupId ?? visible[0]?.id ?? null,
           };
+        }
         case "groupSaved":
           return {
             ...current,
@@ -399,15 +427,24 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
             isCreateOpen: false,
             editingGroup: null,
           };
-        case "deleteStarted":
-          return { ...current, deleteTarget: null, selectedGroupId: null };
+        case "archiveActionStarted":
+          return { ...current, archiveTarget: null, selectedGroupId: null };
+        case "viewModeChanged": {
+          const visible = filterGroupsByViewMode(current.data.groups, action.viewMode);
+          return {
+            ...current,
+            viewMode: action.viewMode,
+            selectedGroupId: visible[0]?.id ?? null,
+          };
+        }
       }
     },
     {
       data: initialData,
-      selectedGroupId: initialData.groups[0]?.id ?? null,
+      viewMode: "active",
+      selectedGroupId: filterGroupsByViewMode(initialData.groups, "active")[0]?.id ?? null,
       editingGroup: null,
-      deleteTarget: null,
+      archiveTarget: null,
       isCreateOpen: false,
       isSaving: false,
       error: null,
@@ -415,17 +452,22 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
   );
   const {
     data,
+    viewMode,
     selectedGroupId,
     editingGroup,
-    deleteTarget,
+    archiveTarget,
     isCreateOpen,
     isSaving,
     error,
   } = state;
 
+  const visibleGroups = useMemo(
+    () => filterGroupsByViewMode(data.groups, viewMode),
+    [data.groups, viewMode]
+  );
   const selectedGroup = useMemo(
-    () => data.groups.find((group) => group.id === selectedGroupId) ?? null,
-    [data.groups, selectedGroupId]
+    () => visibleGroups.find((group) => group.id === selectedGroupId) ?? null,
+    [visibleGroups, selectedGroupId]
   );
   const selectedMeetings = data.meetings.filter(
     (meeting) => meeting.groupId === selectedGroupId
@@ -436,7 +478,7 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
 
   async function reload() {
     dispatch({ type: "patched", value: { error: null } });
-    const nextData = await fetchGroupsPageData();
+    const nextData = await fetchGroupsPageData(true);
     dispatch({ type: "reloaded", data: nextData });
   }
 
@@ -456,17 +498,33 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
     }
   }
 
-  async function handleDeleteGroup() {
-    if (!deleteTarget) return;
+  async function handleArchiveGroup() {
+    if (!archiveTarget) return;
     dispatch({ type: "patched", value: { isSaving: true } });
     try {
-      await removeGroup(deleteTarget.id);
-      dispatch({ type: "deleteStarted" });
+      await archiveGroup(archiveTarget.id);
+      dispatch({ type: "archiveActionStarted" });
       await reload();
     } catch (err) {
       dispatch({
         type: "patched",
-        value: { error: err instanceof Error ? err.message : "Erro ao deletar grupo." },
+        value: { error: err instanceof Error ? err.message : "Erro ao arquivar grupo." },
+      });
+    } finally {
+      dispatch({ type: "patched", value: { isSaving: false } });
+    }
+  }
+
+  async function handleUnarchiveGroup(group: GroupsPageGroup) {
+    dispatch({ type: "patched", value: { isSaving: true, error: null } });
+    try {
+      await unarchiveGroup(group.id);
+      dispatch({ type: "archiveActionStarted" });
+      await reload();
+    } catch (err) {
+      dispatch({
+        type: "patched",
+        value: { error: err instanceof Error ? err.message : "Erro ao desarquivar grupo." },
       });
     } finally {
       dispatch({ type: "patched", value: { isSaving: false } });
@@ -504,9 +562,35 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
       ) : null}
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <SectionCard title="Seus grupos" className="min-w-0" contentClassName="p-3 pt-3">
+        <SectionCard
+          title="Seus grupos"
+          className="min-w-0"
+          contentClassName="p-3 pt-3"
+          actions={
+            <div className="flex items-center gap-1 rounded-full bg-muted p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={viewMode === "active" ? "default" : "ghost"}
+                className="h-7 rounded-full px-3 text-xs"
+                onClick={() => dispatch({ type: "viewModeChanged", viewMode: "active" })}
+              >
+                Ativos
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={viewMode === "archived" ? "default" : "ghost"}
+                className="h-7 rounded-full px-3 text-xs"
+                onClick={() => dispatch({ type: "viewModeChanged", viewMode: "archived" })}
+              >
+                Arquivados
+              </Button>
+            </div>
+          }
+        >
           <GroupList
-            groups={data.groups}
+            groups={visibleGroups}
             selectedId={selectedGroupId}
             onSelect={(selectedGroupId) =>
               dispatch({ type: "patched", value: { selectedGroupId } })
@@ -521,9 +605,10 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
           onEdit={(editingGroup) =>
             dispatch({ type: "patched", value: { editingGroup } })
           }
-          onDelete={(deleteTarget) =>
-            dispatch({ type: "patched", value: { deleteTarget } })
+          onArchive={(archiveTarget) =>
+            dispatch({ type: "patched", value: { archiveTarget } })
           }
+          onUnarchive={(group) => void handleUnarchiveGroup(group)}
           onAddMeeting={(meetingId) => void handleMoveMeeting(meetingId, selectedGroupId)}
           onRemoveMeeting={(meetingId) => void handleMoveMeeting(meetingId, null)}
         />
@@ -552,17 +637,17 @@ export function GroupsClient({ initialData }: { initialData: GroupsPageData }) {
         }
         onSubmit={(name) => saveGroup(name, editingGroup?.id)}
       />
-      <DeleteGroupDialog
-        group={deleteTarget}
-        open={Boolean(deleteTarget)}
+      <ArchiveGroupDialog
+        group={archiveTarget}
+        open={Boolean(archiveTarget)}
         isSaving={isSaving}
         onOpenChange={(open) =>
           dispatch({
             type: "patched",
-            value: { deleteTarget: open ? deleteTarget : null },
+            value: { archiveTarget: open ? archiveTarget : null },
           })
         }
-        onConfirm={handleDeleteGroup}
+        onConfirm={handleArchiveGroup}
       />
     </PageShell>
   );

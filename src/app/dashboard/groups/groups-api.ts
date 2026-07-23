@@ -1,4 +1,5 @@
 import {
+  archiveMeetingGroup,
   assignMeetingToGroup,
   createMeetingGroup,
   deleteMeetingGroup,
@@ -26,8 +27,10 @@ export function mapGroupsPageData(
   };
 }
 
-export async function fetchGroupsPageData(): Promise<GroupsPageData> {
-  return mapGroupsPageData(await fetchMeetingGroupsSnapshot());
+export async function fetchGroupsPageData(
+  includeArchived = false
+): Promise<GroupsPageData> {
+  return mapGroupsPageData(await fetchMeetingGroupsSnapshot(includeArchived));
 }
 
 export async function createGroup(name: string): Promise<GroupsPageGroup> {
@@ -43,6 +46,14 @@ export async function renameGroup(
 
 export async function removeGroup(groupId: string): Promise<void> {
   await deleteMeetingGroup(groupId);
+}
+
+export async function archiveGroup(groupId: string): Promise<GroupsPageGroup> {
+  return archiveMeetingGroup(groupId, true);
+}
+
+export async function unarchiveGroup(groupId: string): Promise<GroupsPageGroup> {
+  return archiveMeetingGroup(groupId, false);
 }
 
 export async function moveMeetingToGroup(

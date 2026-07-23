@@ -5,6 +5,7 @@ import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import {
   MeetingGroupValidationError,
   deleteMeetingGroupForUser,
+  setMeetingGroupArchivedForUser,
   updateMeetingGroupForUser,
 } from "@/lib/meeting-groups";
 
@@ -18,13 +19,22 @@ export const PATCH = withAuthRateLimit<{ id: string }, NextRequest>(
       params.id,
       auth.user.id
     );
-    const body = (await request.json()) as { name?: unknown };
-    const group = await updateMeetingGroupForUser(
-      auth.supabaseAdmin,
-      auth.user.id,
-      params.id,
-      body.name
-    );
+    const body = (await request.json()) as { name?: unknown; archived?: unknown };
+
+    const group =
+      typeof body.archived === "boolean"
+        ? await setMeetingGroupArchivedForUser(
+            auth.supabaseAdmin,
+            auth.user.id,
+            params.id,
+            body.archived
+          )
+        : await updateMeetingGroupForUser(
+            auth.supabaseAdmin,
+            auth.user.id,
+            params.id,
+            body.name
+          );
 
     return NextResponse.json({ group });
   } catch (error) {

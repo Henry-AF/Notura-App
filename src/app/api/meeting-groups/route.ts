@@ -9,11 +9,14 @@ import {
 } from "@/lib/meeting-groups";
 
 export const GET = withAuth<Record<string, never>, NextRequest>(async (
-  _request: NextRequest,
+  request: NextRequest,
   { auth }
 ) => {
   try {
-    return NextResponse.json(await getOwnedMeetingGroupsSnapshotForAuth(auth));
+    const includeArchived = request.nextUrl.searchParams.get("include_archived") === "1";
+    return NextResponse.json(
+      await getOwnedMeetingGroupsSnapshotForAuth(auth, includeArchived)
+    );
   } catch (error) {
     console.error("[meeting-groups] failed to list:", error);
     return NextResponse.json(

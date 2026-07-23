@@ -13,7 +13,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["android.permission.FOREGROUND_SERVICE"]
     },
     "scheme": "notura",
     "web": {
@@ -30,7 +34,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "O Notura usa o microfone para gravar o áudio das suas reuniões e gerar transcrição e ata automaticamente. A gravação só acontece quando você toca em Gravar.",
+          "enableBackgroundRecording": true
+        }
+      ]
     ]
   }
 }

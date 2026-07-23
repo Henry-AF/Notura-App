@@ -1,10 +1,10 @@
 // Mirrors `src/app/dashboard/processing/processing-api.ts` from the web app:
 // polls `/api/meetings/[id]/status` (unmodified route, withAuth + requireOwnership).
 
-import { fetchApi } from '@/lib/api/client';
-import { normalizeError, parseJson } from '@/lib/api-client';
+import { fetchApi } from "@/lib/api/client";
+import { normalizeError, parseJson } from "@/lib/api-client";
 
-export type MeetingProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type MeetingProcessingStatus = "pending" | "processing" | "completed" | "failed";
 
 export interface MeetingStatusPayload {
   id: string;
@@ -30,28 +30,52 @@ interface MeetingStatusApiResponse {
 }
 
 function normalizeMeetingProcessingStatus(status: string): MeetingProcessingStatus {
-  if (status === 'completed') return 'completed';
-  if (status === 'failed') return 'failed';
-  if (status === 'pending') return 'pending';
-  return 'processing';
+  if (status === "completed") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "pending") return "pending";
+  return "processing";
 }
 
 export async function fetchMeetingStatus(meetingId: string): Promise<MeetingStatusPayload> {
   const response = await fetchApi(`/api/meetings/${meetingId}/status`);
   const body = await parseJson<MeetingStatusApiResponse>(response);
 
-  if (!response.ok || !body.id || typeof body.status !== 'string') {
-    throw new Error(normalizeError(body.error, 'Erro ao carregar status da reunião.'));
+  if (!response.ok || !body.id || typeof body.status !== "string") {
+    throw new Error(normalizeError(body.error, "Erro ao carregar status da reunião."));
   }
 
   return {
     id: body.id,
     title: body.title ?? null,
     status: normalizeMeetingProcessingStatus(body.status),
-    processingStep: typeof body.processingStep === 'string' ? body.processingStep : null,
-    jobStatus: typeof body.jobStatus === 'string' ? body.jobStatus : null,
-    errorMessage: typeof body.errorMessage === 'string' ? body.errorMessage : null,
+    processingStep: typeof body.processingStep === "string" ? body.processingStep : null,
+    jobStatus: typeof body.jobStatus === "string" ? body.jobStatus : null,
+    errorMessage: typeof body.errorMessage === "string" ? body.errorMessage : null,
     taskCount: body.taskCount ?? 0,
     decisionCount: body.decisionCount ?? 0,
   };
+}
+
+export async function retryMeetingProcessing(meetingId: string): Promise<void> {
+  const response = await fetchApi(`/api/meetings/${meetingId}/retry`, {
+    method: "POST",
+  });
+  const body = await parseJson<{ success?: boolean; error?: string }>(response);
+
+  if (!response.ok || !body.success) {
+    throw new Error(normalizeError(body.error, "Erro ao reprocessar reunião."));
+  }
+}
+
+export async function cancelMeetingProcessing(meetingId: string): Promise<void> {
+  const response = await fetchApi(`/api/meetings/${meetingId}/cancel-processing`, {
+    method: "POST",
+  });
+  const body = await parseJson<{ success?: boolean; error?: string }>(response);
+
+  if (!response.ok || !body.success) {
+    throw new Error(
+      normalizeError(body.error, "Erro ao cancelar processamento da reunião.")
+    );
+  }
 }

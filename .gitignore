@@ -30,3 +30,6 @@ next-env.d.ts
 
 .codex
 .worktrees/
+
+# Local output from scripts/render-ata-preview.ts
+/ata-preview-output.docx

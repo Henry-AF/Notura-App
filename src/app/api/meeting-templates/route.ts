@@ -5,7 +5,11 @@ import {
   CustomTemplateProRequiredError,
   requireCustomTemplateAccess,
 } from "@/lib/billing/custom-template-access";
-import { extractTemplateTags, validateTemplateTags } from "@/lib/docx/placeholders";
+import {
+  extractStructuredTags,
+  extractTemplateTags,
+  validateTemplateTags,
+} from "@/lib/docx/placeholders";
 import {
   MeetingTemplateValidationError,
   createTemplate,
@@ -78,7 +82,28 @@ export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
       }
 
       const tags = extractTemplateTags(buffer);
-      const validation = validateTemplateTags(tags);
+      const structuredTags = extractStructuredTags(buffer);
+      const validation = validateTemplateTags(tags, structuredTags);
+
+      if (validation.hasNoTags) {
+        return NextResponse.json(
+          {
+            error:
+              "Nenhum campo de mesclagem encontrado neste template — a ata não será personalizada com o conteúdo da reunião.",
+          },
+          { status: 422 }
+        );
+      }
+
+      if (validation.invalidScalarArrayTags.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Os campos ${validation.invalidScalarArrayTags.join(", ")} precisam ser usados como lista no modelo (formato {#tag}...{/tag} no Word), não como texto simples. Confira o guia do template padrão.`,
+            invalidScalarArrayTags: validation.invalidScalarArrayTags,
+          },
+          { status: 422 }
+        );
+      }
 
       if (!validation.valid) {
         return NextResponse.json(

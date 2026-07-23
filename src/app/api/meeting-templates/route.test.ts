@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
   requireCustomTemplateAccess: vi.fn(),
   extractTemplateTags: vi.fn(),
+  extractStructuredTags: vi.fn(),
   validateTemplateTags: vi.fn(),
   createTemplate: vi.fn(),
   listTemplatesForUser: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock("@/lib/billing/custom-template-access", () => ({
 
 vi.mock("@/lib/docx/placeholders", () => ({
   extractTemplateTags: mocks.extractTemplateTags,
+  extractStructuredTags: mocks.extractStructuredTags,
   validateTemplateTags: mocks.validateTemplateTags,
 }));
 
@@ -114,7 +116,13 @@ describe("POST /api/meeting-templates", () => {
       plan: "team",
     });
     mocks.extractTemplateTags.mockReturnValue(["meeting_title", "objective"]);
-    mocks.validateTemplateTags.mockReturnValue({ valid: true, unknown: [] });
+    mocks.extractStructuredTags.mockReturnValue([]);
+    mocks.validateTemplateTags.mockReturnValue({
+      valid: true,
+      unknown: [],
+      hasNoTags: false,
+      invalidScalarArrayTags: [],
+    });
     mocks.buildTemplateR2Key.mockReturnValue("templates/user-1/123/template.docx");
     mocks.uploadAudio.mockResolvedValue(undefined);
     mocks.createTemplate.mockResolvedValue({
@@ -176,6 +184,8 @@ describe("POST /api/meeting-templates", () => {
     mocks.validateTemplateTags.mockReturnValue({
       valid: false,
       unknown: ["budget_forecast"],
+      hasNoTags: false,
+      invalidScalarArrayTags: [],
     });
 
     const mod = await import("./route");
@@ -189,6 +199,53 @@ describe("POST /api/meeting-templates", () => {
       error: "O modelo contém placeholders desconhecidos.",
       unknownPlaceholders: ["budget_forecast"],
     });
+    expect(mocks.uploadAudio).not.toHaveBeenCalled();
+    expect(mocks.createTemplate).not.toHaveBeenCalled();
+  });
+
+  it("returns 422 with a clear message and does not persist anything when the template has zero recognized tags (NOT-130)", async () => {
+    mocks.extractTemplateTags.mockReturnValue([]);
+    mocks.validateTemplateTags.mockReturnValue({
+      valid: false,
+      unknown: [],
+      hasNoTags: true,
+      invalidScalarArrayTags: [],
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      buildUploadRequest({ file: buildZipLikeFile(), name: "TESTE" }),
+      { params: {} }
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error).toMatch(/nenhum campo de mesclagem/i);
+    expect(body.unknownPlaceholders).toBeUndefined();
+    expect(mocks.uploadAudio).not.toHaveBeenCalled();
+    expect(mocks.createTemplate).not.toHaveBeenCalled();
+  });
+
+  it("returns 422 with a clear message and does not persist anything when an array tag is used as a scalar (NOT-131)", async () => {
+    mocks.extractTemplateTags.mockReturnValue(["meeting_title", "participants"]);
+    mocks.validateTemplateTags.mockReturnValue({
+      valid: false,
+      unknown: [],
+      hasNoTags: false,
+      invalidScalarArrayTags: ["participants"],
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      buildUploadRequest({ file: buildZipLikeFile(), name: "TESTE" }),
+      { params: {} }
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error).toMatch(/participants/);
+    expect(body.error).toMatch(/lista/i);
+    expect(body.invalidScalarArrayTags).toEqual(["participants"]);
     expect(mocks.uploadAudio).not.toHaveBeenCalled();
     expect(mocks.createTemplate).not.toHaveBeenCalled();
   });

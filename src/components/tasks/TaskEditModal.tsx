@@ -16,7 +16,7 @@ export interface TaskEditModalProps {
   task: Task;
   meetings?: TaskMeetingOption[];
   availableLabels?: TaskLabel[];
-  onSave: (id: string, updates: Partial<Task>) => void;
+  onSave: (id: string, updates: Partial<Task>) => Promise<void>;
   onDelete: (id: string) => void;
   onClose: () => void;
   onCreateLabel?: (name: string, color: string) => Promise<void>;
@@ -130,6 +130,8 @@ export function TaskEditModal({
     showDeleteConfirm,
   } = state;
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -140,21 +142,29 @@ export function TaskEditModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  function handleSave() {
+  async function handleSave() {
     const trimmed = title.trim();
     if (!trimmed || !meetingId) return;
     const selectedLabels = availableLabels.filter((l) => selectedLabelIds.includes(l.id));
-    onSave(task.id, {
-      title: trimmed,
-      description: description.trim() || undefined,
-      priority,
-      dueDate: dueDate || undefined,
-      meetingId,
-      assignees: assignees.length > 0 ? assignees : undefined,
-      assignee: assignees[0] ?? undefined,
-      labels: selectedLabels,
-    });
-    onClose();
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      await onSave(task.id, {
+        title: trimmed,
+        description: description.trim() || undefined,
+        priority,
+        dueDate: dueDate || undefined,
+        meetingId,
+        assignees: assignees.length > 0 ? assignees : undefined,
+        assignee: assignees[0] ?? undefined,
+        labels: selectedLabels,
+      });
+      onClose();
+    } catch {
+      setSaveError("Falha ao salvar tarefa. Tente novamente.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function addAssignee() {
@@ -558,6 +568,21 @@ export function TaskEditModal({
           </div>
         </div>
 
+        {saveError && (
+          <div
+            role="alert"
+            style={{
+              padding: "8px 20px",
+              fontSize: 12,
+              fontFamily: "Inter, sans-serif",
+              color: "#FF6B6B",
+              flexShrink: 0,
+            }}
+          >
+            {saveError}
+          </div>
+        )}
+
         {/* Footer */}
         <div
           style={{
@@ -676,7 +701,7 @@ export function TaskEditModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={!title.trim() || !meetingId}
+              disabled={!title.trim() || !meetingId || isSaving}
               style={{
                 padding: "8px 20px",
                 background: "#6C5CE7",
@@ -686,19 +711,19 @@ export function TaskEditModal({
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 700,
                 fontSize: 13,
-                cursor: title.trim() && meetingId ? "pointer" : "not-allowed",
-                opacity: title.trim() && meetingId ? 1 : 0.5,
+                cursor: title.trim() && meetingId && !isSaving ? "pointer" : "not-allowed",
+                opacity: title.trim() && meetingId && !isSaving ? 1 : 0.5,
                 transition: "background 0.15s, opacity 0.15s",
               }}
               onMouseEnter={(e) => {
-                if (title.trim() && meetingId)
+                if (title.trim() && meetingId && !isSaving)
                   (e.currentTarget as HTMLButtonElement).style.background = "#5A4BD1";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background = "#6C5CE7";
               }}
             >
-              Salvar
+              {isSaving ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </div>

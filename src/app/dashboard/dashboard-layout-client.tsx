@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bot,
   CheckSquare,
+  FileText,
   FolderKanban,
   LayoutGrid,
   LogOut,
@@ -51,6 +52,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/meetings", label: "Reuniões", icon: Video },
   { href: "/dashboard/groups", label: "Grupos", icon: FolderKanban },
   { href: "/dashboard/tasks", label: "Tarefas", icon: CheckSquare },
+  { href: "/dashboard/templates", label: "Modelos de Ata", icon: FileText },
   { href: "/dashboard/ai-chats", label: "Chats", icon: Bot, badge: "BETA" },
   // { href: "/dashboard/contacts", label: "Contatos", icon: Users },
 ];

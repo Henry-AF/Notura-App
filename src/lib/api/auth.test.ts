@@ -38,7 +38,11 @@ function createOwnershipClient(options?: {
   return { client: { from }, maybeSingle };
 }
 
-describe("route auth helper", () => {
+function respondOk(): Promise<Response> {
+  return Promise.resolve(NextResponse.json({ ok: true }));
+}
+
+describe("withAuth — cookie session", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -49,7 +53,7 @@ describe("route auth helper", () => {
     createServiceRoleClient.mockReturnValue({});
 
     const mod = await import("./auth");
-    const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));
+    const handler = mod.withAuth(respondOk);
 
     const response = await handler(new Request("http://localhost"), {
       params: Promise.resolve({}),
@@ -68,14 +72,16 @@ describe("route auth helper", () => {
     createServiceRoleClient.mockReturnValue(supabaseAdmin);
 
     const mod = await import("./auth");
-    const handler = mod.withAuth(async (_request, { auth, params }) =>
-      NextResponse.json({
-        userId: auth.user.id,
-        email: auth.user.email,
-        hasRequestClient: typeof auth.supabase.auth.getUser === "function",
-        hasAdminClient: auth.supabaseAdmin === supabaseAdmin,
-        resourceId: params.id,
-      })
+    const handler = mod.withAuth((_request, { auth, params }) =>
+      Promise.resolve(
+        NextResponse.json({
+          userId: auth.user.id,
+          email: auth.user.email,
+          hasRequestClient: typeof auth.supabase.auth.getUser === "function",
+          hasAdminClient: auth.supabaseAdmin === supabaseAdmin,
+          resourceId: params.id,
+        })
+      )
     );
 
     const response = await handler(new Request("http://localhost"), {
@@ -100,8 +106,8 @@ describe("route auth helper", () => {
     createServiceRoleClient.mockReturnValue({ from: vi.fn() });
 
     const mod = await import("./auth");
-    const handler = mod.withAuth<{ id: string }>(async (_request, { params }) =>
-      NextResponse.json({ resourceId: params.id })
+    const handler = mod.withAuth<{ id: string }>((_request, { params }) =>
+      Promise.resolve(NextResponse.json({ resourceId: params.id }))
     );
 
     const response = await handler(new Request("http://localhost"), {
@@ -110,6 +116,13 @@ describe("route auth helper", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ resourceId: "meeting-1" });
+  });
+});
+
+describe("withAuth — Bearer token", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   it("authenticates mobile requests with a Supabase Bearer access token", async () => {
@@ -123,11 +136,13 @@ describe("route auth helper", () => {
     createServiceRoleClient.mockReturnValue(supabaseAdmin);
 
     const mod = await import("./auth");
-    const handler = mod.withAuth(async (_request, { auth }) =>
-      NextResponse.json({
-        userId: auth.user.id,
-        email: auth.user.email,
-      })
+    const handler = mod.withAuth((_request, { auth }) =>
+      Promise.resolve(
+        NextResponse.json({
+          userId: auth.user.id,
+          email: auth.user.email,
+        })
+      )
     );
 
     const response = await handler(
@@ -153,7 +168,7 @@ describe("route auth helper", () => {
     createServiceRoleClient.mockReturnValue({});
 
     const mod = await import("./auth");
-    const handler = mod.withAuth(async () => NextResponse.json({ ok: true }));
+    const handler = mod.withAuth(respondOk);
 
     const response = await handler(
       new Request("http://localhost/api/user/me", {
@@ -169,6 +184,41 @@ describe("route auth helper", () => {
     expect(await response.json()).toEqual({ error: "Não autenticado." });
   });
 
+  it.each([
+    ["missing scheme keyword", "mobile-access-token"],
+    ["wrong scheme", "Basic mobile-access-token"],
+    ["extra parts", "Bearer mobile-access-token extra"],
+    ["scheme with no token", "Bearer"],
+  ])(
+    "returns 401 when the Authorization header is malformed (%s)",
+    async (_description, authorizationHeader) => {
+      const supabase = createServerClient({ id: "mobile-user" });
+      createServerSupabase.mockReturnValue(supabase);
+      createServiceRoleClient.mockReturnValue({});
+
+      const mod = await import("./auth");
+      const handler = mod.withAuth(respondOk);
+
+      const response = await handler(
+        new Request("http://localhost/api/user/me", {
+          headers: { Authorization: authorizationHeader },
+        }),
+        { params: Promise.resolve({}) }
+      );
+
+      expect(response.status).toBe(401);
+      expect(supabase.auth.getUser).not.toHaveBeenCalled();
+      expect(await response.json()).toEqual({ error: "Não autenticado." });
+    }
+  );
+});
+
+describe("requireOwnership", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
   it("allows ownership when the user owns the resource", async () => {
     const { client } = createOwnershipClient({
       row: { id: "meeting-1", user_id: "user-1" },
@@ -177,12 +227,7 @@ describe("route auth helper", () => {
     const mod = await import("./auth");
 
     await expect(
-      mod.requireOwnership(
-        client as never,
-        "meetings",
-        "meeting-1",
-        "user-1"
-      )
+      mod.requireOwnership(client as never, "meetings", "meeting-1", "user-1")
     ).resolves.toBeUndefined();
   });
 

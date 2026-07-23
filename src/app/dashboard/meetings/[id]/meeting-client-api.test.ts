@@ -202,6 +202,110 @@ describe("meeting detail client api", () => {
     );
   });
 
+  it("fetches available meeting templates through the meeting-templates API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          templates: [
+            { id: "default", name: "Modelo padrão", isDefault: true, editable: false },
+            { id: "template-1", name: "Meu modelo", isDefault: false, editable: true },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+    const result = await mod.fetchMeetingTemplates();
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/meeting-templates");
+    expect(result).toHaveLength(2);
+    expect(result[1]).toEqual({
+      id: "template-1",
+      name: "Meu modelo",
+      isDefault: false,
+      editable: true,
+    });
+  });
+
+  it("throws a useful error when loading meeting templates fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Erro ao listar." }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const mod = await import("./meeting-client-api");
+
+    await expect(mod.fetchMeetingTemplates()).rejects.toThrow("Erro ao listar.");
+  });
+
+  it("exports the meeting ata with the default template when none is given", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          url: "https://r2.example/ata.docx",
+          filename: "ata-reuniao.docx",
+          expiresIn: 3600,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+    const result = await mod.exportMeetingAta("meeting-1");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/meetings/meeting-1/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(result).toEqual({
+      url: "https://r2.example/ata.docx",
+      filename: "ata-reuniao.docx",
+    });
+  });
+
+  it("exports the meeting ata with a custom templateId", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          url: "https://r2.example/ata.docx",
+          filename: "ata-reuniao.docx",
+          expiresIn: 3600,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+    await mod.exportMeetingAta("meeting-1", "template-1");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/meetings/meeting-1/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateId: "template-1" }),
+    });
+  });
+
+  it("surfaces the upgrade message when export is blocked by plan", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "Exportar a ata em .docx está disponível apenas para assinantes dos planos Starter e Pro.",
+        }),
+        { status: 403, headers: { "content-type": "application/json" } }
+      )
+    );
+
+    const mod = await import("./meeting-client-api");
+
+    await expect(mod.exportMeetingAta("meeting-1")).rejects.toThrow(
+      "Exportar a ata em .docx está disponível apenas para assinantes dos planos Starter e Pro."
+    );
+  });
+
   it("polls chat status quickly at first and backs off between attempts", async () => {
     vi.useFakeTimers();
     const fetchSpy = vi

@@ -1,20 +1,9 @@
-import type { Column, Task, TaskLabel } from "@/components/tasks";
+import type { Task, TaskLabel } from "@/components/tasks";
 import { normalizeError, parseJson } from "@/lib/api-client";
+import type { TaskMeetingOption } from "@/lib/tasks/task-mapper";
 
 export type { TaskLabel };
-
-export interface TaskMeetingOption {
-  id: string;
-  title: string;
-  clientName: string;
-  label: string;
-}
-
-interface TaskColumnsResponse {
-  columns?: Column[];
-  meetings?: TaskMeetingOption[];
-  error?: string;
-}
+export type { TaskMeetingOption };
 
 interface TaskResponse {
   task?: Task;
@@ -49,35 +38,6 @@ interface UpdateTaskInput {
   assigneeName?: string | null;
   status?: "todo" | "in_progress" | "completed";
   labelIds?: string[];
-}
-
-export interface FetchTasksParams {
-  meetingId?: string;
-  groupId?: string;
-}
-
-export async function fetchTaskBoardData(params?: FetchTasksParams): Promise<{
-  columns: Column[];
-  meetings: TaskMeetingOption[];
-}> {
-  const searchParams = new URLSearchParams();
-  if (params?.meetingId) searchParams.set("meetingId", params.meetingId);
-  if (params?.groupId) searchParams.set("groupId", params.groupId);
-  const query = searchParams.toString();
-  const url = query ? `/api/tasks?${query}` : "/api/tasks";
-
-  const response = await fetch(url);
-  const body = await parseJson<TaskColumnsResponse>(response);
-
-  if (!response.ok || !body.columns) {
-    throw new Error(normalizeError(body.error, "Erro ao carregar tarefas."));
-  }
-  return { columns: body.columns, meetings: body.meetings ?? [] };
-}
-
-export async function fetchTaskColumns(): Promise<Column[]> {
-  const data = await fetchTaskBoardData();
-  return data.columns;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<Task> {

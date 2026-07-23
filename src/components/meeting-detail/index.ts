@@ -1,7 +1,7 @@
 export { MeetingBreadcrumb } from "./MeetingBreadcrumb";
 export type { MeetingBreadcrumbProps } from "./MeetingBreadcrumb";
 export { MeetingHeader } from "./MeetingHeader";
-export type { MeetingHeaderProps } from "./MeetingHeader";
+export type { MeetingExportTemplateOption, MeetingHeaderProps } from "./MeetingHeader";
 export { MeetingDeleteDialog } from "./MeetingDeleteDialog";
 export type { MeetingDeleteDialogProps } from "./MeetingDeleteDialog";
 export { MeetingTabs } from "./MeetingTabs";

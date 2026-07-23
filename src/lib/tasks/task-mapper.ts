@@ -9,6 +9,8 @@ type TaskRow = Database["public"]["Tables"]["tasks"]["Row"] & {
   }> | null;
 };
 
+type TaskUpdate = Database["public"]["Tables"]["tasks"]["Update"];
+
 // Exported so route files can reference the same SELECT without duplication
 export const TASK_SELECT =
   "id, meeting_id, user_id, dedupe_key, description, owner, due_date, priority, status, completed, completed_at, created_at, source, group_id, meetings(title, client_name), task_label_map(label_id, task_labels(id, name, color))";
@@ -93,13 +95,44 @@ export function buildTaskColumns(tasks: TaskRow[]): Column[] {
   return COLUMN_DEFS.map((def) => ({ ...def, tasks: colMap.get(def.id) ?? [] }));
 }
 
+export interface TaskMeetingOption {
+  id: string;
+  title: string;
+  clientName: string;
+  label: string;
+}
+
 export function buildTaskMeetingOptions(
   meetings: Array<{ id: string; title: string | null; client_name: string | null }>
-) {
+): TaskMeetingOption[] {
   return meetings.map((meeting) => ({
     id: meeting.id,
     title: meeting.title ?? "Reunião",
     clientName: meeting.client_name ?? "Sem cliente",
     label: `${meeting.client_name ?? "Sem cliente"} - ${meeting.title ?? "Reunião"}`,
   }));
+}
+
+// Whitelist mapping for PATCH /api/tasks/:id — lives here (not in route.ts) because
+// Next.js App Router route files may only export HTTP handlers + config keys.
+export function buildUpdatePayload(data: Record<string, unknown>): TaskUpdate {
+  const payload: TaskUpdate = {};
+  if (typeof data.description === "string") payload.description = data.description.trim();
+  if (typeof data.priority === "string") payload.priority = toDatabasePriority(data.priority);
+  if (typeof data.owner === "string" || data.owner === null) payload.owner = data.owner;
+  if (typeof data.due_date === "string" || data.due_date === null) payload.due_date = data.due_date;
+  if (typeof data.group_id === "string" || data.group_id === null) payload.group_id = data.group_id;
+  if (typeof data.status === "string" || typeof data.kanban_status === "string") {
+    const next = normalizeTaskStatus(
+      typeof data.status === "string" ? data.status : (data.kanban_status as string)
+    );
+    payload.status = next;
+    payload.completed = next === "completed";
+    payload.completed_at = next === "completed" ? new Date().toISOString() : null;
+  } else if (typeof data.completed === "boolean") {
+    payload.completed = data.completed;
+    payload.status = data.completed ? "completed" : "todo";
+    payload.completed_at = data.completed ? new Date().toISOString() : null;
+  }
+  return payload;
 }

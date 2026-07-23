@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import {
   Calendar,
+  ChevronDown,
+  Download,
   MessageSquare,
   RefreshCw,
   Pencil,
@@ -12,10 +14,78 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   PageHeader,
   StatusBadge,
   type PageHeaderBreadcrumb,
 } from "@/components/ui/app";
+
+export interface MeetingExportTemplateOption {
+  id: string;
+  name: string;
+}
+
+function ExportButton({
+  templates,
+  isExporting,
+  onExport,
+}: {
+  templates: MeetingExportTemplateOption[];
+  isExporting: boolean;
+  onExport: (templateId: string) => void;
+}) {
+  const buttonClassName =
+    "w-full border-0 bg-[#5E4CEB] text-white shadow-[0_10px_24px_rgba(94,76,235,0.28)] transition-all duration-200 hover:brightness-105 active:scale-[0.96] sm:w-auto";
+
+  if (templates.length <= 1) {
+    return (
+      <Button
+        type="button"
+        variant="default"
+        size="sm"
+        onClick={() => onExport(templates[0] ? templates[0].id : "default")}
+        disabled={isExporting}
+        className={buttonClassName}
+      >
+        <Download className="size-4" />
+        {isExporting ? "Exportando..." : "Exportar ata"}
+      </Button>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          disabled={isExporting}
+          className={buttonClassName}
+        >
+          <Download className="size-4" />
+          {isExporting ? "Exportando..." : "Exportar ata"}
+          <ChevronDown className="size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 rounded-xl">
+        {templates.map((template) => (
+          <DropdownMenuItem
+            key={template.id}
+            onSelect={() => onExport(template.id)}
+          >
+            {template.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function statusLabel(
   status: MeetingHeaderProps["status"]
@@ -127,6 +197,9 @@ export interface MeetingHeaderProps {
   isCancelingProcessing?: boolean;
   onRenameTitle: (name: string) => Promise<void>;
   onDelete: () => void;
+  onExport?: (templateId: string) => void;
+  isExporting?: boolean;
+  exportTemplates?: MeetingExportTemplateOption[];
 }
 
 export function MeetingHeader({
@@ -142,6 +215,9 @@ export function MeetingHeader({
   isCancelingProcessing = false,
   onRenameTitle,
   onDelete,
+  onExport,
+  isExporting = false,
+  exportTemplates = [],
 }: MeetingHeaderProps) {
   return (
     <PageHeader
@@ -200,6 +276,13 @@ export function MeetingHeader({
                 BETA
               </span>
             </Button>
+          ) : null}
+          {onExport ? (
+            <ExportButton
+              templates={exportTemplates}
+              isExporting={isExporting}
+              onExport={onExport}
+            />
           ) : null}
           <Button
             type="button"

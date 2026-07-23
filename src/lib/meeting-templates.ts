@@ -9,8 +9,16 @@ import type { Database, MeetingTemplate } from "@/types/database";
 type SupabaseAdminClient = SupabaseClient<Database>;
 
 export const DEFAULT_TEMPLATE_ID = "default";
+// Resolve from the project root (process.cwd() === "/var/task" on Vercel) instead
+// of __dirname: webpack rewrites __dirname to the compiled chunk directory at
+// runtime, so the file was looked up under .next/server/chunks/... where it is
+// never emitted (the ENOENT in production). The template is copied into the
+// serverless function via `outputFileTracingIncludes` in next.config.mjs, which
+// preserves this path relative to the project root.
 const DEFAULT_TEMPLATE_PATH = path.join(
-  __dirname,
+  process.cwd(),
+  "src",
+  "lib",
   "docx",
   "templates",
   "default-ata.docx"

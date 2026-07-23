@@ -11,6 +11,16 @@ if (process.env.NODE_ENV === "development") {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: fileURLToPath(new URL(".", import.meta.url)),
+  // The ata export route reads the default .docx template from the filesystem at
+  // runtime. Next's file tracing does not detect a readFileSync on a runtime-built
+  // path, so the binary must be explicitly bundled into the serverless function.
+  // Copied preserving its path relative to the project root, matching the
+  // process.cwd()-based lookup in src/lib/meeting-templates.ts.
+  outputFileTracingIncludes: {
+    "/api/meetings/[id]/export": [
+      "./src/lib/docx/templates/default-ata.docx",
+    ],
+  },
   experimental: {
     webpackBuildWorker: false,
   },

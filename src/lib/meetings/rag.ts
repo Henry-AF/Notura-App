@@ -16,7 +16,7 @@ export const TRANSCRIPT_CHUNKING_VERSION = "utterance-merge-v1-400";
 const TRANSCRIPT_EMBEDDING_CONCURRENCY_LIMIT = 2;
 
 type SupabaseAdminClient = SupabaseClient<Database>;
-type ChunkInsert =
+export type ChunkInsert =
   Database["public"]["Tables"]["meeting_transcript_chunks"]["Insert"];
 type ChunkUpsertPayload =
   Database["public"]["Functions"]["upsert_meeting_transcript_chunks_with_lock"]["Args"]["p_chunks"];
@@ -217,7 +217,7 @@ export async function matchMeetingTranscriptChunks({
   });
 
   if (error) throw new Error(`Failed to match transcript chunks: ${error.message}`);
-  return data ?? [];
+  return data;
 }
 
 export function toChatSources(chunks: MatchedTranscriptChunk[]): ChatSource[] {
@@ -335,13 +335,21 @@ function buildChunksForIndexing(
   return buildTranscriptChunksFromFormattedTranscript(transcript);
 }
 
-async function upsertMeetingChunksWithAdvisoryLock(
+export async function upsertMeetingChunksWithAdvisoryLock(
   supabase: SupabaseAdminClient,
   meetingId: string,
   userId: string,
   rows: ChunkInsert[]
 ): Promise<void> {
-  const chunks = rows.map(({ meeting_id: _meetingId, user_id: _userId, ...row }) => row);
+  const chunks = rows.map((row) => ({
+    chunk_index: row.chunk_index,
+    text: row.text,
+    speaker: row.speaker,
+    start_ms: row.start_ms,
+    end_ms: row.end_ms,
+    metadata: row.metadata,
+    embedding: row.embedding,
+  }));
   const { error } = await supabase.rpc(
     "upsert_meeting_transcript_chunks_with_lock",
     {
@@ -359,7 +367,7 @@ async function upsertMeetingChunksWithAdvisoryLock(
   }
 }
 
-async function buildChunkInsertRows(
+export async function buildChunkInsertRows(
   chunks: TranscriptChunk[],
   meetingId: string,
   userId: string,
@@ -411,5 +419,5 @@ async function fetchMeetingChunks(
     .order("chunk_index", { ascending: true });
 
   if (error) throw new Error(`Failed to fetch transcript chunks: ${error.message}`);
-  return data ?? [];
+  return data;
 }

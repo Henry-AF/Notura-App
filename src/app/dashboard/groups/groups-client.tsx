@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Archive,
   ArchiveRestore,
+  BarChart3,
   Pencil,
   Plus,
   RefreshCw,
@@ -313,6 +314,12 @@ function SelectedGroupPanel({
       }
       actions={
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/groups/${group.id}`}>
+              <BarChart3 className="size-4" />
+              <span className="hidden sm:inline">Ver indicadores</span>
+            </Link>
+          </Button>
           {isArchived ? (
             <Button type="button" variant="outline" size="sm" onClick={() => onUnarchive(group)}>
               <ArchiveRestore className="size-4" />

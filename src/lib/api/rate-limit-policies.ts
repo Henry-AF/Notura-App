@@ -51,6 +51,11 @@ export const RATE_LIMIT_POLICIES = {
     limit: 30,
     windowMs: 60_000,
   },
+  meetingGroupsRead: {
+    bucket: "api:meeting-groups/[id]/dashboard",
+    limit: 60,
+    windowMs: 60_000,
+  },
   assemblyAiToken: {
     bucket: "api:assemblyai/token",
     limit: 30,

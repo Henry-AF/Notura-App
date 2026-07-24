@@ -6,7 +6,7 @@ module.exports = {
     tsconfigRootDir: __dirname,
   },
   plugins: ["@typescript-eslint"],
-  ignorePatterns: ["node_modules/", ".next/", "out/", "build/"],
+  ignorePatterns: ["node_modules/", ".next/", "out/", "build/", "mobile/"],
   overrides: [
     {
       files: ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],

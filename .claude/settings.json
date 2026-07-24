@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read", "Write", "Edit", "MultiEdit", "Grep", "Glob", "LS",
+      "Bash",
+      "mcp__linear__*"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Read(.env)", "Read(.env.*)",
+      "Write(.env)", "Write(.env.*)"
+    ]
+  }
+}

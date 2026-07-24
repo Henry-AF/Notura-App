@@ -27,6 +27,31 @@ export interface MeetingGroupsSnapshot {
   meetings: MeetingGroupMeeting[];
 }
 
+export interface MeetingGroupDashboard {
+  group_id: string;
+  meetings_count: number;
+  minutes_count: number;
+  tasks_total: number;
+  tasks_pending: number;
+  tasks_completed: number;
+  decisions_count: number;
+  upcoming_meetings_count: number;
+}
+
+interface MeetingGroupDashboardMeetingRow {
+  id: string;
+  status: string;
+  meeting_date: string | null;
+  summary_whatsapp: string | null;
+}
+
+interface MeetingRowsSummary {
+  meetings_count: number;
+  minutes_count: number;
+  upcoming_meetings_count: number;
+  meetingIds: string[];
+}
+
 export class MeetingGroupValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -221,4 +246,108 @@ export async function deleteMeetingGroupForUser(
   if (error) {
     throw new Error("Erro ao deletar grupo.");
   }
+}
+
+function summarizeMeetingRows(rows: MeetingGroupDashboardMeetingRow[]): MeetingRowsSummary {
+  const now = new Date().toISOString();
+  let minutesCount = 0;
+  let upcomingCount = 0;
+
+  for (const row of rows) {
+    if (row.status === "completed" && row.summary_whatsapp !== null) {
+      minutesCount += 1;
+    }
+    if (row.meeting_date !== null && row.meeting_date >= now) {
+      upcomingCount += 1;
+    }
+  }
+
+  return {
+    meetings_count: rows.length,
+    minutes_count: minutesCount,
+    upcoming_meetings_count: upcomingCount,
+    meetingIds: rows.map((row) => row.id),
+  };
+}
+
+async function fetchDashboardMeetingRows(
+  supabaseAdmin: SupabaseAdminClient,
+  userId: string,
+  groupId: string
+): Promise<MeetingGroupDashboardMeetingRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from("meetings")
+    .select("id, status, meeting_date, summary_whatsapp")
+    .eq("user_id", userId)
+    .eq("group_id", groupId);
+
+  if (error) {
+    throw new Error("Erro ao carregar reunioes do grupo.");
+  }
+
+  return data ?? [];
+}
+
+async function countTasksAndDecisions(
+  supabaseAdmin: SupabaseAdminClient,
+  meetingIds: string[]
+): Promise<Pick<MeetingGroupDashboard, "tasks_total" | "tasks_pending" | "tasks_completed" | "decisions_count">> {
+  if (meetingIds.length === 0) {
+    return { tasks_total: 0, tasks_pending: 0, tasks_completed: 0, decisions_count: 0 };
+  }
+
+  const [tasksTotal, tasksCompleted, decisionsCount] = await Promise.all([
+    supabaseAdmin
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .in("meeting_id", meetingIds),
+    supabaseAdmin
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .in("meeting_id", meetingIds)
+      .eq("completed", true),
+    supabaseAdmin
+      .from("decisions")
+      .select("id", { count: "exact", head: true })
+      .in("meeting_id", meetingIds),
+  ]);
+
+  if (tasksTotal.error || tasksCompleted.error || decisionsCount.error) {
+    throw new Error("Erro ao carregar indicadores do grupo.");
+  }
+
+  const total = tasksTotal.count ?? 0;
+  const completed = tasksCompleted.count ?? 0;
+
+  return {
+    tasks_total: total,
+    tasks_pending: total - completed,
+    tasks_completed: completed,
+    decisions_count: decisionsCount.count ?? 0,
+  };
+}
+
+export async function getMeetingGroupDashboardForUser(
+  supabaseAdmin: SupabaseAdminClient,
+  userId: string,
+  groupId: string
+): Promise<MeetingGroupDashboard> {
+  await requireOwnership(supabaseAdmin, "meeting_groups", groupId, userId);
+
+  const rows = await fetchDashboardMeetingRows(supabaseAdmin, userId, groupId);
+  const { meetingIds, ...meetingSummary } = summarizeMeetingRows(rows);
+  const taskAndDecisionCounts = await countTasksAndDecisions(supabaseAdmin, meetingIds);
+
+  return {
+    group_id: groupId,
+    ...meetingSummary,
+    ...taskAndDecisionCounts,
+  };
+}
+
+export async function getMeetingGroupDashboardForAuth(
+  auth: RouteAuthContext,
+  groupId: string
+): Promise<MeetingGroupDashboard> {
+  return getMeetingGroupDashboardForUser(auth.supabaseAdmin, auth.user.id, groupId);
 }

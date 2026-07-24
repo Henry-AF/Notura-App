@@ -9,10 +9,12 @@ import {
   DeleteObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import https from "https";
+import type { Readable } from "node:stream";
 
 const r2Client = new S3Client({
   region: "auto",
@@ -72,6 +74,16 @@ export async function getPresignedDownloadUrl(
   return getSignedUrl(r2Client, command, { expiresIn });
 }
 
+// The S3 SDK's response.Body is a Node.js Readable in this runtime (not a
+// WHATWG ReadableStream, which is what the browser/edge SDK build returns).
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function downloadAudio(key: string): Promise<Buffer> {
   const response = await r2Client.send(
     new GetObjectCommand({
@@ -79,25 +91,53 @@ export async function downloadAudio(key: string): Promise<Buffer> {
       Key: key,
     })
   );
-  const stream = response.Body as ReadableStream;
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let done = false;
-  while (!done) {
-    const result = await reader.read();
-    done = result.done;
-    if (result.value) chunks.push(result.value);
-  }
-  return Buffer.concat(chunks);
+  return streamToBuffer(response.Body as Readable);
 }
 
-export async function deleteAudio(key: string): Promise<void> {
+export async function deleteObject(key: string): Promise<void> {
   await r2Client.send(
     new DeleteObjectCommand({
       Bucket: BUCKET,
       Key: key,
     })
   );
+}
+
+export async function deleteAudio(key: string): Promise<void> {
+  await deleteObject(key);
+}
+
+export async function putJsonObject(key: string, value: unknown): Promise<void> {
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: Buffer.from(JSON.stringify(value)),
+      ContentType: "application/json",
+    })
+  );
+}
+
+export async function getJsonObject<T>(key: string): Promise<T | null> {
+  try {
+    const response = await r2Client.send(
+      new GetObjectCommand({ Bucket: BUCKET, Key: key })
+    );
+    const buffer = await streamToBuffer(response.Body as Readable);
+    return JSON.parse(buffer.toString("utf8")) as T;
+  } catch (error) {
+    if (isMissingObjectError(error)) return null;
+    throw error;
+  }
+}
+
+export async function listObjectKeys(prefix: string): Promise<string[]> {
+  const response = await r2Client.send(
+    new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix })
+  );
+  return (response.Contents ?? [])
+    .map((object) => object.Key)
+    .filter((key): key is string => typeof key === "string");
 }
 
 export async function checkR2Health(): Promise<void> {

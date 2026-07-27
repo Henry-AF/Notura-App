@@ -8,6 +8,7 @@ import {
   MeetingHeader,
   MeetingTabs,
   MeetingParticipantsEditorCard,
+  MeetingProcessingCard,
   SmartSummaryCard,
   KeyDecisionCard,
   AlertPointCard,
@@ -34,6 +35,7 @@ import {
   cancelMeetingProcessing,
   deleteMeetingById,
   exportMeetingAta,
+  fetchMeetingDetailData,
   fetchMeetingStatus,
   fetchMeetingTemplates,
   mergeMeetingParticipant,
@@ -41,7 +43,7 @@ import {
   updateMeetingParticipantDisplayName,
   updateMeetingTitle,
 } from "./meeting-client-api";
-import type { MeetingDetailData, MeetingParticipantDisplay } from "./meeting-types";
+import type { MeetingDetailData } from "./meeting-types";
 import {
   buildMeetingTaskColumns,
   type MeetingTaskColumnId,
@@ -58,38 +60,6 @@ function NotFoundState({ onBack }: { onBack: () => void }) {
       <p className="text-sm text-muted-foreground">Reunião não encontrada.</p>
       <Button type="button" className="mt-4 rounded-full px-6" onClick={onBack}>
         Voltar
-      </Button>
-    </SectionCard>
-  );
-}
-
-// ─── Processing state ─────────────────────────────────────────────────────────
-
-function ProcessingState({
-  clientName,
-  isCancelingProcessing,
-  onCancelProcessing,
-}: {
-  clientName: string;
-  isCancelingProcessing: boolean;
-  onCancelProcessing: () => void;
-}) {
-  return (
-    <SectionCard className="rounded-xl px-6 py-12 text-center">
-      <div className="mx-auto mb-4 size-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-      <p className="text-sm font-semibold text-sky-500">Processando reunião com {clientName}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        O resumo e as tarefas serão gerados em instantes.
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onCancelProcessing}
-        disabled={isCancelingProcessing}
-        className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10"
-      >
-        {isCancelingProcessing ? "Cancelando..." : "Cancelar processamento"}
       </Button>
     </SectionCard>
   );
@@ -185,6 +155,10 @@ const EMPTY_MEETING_DETAIL: MeetingDetailData = {
 
 type MeetingDetailState = {
   meetingStatus: "completed" | "processing" | "failed" | "scheduled";
+  meetingOverride: MeetingDetailData | null;
+  processingStep: string | null;
+  isProcessingDone: boolean;
+  isRevealing: boolean;
   isRetrying: boolean;
   isCancelingProcessing: boolean;
   tasks: MeetingTask[];
@@ -228,7 +202,51 @@ function meetingDetailReducer(
 export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientProps) {
   const router = useRouter();
   const { show } = useToast();
-  const meeting = initialMeeting ?? EMPTY_MEETING_DETAIL;
+  const initialData = initialMeeting ?? EMPTY_MEETING_DETAIL;
+
+  // Tasks & files
+  const [state, dispatch] = useReducer(meetingDetailReducer, {
+    meetingStatus: initialData.meetingStatus,
+    meetingOverride: null,
+    processingStep: null,
+    isProcessingDone: false,
+    isRevealing: false,
+    isRetrying: false,
+    isCancelingProcessing: false,
+    tasks: initialData.tasks,
+    editingTask: null,
+    draftColumnId: null,
+    taskColumnById: buildInitialTaskColumnMap(initialData.tasks),
+    activeTab: "summary",
+    isChatOpen: false,
+    isDeleteDialogOpen: false,
+    isDeletingMeeting: false,
+    isExporting: false,
+    exportTemplates: [],
+  });
+  const {
+    meetingStatus,
+    meetingOverride,
+    processingStep,
+    isProcessingDone,
+    isRevealing,
+    isRetrying,
+    isCancelingProcessing,
+    tasks,
+    editingTask,
+    draftColumnId,
+    taskColumnById,
+    activeTab,
+    isChatOpen,
+    isDeleteDialogOpen,
+    isDeletingMeeting,
+    isExporting,
+    exportTemplates,
+  } = state;
+
+  // Fresh data fetched client-side after processing completes wins over the
+  // server-rendered snapshot, so the whole page updates without a reload.
+  const meeting = meetingOverride ?? initialData;
 
   // Meeting info
   const [titleOverride, setTitleOverride] = React.useState<string | null>(null);
@@ -243,38 +261,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   const keyDecision = meeting.keyDecision;
   const alertPoint = meeting.alertPoint;
   const transcript = meeting.transcript;
-
-  // Tasks & files
-  const [state, dispatch] = useReducer(meetingDetailReducer, {
-    meetingStatus: meeting.meetingStatus,
-    isRetrying: false,
-    isCancelingProcessing: false,
-    tasks: meeting.tasks,
-    editingTask: null,
-    draftColumnId: null,
-    taskColumnById: buildInitialTaskColumnMap(meeting.tasks),
-    activeTab: "summary",
-    isChatOpen: false,
-    isDeleteDialogOpen: false,
-    isDeletingMeeting: false,
-    isExporting: false,
-    exportTemplates: [],
-  });
-  const {
-    meetingStatus,
-    isRetrying,
-    isCancelingProcessing,
-    tasks,
-    editingTask,
-    draftColumnId,
-    taskColumnById,
-    activeTab,
-    isChatOpen,
-    isDeleteDialogOpen,
-    isDeletingMeeting,
-    isExporting,
-    exportTemplates,
-  } = state;
   const taskColumns = useMemo(
     () => buildMeetingTaskColumns(tasks, taskColumnById),
     [taskColumnById, tasks]
@@ -287,29 +273,86 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     detectedParticipants.some((participant) => participant.id) ||
     detectedEntities.some((entity) => entity.id);
 
-  // ─── Polling: refresh status every 30s while processing ──────────────────
+  // ─── Completion: refetch fresh data, flash "Pronto!", bounce content in ───
+  const completionStartedRef = useRef(false);
+  const revealTimeoutRef = useRef<number | null>(null);
+
+  const handleProcessingCompleted = useCallback(async () => {
+    if (completionStartedRef.current) return;
+    completionStartedRef.current = true;
+
+    try {
+      const freshMeeting = await fetchMeetingDetailData(id);
+      dispatch({
+        type: "patched",
+        value: { isProcessingDone: true, processingStep: null },
+      });
+      revealTimeoutRef.current = window.setTimeout(() => {
+        dispatch({
+          type: "patched",
+          value: {
+            meetingOverride: freshMeeting,
+            meetingStatus: "completed",
+            tasks: freshMeeting.tasks,
+            taskColumnById: buildInitialTaskColumnMap(freshMeeting.tasks),
+            isRevealing: true,
+          },
+        });
+      }, 1_000);
+    } catch {
+      // Refetch failed — release the guard so the next poll retries.
+      completionStartedRef.current = false;
+    }
+  }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (revealTimeoutRef.current !== null) {
+        window.clearTimeout(revealTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // ─── Polling: refresh status every 4s while processing ────────────────────
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (meetingStatus !== "processing") return;
 
-    pollingRef.current = setInterval(() => {
-      void (async () => {
-        try {
-          const result = await fetchMeetingStatus(id);
-          if (result.status !== "processing") {
-            window.location.reload();
-          }
-        } catch {
-          // silent — will retry on next interval
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const result = await fetchMeetingStatus(id);
+        if (cancelled) return;
+
+        if (result.status === "completed") {
+          void handleProcessingCompleted();
+          return;
         }
-      })();
-    }, 30_000);
+        if (result.status === "failed") {
+          dispatch({ type: "patched", value: { meetingStatus: "failed" } });
+          return;
+        }
+        dispatch({
+          type: "patched",
+          value: { processingStep: result.processingStep },
+        });
+      } catch {
+        // silent — will retry on next interval
+      }
+    };
+
+    void poll();
+    pollingRef.current = setInterval(() => {
+      void poll();
+    }, 4_000);
 
     return () => {
+      cancelled = true;
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [id, meetingStatus]);
+  }, [handleProcessingCompleted, id, meetingStatus]);
 
   // ─── Load export templates once, in the background ───────────────────────
   useEffect(() => {
@@ -624,8 +667,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   function renderMainContent() {
     if (meetingStatus === "processing") {
       return (
-        <ProcessingState
+        <MeetingProcessingCard
           clientName={clientName}
+          processingStep={processingStep}
+          isDone={isProcessingDone}
           isCancelingProcessing={isCancelingProcessing}
           onCancelProcessing={() => { void handleCancelProcessing(); }}
         />
@@ -641,8 +686,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     }
     if (meetingStatus !== "completed") {
       return (
-        <ProcessingState
+        <MeetingProcessingCard
           clientName={clientName}
+          processingStep={processingStep}
+          isDone={isProcessingDone}
           isCancelingProcessing={isCancelingProcessing}
           onCancelProcessing={() => { void handleCancelProcessing(); }}
         />
@@ -916,6 +963,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           animation: fade-slide-up 0.25s ease-out forwards;
           opacity: 0;
         }
+        @keyframes bounce-reveal {
+          from { opacity: 0; transform: scale(0.94) translateY(20px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .anim-bounce-in {
+          animation: bounce-reveal 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
         @media (max-width: 980px) {
           .summary-layout {
             grid-template-columns: 1fr !important;
@@ -980,7 +1034,10 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         />
       </div>
 
-      <div style={{ minWidth: 0 }}>
+      <div
+        style={{ minWidth: 0 }}
+        className={isRevealing ? "anim-bounce-in" : undefined}
+      >
         {renderMainContent()}
       </div>
 

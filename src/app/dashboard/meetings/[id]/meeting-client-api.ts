@@ -1,4 +1,7 @@
 import { normalizeError, parseJson } from "@/lib/api-client";
+import type { MeetingWithRelations } from "@/types/database";
+import { mapMeetingDetail } from "./meeting-detail-mapper";
+import type { MeetingDetailData } from "./meeting-types";
 
 // ─── Meeting chat types ───────────────────────────────────────────────────────
 
@@ -152,7 +155,11 @@ function resolveChatPollDelayMs(
 
 export interface MeetingStatusResponse {
   id: string;
+  title: string | null;
   status: string;
+  processingStep: string | null;
+  jobStatus: string | null;
+  errorMessage: string | null;
   taskCount: number;
   decisionCount: number;
 }
@@ -166,6 +173,19 @@ export async function fetchMeetingStatus(id: string): Promise<MeetingStatusRespo
   }
 
   return body;
+}
+
+// ─── Meeting detail refetch (after processing completes) ─────────────────────
+
+export async function fetchMeetingDetailData(id: string): Promise<MeetingDetailData> {
+  const response = await fetch(`/api/meetings/${id}`);
+  const body = await parseJson<MeetingWithRelations & { error?: string }>(response);
+
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao carregar reunião."));
+  }
+
+  return mapMeetingDetail(body);
 }
 
 export async function retryMeetingProcessing(id: string): Promise<void> {

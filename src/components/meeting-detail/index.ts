@@ -6,6 +6,8 @@ export { MeetingDeleteDialog } from "./MeetingDeleteDialog";
 export type { MeetingDeleteDialogProps } from "./MeetingDeleteDialog";
 export { MeetingTabs } from "./MeetingTabs";
 export type { MeetingTab, MeetingTabsProps } from "./MeetingTabs";
+export { MeetingProcessingCard } from "./MeetingProcessingCard";
+export type { MeetingProcessingCardProps } from "./MeetingProcessingCard";
 export { MeetingParticipantsEditorCard } from "./MeetingParticipantsEditorCard";
 export type { MeetingParticipantsEditorCardProps } from "./MeetingParticipantsEditorCard";
 export { SmartSummaryCard } from "./SmartSummaryCard";

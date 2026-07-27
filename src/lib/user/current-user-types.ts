@@ -26,6 +26,9 @@ export interface CurrentUser {
   renewalStatus: string;
   abacatepayAutoRenewEnabled: boolean;
   abacatepayRenewalStatus: string;
+  hasUsedTrial: boolean;
+  trialEndAt: string | null;
+  shouldOfferTrial: boolean;
 }
 
 export interface CurrentUserIdentity {

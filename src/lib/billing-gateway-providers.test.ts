@@ -315,6 +315,184 @@ describe("billing gateway providers", () => {
     expect(payload).not.toHaveProperty("abacatepay_pending_plan");
   });
 
+  it("creates a Stripe trial checkout with card capture and a 7-day trial", async () => {
+    const { createStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    const result = await createStripeTrialCheckout({
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      requestOrigin: "http://localhost",
+    });
+
+    const stripe = getStripe.mock.results[0]?.value;
+    expect(result).toEqual({
+      provider: "stripe",
+      checkoutUrl: "https://checkout.stripe.com/session",
+    });
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+        payment_method_collection: "always",
+        line_items: [{ price: "price_pro", quantity: 1 }],
+        subscription_data: expect.objectContaining({
+          trial_period_days: 7,
+          metadata: expect.objectContaining({
+            user_id: "user-1",
+            plan: "team",
+            is_trial: "true",
+          }),
+        }),
+        metadata: expect.objectContaining({
+          user_id: "user-1",
+          plan: "team",
+          provider: "stripe",
+          is_trial: "true",
+        }),
+      })
+    );
+    expect(getStripePriceId).toHaveBeenCalledWith("team", "monthly");
+  });
+
+  it("rejects trial checkout when the user already used their trial", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "free",
+      has_used_trial: true,
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: null,
+      abacatepay_pending_checkout_id: null,
+    });
+    const { createStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      createStripeTrialCheckout({
+        userId: "user-1",
+        userEmail: "ana@example.com",
+        requestOrigin: "http://localhost",
+      })
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("rejects trial checkout when the user is already a paying subscriber", async () => {
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "team",
+      has_used_trial: false,
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: null,
+      abacatepay_pending_checkout_id: null,
+    });
+    const { createStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      createStripeTrialCheckout({
+        userId: "user-1",
+        userEmail: "ana@example.com",
+        requestOrigin: "http://localhost",
+      })
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("rejects trial verification when the session does not belong to the user", async () => {
+    getStripe.mockReturnValueOnce({
+      checkout: {
+        sessions: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: "cs_123",
+            mode: "subscription",
+            status: "complete",
+            payment_status: "no_payment_required",
+            client_reference_id: "other-user",
+            customer: "cus_123",
+            subscription: "sub_123",
+            metadata: {
+              user_id: "other-user",
+              plan: "team",
+              is_trial: "true",
+            },
+          }),
+        },
+      },
+    });
+    const { verifyStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      verifyStripeTrialCheckout({ userId: "user-1", sessionId: "cs_123" })
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("accepts a $0-due trial checkout with no_payment_required and activates the trial", async () => {
+    getStripe.mockReturnValueOnce({
+      checkout: {
+        sessions: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: "cs_123",
+            mode: "subscription",
+            status: "complete",
+            payment_status: "no_payment_required",
+            client_reference_id: "user-1",
+            customer: "cus_123",
+            subscription: "sub_123",
+            metadata: {
+              user_id: "user-1",
+              plan: "team",
+              is_trial: "true",
+            },
+          }),
+        },
+      },
+    });
+    const { verifyStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    const result = await verifyStripeTrialCheckout({
+      userId: "user-1",
+      sessionId: "cs_123",
+    });
+
+    expect(resetSubscriptionPeriod).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        plan: "team",
+        stripeCustomerId: "cus_123",
+        stripeSubscriptionId: "sub_123",
+        isTrialStart: true,
+      }),
+      expect.anything()
+    );
+    expect(result).toEqual({
+      provider: "stripe",
+      success: true,
+      plan: "team",
+      paymentStatus: "no_payment_required",
+    });
+  });
+
+  it("rejects trial verification when the session metadata is not a trial", async () => {
+    getStripe.mockReturnValueOnce({
+      checkout: {
+        sessions: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: "cs_123",
+            mode: "subscription",
+            status: "complete",
+            payment_status: "paid",
+            client_reference_id: "user-1",
+            customer: "cus_123",
+            subscription: "sub_123",
+            metadata: {
+              user_id: "user-1",
+              plan: "team",
+              is_trial: "false",
+            },
+          }),
+        },
+      },
+    });
+    const { verifyStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      verifyStripeTrialCheckout({ userId: "user-1", sessionId: "cs_123" })
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
   it("prewarms and stores a Stripe customer", async () => {
     const { ensureStripeCustomer } = await import("./billing-gateway-providers");
 

@@ -67,6 +67,11 @@ export interface Database {
           current_period_end: string | null
           quota_period_start: string | null
           quota_period_end: string | null
+          has_used_trial: boolean
+          trial_started_at: string | null
+          trial_end_at: string | null
+          trial_offer_dismissed_at: string | null
+          trial_offer_dismiss_count: number
           created_at: string
           updated_at: string
         }
@@ -100,6 +105,11 @@ export interface Database {
           current_period_end?: string | null
           quota_period_start?: string | null
           quota_period_end?: string | null
+          has_used_trial?: boolean
+          trial_started_at?: string | null
+          trial_end_at?: string | null
+          trial_offer_dismissed_at?: string | null
+          trial_offer_dismiss_count?: number
           created_at?: string
           updated_at?: string
         }
@@ -133,6 +143,11 @@ export interface Database {
           current_period_end?: string | null
           quota_period_start?: string | null
           quota_period_end?: string | null
+          has_used_trial?: boolean
+          trial_started_at?: string | null
+          trial_end_at?: string | null
+          trial_offer_dismissed_at?: string | null
+          trial_offer_dismiss_count?: number
           created_at?: string
           updated_at?: string
         }

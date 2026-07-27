@@ -125,6 +125,41 @@ describe("POST /api/webhooks/stripe", () => {
     expect(adminClient.updateEq).toHaveBeenCalledWith("user_id", "user-1");
   });
 
+  it("activates a trialing subscription when checkout metadata marks it as a trial", async () => {
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs-1",
+          metadata: { user_id: "user-1", plan: "team", is_trial: "true" },
+          customer: "cus-1",
+          subscription: "sub-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: "team",
+        stripe_renewal_status: "trialing",
+        has_used_trial: true,
+        trial_started_at: expect.any(String),
+        trial_end_at: "2027-04-27T12:00:00.000Z",
+      })
+    );
+  });
+
   it("ignores stale checkout completions that are no longer pending", async () => {
     createServiceRoleClient.mockReturnValue(
       createAdminClient({
@@ -188,6 +223,40 @@ describe("POST /api/webhooks/stripe", () => {
         stripe_subscription_id: "sub-1",
         stripe_auto_renew_enabled: false,
         stripe_renewal_status: "canceling",
+      })
+    );
+    expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_subscription_id", "sub-1");
+  });
+
+  it("keeps the trialing status when auto-renew is cancelled mid-trial", async () => {
+    constructEvent.mockReturnValue({
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub-1",
+          customer: "cus-1",
+          cancel_at_period_end: true,
+          status: "trialing",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_subscription_id: "sub-1",
+        stripe_auto_renew_enabled: false,
+        stripe_renewal_status: "trialing",
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_subscription_id", "sub-1");

@@ -75,6 +75,41 @@ function buildStripeMetadata(input: BillingCheckoutInput) {
   };
 }
 
+const TRIAL_PLAN: PaidPlan = "team";
+const TRIAL_PERIOD_DAYS = 7;
+
+function buildTrialCheckoutUrl(
+  requestOrigin: string,
+  trial: "success" | "canceled"
+): string {
+  const appBaseUrl = getAppBaseUrl(requestOrigin);
+  const url = new URL("/dashboard", appBaseUrl);
+  url.searchParams.set("trial", trial);
+  if (trial === "success") {
+    url.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+  }
+  return url
+    .toString()
+    .replace("%7BCHECKOUT_SESSION_ID%7D", "{CHECKOUT_SESSION_ID}");
+}
+
+function buildStripeTrialSessionMetadata(userId: string) {
+  return {
+    user_id: userId,
+    plan: TRIAL_PLAN,
+    provider: "stripe",
+    is_trial: "true",
+  };
+}
+
+function buildStripeTrialSubscriptionMetadata(userId: string) {
+  return {
+    user_id: userId,
+    plan: TRIAL_PLAN,
+    is_trial: "true",
+  };
+}
+
 function getStripeCustomerParam(input: {
   stripeCustomerId: string | null;
   userEmail: string | null;
@@ -352,6 +387,95 @@ export async function createStripeCheckout(
   };
 }
 
+function validateTrialCheckoutEligibility(
+  billingAccount: Awaited<ReturnType<typeof getOrCreateBillingAccount>>
+): void {
+  if (billingAccount.has_used_trial) {
+    throw new BillingGatewayError(
+      "Você já usou seu período de teste gratuito.",
+      409
+    );
+  }
+  if (billingAccount.plan !== "free") {
+    throw new BillingGatewayError("Você já é assinante Pro.", 409);
+  }
+}
+
+function buildStripeTrialSessionParams(input: {
+  userId: string;
+  userEmail: string | null;
+  requestOrigin: string;
+  stripeCustomerId: string | null;
+}): Stripe.Checkout.SessionCreateParams {
+  return {
+    mode: "subscription",
+    line_items: [
+      {
+        price: getStripePriceId(TRIAL_PLAN, "monthly"),
+        quantity: 1,
+      },
+    ],
+    success_url: buildTrialCheckoutUrl(input.requestOrigin, "success"),
+    cancel_url: buildTrialCheckoutUrl(input.requestOrigin, "canceled"),
+    client_reference_id: input.userId,
+    metadata: buildStripeTrialSessionMetadata(input.userId),
+    subscription_data: {
+      trial_period_days: TRIAL_PERIOD_DAYS,
+      metadata: buildStripeTrialSubscriptionMetadata(input.userId),
+    },
+    payment_method_collection: "always",
+    ...getStripeCustomerParam({
+      stripeCustomerId: input.stripeCustomerId,
+      userEmail: input.userEmail,
+    }),
+  };
+}
+
+export async function createStripeTrialCheckout(input: {
+  userId: string;
+  userEmail: string | null;
+  requestOrigin: string;
+}): Promise<BillingCheckoutResult> {
+  const billingAccount = await getOrCreateBillingAccount(input.userId);
+  validateTrialCheckoutEligibility(billingAccount);
+
+  const stripePendingExpired = await expireStripeCheckoutIfPending(
+    billingAccount.stripe_pending_checkout_session_id
+  );
+  if (!stripePendingExpired) {
+    throw new Error("Não foi possível expirar o checkout Stripe pendente.");
+  }
+
+  const session = await getStripe().checkout.sessions.create(
+    buildStripeTrialSessionParams({
+      userId: input.userId,
+      userEmail: input.userEmail,
+      requestOrigin: input.requestOrigin,
+      stripeCustomerId: billingAccount.stripe_customer_id,
+    })
+  );
+
+  if (!session.url) {
+    throw new Error("Stripe não retornou uma URL de checkout.");
+  }
+
+  const abacatePayPendingCanceled = await cancelAbacatePayCheckoutIfPending(
+    billingAccount.abacatepay_pending_checkout_id
+  );
+
+  await saveStripePendingCheckout({
+    userId: input.userId,
+    plan: TRIAL_PLAN,
+    sessionId: session.id,
+    clearAbacatePayPending: abacatePayPendingCanceled,
+  });
+
+  return {
+    provider: "stripe",
+    checkoutUrl: session.url,
+  };
+}
+
 export async function ensureStripeCustomer(
   input: EnsureBillingCustomerInput
 ): Promise<EnsureBillingCustomerResult> {
@@ -479,6 +603,141 @@ export async function verifyStripeCheckout(
     provider: "stripe",
     success: true,
     plan,
+    paymentStatus: session.payment_status,
+  };
+}
+
+function isTrialCheckoutSession(session: Stripe.Checkout.Session): boolean {
+  return (
+    session.status === "complete" &&
+    (session.payment_status === "no_payment_required" ||
+      session.payment_status === "paid")
+  );
+}
+
+function validateTrialCheckoutSession(session: Stripe.Checkout.Session): void {
+  if (session.metadata?.is_trial !== "true") {
+    throw new BillingGatewayError(
+      "Sessão de checkout não é um trial válido.",
+      400
+    );
+  }
+  if (session.mode !== "subscription") {
+    throw new BillingGatewayError(
+      "Sessão de checkout inválida para assinatura.",
+      400
+    );
+  }
+  if (!isTrialCheckoutSession(session)) {
+    throw new BillingGatewayError(
+      "Checkout do trial ainda não foi confirmado pela Stripe.",
+      409
+    );
+  }
+}
+
+async function activateTrialSubscription(input: {
+  userId: string;
+  stripeCustomerId: string | undefined;
+  stripeSubscriptionId: string;
+  db: ReturnType<typeof createServiceRoleClient>;
+}): Promise<void> {
+  const billingPeriod = await retrieveStripeSubscriptionBillingPeriod(
+    input.stripeSubscriptionId
+  );
+
+  try {
+    await resetSubscriptionPeriod(
+      {
+        userId: input.userId,
+        plan: TRIAL_PLAN,
+        stripeCustomerId: input.stripeCustomerId,
+        stripeSubscriptionId: input.stripeSubscriptionId,
+        isTrialStart: true,
+        ...billingPeriod,
+      },
+      input.db
+    );
+  } catch (error) {
+    if (error instanceof StaleBillingProviderError) {
+      throw new BillingGatewayError(
+        "Sessão de pagamento não está mais ativa.",
+        409
+      );
+    }
+    throw error;
+  }
+}
+
+function checkTrialSessionAlreadyActive(input: {
+  billingAccount: Awaited<ReturnType<typeof getOrCreateBillingAccount>>;
+  session: Stripe.Checkout.Session;
+  stripeSubscriptionId: string;
+}): VerifyBillingCheckoutResult | null {
+  if (input.billingAccount.stripe_pending_checkout_session_id === input.session.id) {
+    return null;
+  }
+
+  if (
+    isAlreadyActiveStripeSession({
+      billingAccount: input.billingAccount,
+      plan: TRIAL_PLAN,
+      subscriptionId: input.stripeSubscriptionId,
+    })
+  ) {
+    return {
+      provider: "stripe",
+      success: true,
+      plan: TRIAL_PLAN,
+      paymentStatus: input.session.payment_status,
+    };
+  }
+
+  validateStripePendingCheckout({
+    pendingSessionId: input.billingAccount.stripe_pending_checkout_session_id,
+    sessionId: input.session.id,
+  });
+  return null;
+}
+
+export async function verifyStripeTrialCheckout(
+  input: VerifyBillingCheckoutInput & { sessionId: string }
+): Promise<VerifyBillingCheckoutResult> {
+  const db = createServiceRoleClient();
+  const billingAccount = await getOrCreateBillingAccount(input.userId, db);
+  const session = await getStripe().checkout.sessions.retrieve(input.sessionId);
+
+  validateStripeSessionOwner({
+    userId: input.userId,
+    sessionUserId: session.metadata?.user_id,
+    clientReferenceId: session.client_reference_id,
+  });
+  validateTrialCheckoutSession(session);
+
+  const stripeCustomerId = readResourceId(session.customer);
+  const stripeSubscriptionId = readResourceId(session.subscription);
+  if (!stripeSubscriptionId) {
+    throw new BillingGatewayError("Sessão de checkout sem assinatura Stripe.", 400);
+  }
+
+  const alreadyActive = checkTrialSessionAlreadyActive({
+    billingAccount,
+    session,
+    stripeSubscriptionId,
+  });
+  if (alreadyActive) return alreadyActive;
+
+  await activateTrialSubscription({
+    userId: input.userId,
+    stripeCustomerId: stripeCustomerId ?? undefined,
+    stripeSubscriptionId,
+    db,
+  });
+
+  return {
+    provider: "stripe",
+    success: true,
+    plan: TRIAL_PLAN,
     paymentStatus: session.payment_status,
   };
 }

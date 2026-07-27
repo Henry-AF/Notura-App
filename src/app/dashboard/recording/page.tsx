@@ -698,7 +698,7 @@ function useRecordingPageController(): RecordingPageController {
             has_group: Boolean(values.groupId),
             has_whatsapp: Boolean(values.whatsappNumber),
           });
-          router.push(`/dashboard/processing?id=${meetingId}`);
+          router.push(`/dashboard/meetings/${meetingId}`);
         } catch (error) {
           show(
             error instanceof Error ? error.message : "Erro ao processar upload.",

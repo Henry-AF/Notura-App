@@ -50,12 +50,10 @@ describe("recording page upload mode", () => {
     const dashboardSource = readSource(
       "src/app/dashboard/dashboard-client.tsx"
     );
-    const processingSource = readSource(
-      "src/app/dashboard/processing/page.tsx"
-    );
+    const recordingSource = readSource("src/app/dashboard/recording/page.tsx");
 
     expect(dashboardSource).toContain("/dashboard/recording?mode=upload");
-    expect(processingSource).toContain("/dashboard/recording?mode=upload");
+    expect(recordingSource).toContain("/dashboard/meetings/");
   });
 
   it("warns before leaving upload mode with a selected file", () => {

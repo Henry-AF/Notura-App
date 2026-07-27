@@ -10,19 +10,22 @@ function readProcessingPage(): string {
 }
 
 describe("processing page source", () => {
-  it("drives the visible step from the backend processing step instead of fallback timers", () => {
+  it("redirects old processing links to the meeting details page", () => {
     const source = readProcessingPage();
 
-    expect(source).toContain("processingStep");
-    expect(source).not.toContain("minMs");
-    expect(source).not.toContain("setTimeout(() => {\n      setCurrentStep");
+    expect(source).toContain("router.replace");
+    expect(source).toContain("/dashboard/meetings/");
+    expect(source).toContain('"/dashboard"');
+    expect(source).toContain("useSearchParams");
+    expect(source).toContain("Suspense");
   });
 
-  it("spins the progress ring around the svg center so the purple arc stays on the circle", () => {
+  it("no longer renders the retired processing UI", () => {
     const source = readProcessingPage();
 
-    expect(source).toContain('transformOrigin: "50% 50%"');
-    expect(source).toContain('transformBox: "fill-box"');
-    expect(source).not.toContain('className={done ? "transition-all duration-700" : "animate-spin"}');
+    expect(source).not.toContain("processingStep");
+    expect(source).not.toContain("fetchMeetingStatus");
+    expect(source).not.toContain("AnimatedWaveform");
+    expect(source).not.toContain("SpinningRing");
   });
 });

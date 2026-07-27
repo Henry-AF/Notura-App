@@ -51,6 +51,7 @@ type RecordingSessionState = {
   meetingDraft: MeetingDraft | null;
   uploadProgress: number;
   overlayError: string | null;
+  activeStream: MediaStream | null;
 };
 
 type RecordingSessionAction =
@@ -69,6 +70,7 @@ const initialRecordingSessionState: RecordingSessionState = {
   meetingDraft: null,
   uploadProgress: 0,
   overlayError: null,
+  activeStream: null,
 };
 
 const RECORDING_SAVE_FAILURE_MESSAGE =
@@ -222,6 +224,7 @@ export function RecordingSessionProvider({
     meetingDraft,
     uploadProgress,
     overlayError,
+    activeStream,
   } = state;
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -244,6 +247,7 @@ export function RecordingSessionProvider({
     captureCleanupRef.current?.();
     captureCleanupRef.current = null;
     mediaStreamRef.current = null;
+    dispatch({ type: "patched", value: { activeStream: null } });
   }, [clearTimer]);
 
   const releaseWakeLock = useCallback(() => {
@@ -357,6 +361,7 @@ export function RecordingSessionProvider({
             uploadProgress: 0,
             isPaused: false,
             overlayStage: "recording",
+            activeStream: capture.stream,
           },
         });
       } catch (error) {
@@ -656,6 +661,7 @@ export function RecordingSessionProvider({
           uploadProgress={uploadProgress}
           errorMessage={overlayError}
           isPaused={isPaused}
+          stream={activeStream}
           onStop={handleStopRecording}
           onPauseToggle={handlePauseToggle}
           onResumeRecording={resumeStoppedRecording}

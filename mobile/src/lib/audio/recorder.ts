@@ -13,8 +13,10 @@ import { RecordingPresets, setAudioModeAsync, type RecordingOptions } from 'expo
 // start with "audio/").
 export const RECORDING_CONTENT_TYPE = 'audio/m4a';
 
+// Metering powers the recording screen's voice-reactive waveform (NOT-121).
+// expo-audio only reports `metering` on the recorder status when this is on.
 export function getRecordingOptions(): RecordingOptions {
-  return RecordingPresets.HIGH_QUALITY;
+  return { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 }
 
 // Configures the audio session for recording, including background audio on

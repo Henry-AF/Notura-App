@@ -27,6 +27,7 @@ interface RecordingOverlayProps {
   uploadProgress: number;
   isPaused?: boolean;
   errorMessage?: string | null;
+  stream?: MediaStream | null;
   onStop: () => void;
   onPauseToggle?: () => void;
   onResumeRecording?: () => void;
@@ -75,6 +76,7 @@ export function RecordingOverlay({
   uploadProgress,
   isPaused = false,
   errorMessage,
+  stream = null,
   onStop,
   onPauseToggle,
   onResumeRecording,
@@ -163,7 +165,11 @@ export function RecordingOverlay({
               </span>
             </div>
 
-            <RecordingWaveform active={(isRecording && !isPaused) || isSaving} className="w-full" />
+            <RecordingWaveform
+              active={(isRecording && !isPaused) || isSaving}
+              stream={stream}
+              className="w-full"
+            />
 
             {isSaving ? (
               <div className="w-full max-w-sm">

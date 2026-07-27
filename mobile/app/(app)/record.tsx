@@ -11,6 +11,8 @@ import {
   getRecordingOptions,
   type RecordingFileInfo,
 } from '@/lib/audio/recorder';
+import { normalizeMeteringDb, smoothAmplitude } from '@/lib/audio/metering';
+import { VoiceWaveform } from '@/components/recording/VoiceWaveform';
 import {
   checkMicrophonePermission,
   openMicrophoneSettings,
@@ -43,6 +45,11 @@ type Phase =
   | 'processing'
   | 'done'
   | 'failed';
+
+// Poll fast enough for the waveform (NOT-121) to feel smooth — `Animated`
+// interpolates between updates, so this doesn't need to match a render's
+// frame rate, just be short enough that steps aren't visible.
+const METERING_POLL_INTERVAL_MS = 100;
 
 const STEP_LABELS: Record<(typeof PROCESSING_STEP_IDS)[number], string> = {
   'update-status-processing': 'Preparando job',
@@ -77,7 +84,8 @@ export default function RecordScreen() {
       setErrorMessage(status.error ?? 'A gravação foi interrompida.');
     }
   });
-  const recorderState = useAudioRecorderState(recorder, 500);
+  const recorderState = useAudioRecorderState(recorder, METERING_POLL_INTERVAL_MS);
+  const amplitude = useVoiceAmplitude(recorderState.metering);
 
   const fileInfoRef = useRef<RecordingFileInfo | null>(null);
   const meetingDateRef = useRef<string | null>(null);
@@ -237,6 +245,7 @@ export default function RecordScreen() {
         <RecordingView
           phase={phase}
           durationMs={recorderState.durationMillis}
+          amplitude={amplitude}
           errorMessage={errorMessage}
           onPause={handlePauseRecording}
           onResume={handleResumeRecording}
@@ -293,6 +302,30 @@ function useInterruptionReconciliation(args: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.isRecording, args.phase]);
+}
+
+// Converts the raw dB metering reading polled off the recorder into a
+// smoothed [0, 1] amplitude for `VoiceWaveform` (NOT-121). The running
+// smoothed value lives in a ref (not state) so it updates in step with
+// `recorderState` without causing an extra render of its own. `undefined`
+// means expo-audio hasn't reported metering yet (see expo/expo#37241) —
+// treated the same as `null` so the UI can show an honest idle state
+// instead of pretending to react to voice it isn't measuring.
+const AMPLITUDE_MIN_DB = -60;
+const AMPLITUDE_SMOOTHING = 0.35;
+
+function useVoiceAmplitude(metering: number | null | undefined): number | null {
+  const smoothedRef = useRef<number | null>(null);
+
+  if (metering === null || metering === undefined) {
+    smoothedRef.current = null;
+    return null;
+  }
+
+  const normalized = normalizeMeteringDb(metering, { minDb: AMPLITUDE_MIN_DB });
+  const previous = smoothedRef.current ?? normalized;
+  smoothedRef.current = smoothAmplitude(previous, normalized, AMPLITUDE_SMOOTHING);
+  return smoothedRef.current;
 }
 
 function useNetworkRetry(args: { phase: Phase; isConnected: boolean | null; onRetry: () => void }) {
@@ -372,6 +405,7 @@ function PermissionDeniedView() {
 function RecordingView({
   phase,
   durationMs,
+  amplitude,
   errorMessage,
   onPause,
   onResume,
@@ -379,6 +413,7 @@ function RecordingView({
 }: {
   phase: 'recording' | 'paused';
   durationMs: number;
+  amplitude: number | null;
   errorMessage: string | null;
   onPause: () => void;
   onResume: () => void;
@@ -387,6 +422,7 @@ function RecordingView({
   return (
     <View style={styles.card}>
       <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
+      <VoiceWaveform amplitude={amplitude} active={phase === 'recording'} />
       <Text style={styles.cardSubtitle}>
         {phase === 'recording' ? 'Gravando...' : 'Pausado'}
       </Text>

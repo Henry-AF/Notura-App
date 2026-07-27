@@ -21,14 +21,14 @@ export function useAudioLevels(
   const barCount = options.barCount ?? DEFAULT_BAR_COUNT;
   const active = options.active ?? true;
   const [levels, setLevels] = useState<number[]>(() =>
-    new Array(barCount).fill(0)
+    Array.from({ length: barCount }, () => 0)
   );
   const levelsRef = useRef(levels);
   levelsRef.current = levels;
 
   useEffect(() => {
     if (!stream || !active) {
-      setLevels(new Array(barCount).fill(0));
+      setLevels(Array.from({ length: barCount }, () => 0));
       return;
     }
 

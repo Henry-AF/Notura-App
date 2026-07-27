@@ -16,7 +16,7 @@ export function bucketizeFrequencyData(
   barCount: number
 ): number[] {
   if (barCount <= 0 || data.length === 0) {
-    return new Array(Math.max(barCount, 0)).fill(0);
+    return Array.from({ length: Math.max(barCount, 0) }, () => 0);
   }
 
   const bucketSize = data.length / barCount;
@@ -37,6 +37,10 @@ export function smoothLevels(
   smoothing: number
 ): number[] {
   const clampedSmoothing = clamp01(smoothing);
+
+  if (clampedSmoothing === 1) {
+    return [...next];
+  }
 
   return next.map((value, index) => {
     const previousValue = previous[index];
@@ -92,15 +96,5 @@ function createBrowserAudioContext(): LevelAudioContext {
     throw new Error("Seu navegador não suporta análise de áudio nesta página.");
   }
 
-  const browserWindow = window as Window & {
-    webkitAudioContext?: typeof AudioContext;
-  };
-  const AudioContextConstructor =
-    window.AudioContext ?? browserWindow.webkitAudioContext;
-
-  if (!AudioContextConstructor) {
-    throw new Error("Seu navegador não suporta análise de áudio nesta página.");
-  }
-
-  return new AudioContextConstructor();
+  return new window.AudioContext();
 }

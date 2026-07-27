@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTheme } from "@/theme";
 import type { MeetingDetail } from "@/lib/meetings/meeting-detail-api";
 
 type DetailTab = "summary" | "transcript" | "participants" | "decisions" | "tasks";
@@ -18,6 +19,7 @@ const TABS: { key: DetailTab; label: string }[] = [
 
 export function MeetingDetailTabs({ meeting }: MeetingDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("summary");
+  const { colors } = useTheme();
 
   return (
     <View style={styles.container}>
@@ -31,10 +33,18 @@ export function MeetingDetailTabs({ meeting }: MeetingDetailTabsProps) {
           return (
             <Pressable
               key={tab.key}
-              style={[styles.tab, isActive && styles.tabActive]}
+              style={[
+                styles.tab,
+                { backgroundColor: isActive ? colors.primary : colors.secondary },
+              ]}
               onPress={() => setActiveTab(tab.key)}
             >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: isActive ? colors.primaryForeground : colors.mutedForeground },
+                ]}
+              >
                 {tab.label}
               </Text>
             </Pressable>
@@ -54,40 +64,59 @@ export function MeetingDetailTabs({ meeting }: MeetingDetailTabsProps) {
 }
 
 function SummaryTab({ meeting }: { meeting: MeetingDetail }) {
+  const { colors } = useTheme();
   return (
     <View>
-      <Text style={styles.sectionTitle}>Ata / Resumo</Text>
-      <Text style={styles.body}>{meeting.summary}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ata / Resumo</Text>
+      <Text style={[styles.body, { color: colors.foreground }]}>{meeting.summary}</Text>
     </View>
   );
 }
 
 function TranscriptTab({ transcript }: { transcript: string | null }) {
+  const { colors } = useTheme();
+
   if (!transcript) {
-    return <Text style={styles.empty}>Transcrição não disponível.</Text>;
+    return (
+      <Text style={[styles.empty, { color: colors.mutedForeground }]}>
+        Transcrição não disponível.
+      </Text>
+    );
   }
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Transcrição</Text>
-      <Text style={styles.transcript}>{transcript}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Transcrição</Text>
+      <Text style={[styles.transcript, { color: colors.foreground }]}>{transcript}</Text>
     </View>
   );
 }
 
 function ParticipantsTab({ meeting }: { meeting: MeetingDetail }) {
+  const { colors } = useTheme();
   const participants = meeting.participants;
 
   if (participants.length === 0) {
-    return <Text style={styles.empty}>Nenhum participante identificado.</Text>;
+    return (
+      <Text style={[styles.empty, { color: colors.mutedForeground }]}>
+        Nenhum participante identificado.
+      </Text>
+    );
   }
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Participantes ({participants.length})</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+        Participantes ({participants.length})
+      </Text>
       {participants.map((participant) => (
-        <View key={participant.id ?? participant.name} style={styles.listItem}>
-          <Text style={styles.listItemText}>{participant.name}</Text>
+        <View
+          key={participant.id ?? participant.name}
+          style={[styles.listItem, { backgroundColor: colors.secondary }]}
+        >
+          <Text style={[styles.listItemText, { color: colors.foreground }]}>
+            {participant.name}
+          </Text>
         </View>
       ))}
     </View>
@@ -99,18 +128,30 @@ function DecisionsTab({
 }: {
   decisions: MeetingDetail["decisions"];
 }) {
+  const { colors } = useTheme();
+
   if (decisions.length === 0) {
-    return <Text style={styles.empty}>Nenhuma decisão registrada.</Text>;
+    return (
+      <Text style={[styles.empty, { color: colors.mutedForeground }]}>
+        Nenhuma decisão registrada.
+      </Text>
+    );
   }
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Decisões ({decisions.length})</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+        Decisões ({decisions.length})
+      </Text>
       {decisions.map((decision) => (
-        <View key={decision.id} style={styles.listItem}>
-          <Text style={styles.listItemText}>{decision.description}</Text>
+        <View key={decision.id} style={[styles.listItem, { backgroundColor: colors.secondary }]}>
+          <Text style={[styles.listItemText, { color: colors.foreground }]}>
+            {decision.description}
+          </Text>
           {decision.decidedBy ? (
-            <Text style={styles.listItemMeta}>Por: {decision.decidedBy}</Text>
+            <Text style={[styles.listItemMeta, { color: colors.mutedForeground }]}>
+              Por: {decision.decidedBy}
+            </Text>
           ) : null}
         </View>
       ))}
@@ -119,20 +160,42 @@ function DecisionsTab({
 }
 
 function TasksTab({ tasks }: { tasks: MeetingDetail["tasks"] }) {
+  const { colors } = useTheme();
+
   if (tasks.length === 0) {
-    return <Text style={styles.empty}>Nenhuma tarefa extraída.</Text>;
+    return (
+      <Text style={[styles.empty, { color: colors.mutedForeground }]}>
+        Nenhuma tarefa extraída.
+      </Text>
+    );
   }
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>Tarefas ({tasks.length})</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+        Tarefas ({tasks.length})
+      </Text>
       {tasks.map((task) => (
-        <View key={task.id} style={styles.listItem}>
-          <Text style={[styles.listItemText, task.completed && styles.completed]}>
+        <View key={task.id} style={[styles.listItem, { backgroundColor: colors.secondary }]}>
+          <Text
+            style={[
+              styles.listItemText,
+              { color: task.completed ? colors.mutedForeground : colors.foreground },
+              task.completed && styles.completed,
+            ]}
+          >
             {task.text}
           </Text>
-          {task.assignee ? <Text style={styles.listItemMeta}>Responsável: {task.assignee}</Text> : null}
-          {task.dueDate ? <Text style={styles.listItemMeta}>Prazo: {task.dueDate}</Text> : null}
+          {task.assignee ? (
+            <Text style={[styles.listItemMeta, { color: colors.mutedForeground }]}>
+              Responsável: {task.assignee}
+            </Text>
+          ) : null}
+          {task.dueDate ? (
+            <Text style={[styles.listItemMeta, { color: colors.mutedForeground }]}>
+              Prazo: {task.dueDate}
+            </Text>
+          ) : null}
         </View>
       ))}
     </View>
@@ -152,18 +215,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#f1f5f9",
-  },
-  tabActive: {
-    backgroundColor: "#0f172a",
   },
   tabText: {
     fontSize: 13,
-    color: "#64748b",
     fontWeight: "500",
-  },
-  tabTextActive: {
-    color: "#fff",
   },
   content: {
     flex: 1,
@@ -175,7 +230,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0f172a",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -183,36 +237,29 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 15,
     lineHeight: 22,
-    color: "#334155",
   },
   transcript: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#334155",
     fontFamily: "monospace",
   },
   listItem: {
-    backgroundColor: "#f8fafc",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
   },
   listItemText: {
     fontSize: 14,
-    color: "#334155",
   },
   listItemMeta: {
     fontSize: 12,
-    color: "#94a3b8",
     marginTop: 4,
   },
   completed: {
     textDecorationLine: "line-through",
-    color: "#94a3b8",
   },
   empty: {
     fontSize: 14,
-    color: "#94a3b8",
     textAlign: "center",
     marginTop: 24,
   },

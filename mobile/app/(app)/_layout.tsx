@@ -1,11 +1,14 @@
 import { Redirect, Tabs } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
 
 function TabBarLabel({ title, focused }: { title: string; focused: boolean }) {
+  const { colors } = useTheme();
   return (
-    <Text style={[styles.label, focused && styles.labelFocused]}>
+    <Text style={[styles.label, { color: focused ? colors.primary : colors.mutedForeground }]}>
       {title}
     </Text>
   );
@@ -14,6 +17,7 @@ function TabBarLabel({ title, focused }: { title: string; focused: boolean }) {
 function RecordTabButton(props: BottomTabBarButtonProps) {
   const { onPress, onLongPress, accessibilityState, accessibilityLabel, testID } = props;
   const focused = accessibilityState?.selected ?? false;
+  const { colors, radius } = useTheme();
 
   return (
     <Pressable
@@ -24,8 +28,19 @@ function RecordTabButton(props: BottomTabBarButtonProps) {
       accessibilityLabel={accessibilityLabel}
       testID={testID}
     >
-      <View style={[styles.recordButton, focused && styles.recordButtonFocused]}>
-        <Text style={styles.recordButtonText}>Gravar</Text>
+      <View
+        style={[
+          styles.recordButton,
+          {
+            backgroundColor: focused ? colors.primaryDark : colors.primary,
+            borderRadius: radius.full,
+            shadowColor: colors.shadow,
+          },
+        ]}
+      >
+        <Text style={[styles.recordButtonText, { color: colors.primaryForeground }]}>
+          Gravar
+        </Text>
       </View>
     </Pressable>
   );
@@ -33,12 +48,13 @@ function RecordTabButton(props: BottomTabBarButtonProps) {
 
 export default function AppLayout() {
   const { isLoading, isAuthenticated } = useAuth();
+  const { colors } = useTheme();
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loading}>Carregando...</Text>
-      </View>
+      <Screen style={styles.container}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </Screen>
     );
   }
 
@@ -50,8 +66,9 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0f172a',
-        tabBarInactiveTintColor: '#64748b',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
       }}
     >
       <Tabs.Screen
@@ -88,22 +105,11 @@ export default function AppLayout() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  loading: {
-    fontSize: 16,
-    color: '#64748b',
   },
   label: {
     fontSize: 12,
-    color: '#64748b',
-  },
-  labelFocused: {
-    color: '#0f172a',
-    fontWeight: '600',
   },
   recordButtonContainer: {
     flex: 1,
@@ -113,22 +119,15 @@ const styles = StyleSheet.create({
   recordButton: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: '#dc2626',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -24,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 1,
     shadowRadius: 4,
     elevation: 5,
   },
-  recordButtonFocused: {
-    backgroundColor: '#b91d1d',
-  },
   recordButtonText: {
-    color: '#fff',
     fontSize: 11,
     fontWeight: '700',
   },

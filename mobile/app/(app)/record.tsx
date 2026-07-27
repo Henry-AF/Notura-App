@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useNetInfo } from '@react-native-community/netinfo';
@@ -32,6 +32,10 @@ import {
   submitMeetingRecording,
   type WhatsappGate,
 } from './record-api';
+import { useTheme } from '@/theme';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 
 type Phase =
   | 'idle'
@@ -64,6 +68,7 @@ function formatDuration(ms: number): string {
 export default function RecordScreen() {
   const router = useRouter();
   const netInfo = useNetInfo();
+  const { colors, spacing } = useTheme();
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -208,18 +213,20 @@ export default function RecordScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Gravar</Text>
+    <ScrollView
+      contentContainerStyle={[
+        styles.container,
+        { backgroundColor: colors.background, padding: spacing.lg, gap: spacing.md },
+      ]}
+    >
+      <ThemedText variant="title2">Gravar</ThemedText>
 
       {netInfo.isConnected === false && (
-        <Banner text="Sem conexão à internet. O upload será retomado automaticamente." tone="warning" />
+        <Banner text="Sem conexão à internet. O upload será retomado automaticamente." />
       )}
 
       {whatsappGate?.blocked && (
-        <Banner
-          text="Configure um número de WhatsApp na sua conta para gravar reuniões."
-          tone="warning"
-        />
+        <Banner text="Configure um número de WhatsApp na sua conta para gravar reuniões." />
       )}
 
       {pendingRecovery && phase === 'idle' && (
@@ -321,51 +328,62 @@ function usePollingCleanup(stopPollingRef: MutableRefObject<(() => void) | null>
 
 // ─── Presentational pieces ────────────────────────────────────────────────────
 
-function Banner({ text, tone }: { text: string; tone: 'warning' }) {
+function Banner({ text }: { text: string }) {
+  const { colors, radius, spacing } = useTheme();
   return (
-    <View style={[styles.banner, tone === 'warning' && styles.bannerWarning]}>
-      <Text style={styles.bannerText}>{text}</Text>
+    <View
+      style={[
+        styles.banner,
+        { backgroundColor: colors.warning + '26', borderRadius: radius.md, padding: spacing.sm + 2 },
+      ]}
+    >
+      <ThemedText variant="footnote" color={colors.warning}>
+        {text}
+      </ThemedText>
     </View>
   );
 }
 
 function RecoveryBanner({ onResume, onDiscard }: { onResume: () => void; onDiscard: () => void }) {
+  const { spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Encontramos uma gravação anterior</Text>
-      <Text style={styles.cardSubtitle}>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">Encontramos uma gravação anterior</ThemedText>
+      <ThemedText variant="body" style={styles.cardSubtitle}>
         O envio foi interrompido antes de terminar. Quer retomar?
-      </Text>
-      <View style={styles.row}>
-        <PrimaryButton label="Retomar envio" onPress={onResume} />
-        <SecondaryButton label="Descartar" onPress={onDiscard} />
+      </ThemedText>
+      <View style={[styles.row, { gap: spacing.sm }]}>
+        <Button label="Retomar envio" onPress={onResume} style={styles.flexButton} />
+        <Button label="Descartar" variant="secondary" onPress={onDiscard} style={styles.flexButton} />
       </View>
-    </View>
+    </Card>
   );
 }
 
 function IdleView({ disabled, onStart }: { disabled: boolean; onStart: () => void }) {
+  const { spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Pronto para gravar</Text>
-      <Text style={styles.cardSubtitle}>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">Pronto para gravar</ThemedText>
+      <ThemedText variant="body" style={styles.cardSubtitle}>
         Toque no botão para começar. Você pode bloquear a tela — a gravação continua.
-      </Text>
-      <PrimaryButton label="Gravar" onPress={onStart} disabled={disabled} />
-    </View>
+      </ThemedText>
+      <Button label="Gravar" onPress={onStart} disabled={disabled} />
+    </Card>
   );
 }
 
 function PermissionDeniedView() {
+  const { spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Permissão de microfone necessária</Text>
-      <Text style={styles.cardSubtitle}>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">Permissão de microfone necessária</ThemedText>
+      <ThemedText variant="body" style={styles.cardSubtitle}>
         O Notura precisa acessar o microfone para gravar suas reuniões. Ative a permissão nas
         Configurações do sistema.
-      </Text>
-      <PrimaryButton label="Abrir Configurações" onPress={() => void openMicrophoneSettings()} />
-    </View>
+      </ThemedText>
+      <Button label="Abrir Configurações" onPress={() => void openMicrophoneSettings()} />
+    </Card>
   );
 }
 
@@ -384,200 +402,96 @@ function RecordingView({
   onResume: () => void;
   onStop: () => void;
 }) {
+  const { colors, spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
-      <Text style={styles.cardSubtitle}>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="display" style={styles.timer}>
+        {formatDuration(durationMs)}
+      </ThemedText>
+      <ThemedText variant="body" color={colors.mutedForeground} style={styles.cardSubtitle}>
         {phase === 'recording' ? 'Gravando...' : 'Pausado'}
-      </Text>
-      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-      <View style={styles.row}>
+      </ThemedText>
+      {errorMessage && (
+        <ThemedText variant="footnote" color={colors.error}>
+          {errorMessage}
+        </ThemedText>
+      )}
+      <View style={[styles.row, { gap: spacing.sm }]}>
         {phase === 'recording' ? (
-          <SecondaryButton label="Pausar" onPress={onPause} />
+          <Button label="Pausar" variant="secondary" onPress={onPause} style={styles.flexButton} />
         ) : (
-          <SecondaryButton label="Retomar" onPress={onResume} />
+          <Button label="Retomar" variant="secondary" onPress={onResume} style={styles.flexButton} />
         )}
-        <PrimaryButton label="Finalizar" onPress={onStop} />
+        <Button label="Finalizar" onPress={onStop} style={styles.flexButton} />
       </View>
-    </View>
+    </Card>
   );
 }
 
 function UploadingView({ progress }: { progress: number }) {
+  const { colors, radius, spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Enviando áudio...</Text>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress}%` }]} />
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">Enviando áudio...</ThemedText>
+      <View style={[styles.progressTrack, { backgroundColor: colors.secondary, borderRadius: radius.sm }]}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${progress}%`, backgroundColor: colors.primary, borderRadius: radius.sm },
+          ]}
+        />
       </View>
-      <Text style={styles.cardSubtitle}>{progress}%</Text>
-    </View>
+      <ThemedText variant="body" style={styles.cardSubtitle}>
+        {progress}%
+      </ThemedText>
+    </Card>
   );
 }
 
 function StatusView({ label }: { label: string }) {
+  const { spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{label}</Text>
-    </View>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">{label}</ThemedText>
+    </Card>
   );
 }
 
 function FailedView({ message, onRetry }: { message: string | null; onRetry: () => void }) {
+  const { spacing } = useTheme();
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Erro no envio</Text>
-      <Text style={styles.cardSubtitle}>{message ?? 'Algo deu errado. Tente novamente.'}</Text>
-      <PrimaryButton label="Tentar novamente" onPress={onRetry} />
-    </View>
+    <Card style={{ gap: spacing.sm }}>
+      <ThemedText variant="headline">Erro no envio</ThemedText>
+      <ThemedText variant="body" style={styles.cardSubtitle}>
+        {message ?? 'Algo deu errado. Tente novamente.'}
+      </ThemedText>
+      <Button label="Tentar novamente" onPress={onRetry} />
+    </Card>
   );
 }
-
-function PrimaryButton({
-  label,
-  onPress,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        disabled && styles.primaryButtonDisabled,
-        pressed && styles.pressedScale,
-      ]}
-    >
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function SecondaryButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressedScale]}
-    >
-      <Text style={styles.secondaryButtonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-// ─── Design tokens (see DESIGN.md) ────────────────────────────────────────────
-
-const ACCENT_PRIMARY = '#5E4CEB';
-const ACCENT_SECONDARY = 'rgba(83, 65, 205, 0.12)';
-const GRAY_50 = '#FBFBFE';
-const GRAY_100 = '#F2F2F7';
-const GRAY_800 = '#1C1C1E';
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 24,
-    gap: 16,
-    backgroundColor: GRAY_50,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.02 * 28,
-    color: GRAY_800,
-  },
-  banner: {
-    borderRadius: 14,
-    padding: 14,
-  },
-  bannerWarning: {
-    backgroundColor: '#FEF3C7',
-  },
-  bannerText: {
-    fontSize: 13,
-    color: '#92400E',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 20,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.01 * 17,
-    color: GRAY_800,
-  },
+  banner: {},
   cardSubtitle: {
-    fontSize: 17,
-    color: '#6B7280',
     lineHeight: 17 * 1.4,
   },
   timer: {
-    fontSize: 44,
-    fontWeight: '700',
-    letterSpacing: -0.04 * 44,
-    color: GRAY_800,
     textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#B91C1C',
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+  },
+  flexButton: {
+    flex: 1,
   },
   progressTrack: {
     height: 6,
-    borderRadius: 3,
-    backgroundColor: GRAY_100,
     overflow: 'hidden',
   },
   progressFill: {
     height: 6,
-    borderRadius: 3,
-    backgroundColor: ACCENT_PRIMARY,
-  },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: ACCENT_PRIMARY,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonDisabled: {
-    opacity: 0.5,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: ACCENT_SECONDARY,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    color: ACCENT_PRIMARY,
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  pressedScale: {
-    transform: [{ scale: 0.96 }],
   },
 });

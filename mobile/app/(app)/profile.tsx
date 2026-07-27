@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { getCurrentUserFromApi } from '@/lib/api/client';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { Button } from '@/components/ui/Button';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [apiUser, setApiUser] = useState<unknown>(null);
+  const { colors } = useTheme();
 
   useEffect(() => {
     console.log('[NOT-112] Tela Perfil montada');
@@ -18,65 +23,52 @@ export default function ProfileScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Perfil</Text>
-      <Text style={styles.subtitle}>Em construção</Text>
+    <Screen style={styles.container}>
+      <ThemedText variant="title1" style={styles.title}>
+        Perfil
+      </ThemedText>
+      <ThemedText variant="body" color={colors.mutedForeground} style={styles.subtitle}>
+        Em construção
+      </ThemedText>
 
-      <Text style={styles.label}>Logado como:</Text>
-      <Text style={styles.email}>{user?.email ?? 'Desconhecido'}</Text>
+      <ThemedText variant="footnote" color={colors.mutedForeground} style={styles.label}>
+        Logado como:
+      </ThemedText>
+      <ThemedText variant="headline" style={styles.email}>
+        {user?.email ?? 'Desconhecido'}
+      </ThemedText>
 
-      <Text style={styles.label}>Resposta da API:</Text>
-      <Text style={styles.apiUser}>{apiUser ? JSON.stringify(apiUser, null, 2) : 'Carregando...'}</Text>
+      <ThemedText variant="footnote" color={colors.mutedForeground} style={styles.label}>
+        Resposta da API:
+      </ThemedText>
+      <ThemedText variant="caption" color={colors.secondaryForeground} style={styles.apiUser}>
+        {apiUser ? JSON.stringify(apiUser, null, 2) : 'Carregando...'}
+      </ThemedText>
 
-      <TouchableOpacity style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Sair</Text>
-      </TouchableOpacity>
-    </View>
+      <Button label="Sair" variant="secondary" onPress={signOut} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#64748b',
     marginBottom: 24,
     textAlign: 'center',
   },
   label: {
-    fontSize: 14,
-    color: '#64748b',
     marginTop: 12,
   },
   email: {
-    fontSize: 16,
-    fontWeight: '600',
     marginBottom: 16,
   },
   apiUser: {
-    fontSize: 12,
-    color: '#334155',
     marginBottom: 24,
-  },
-  button: {
-    backgroundColor: '#dc2626',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
   },
 });

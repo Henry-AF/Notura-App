@@ -1,35 +1,37 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
+import { ThemedText } from '@/components/ui/ThemedText';
 
 export default function TasksScreen() {
+  const { colors } = useTheme();
+
   useEffect(() => {
     console.log('[NOT-112] Tela Tarefas montada');
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tarefas</Text>
-      <Text style={styles.subtitle}>Em construção</Text>
-    </View>
+    <Screen style={styles.container}>
+      <ThemedText variant="title1" style={styles.title}>
+        Tarefas
+      </ThemedText>
+      <ThemedText variant="body" color={colors.mutedForeground} style={styles.subtitle}>
+        Em construção
+      </ThemedText>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#64748b',
     textAlign: 'center',
   },
 });

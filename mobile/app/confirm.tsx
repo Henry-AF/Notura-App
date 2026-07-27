@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
+import { ThemedText } from '@/components/ui/ThemedText';
 
 export default function ConfirmScreen() {
   const { token, type } = useLocalSearchParams<{ token?: string; type?: string }>();
+  const { colors } = useTheme();
 
   const initialState = useMemo(() => {
     if (type !== 'signup' || !token) {
@@ -37,25 +41,25 @@ export default function ConfirmScreen() {
     };
   }, [token, type]);
 
+  const messageColor = status === 'error' ? colors.error : colors.foreground;
+
   return (
-    <View style={styles.container}>
-      {status === 'loading' && <ActivityIndicator size="large" />}
-      <Text style={styles.message}>{message}</Text>
-    </View>
+    <Screen style={styles.container}>
+      {status === 'loading' && <ActivityIndicator size="large" color={colors.primary} />}
+      <ThemedText variant="body" color={messageColor} style={styles.message}>
+        {message}
+      </ThemedText>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
   },
   message: {
     marginTop: 16,
-    fontSize: 16,
     textAlign: 'center',
   },
 });

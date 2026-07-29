@@ -24,6 +24,10 @@ import {
   acquireRecordingWakeLock,
   type RecordingWakeLock,
 } from "@/lib/meetings/recording-wake-lock";
+import {
+  startLiveTranscription,
+  type LiveTranscriptionSession,
+} from "@/lib/meetings/live-transcription-client";
 import { submitRecordedMeeting } from "@/app/dashboard/recording/recording-api";
 import { RecordingOverlay, type RecordingOverlayStage } from "./RecordingOverlay";
 import type { RecordingMode, RecordingSetupValues } from "./RecordingSetupCard";
@@ -33,6 +37,13 @@ interface MeetingDraft {
   groupId: string | null;
   recordingMode: RecordingMode;
 }
+
+// The DOM lib types `navigator.mediaDevices` as always present, but some
+// browsers/contexts genuinely omit it — widen the type so the feature check
+// below reflects that real possibility instead of a redefined non-null one.
+type NavigatorWithOptionalMediaDevices = Omit<Navigator, "mediaDevices"> & {
+  mediaDevices?: Pick<MediaDevices, "getUserMedia">;
+};
 
 interface RecordingSessionContextValue {
   hasActiveSession: boolean;
@@ -52,11 +63,15 @@ type RecordingSessionState = {
   uploadProgress: number;
   overlayError: string | null;
   activeStream: MediaStream | null;
+  liveTranscriptSegments: string[];
+  livePartialText: string;
 };
 
 type RecordingSessionAction =
   | { type: "patched"; value: Partial<RecordingSessionState> }
   | { type: "elapsedTicked" }
+  | { type: "liveTranscriptPartial"; text: string }
+  | { type: "liveTranscriptFinal"; text: string }
   | { type: "reset" };
 
 const initialRecordingSessionState: RecordingSessionState = {
@@ -71,6 +86,8 @@ const initialRecordingSessionState: RecordingSessionState = {
   uploadProgress: 0,
   overlayError: null,
   activeStream: null,
+  liveTranscriptSegments: [],
+  livePartialText: "",
 };
 
 const RECORDING_SAVE_FAILURE_MESSAGE =
@@ -85,6 +102,14 @@ function recordingSessionReducer(
       return { ...state, ...action.value };
     case "elapsedTicked":
       return { ...state, elapsedSeconds: state.elapsedSeconds + 1 };
+    case "liveTranscriptPartial":
+      return { ...state, livePartialText: action.text };
+    case "liveTranscriptFinal":
+      return {
+        ...state,
+        liveTranscriptSegments: [...state.liveTranscriptSegments, action.text],
+        livePartialText: "",
+      };
     case "reset":
       return initialRecordingSessionState;
   }
@@ -101,6 +126,126 @@ interface MinimizedRecordingControllerProps {
 
 const RecordingSessionContext =
   createContext<RecordingSessionContextValue | null>(null);
+
+interface LiveTranscriptionController {
+  start: (mediaStream: MediaStream) => void;
+  stop: () => void;
+}
+
+/**
+ * Owns the live draft-transcript WebSocket session (NOT-141): starts it in
+ * parallel with the MediaRecorder capture and guarantees `stop()` is safe to
+ * call even if the async connection is still being established.
+ */
+function useLiveTranscriptionController(
+  dispatch: React.Dispatch<RecordingSessionAction>
+): LiveTranscriptionController {
+  const sessionRef = useRef<LiveTranscriptionSession | null>(null);
+  const cancelledRef = useRef(false);
+
+  const stop = useCallback(() => {
+    cancelledRef.current = true;
+    sessionRef.current?.stop();
+    sessionRef.current = null;
+  }, []);
+
+  const start = useCallback(
+    (mediaStream: MediaStream) => {
+      cancelledRef.current = false;
+
+      void startLiveTranscription(mediaStream, {
+        onPartialTranscript: (text) =>
+          dispatch({ type: "liveTranscriptPartial", text }),
+        onFinalTranscript: (text) =>
+          dispatch({ type: "liveTranscriptFinal", text }),
+        onUnavailable: () => {
+          sessionRef.current = null;
+        },
+      }).then((session) => {
+        if (cancelledRef.current) {
+          session.stop();
+          return;
+        }
+        sessionRef.current = session;
+      });
+    },
+    [dispatch]
+  );
+
+  return useMemo(() => ({ start, stop }), [start, stop]);
+}
+
+/** Keeps the screen awake for the duration of an active, unpaused recording. */
+function useRecordingWakeLock(
+  overlayStage: RecordingOverlayStage | null,
+  isPaused: boolean
+): void {
+  const wakeLockRef = useRef<RecordingWakeLock | null>(null);
+
+  const releaseWakeLock = useCallback(() => {
+    const wakeLock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    void wakeLock?.release();
+  }, []);
+
+  useEffect(() => {
+    if (overlayStage !== "recording" || isPaused) {
+      releaseWakeLock();
+      return;
+    }
+
+    let isCancelled = false;
+
+    void acquireRecordingWakeLock().then((wakeLock) => {
+      if (isCancelled) {
+        void wakeLock.release();
+        return;
+      }
+
+      wakeLockRef.current = wakeLock;
+    });
+
+    return () => {
+      isCancelled = true;
+      releaseWakeLock();
+    };
+  }, [isPaused, overlayStage, releaseWakeLock]);
+}
+
+/**
+ * Ticks `elapsedTicked` every second while actively recording. Returns
+ * `clearTimer` so callers can also stop the ticker outside the effect (e.g.
+ * the moment the recording is stopped, before the state update lands).
+ */
+function useElapsedRecordingTimer(
+  overlayStage: RecordingOverlayStage | null,
+  isPaused: boolean,
+  dispatch: React.Dispatch<RecordingSessionAction>
+): () => void {
+  const timerRef = useRef<number | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (overlayStage !== "recording" || isPaused) {
+      clearTimer();
+      return;
+    }
+
+    timerRef.current = window.setInterval(() => {
+      dispatch({ type: "elapsedTicked" });
+    }, 1000);
+
+    return () => clearTimer();
+  }, [clearTimer, dispatch, isPaused, overlayStage]);
+
+  return clearTimer;
+}
 
 function createRecordingMediaRecorder(stream: MediaStream): MediaRecorder {
   const mimeType = getPreferredRecordingMimeType((candidate) =>
@@ -225,21 +370,17 @@ export function RecordingSessionProvider({
     uploadProgress,
     overlayError,
     activeStream,
+    liveTranscriptSegments,
+    livePartialText,
   } = state;
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const captureCleanupRef = useRef<(() => void) | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const wakeLockRef = useRef<RecordingWakeLock | null>(null);
-  const timerRef = useRef<number | null>(null);
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  const liveTranscription = useLiveTranscriptionController(dispatch);
+  const clearTimer = useElapsedRecordingTimer(overlayStage, isPaused, dispatch);
+  useRecordingWakeLock(overlayStage, isPaused);
 
   const cleanupRecorderResources = useCallback(() => {
     clearTimer();
@@ -247,14 +388,9 @@ export function RecordingSessionProvider({
     captureCleanupRef.current?.();
     captureCleanupRef.current = null;
     mediaStreamRef.current = null;
+    liveTranscription.stop();
     dispatch({ type: "patched", value: { activeStream: null } });
-  }, [clearTimer]);
-
-  const releaseWakeLock = useCallback(() => {
-    const wakeLock = wakeLockRef.current;
-    wakeLockRef.current = null;
-    void wakeLock?.release();
-  }, []);
+  }, [clearTimer, liveTranscription]);
 
   const resetRecordingState = useCallback(() => {
     cleanupRecorderResources();
@@ -266,48 +402,12 @@ export function RecordingSessionProvider({
     return () => cleanupRecorderResources();
   }, [cleanupRecorderResources]);
 
-  useEffect(() => {
-    if (overlayStage !== "recording" || isPaused) {
-      releaseWakeLock();
-      return;
-    }
-
-    let isCancelled = false;
-
-    void acquireRecordingWakeLock().then((wakeLock) => {
-      if (isCancelled) {
-        void wakeLock.release();
-        return;
-      }
-
-      wakeLockRef.current = wakeLock;
-    });
-
-    return () => {
-      isCancelled = true;
-      releaseWakeLock();
-    };
-  }, [isPaused, overlayStage, releaseWakeLock]);
-
-  useEffect(() => {
-    if (overlayStage !== "recording" || isPaused) {
-      clearTimer();
-      return;
-    }
-
-    timerRef.current = window.setInterval(() => {
-      dispatch({ type: "elapsedTicked" });
-    }, 1000);
-
-    return () => clearTimer();
-  }, [clearTimer, isPaused, overlayStage]);
-
   const startRecorderSession = useCallback(
     async (values: RecordingSetupValues) => {
       if (
         typeof window === "undefined" ||
         typeof navigator === "undefined" ||
-        !navigator.mediaDevices?.getUserMedia ||
+        !(navigator as NavigatorWithOptionalMediaDevices).mediaDevices?.getUserMedia ||
         typeof MediaRecorder === "undefined"
       ) {
         throw new Error("Seu navegador não suporta gravação de áudio nesta página.");
@@ -339,6 +439,7 @@ export function RecordingSessionProvider({
           });
 
           recorder.start(1000);
+          liveTranscription.start(capture.stream);
         } catch (error) {
           capture?.cleanup();
           captureCleanupRef.current = null;
@@ -362,6 +463,8 @@ export function RecordingSessionProvider({
             isPaused: false,
             overlayStage: "recording",
             activeStream: capture.stream,
+            liveTranscriptSegments: [],
+            livePartialText: "",
           },
         });
       } catch (error) {
@@ -370,7 +473,7 @@ export function RecordingSessionProvider({
         dispatch({ type: "patched", value: { isStarting: false } });
       }
     },
-    []
+    [liveTranscription]
   );
 
   const startRecording = useCallback(
@@ -544,7 +647,7 @@ export function RecordingSessionProvider({
     snapshotActiveRecording,
   ]);
 
-  const resumeStoppedRecording = useCallback(async () => {
+  const resumeStoppedRecording = useCallback(() => {
     if (!meetingDraft || overlayStage !== "confirm" || isStarting) {
       return;
     }
@@ -649,6 +752,9 @@ export function RecordingSessionProvider({
   );
 
   const elapsedLabel = formatRecordingDuration(elapsedSeconds);
+  const liveTranscriptText = [...liveTranscriptSegments, livePartialText]
+    .filter((segment) => segment.length > 0)
+    .join(" ");
 
   return (
     <RecordingSessionContext.Provider value={contextValue}>
@@ -662,11 +768,12 @@ export function RecordingSessionProvider({
           errorMessage={overlayError}
           isPaused={isPaused}
           stream={activeStream}
-          onStop={handleStopRecording}
+          liveTranscriptText={liveTranscriptText}
+          onStop={() => void handleStopRecording()}
           onPauseToggle={handlePauseToggle}
           onResumeRecording={resumeStoppedRecording}
           onDiscard={resetRecordingState}
-          onSave={handleSaveRecording}
+          onSave={() => void handleSaveRecording()}
           onClose={overlayError ? resetRecordingState : undefined}
           onMinimize={() =>
             dispatch({ type: "patched", value: { isMinimized: true } })
@@ -683,7 +790,7 @@ export function RecordingSessionProvider({
           onExpand={() =>
             dispatch({ type: "patched", value: { isMinimized: false } })
           }
-          onStop={handleStopRecording}
+          onStop={() => void handleStopRecording()}
         />
       ) : null}
     </RecordingSessionContext.Provider>

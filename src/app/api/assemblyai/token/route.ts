@@ -1,49 +1,24 @@
 // POST /api/assemblyai/token
-// Returns a short-lived temporary token for AssemblyAI real-time transcription.
-// The token is safe to expose to the browser and expires after 8 minutes.
+// Returns a short-lived temporary token for AssemblyAI's v3 streaming API
+// (Universal-Streaming). The token is safe to expose to the browser.
 
 import { NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
+import { createStreamingToken } from "@/lib/assemblyai";
 
 export const POST = withAuthRateLimit(
   RATE_LIMIT_POLICIES.assemblyAiToken,
   async () => {
-  const apiKey = process.env.ASSEMBLYAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "ASSEMBLYAI_API_KEY não configurado no servidor." },
-      { status: 500 }
-    );
-  }
-
-  try {
-    const res = await fetch("https://api.assemblyai.com/v2/realtime/token", {
-      method: "POST",
-      headers: {
-        Authorization: apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ expires_in: 480 }), // 8 minutes
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[assemblyai/token] API error:", res.status, text);
+    try {
+      const token = await createStreamingToken();
+      return NextResponse.json({ token });
+    } catch (err) {
+      console.error("[assemblyai/token] Failed to create streaming token:", err);
       return NextResponse.json(
-        { error: "Falha ao obter token de transcrição." },
+        { error: "Falha ao gerar token de transcrição." },
         { status: 502 }
       );
     }
-
-    const data = (await res.json()) as { token: string };
-    return NextResponse.json({ token: data.token });
-  } catch (err) {
-    console.error("[assemblyai/token] Unexpected error:", err);
-    return NextResponse.json(
-      { error: "Erro interno ao gerar token." },
-      { status: 500 }
-    );
-  }
   }
 );

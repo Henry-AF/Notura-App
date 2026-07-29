@@ -16,10 +16,9 @@ import { buildRecordingFileName, type RecordingFileInfo } from '@/lib/audio/reco
 
 // ─── Post-processing navigation (extension point for NOT-115) ────────────────
 
-// The Meetings tab (`app/(app)/index.tsx`) is the existing "Reuniões" screen.
-// NOT-115 (meeting list/detail) will likely deep-link into a specific meeting;
-// for this slice we just land back on the tab.
-export const POST_PROCESSING_ROUTE = '/(app)' as const;
+// `app/(app)/meetings/index.tsx` is the "Reuniões" list — mirrors the web
+// app's behavior of landing on `/dashboard/meetings` after processing.
+export const POST_PROCESSING_ROUTE = '/(app)/meetings' as const;
 
 // ─── Processing step mapping ──────────────────────────────────────────────────
 // Mirrors the `STEPS` ids from `src/app/dashboard/processing/page.tsx` on the

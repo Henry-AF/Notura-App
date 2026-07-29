@@ -1,5 +1,4 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { useColorScheme } from "react-native";
 import { palette, radius, spacing, type Palette, type ThemeMode } from "./tokens";
 import { resolveTextVariantStyle, type ResolvedTextStyle, type TextVariant } from "./fonts";
 
@@ -30,10 +29,12 @@ function buildTypography(): Record<TextVariant, ResolvedTextStyle> {
   return Object.fromEntries(entries) as Record<TextVariant, ResolvedTextStyle>;
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useColorScheme();
-  const mode: ThemeMode = systemScheme === "dark" ? "dark" : "light";
+// The brand identity is a fixed dark/purple theme (see DESIGN.md) — it does
+// not follow the device's system color scheme like a typical light/dark
+// toggle would.
+const mode: ThemeMode = "dark";
 
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ThemeContextValue>(
     () => ({
       mode,
@@ -42,7 +43,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       radius,
       typography: buildTypography(),
     }),
-    [mode]
+    []
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

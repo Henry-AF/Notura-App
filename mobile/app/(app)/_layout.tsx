@@ -1,9 +1,23 @@
 import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useTheme } from '@/theme';
 import { Screen } from '@/components/ui/Screen';
+
+function TabBarIcon({
+  name,
+  focused,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  focused: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Ionicons name={name} size={22} color={focused ? colors.primary : colors.mutedForeground} />
+  );
+}
 
 function TabBarLabel({ title, focused }: { title: string; focused: boolean }) {
   const { colors } = useTheme();
@@ -76,6 +90,7 @@ export default function AppLayout() {
         options={{
           title: 'Reuniões',
           tabBarLabel: ({ focused }) => <TabBarLabel title="Reuniões" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="calendar-outline" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -90,6 +105,7 @@ export default function AppLayout() {
         options={{
           title: 'Tarefas',
           tabBarLabel: ({ focused }) => <TabBarLabel title="Tarefas" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="checkbox-outline" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -97,6 +113,7 @@ export default function AppLayout() {
         options={{
           title: 'Perfil',
           tabBarLabel: ({ focused }) => <TabBarLabel title="Perfil" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="person-outline" focused={focused} />,
         }}
       />
     </Tabs>

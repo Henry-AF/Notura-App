@@ -22,10 +22,20 @@ export const GET = withAuth<{ id: string }>(async (
     .eq("id", params.id)
     .single();
 
+  // `requireOwnership` above already confirmed this meeting exists and
+  // belongs to `auth.user.id` — a failure here is never an auth/ownership
+  // problem, so it must not be reported as "Acesso negado." (that message
+  // is reserved for `requireOwnership`'s own 403 and was misleadingly
+  // duplicated here, hiding the real cause during past investigations).
   if (meetingError || !meeting) {
+    console.error("[api/meetings/[id]/status] meeting vanished after ownership check:", {
+      meetingId: params.id,
+      userId: auth.user.id,
+      meetingError,
+    });
     return NextResponse.json(
-      { error: "Acesso negado." },
-      { status: 403 }
+      { error: "Reunião não encontrada." },
+      { status: 404 }
     );
   }
 

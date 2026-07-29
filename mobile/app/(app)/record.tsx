@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useNetInfo } from '@react-native-community/netinfo';
 import {
@@ -12,7 +13,9 @@ import {
   type RecordingFileInfo,
 } from '@/lib/audio/recorder';
 import { normalizeMeteringDb, smoothAmplitude } from '@/lib/audio/metering';
-import { VoiceWaveform } from '@/components/recording/VoiceWaveform';
+import { AudioSphere } from '@/components/recording/AudioSphere';
+import { RecordingEqualizer } from '@/components/recording/RecordingEqualizer';
+import { palette, resolveTextVariantStyle } from '@/theme';
 import {
   checkMicrophonePermission,
   openMicrophoneSettings,
@@ -215,9 +218,13 @@ export default function RecordScreen() {
     void handleUploadAndProcess();
   }
 
+  const isImmersive = phase === 'recording' || phase === 'paused';
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Gravar</Text>
+    <ScrollView
+      contentContainerStyle={[styles.container, isImmersive && styles.containerImmersive]}
+    >
+      {!isImmersive && <Text style={styles.title}>Gravar</Text>}
 
       {netInfo.isConnected === false && (
         <Banner text="Sem conexão à internet. O upload será retomado automaticamente." tone="warning" />
@@ -247,6 +254,7 @@ export default function RecordScreen() {
           durationMs={recorderState.durationMillis}
           amplitude={amplitude}
           errorMessage={errorMessage}
+          onBack={() => router.back()}
           onPause={handlePauseRecording}
           onResume={handleResumeRecording}
           onStop={() => void handleStopRecording()}
@@ -407,6 +415,7 @@ function RecordingView({
   durationMs,
   amplitude,
   errorMessage,
+  onBack,
   onPause,
   onResume,
   onStop,
@@ -415,25 +424,65 @@ function RecordingView({
   durationMs: number;
   amplitude: number | null;
   errorMessage: string | null;
+  onBack: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
 }) {
+  const isRecording = phase === 'recording';
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
-      <VoiceWaveform amplitude={amplitude} active={phase === 'recording'} />
-      <Text style={styles.cardSubtitle}>
-        {phase === 'recording' ? 'Gravando...' : 'Pausado'}
-      </Text>
+    <View style={styles.recordingScreen}>
+      <View style={styles.recordingHeader}>
+        <Pressable
+          onPress={onBack}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressedScale]}
+        >
+          <Ionicons name="arrow-back" size={20} color={DARK.foreground} />
+        </Pressable>
+      </View>
+
+      <View style={styles.sphereSection}>
+        <AudioSphere amplitude={amplitude} active={isRecording} />
+      </View>
+
+      <View style={styles.transcriptCard}>
+        <Text style={styles.transcriptPlaceholder}>
+          A transcrição aparecerá aqui durante a gravação
+        </Text>
+      </View>
+
+      <RecordingEqualizer amplitude={amplitude} active={isRecording} />
+
       {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-      <View style={styles.row}>
-        {phase === 'recording' ? (
-          <SecondaryButton label="Pausar" onPress={onPause} />
-        ) : (
-          <SecondaryButton label="Retomar" onPress={onResume} />
-        )}
-        <PrimaryButton label="Finalizar" onPress={onStop} />
+
+      <View style={styles.footer}>
+        <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
+        <Text style={styles.statusLabel}>{isRecording ? 'Gravando...' : 'Pausado'}</Text>
+
+        <View style={styles.controlsRow}>
+          <Pressable
+            onPress={isRecording ? onPause : onResume}
+            style={({ pressed }) => [styles.sideControl, pressed && styles.pressedScale]}
+          >
+            <Ionicons name={isRecording ? 'pause' : 'play'} size={22} color={DARK.foreground} />
+          </Pressable>
+
+          <View style={styles.centerControl}>
+            <Ionicons name="mic" size={28} color="#FFFFFF" />
+          </View>
+
+          <Pressable
+            onPress={onStop}
+            style={({ pressed }) => [
+              styles.sideControl,
+              styles.stopControl,
+              pressed && styles.pressedScale,
+            ]}
+          >
+            <Ionicons name="stop" size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -504,70 +553,64 @@ function SecondaryButton({ label, onPress }: { label: string; onPress: () => voi
   );
 }
 
-// ─── Design tokens (see DESIGN.md) ────────────────────────────────────────────
+// ─── Design tokens (NOT-136 dark theme, see mobile/src/theme) ─────────────────
 
-const ACCENT_PRIMARY = '#5E4CEB';
-const ACCENT_SECONDARY = 'rgba(83, 65, 205, 0.12)';
-const GRAY_50 = '#FBFBFE';
-const GRAY_100 = '#F2F2F7';
-const GRAY_800 = '#1C1C1E';
+const DARK = palette.dark;
+const SECONDARY_TINT = 'rgba(139, 122, 255, 0.16)';
+
+const displayStyle = resolveTextVariantStyle('display');
+const title2Style = resolveTextVariantStyle('title2');
+const headlineStyle = resolveTextVariantStyle('headline');
+const bodyStyle = resolveTextVariantStyle('body');
+const footnoteStyle = resolveTextVariantStyle('footnote');
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
     gap: 16,
-    backgroundColor: GRAY_50,
+    backgroundColor: DARK.background,
+  },
+  containerImmersive: {
+    padding: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.02 * 28,
-    color: GRAY_800,
+    ...title2Style,
+    color: DARK.foreground,
   },
   banner: {
     borderRadius: 14,
     padding: 14,
   },
   bannerWarning: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(245, 158, 11, 0.16)',
   },
   bannerText: {
-    fontSize: 13,
-    color: '#92400E',
+    ...footnoteStyle,
+    color: '#FBBF24',
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: DARK.card,
     borderRadius: 22,
     padding: 20,
     gap: 12,
-    shadowColor: '#000',
+    shadowColor: DARK.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 2,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.01 * 17,
-    color: GRAY_800,
+    ...headlineStyle,
+    color: DARK.foreground,
   },
   cardSubtitle: {
-    fontSize: 17,
-    color: '#6B7280',
-    lineHeight: 17 * 1.4,
-  },
-  timer: {
-    fontSize: 44,
-    fontWeight: '700',
-    letterSpacing: -0.04 * 44,
-    color: GRAY_800,
-    textAlign: 'center',
+    ...bodyStyle,
+    color: DARK.mutedForeground,
   },
   errorText: {
-    fontSize: 13,
-    color: '#B91C1C',
+    ...footnoteStyle,
+    color: DARK.error,
   },
   row: {
     flexDirection: 'row',
@@ -576,17 +619,17 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: GRAY_100,
+    backgroundColor: DARK.secondary,
     overflow: 'hidden',
   },
   progressFill: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: ACCENT_PRIMARY,
+    backgroundColor: DARK.primary,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: ACCENT_PRIMARY,
+    backgroundColor: DARK.primary,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -596,24 +639,104 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
+    ...headlineStyle,
+    color: DARK.primaryForeground,
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: ACCENT_SECONDARY,
+    backgroundColor: SECONDARY_TINT,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: ACCENT_PRIMARY,
-    fontSize: 17,
-    fontWeight: '600',
+    ...headlineStyle,
+    color: DARK.primary,
   },
   pressedScale: {
     transform: [{ scale: 0.96 }],
+  },
+
+  // ─── Immersive recording layout (NOT-136 reference) ─────────────────────────
+  recordingScreen: {
+    flex: 1,
+    justifyContent: 'space-between',
+    gap: 24,
+  },
+  recordingHeader: {
+    flexDirection: 'row',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: DARK.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sphereSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transcriptCard: {
+    flex: 1,
+    backgroundColor: DARK.card,
+    borderRadius: 22,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 96,
+  },
+  transcriptPlaceholder: {
+    ...bodyStyle,
+    color: DARK.mutedForeground,
+    textAlign: 'center',
+  },
+  footer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  timer: {
+    ...displayStyle,
+    color: DARK.foreground,
+    letterSpacing: -0.02 * displayStyle.fontSize,
+    textAlign: 'center',
+  },
+  statusLabel: {
+    ...footnoteStyle,
+    color: DARK.mutedForeground,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 28,
+    marginTop: 12,
+  },
+  sideControl: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: DARK.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopControl: {
+    backgroundColor: DARK.error,
+  },
+  centerControl: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: DARK.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -24,
+    shadowColor: DARK.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });

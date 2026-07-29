@@ -1,8 +1,11 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
+import { ThemeProvider, useAppFonts, useTheme } from '@/theme';
 
-export default function RootLayout() {
+function RootNavigator() {
+  const { mode } = useTheme();
+
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>
@@ -12,7 +15,21 @@ export default function RootLayout() {
         <Stack.Screen name="confirm" options={{ animation: 'none' }} />
         <Stack.Screen name="(app)" options={{ animation: 'none' }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  const { fontsLoaded, fontError } = useAppFonts();
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
+  return (
+    <ThemeProvider>
+      <RootNavigator />
+    </ThemeProvider>
   );
 }

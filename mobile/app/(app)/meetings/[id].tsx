@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTheme } from "@/theme";
 import {
   fetchMeetingDetail,
   formatMeetingDateTime,
@@ -32,6 +33,7 @@ const POLLING_INTERVAL_MS = 30_000;
 export default function MeetingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [status, setStatus] = useState<MeetingStatusPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,18 +131,25 @@ export default function MeetingDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" />
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
 
   if (error || !meeting) {
     return (
-      <SafeAreaView style={styles.center}>
-        <Text style={styles.error}>{error ?? "Reunião não encontrada."}</Text>
-        <Pressable style={styles.retryButton} onPress={loadDetail}>
-          <Text style={styles.retryText}>Tentar novamente</Text>
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.error, { color: colors.error }]}>
+          {error ?? "Reunião não encontrada."}
+        </Text>
+        <Pressable
+          style={[styles.retryButton, { backgroundColor: colors.primary }]}
+          onPress={loadDetail}
+        >
+          <Text style={[styles.retryText, { color: colors.primaryForeground }]}>
+            Tentar novamente
+          </Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -151,27 +160,31 @@ export default function MeetingDetailScreen() {
   const isCompleted = displayStatus === "completed";
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()}>
-          <Text style={styles.back}>← Voltar</Text>
+          <Text style={[styles.back, { color: colors.mutedForeground }]}>← Voltar</Text>
         </Pressable>
         {isCompleted ? (
           <Pressable onPress={handleShare} disabled={isSharing}>
-            <Text style={styles.share}>{isSharing ? "Abrindo..." : "Compartilhar"}</Text>
+            <Text style={[styles.share, { color: colors.primary }]}>
+              {isSharing ? "Abrindo..." : "Compartilhar"}
+            </Text>
           </Pressable>
         ) : null}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
             {meeting.clientName}
           </Text>
           <MeetingStatusBadge status={displayStatus} />
         </View>
 
-        <Text style={styles.date}>{formatMeetingDateTime(meeting.meetingDate)}</Text>
+        <Text style={[styles.date, { color: colors.mutedForeground }]}>
+          {formatMeetingDateTime(meeting.meetingDate)}
+        </Text>
 
         {isProcessing ? (
           <ProcessingState
@@ -198,7 +211,6 @@ export default function MeetingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   center: {
     flex: 1,
@@ -213,15 +225,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
   },
   back: {
     fontSize: 14,
-    color: "#64748b",
   },
   share: {
     fontSize: 14,
-    color: "#2563eb",
     fontWeight: "600",
   },
   scroll: {
@@ -242,27 +251,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: "700",
-    color: "#0f172a",
   },
   date: {
     fontSize: 13,
-    color: "#64748b",
     marginBottom: 16,
   },
   error: {
     fontSize: 14,
-    color: "#dc2626",
     textAlign: "center",
   },
   retryButton: {
     marginTop: 12,
-    backgroundColor: "#0f172a",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
     fontWeight: "600",
   },
 });

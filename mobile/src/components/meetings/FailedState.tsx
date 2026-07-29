@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTheme } from "@/theme";
 
 interface FailedStateProps {
   errorMessage?: string | null;
@@ -7,18 +8,24 @@ interface FailedStateProps {
 }
 
 export function FailedState({ errorMessage, onRetry, isRetrying }: FailedStateProps) {
+  const { colors } = useTheme();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Falha no processamento</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: colors.error }]}>Falha no processamento</Text>
+      <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
         {errorMessage && errorMessage.trim().length > 0
           ? errorMessage
           : "O arquivo foi salvo. Você pode tentar processar novamente."}
       </Text>
 
       {onRetry ? (
-        <Pressable style={styles.retryButton} onPress={onRetry} disabled={isRetrying}>
-          <Text style={styles.retryText}>
+        <Pressable
+          style={[styles.retryButton, { backgroundColor: colors.error }]}
+          onPress={onRetry}
+          disabled={isRetrying}
+        >
+          <Text style={[styles.retryText, { color: colors.primaryForeground }]}>
             {isRetrying ? "Reprocessando..." : "Reprocessar reunião"}
           </Text>
         </Pressable>
@@ -37,23 +44,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#dc2626",
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
     marginTop: 8,
     textAlign: "center",
   },
   retryButton: {
     marginTop: 24,
-    backgroundColor: "#dc2626",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
     fontWeight: "600",
   },
 });

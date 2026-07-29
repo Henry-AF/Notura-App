@@ -5,10 +5,8 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   fetchMeetings,
@@ -18,6 +16,9 @@ import {
 import { fetchMeetingGroups, type MeetingGroup } from "@/lib/meetings/groups-api";
 import { MeetingListItemView } from "@/components/meetings/MeetingListItem";
 import { MeetingFilterSheet } from "@/components/meetings/MeetingFilterSheet";
+import { useTheme } from "@/theme";
+import { Screen } from "@/components/ui/Screen";
+import { ThemedText } from "@/components/ui/ThemedText";
 
 const PAGE_LIMIT = 20;
 
@@ -95,36 +96,60 @@ export default function MeetingsScreen() {
       ? "Todos"
       : groups.find((group) => group.id === selectedGroupId)?.name ?? "Grupo";
 
+  const { colors, radius, spacing } = useTheme();
+
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" />
-      </SafeAreaView>
+      <Screen style={styles.center} padded={false}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Reuniões</Text>
-        <Pressable style={styles.filterButton} onPress={() => setIsFilterOpen(true)}>
-          <Text style={styles.filterButtonText} numberOfLines={1}>
+    <Screen style={styles.container} padded={false}>
+      <View
+        style={[
+          styles.header,
+          { borderBottomColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+        ]}
+      >
+        <ThemedText variant="title2">Reuniões</ThemedText>
+        <Pressable
+          style={[styles.filterButton, { backgroundColor: colors.secondary, borderRadius: radius.xl }]}
+          onPress={() => setIsFilterOpen(true)}
+        >
+          <ThemedText variant="footnote" color={colors.secondaryForeground} numberOfLines={1}>
             {selectedGroupName}
-          </Text>
+          </ThemedText>
         </Pressable>
       </View>
 
       {groupsError ? (
-        <View style={styles.groupsErrorBanner}>
-          <Text style={styles.groupsErrorText}>Filtro por grupo indisponível: {groupsError}</Text>
+        <View
+          style={[
+            styles.groupsErrorBanner,
+            { backgroundColor: colors.error + "1A", borderBottomColor: colors.border },
+          ]}
+        >
+          <ThemedText variant="caption" color={colors.error}>
+            Filtro por grupo indisponível: {groupsError}
+          </ThemedText>
         </View>
       ) : null}
 
       {error ? (
         <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={refresh}>
-            <Text style={styles.retryText}>Tentar novamente</Text>
+          <ThemedText variant="footnote" color={colors.error} style={styles.textCenter}>
+            {error}
+          </ThemedText>
+          <Pressable
+            style={[styles.retryButton, { backgroundColor: colors.primary, borderRadius: radius.md }]}
+            onPress={refresh}
+          >
+            <ThemedText variant="footnote" color={colors.primaryForeground}>
+              Tentar novamente
+            </ThemedText>
           </Pressable>
         </View>
       ) : null}
@@ -136,20 +161,20 @@ export default function MeetingsScreen() {
           <MeetingListItemView meeting={item} onPress={handleMeetingPress} />
         )}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={refresh} />
+          <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />
         }
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          isLoadingMore ? <ActivityIndicator style={styles.loader} /> : null
+          isLoadingMore ? <ActivityIndicator style={styles.loader} color={colors.primary} /> : null
         }
         ListEmptyComponent={
           !error ? (
-            <Text style={styles.empty}>
+            <ThemedText variant="footnote" color={colors.mutedForeground} style={styles.empty}>
               {selectedGroupId
                 ? "Nenhuma reunião encontrada para este grupo."
                 : "Você ainda não possui reuniões."}
-            </Text>
+            </ThemedText>
           ) : null
         }
       />
@@ -161,14 +186,13 @@ export default function MeetingsScreen() {
         onSelectGroup={setSelectedGroupId}
         onClose={() => setIsFilterOpen(false)}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   center: {
     flex: 1,
@@ -180,61 +204,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0f172a",
   },
   filterButton: {
     maxWidth: 160,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: "#f1f5f9",
-  },
-  filterButtonText: {
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: "500",
   },
   groupsErrorBanner: {
-    backgroundColor: "#fef2f2",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#fee2e2",
   },
-  groupsErrorText: {
-    fontSize: 12,
-    color: "#dc2626",
-  },
-  error: {
-    fontSize: 14,
-    color: "#dc2626",
+  textCenter: {
     textAlign: "center",
   },
   retryButton: {
     marginTop: 12,
-    backgroundColor: "#0f172a",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryText: {
-    color: "#fff",
-    fontWeight: "600",
   },
   loader: {
     marginVertical: 16,
   },
   empty: {
     textAlign: "center",
-    color: "#94a3b8",
     marginTop: 40,
     paddingHorizontal: 24,
   },

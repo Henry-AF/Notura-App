@@ -1,4 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTheme } from "@/theme";
 import type { MeetingGroup } from "@/lib/meetings/groups-api";
 
 interface MeetingFilterSheetProps {
@@ -16,49 +17,63 @@ export function MeetingFilterSheet({
   onSelectGroup,
   onClose,
 }: MeetingFilterSheetProps) {
+  const { colors } = useTheme();
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={styles.header}>
-            <Text style={styles.title}>Filtrar por grupo</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>Filtrar por grupo</Text>
             <Pressable onPress={onClose}>
-              <Text style={styles.close}>Fechar</Text>
+              <Text style={[styles.close, { color: colors.mutedForeground }]}>Fechar</Text>
             </Pressable>
           </View>
 
           <Pressable
-            style={[styles.option, selectedGroupId === null && styles.optionSelected]}
+            style={[styles.option, selectedGroupId === null && { backgroundColor: colors.secondary }]}
             onPress={() => {
               onSelectGroup(null);
               onClose();
             }}
           >
-            <Text style={[styles.optionText, selectedGroupId === null && styles.optionTextSelected]}>
+            <Text
+              style={[
+                styles.optionText,
+                { color: selectedGroupId === null ? colors.primary : colors.foreground },
+                selectedGroupId === null && styles.optionTextSelected,
+              ]}
+            >
               Todos os grupos
             </Text>
           </Pressable>
 
-          {groups.map((group) => (
-            <Pressable
-              key={group.id}
-              style={[styles.option, selectedGroupId === group.id && styles.optionSelected]}
-              onPress={() => {
-                onSelectGroup(group.id);
-                onClose();
-              }}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  selectedGroupId === group.id && styles.optionTextSelected,
-                ]}
+          {groups.map((group) => {
+            const isSelected = selectedGroupId === group.id;
+            return (
+              <Pressable
+                key={group.id}
+                style={[styles.option, isSelected && { backgroundColor: colors.secondary }]}
+                onPress={() => {
+                  onSelectGroup(group.id);
+                  onClose();
+                }}
               >
-                {group.name}
-              </Text>
-              <Text style={styles.count}>{group.meetingsCount}</Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: isSelected ? colors.primary : colors.foreground },
+                    isSelected && styles.optionTextSelected,
+                  ]}
+                >
+                  {group.name}
+                </Text>
+                <Text style={[styles.count, { color: colors.mutedForeground }]}>
+                  {group.meetingsCount}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     </Modal>
@@ -72,7 +87,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   sheet: {
-    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -87,11 +101,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0f172a",
   },
   close: {
     fontSize: 14,
-    color: "#64748b",
   },
   option: {
     flexDirection: "row",
@@ -101,19 +113,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
   },
-  optionSelected: {
-    backgroundColor: "#eff6ff",
-  },
   optionText: {
     fontSize: 15,
-    color: "#334155",
   },
   optionTextSelected: {
-    color: "#2563eb",
     fontWeight: "600",
   },
   count: {
     fontSize: 13,
-    color: "#94a3b8",
   },
 });

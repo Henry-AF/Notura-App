@@ -36,7 +36,7 @@ import {
   resolveWhatsappGate,
   submitMeetingRecording,
   type WhatsappGate,
-} from './record-api';
+} from '@/lib/meetings/record-api';
 
 type Phase =
   | 'idle'
@@ -230,23 +230,11 @@ export default function RecordScreen() {
         <Banner text="Sem conexão à internet. O upload será retomado automaticamente." tone="warning" />
       )}
 
-      {whatsappGate?.blocked && (
-        <Banner
-          text="Configure um número de WhatsApp na sua conta para gravar reuniões."
-          tone="warning"
-        />
-      )}
-
       {pendingRecovery && phase === 'idle' && (
         <RecoveryBanner onResume={handleResumeRecovery} onDiscard={() => void handleDiscardRecovery()} />
       )}
 
-      {phase === 'idle' && (
-        <IdleView
-          disabled={Boolean(whatsappGate?.blocked)}
-          onStart={() => void handleStartRecording()}
-        />
-      )}
+      {phase === 'idle' && <IdleView onStart={() => void handleStartRecording()} />}
       {phase === 'permission-denied' && <PermissionDeniedView />}
       {(phase === 'recording' || phase === 'paused') && (
         <RecordingView
@@ -385,14 +373,14 @@ function RecoveryBanner({ onResume, onDiscard }: { onResume: () => void; onDisca
   );
 }
 
-function IdleView({ disabled, onStart }: { disabled: boolean; onStart: () => void }) {
+function IdleView({ onStart }: { onStart: () => void }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Pronto para gravar</Text>
       <Text style={styles.cardSubtitle}>
         Toque no botão para começar. Você pode bloquear a tela — a gravação continua.
       </Text>
-      <PrimaryButton label="Gravar" onPress={onStart} disabled={disabled} />
+      <PrimaryButton label="Gravar" onPress={onStart} />
     </View>
   );
 }

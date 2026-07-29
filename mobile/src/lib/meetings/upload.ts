@@ -8,7 +8,7 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 
 // Thrown by every function in this module so callers can branch on the HTTP
 // status (used by the NOT-44 retry-on-expired-token mitigation in
-// `app/(app)/record-api.ts`).
+// `src/lib/meetings/record-api.ts`).
 export class MeetingUploadError extends Error {
   readonly status: number;
 

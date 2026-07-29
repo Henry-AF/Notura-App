@@ -18,6 +18,7 @@ import {
 import { fetchMeetingGroups, type MeetingGroup } from "@/lib/meetings/groups-api";
 import { MeetingListItemView } from "@/components/meetings/MeetingListItem";
 import { MeetingFilterSheet } from "@/components/meetings/MeetingFilterSheet";
+import { colors } from "@/lib/theme/tokens";
 
 const PAGE_LIMIT = 20;
 
@@ -97,8 +98,8 @@ export default function MeetingsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" />
+      <SafeAreaView style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
@@ -168,7 +169,7 @@ export default function MeetingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
@@ -183,50 +184,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0f172a",
+    color: colors.foreground,
   },
   filterButton: {
     maxWidth: 160,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: colors.card2,
   },
   filterButtonText: {
     fontSize: 13,
-    color: "#334155",
+    color: colors.secondaryForeground,
     fontWeight: "500",
   },
   groupsErrorBanner: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: "rgba(255,107,107,0.1)",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#fee2e2",
+    borderBottomColor: colors.border,
   },
   groupsErrorText: {
     fontSize: 12,
-    color: "#dc2626",
+    color: colors.destructive,
   },
   error: {
     fontSize: 14,
-    color: "#dc2626",
+    color: colors.destructive,
     textAlign: "center",
   },
   retryButton: {
     marginTop: 12,
-    backgroundColor: "#0f172a",
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
+    color: colors.primaryForeground,
     fontWeight: "600",
   },
   loader: {
@@ -234,7 +235,7 @@ const styles = StyleSheet.create({
   },
   empty: {
     textAlign: "center",
-    color: "#94a3b8",
+    color: colors.mutedForeground,
     marginTop: 40,
     paddingHorizontal: 24,
   },

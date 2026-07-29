@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { MeetingListItem } from "@/lib/meetings/meetings-api";
+import { colors } from "@/lib/theme/tokens";
 import { MeetingStatusBadge } from "./MeetingStatusBadge";
 
 interface MeetingListItemViewProps {
@@ -33,9 +34,9 @@ export function MeetingListItemView({ meeting, onPress }: MeetingListItemViewPro
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: colors.border,
   },
   row: {
     flexDirection: "row",
@@ -49,16 +50,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#0f172a",
+    color: colors.foreground,
   },
   group: {
     fontSize: 13,
-    color: "#64748b",
+    color: colors.secondaryForeground,
     marginTop: 2,
   },
   date: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: colors.mutedForeground,
     marginTop: 8,
   },
 });

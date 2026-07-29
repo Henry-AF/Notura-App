@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { MeetingDetail } from "@/lib/meetings/meeting-detail-api";
 
-type DetailTab = "summary" | "transcript" | "participants" | "decisions" | "tasks";
+type DetailTab =
+  | "summary"
+  | "transcript"
+  | "participants"
+  | "decisions"
+  | "tasks"
+  | "pending";
 
 interface MeetingDetailTabsProps {
   meeting: MeetingDetail;
@@ -14,6 +20,7 @@ const TABS: { key: DetailTab; label: string }[] = [
   { key: "participants", label: "Participantes" },
   { key: "decisions", label: "Decisões" },
   { key: "tasks", label: "Tarefas" },
+  { key: "pending", label: "Pendências" },
 ];
 
 export function MeetingDetailTabs({ meeting }: MeetingDetailTabsProps) {
@@ -48,6 +55,7 @@ export function MeetingDetailTabs({ meeting }: MeetingDetailTabsProps) {
         {activeTab === "participants" ? <ParticipantsTab meeting={meeting} /> : null}
         {activeTab === "decisions" ? <DecisionsTab decisions={meeting.decisions} /> : null}
         {activeTab === "tasks" ? <TasksTab tasks={meeting.tasks} /> : null}
+        {activeTab === "pending" ? <PendingTab openItems={meeting.openItems} /> : null}
       </ScrollView>
     </View>
   );
@@ -111,6 +119,26 @@ function DecisionsTab({
           <Text style={styles.listItemText}>{decision.description}</Text>
           {decision.decidedBy ? (
             <Text style={styles.listItemMeta}>Por: {decision.decidedBy}</Text>
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PendingTab({ openItems }: { openItems: MeetingDetail["openItems"] }) {
+  if (openItems.length === 0) {
+    return <Text style={styles.empty}>Nenhuma pendência registrada.</Text>;
+  }
+
+  return (
+    <View>
+      <Text style={styles.sectionTitle}>Pendências ({openItems.length})</Text>
+      {openItems.map((item) => (
+        <View key={item.id} style={[styles.listItem, styles.pendingItem]}>
+          <Text style={styles.listItemText}>{item.description}</Text>
+          {item.context ? (
+            <Text style={styles.pendingItemMeta}>{item.context}</Text>
           ) : null}
         </View>
       ))}
@@ -204,6 +232,16 @@ const styles = StyleSheet.create({
   listItemMeta: {
     fontSize: 12,
     color: "#94a3b8",
+    marginTop: 4,
+  },
+  pendingItem: {
+    backgroundColor: "rgba(255,169,77,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,169,77,0.2)",
+  },
+  pendingItemMeta: {
+    fontSize: 12,
+    color: "#FFA94D",
     marginTop: 4,
   },
   completed: {

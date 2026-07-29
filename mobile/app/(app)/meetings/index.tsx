@@ -108,11 +108,16 @@ export default function MeetingsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Reuniões</Text>
-        <Pressable style={styles.filterButton} onPress={() => setIsFilterOpen(true)}>
-          <Text style={styles.filterButtonText} numberOfLines={1}>
-            {selectedGroupName}
-          </Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.groupsLink} onPress={() => router.push("/(app)/groups")}>
+            <Text style={styles.groupsLinkText}>Grupos</Text>
+          </Pressable>
+          <Pressable style={styles.filterButton} onPress={() => setIsFilterOpen(true)}>
+            <Text style={styles.filterButtonText} numberOfLines={1}>
+              {selectedGroupName}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {groupsError ? (
@@ -190,6 +195,20 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: colors.foreground,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  groupsLink: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  groupsLinkText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.primary,
   },
   filterButton: {
     maxWidth: 160,

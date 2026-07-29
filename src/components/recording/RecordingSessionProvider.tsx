@@ -617,7 +617,7 @@ export function RecordingSessionProvider({
       });
 
       resetRecordingState();
-      router.push(`/dashboard/processing?id=${meetingId}`);
+      router.push(`/dashboard/meetings/${meetingId}`);
     } catch (error) {
       console.error("[recording] failed to save recording", error);
       dispatch({

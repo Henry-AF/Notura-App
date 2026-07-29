@@ -63,6 +63,8 @@ type SettingsPageState = {
   currentPeriodEnd: string | null;
   autoRenewEnabled: boolean;
   renewalStatus: string;
+  isTrial: boolean;
+  trialEndAt: string | null;
   autoRenewSaving: boolean;
   showPlanModal: boolean;
   integrations: Integration[];
@@ -137,6 +139,8 @@ function settingsPageReducer(
         currentPeriodEnd: action.user.currentPeriodEnd ?? null,
         autoRenewEnabled: action.user.autoRenewEnabled ?? true,
         renewalStatus: action.user.renewalStatus ?? "idle",
+        isTrial: action.user.billingEntitlementStatus === "trialing",
+        trialEndAt: action.user.trialEndAt,
         integrations: buildIntegrations(action.user),
       };
     case "loadingChanged":
@@ -206,6 +210,8 @@ function SettingsPageInner() {
     currentPeriodEnd: null,
     autoRenewEnabled: true,
     renewalStatus: "idle",
+    isTrial: false,
+    trialEndAt: null,
     autoRenewSaving: false,
     showPlanModal: false,
     integrations: [
@@ -233,6 +239,8 @@ function SettingsPageInner() {
     currentPeriodEnd,
     autoRenewEnabled,
     renewalStatus,
+    isTrial,
+    trialEndAt,
     autoRenewSaving,
     showPlanModal,
     integrations,
@@ -483,6 +491,8 @@ function SettingsPageInner() {
               currentPeriodEnd={currentPeriodEnd}
               autoRenewEnabled={autoRenewEnabled}
               renewalStatus={renewalStatus}
+              isTrial={isTrial}
+              trialEndAt={trialEndAt}
               autoRenewSaving={autoRenewSaving}
               onAutoRenewChange={handleAutoRenewChange}
               onChangePlan={() =>

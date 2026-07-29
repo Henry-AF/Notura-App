@@ -91,6 +91,21 @@ export const RATE_LIMIT_POLICIES = {
     limit: 30,
     windowMs: 60_000,
   },
+  billingTrialCheckout: {
+    bucket: "api:billing/trial/checkout",
+    limit: 10,
+    windowMs: 300_000,
+  },
+  billingTrialCheckoutVerify: {
+    bucket: "api:billing/trial/verify",
+    limit: 30,
+    windowMs: 60_000,
+  },
+  billingTrialDismiss: {
+    bucket: "api:billing/trial/dismiss",
+    limit: 30,
+    windowMs: 60_000,
+  },
   abacatepayCheckout: {
     bucket: "api:abacatepay/checkout",
     limit: 10,

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
@@ -25,9 +25,11 @@ import { WhatsAppSupportButton } from "@/components/dashboard/WhatsAppSupportBut
 import { RecordingSessionProvider } from "@/components/recording";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
+import { TrialOfferModal } from "@/components/billing/TrialOfferModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getPlanTitle } from "@/lib/plans";
 import { cn } from "@/lib/utils";
+import { verifyTrialCheckout } from "@/lib/billing/trial-offer-client";
 import {
   fetchCurrentUser,
   logoutCurrentUser,
@@ -477,6 +479,39 @@ function MobileSidebar({
   );
 }
 
+function useTrialCheckoutRedirect(
+  onVerified: () => void
+): void {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const trial = searchParams.get("trial");
+    const sessionId = searchParams.get("session_id");
+    if (trial !== "success" || !sessionId) return;
+
+    let cancelled = false;
+
+    async function verify() {
+      try {
+        await verifyTrialCheckout(sessionId as string);
+        if (!cancelled) onVerified();
+      } catch (error) {
+        console.error("[dashboard] trial verification failed", error);
+      } finally {
+        if (!cancelled) window.history.replaceState(null, "", pathname);
+      }
+    }
+
+    void verify();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams]);
+}
+
 export function DashboardLayoutClient({
   children,
   initialUser,
@@ -484,7 +519,9 @@ export function DashboardLayoutClient({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showTrialOfferModal, setShowTrialOfferModal] = useState(false);
   const [user, setUser] = useState(initialUser);
+  const trialOfferAutoOpenedRef = useRef(false);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -509,6 +546,14 @@ export function DashboardLayoutClient({
       window.removeEventListener("notura:open-plan-modal", handleOpenPlanModal);
     };
   }, [refreshUser]);
+
+  useEffect(() => {
+    if (trialOfferAutoOpenedRef.current || !user.shouldOfferTrial) return;
+    trialOfferAutoOpenedRef.current = true;
+    setShowTrialOfferModal(true);
+  }, [user.shouldOfferTrial]);
+
+  useTrialCheckoutRedirect(() => void refreshUser());
 
   return (
     <RecordingSessionProvider>
@@ -575,6 +620,10 @@ export function DashboardLayoutClient({
             }}
             onUserChange={setUser}
           />
+        )}
+
+        {showTrialOfferModal && (
+          <TrialOfferModal onClose={() => setShowTrialOfferModal(false)} />
         )}
 
         <WhatsAppSupportButton />

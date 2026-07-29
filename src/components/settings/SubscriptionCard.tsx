@@ -23,6 +23,8 @@ export interface SubscriptionCardProps {
   autoRenewEnabled?: boolean;
   renewalStatus?: string;
   subscriptionStatus?: SubscriptionStatus;
+  isTrial?: boolean;
+  trialEndAt?: string | null;
   autoRenewSaving?: boolean;
   onAutoRenewChange?: (enabled: boolean) => void;
   onChangePlan: () => void;
@@ -37,6 +39,7 @@ interface UsageSummaryProps {
   renewsInDays: number;
   currentPeriodEnd: string | null;
   subscriptionStatus: SubscriptionStatus;
+  trialEndAt: string | null;
 }
 
 function formatPeriodEnd(value: string | null): string | null {
@@ -59,10 +62,12 @@ function resolveSubscriptionStatus(
   plan: Plan | undefined,
   currentPeriodEnd: string | null,
   renewalStatus: string,
-  subscriptionStatus: SubscriptionStatus | undefined
+  subscriptionStatus: SubscriptionStatus | undefined,
+  isTrial: boolean
 ): SubscriptionStatus {
   if (subscriptionStatus) return subscriptionStatus;
   if (!plan || plan === "free") return "free";
+  if (isTrial && !isPeriodExpired(currentPeriodEnd)) return "trialing";
   if (!isPeriodExpired(currentPeriodEnd)) return "active";
   return renewalStatus === "retrying" ? "grace" : "expired";
 }
@@ -71,8 +76,16 @@ function getUsageFooter(
   meetingsTotal: number | null,
   renewsInDays: number,
   currentPeriodEnd: string | null,
-  subscriptionStatus: SubscriptionStatus
+  subscriptionStatus: SubscriptionStatus,
+  trialEndAt: string | null
 ): string {
+  if (subscriptionStatus === "trialing") {
+    const formattedDate = formatPeriodEnd(trialEndAt);
+    return formattedDate
+      ? `Trial termina em ${formattedDate}`
+      : "Trial em andamento";
+  }
+
   if (subscriptionStatus === "expired") {
     const formattedDate = formatPeriodEnd(currentPeriodEnd);
     return formattedDate
@@ -134,6 +147,7 @@ function UsageSummary({
   renewsInDays,
   currentPeriodEnd,
   subscriptionStatus,
+  trialEndAt,
 }: UsageSummaryProps) {
   const pct =
     typeof meetingsTotal === "number" && meetingsTotal > 0
@@ -175,7 +189,8 @@ function UsageSummary({
           meetingsTotal,
           renewsInDays,
           currentPeriodEnd,
-          subscriptionStatus
+          subscriptionStatus,
+          trialEndAt
         )}
       </p>
     </div>
@@ -211,6 +226,8 @@ export function SubscriptionCard({
   autoRenewEnabled = true,
   renewalStatus = "idle",
   subscriptionStatus,
+  isTrial = false,
+  trialEndAt = null,
   autoRenewSaving = false,
   onAutoRenewChange,
   onChangePlan,
@@ -220,7 +237,8 @@ export function SubscriptionCard({
     plan,
     currentPeriodEnd,
     renewalStatus,
-    subscriptionStatus
+    subscriptionStatus,
+    isTrial
   );
 
   return (
@@ -237,6 +255,7 @@ export function SubscriptionCard({
         renewsInDays={renewsInDays}
         currentPeriodEnd={currentPeriodEnd}
         subscriptionStatus={resolvedStatus}
+        trialEndAt={trialEndAt}
       />
 
       {plan && onAutoRenewChange && (
@@ -247,6 +266,7 @@ export function SubscriptionCard({
             autoRenewEnabled={autoRenewEnabled}
             renewalStatus={renewalStatus}
             subscriptionStatus={resolvedStatus}
+            isTrial={isTrial}
             pending={autoRenewSaving}
             onChange={onAutoRenewChange}
           />

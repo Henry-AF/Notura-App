@@ -47,6 +47,7 @@ async function loadStripeSubscriptionBillingPeriod(
 }
 
 function getSubscriptionStatus(subscription: Stripe.Subscription): string {
+  if (subscription.status === "trialing") return "trialing";
   if (subscription.cancel_at_period_end) return "canceling";
   return subscription.status || "active";
 }
@@ -168,12 +169,14 @@ export const POST = withPublicRateLimit<NextRequest>(
           stripe,
           stripeSubscriptionId
         );
+        const isTrialStart = session.metadata?.is_trial === "true";
         await resetSubscriptionPeriod(
           {
             userId,
             plan,
             stripeCustomerId: existingBilling?.stripe_customer_id ?? stripeCustomerId ?? undefined,
             stripeSubscriptionId,
+            isTrialStart,
             ...billingPeriod,
           },
           supabase

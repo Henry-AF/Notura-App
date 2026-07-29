@@ -6,7 +6,12 @@ import { useThemeColors } from "@/lib/theme-context";
 import type { Plan } from "@/types/database";
 import { SettingsToggle } from "./SettingsToggle";
 
-export type SubscriptionStatus = "free" | "active" | "expired" | "grace";
+export type SubscriptionStatus =
+  | "free"
+  | "trialing"
+  | "active"
+  | "expired"
+  | "grace";
 
 const PERIOD_END_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -21,6 +26,7 @@ export interface AutoRenewControlProps {
   autoRenewEnabled: boolean;
   renewalStatus: string;
   subscriptionStatus?: SubscriptionStatus;
+  isTrial?: boolean;
   pending?: boolean;
   onChange: (enabled: boolean) => void;
 }
@@ -45,12 +51,31 @@ function resolveSubscriptionStatus(
   plan: Plan,
   currentPeriodEnd: string | null,
   renewalStatus: string,
-  subscriptionStatus: SubscriptionStatus | undefined
+  subscriptionStatus: SubscriptionStatus | undefined,
+  isTrial: boolean
 ): SubscriptionStatus {
   if (subscriptionStatus) return subscriptionStatus;
   if (plan === "free") return "free";
+  if (isTrial && !isPeriodExpired(currentPeriodEnd)) return "trialing";
   if (!isPeriodExpired(currentPeriodEnd)) return "active";
   return renewalStatus === "retrying" ? "grace" : "expired";
+}
+
+function getTrialDescription(
+  autoRenewEnabled: boolean,
+  currentPeriodEnd: string | null
+): string {
+  const formattedDate = formatPeriodEnd(currentPeriodEnd);
+
+  if (!autoRenewEnabled) {
+    return formattedDate
+      ? `Seu acesso Pro continua até ${formattedDate}. Você não será cobrado.`
+      : "Seu acesso Pro continua até o fim do período de teste. Você não será cobrado.";
+  }
+
+  return formattedDate
+    ? `Cobrança automática em ${formattedDate}.`
+    : "Cobrança automática ao fim do período de teste.";
 }
 
 function getDescription(
@@ -59,6 +84,10 @@ function getDescription(
   currentPeriodEnd: string | null,
   subscriptionStatus: SubscriptionStatus
 ) {
+  if (subscriptionStatus === "trialing") {
+    return getTrialDescription(autoRenewEnabled, currentPeriodEnd);
+  }
+
   if (renewalStatus === "suspended") {
     return "Renovação suspensa após tentativas sem sucesso.";
   }
@@ -91,6 +120,9 @@ function getTitle(
   autoRenewEnabled: boolean,
   subscriptionStatus: SubscriptionStatus
 ): string {
+  if (subscriptionStatus === "trialing") {
+    return autoRenewEnabled ? "Trial Pro ativo" : "Trial cancelado";
+  }
   if (subscriptionStatus === "expired") return "Assinatura vencida";
   if (subscriptionStatus === "grace") return "Renovação em processamento";
   return autoRenewEnabled
@@ -104,6 +136,7 @@ export function AutoRenewControl({
   autoRenewEnabled,
   renewalStatus,
   subscriptionStatus,
+  isTrial = false,
   pending = false,
   onChange,
 }: AutoRenewControlProps) {
@@ -117,7 +150,8 @@ export function AutoRenewControl({
     plan,
     currentPeriodEnd,
     renewalStatus,
-    subscriptionStatus
+    subscriptionStatus,
+    isTrial
   );
   const disabled =
     pending ||

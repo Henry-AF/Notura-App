@@ -242,6 +242,88 @@ describe("current user expired entitlement", () => {
   });
 });
 
+describe("current user trial offer eligibility", () => {
+  it("offers the trial to a free user who never used or dismissed it", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        current_period_end: null,
+        has_used_trial: false,
+        trial_end_at: null,
+        trial_offer_dismissed_at: null,
+      },
+      meetingsThisMonth: 1,
+      monthlyLimit: 3,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 1,
+        quotaLimit: 3,
+      },
+      entitlement: {
+        plan: "free",
+        effectivePlan: "free",
+        status: "free",
+        isPaidActive: false,
+        isExpired: false,
+        isInGrace: false,
+      },
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      hasUsedTrial: false,
+      trialEndAt: null,
+      shouldOfferTrial: true,
+    });
+  });
+
+  it("never offers the trial once it was already used", async () => {
+    getBillingStatus.mockResolvedValueOnce({
+      billingAccount: {
+        plan: "free",
+        current_period_end: null,
+        has_used_trial: true,
+        trial_end_at: "2026-05-04T12:00:00.000Z",
+        trial_offer_dismissed_at: null,
+      },
+      meetingsThisMonth: 1,
+      monthlyLimit: 3,
+      quotaStatus: {
+        allowed: true,
+        code: null,
+        meetingsUsed: 1,
+        quotaLimit: 3,
+      },
+      entitlement: {
+        plan: "free",
+        effectivePlan: "free",
+        status: "free",
+        isPaidActive: false,
+        isExpired: false,
+        isInGrace: false,
+      },
+    });
+    const mod = await import("./current-user");
+
+    const user = await mod.getCurrentUserForIdentity({
+      id: "user-1",
+      email: "ana@example.com",
+    });
+
+    expect(user).toMatchObject({
+      hasUsedTrial: true,
+      trialEndAt: "2026-05-04T12:00:00.000Z",
+      shouldOfferTrial: false,
+    });
+  });
+});
+
 describe("current user meeting quota", () => {
   it("exposes whether the user can process more meetings", async () => {
     getBillingStatus.mockResolvedValueOnce({

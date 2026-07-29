@@ -1,4 +1,5 @@
 import { getBillingStatus } from "@/lib/billing";
+import { resolveTrialOfferEligibility } from "@/lib/billing/trial-offer";
 import {
   createServerSupabase,
   createServiceRoleClient,
@@ -75,6 +76,11 @@ export async function getCurrentUserForIdentity(
   const plan = entitlement.effectivePlan;
   const { billingProvider, autoRenewEnabled, renewalStatus } =
     resolveRenewalState(billingAccount);
+  const shouldOfferTrial = resolveTrialOfferEligibility({
+    plan: entitlement.effectivePlan,
+    hasUsedTrial: billingAccount.has_used_trial,
+    trialOfferDismissedAt: billingAccount.trial_offer_dismissed_at,
+  });
 
   return {
     id: identity.id,
@@ -98,6 +104,9 @@ export async function getCurrentUserForIdentity(
     renewalStatus,
     abacatepayAutoRenewEnabled: autoRenewEnabled,
     abacatepayRenewalStatus: renewalStatus,
+    hasUsedTrial: billingAccount.has_used_trial,
+    trialEndAt: billingAccount.trial_end_at,
+    shouldOfferTrial,
   };
 }
 

@@ -326,6 +326,58 @@ describe("billing helpers", () => {
     });
   });
 
+  it("resolves a trialing entitlement status from the Stripe renewal status", async () => {
+    const mod = await import("./billing");
+    const now = new Date("2026-06-01T12:00:00.000Z");
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-06-08T12:00:00.000Z",
+          stripe_renewal_status: "trialing",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "team",
+      status: "trialing",
+      isPaidActive: true,
+      isExpired: false,
+      isInGrace: false,
+    });
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-06-29T12:00:00.000Z",
+          stripe_renewal_status: "active",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "team",
+      status: "active",
+      isPaidActive: true,
+    });
+
+    expect(
+      mod.getBillingEntitlementStatus(
+        {
+          plan: "team",
+          current_period_end: "2026-05-29T12:00:00.000Z",
+          stripe_renewal_status: "trialing",
+        } as never,
+        now
+      )
+    ).toMatchObject({
+      effectivePlan: "free",
+      status: "expired",
+      isPaidActive: false,
+    });
+  });
+
   it("consumes meeting quota atomically via rpc helper", async () => {
     const { client, rpc } = createBillingClient({
       rpcValue: {
@@ -479,6 +531,66 @@ describe("billing helpers", () => {
     );
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
     expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("activates trialing status and trial bookkeeping when a Stripe trial starts", async () => {
+    const { client, update, updateEq } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+      isTrialStart: true,
+      currentPeriodStart: "2026-04-27T12:00:00.000Z",
+      currentPeriodEnd: "2026-05-04T12:00:00.000Z",
+    });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: "team",
+        stripe_renewal_status: "trialing",
+        has_used_trial: true,
+        trial_started_at: "2026-04-27T12:00:00.000Z",
+        trial_end_at: "2026-05-04T12:00:00.000Z",
+      })
+    );
+    expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("keeps the renewal status active for non-trial Stripe resets", async () => {
+    const { client, update } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "free",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "pro",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+    });
+
+    const payload = update.mock.calls[0]?.[0];
+    expect(payload).toMatchObject({ stripe_renewal_status: "active" });
+    expect(payload).not.toHaveProperty("has_used_trial");
+    expect(payload).not.toHaveProperty("trial_started_at");
+    expect(payload).not.toHaveProperty("trial_end_at");
   });
 
   it("marks Stripe as the active billing provider when Stripe activates a plan", async () => {
@@ -899,6 +1011,10 @@ describe("billing helpers", () => {
       updated_at: "2026-04-27T12:00:00.000Z",
     });
     expect(updateQuery.eq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+    const payload = update.mock.calls[0]?.[0];
+    expect(payload).not.toHaveProperty("has_used_trial");
+    expect(payload).not.toHaveProperty("trial_started_at");
+    expect(payload).not.toHaveProperty("trial_end_at");
   });
 
   it("guards provider cancellation against the active billing provider", async () => {

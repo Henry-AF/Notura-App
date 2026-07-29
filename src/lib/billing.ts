@@ -68,6 +68,8 @@ type ResetSubscriptionPeriodParams = BillingAccountLookup & {
   billingCycle?: BillingCycle;
   currentPeriodStart?: Date | string | null;
   currentPeriodEnd?: Date | string | null;
+  /** True when this reset activates a brand-new Stripe trial subscription. */
+  isTrialStart?: boolean;
 };
 
 type DowngradeToFreeParams = BillingAccountLookup & {
@@ -96,7 +98,12 @@ export interface BillingRenewalContext {
   currentPeriodEnd: string | null;
 }
 
-export type BillingEntitlementState = "free" | "active" | "expired" | "grace";
+export type BillingEntitlementState =
+  | "free"
+  | "trialing"
+  | "active"
+  | "expired"
+  | "grace";
 
 export interface BillingEntitlementStatus {
   plan: Plan;
@@ -188,12 +195,20 @@ function isSubscriptionExpired(
   return !periodEnd || periodEnd.getTime() <= now.getTime();
 }
 
+function resolveActiveEntitlementStatus(
+  isTrialing: boolean
+): "trialing" | "active" {
+  return isTrialing ? "trialing" : "active";
+}
+
 export function getBillingEntitlementStatus(
   account: Pick<BillingAccount, "plan" | "current_period_end"> &
     Partial<
       Pick<
         BillingAccount,
-        "abacatepay_auto_renew_enabled" | "abacatepay_renewal_status"
+        | "abacatepay_auto_renew_enabled"
+        | "abacatepay_renewal_status"
+        | "stripe_renewal_status"
       >
     >,
   now: Date = new Date()
@@ -213,11 +228,16 @@ export function getBillingEntitlementStatus(
   const isExpired = isSubscriptionExpired(account.current_period_end, now);
   const isInGrace = isExpired && hasAbacatePayRetryGrace(account, now);
   const isPaidActive = !isExpired || isInGrace;
+  const isTrialing = !isExpired && account.stripe_renewal_status === "trialing";
 
   return {
     plan,
     effectivePlan: isPaidActive ? plan : "free",
-    status: isInGrace ? "grace" : isExpired ? "expired" : "active",
+    status: isInGrace
+      ? "grace"
+      : isExpired
+        ? "expired"
+        : resolveActiveEntitlementStatus(isTrialing),
     isPaidActive,
     isExpired,
     isInGrace,
@@ -754,7 +774,9 @@ async function loadResetAccount(
 
 function applyResetPayloadOptions(
   updatePayload: Database["public"]["Tables"]["billing_accounts"]["Update"],
-  params: ResetSubscriptionPeriodParams
+  params: ResetSubscriptionPeriodParams,
+  period: { start: Date; end: Date },
+  now: Date
 ): void {
   if (params.clearAbacatePayPending) {
     updatePayload.abacatepay_pending_checkout_id = null;
@@ -772,7 +794,14 @@ function applyResetPayloadOptions(
   if (shouldResetStripeRenewal(params)) {
     updatePayload.stripe_auto_renew_enabled = true;
     updatePayload.stripe_auto_renew_updated_at = new Date().toISOString();
-    updatePayload.stripe_renewal_status = "active";
+    updatePayload.stripe_renewal_status = params.isTrialStart
+      ? "trialing"
+      : "active";
+  }
+  if (params.isTrialStart) {
+    updatePayload.has_used_trial = true;
+    updatePayload.trial_started_at = now.toISOString();
+    updatePayload.trial_end_at = period.end.toISOString();
   }
 }
 
@@ -799,7 +828,7 @@ export async function resetSubscriptionPeriod(
 
   const cleanup = await getPendingCleanupState(account, activeProvider);
   const updatePayload = buildSubscriptionResetPayload(params, period, now, cleanup);
-  applyResetPayloadOptions(updatePayload, params);
+  applyResetPayloadOptions(updatePayload, params, period, now);
   const query = applyBillingAccountLookup(
     supabase.from("billing_accounts").update(updatePayload),
     params
@@ -843,6 +872,9 @@ export async function downgradeToFree(
     abacatepay_pending_checkout_id: null,
     abacatepay_pending_plan: null,
     abacatepay_renewal_period_end: null,
+    // has_used_trial / trial_started_at / trial_end_at are intentionally left
+    // untouched: they must survive a cancel -> free transition so a second
+    // trial stays permanently blocked.
     updated_at: now.toISOString(),
   });
   const lookupQuery = applyBillingAccountLookup(query, params);
@@ -888,6 +920,26 @@ export async function setAbacatePayAutoRenew(
     currentPeriodEnd: data.current_period_end,
     renewalStatus: data.abacatepay_renewal_status,
   };
+}
+
+export async function recordTrialOfferDismissed(
+  userId: string,
+  supabase: SupabaseClient<Database> = createServiceRoleClient()
+): Promise<void> {
+  const account = await getOrCreateBillingAccount(userId, supabase);
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from("billing_accounts")
+    .update({
+      trial_offer_dismissed_at: nowIso,
+      trial_offer_dismiss_count: account.trial_offer_dismiss_count + 1,
+      updated_at: nowIso,
+    })
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(`Failed to record trial offer dismissal: ${error.message}`);
+  }
 }
 
 export async function getBillingStatus(userId: string): Promise<{

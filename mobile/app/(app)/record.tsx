@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useNetInfo } from '@react-native-community/netinfo';
@@ -73,9 +73,11 @@ function formatDuration(ms: number): string {
 
 export default function RecordScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const netInfo = useNetInfo();
 
   const [phase, setPhase] = useState<Phase>('idle');
+  const isImmersive = phase === 'recording' || phase === 'paused';
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -98,6 +100,7 @@ export default function RecordScreen() {
   useInterruptionReconciliation({ phase, isRecording: recorderState.isRecording, setPhase, setErrorMessage });
   useNetworkRetry({ phase, isConnected: netInfo.isConnected, onRetry: () => void handleUploadAndProcess() });
   usePollingCleanup(stopPollingRef);
+  useImmersiveDrawerHeader(navigation.setOptions, isImmersive);
 
   const startProcessingPoll = useCallback(
     (meetingId: string) => {
@@ -218,8 +221,6 @@ export default function RecordScreen() {
     void handleUploadAndProcess();
   }
 
-  const isImmersive = phase === 'recording' || phase === 'paused';
-
   return (
     <ScrollView
       contentContainerStyle={[styles.container, isImmersive && styles.containerImmersive]}
@@ -261,6 +262,19 @@ export default function RecordScreen() {
 
 // ─── Effects (extracted to keep the component body short) ────────────────────
 
+// The drawer header (hamburger + title) is only useful when there's
+// somewhere else to go. During an active recording it would duplicate the
+// screen's own back button and eat into the immersive AudioSphere layout,
+// so it's hidden for the `recording`/`paused` phases and restored otherwise.
+function useImmersiveDrawerHeader(
+  setOptions: (options: { headerShown: boolean }) => void,
+  isImmersive: boolean
+) {
+  useEffect(() => {
+    setOptions({ headerShown: !isImmersive });
+  }, [setOptions, isImmersive]);
+}
+
 function useLoadInitialState(deps: {
   setWhatsappGate: (gate: WhatsappGate) => void;
   setPendingRecovery: (pending: PendingRecording | null) => void;
@@ -270,7 +284,9 @@ function useLoadInitialState(deps: {
       .then((defaults) => deps.setWhatsappGate(resolveWhatsappGate(defaults)))
       .catch(() => deps.setWhatsappGate({ blocked: false, whatsappNumber: '' }));
 
-    loadPendingRecording().then(deps.setPendingRecovery);
+    loadPendingRecording()
+      .then(deps.setPendingRecovery)
+      .catch(() => deps.setPendingRecovery(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

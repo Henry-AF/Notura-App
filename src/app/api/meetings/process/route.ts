@@ -148,21 +148,26 @@ export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
       return NextResponse.json({ error: quotaStatus.message }, { status: 403 });
     }
 
+    // A WhatsApp number is never required to start a recording — it only
+    // gates whether the "send-whatsapp" processing step has anything to send
+    // (see `handleWhatsAppDelivery` in `src/inngest/process-meeting.ts`,
+    // which already skips that step when the number is empty). Reusing a
+    // saved default is the caller's job (mobile has no input field for it —
+    // see NOT-114); this route only validates the *format* of whatever
+    // number, if any, was actually supplied.
     let normalizedWhatsappNumber = "";
     try {
       const whatsappAccess = await getWhatsAppSummaryAccess(auth.user.id, supabase);
+      const hasWhatsappNumber =
+        typeof data.whatsappNumber === "string" && data.whatsappNumber.trim().length > 0;
 
-      if (whatsappAccess.canSend) {
-        if (!data.whatsappNumber || typeof data.whatsappNumber !== "string" || !data.whatsappNumber.trim()) {
-          return NextResponse.json({ error: "Número de WhatsApp é obrigatório." }, { status: 422 });
-        }
-
-        const whatsappNumberError = getWhatsappNumberValidationError(data.whatsappNumber);
+      if (whatsappAccess.canSend && hasWhatsappNumber) {
+        const whatsappNumberError = getWhatsappNumberValidationError(data.whatsappNumber as string);
         if (whatsappNumberError) {
           return NextResponse.json({ error: whatsappNumberError }, { status: 422 });
         }
 
-        normalizedWhatsappNumber = normalizeWhatsappNumber(data.whatsappNumber);
+        normalizedWhatsappNumber = normalizeWhatsappNumber(data.whatsappNumber as string);
       }
     } catch (error) {
       console.error("[meetings/process] failed to load WhatsApp summary access:", error);

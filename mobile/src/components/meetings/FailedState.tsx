@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors } from "@/lib/theme/tokens";
 
 interface FailedStateProps {
   errorMessage?: string | null;
@@ -37,23 +38,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#dc2626",
+    color: colors.destructive,
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: colors.mutedForeground,
     marginTop: 8,
     textAlign: "center",
   },
   retryButton: {
     marginTop: 24,
-    backgroundColor: "#dc2626",
+    backgroundColor: colors.destructive,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
+    color: colors.primaryForeground,
     fontWeight: "600",
   },
 });

@@ -31,6 +31,7 @@ import { ProcessingState } from "@/components/meetings/ProcessingState";
 import { FailedState } from "@/components/meetings/FailedState";
 import { MeetingStatusBadge } from "@/components/meetings/MeetingStatusBadge";
 import { TemplatePickerSheet } from "@/components/meetings/TemplatePickerSheet";
+import { colors } from "@/lib/theme/tokens";
 
 const POLLING_INTERVAL_MS = 30_000;
 
@@ -247,7 +248,7 @@ export default function MeetingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
@@ -262,15 +263,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: colors.border,
   },
   back: {
     fontSize: 14,
-    color: "#64748b",
+    color: colors.mutedForeground,
   },
   share: {
     fontSize: 14,
-    color: "#2563eb",
+    color: colors.primary,
     fontWeight: "600",
   },
   scroll: {
@@ -291,27 +292,27 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: "700",
-    color: "#0f172a",
+    color: colors.foreground,
   },
   date: {
     fontSize: 13,
-    color: "#64748b",
+    color: colors.mutedForeground,
     marginBottom: 16,
   },
   error: {
     fontSize: 14,
-    color: "#dc2626",
+    color: colors.destructive,
     textAlign: "center",
   },
   retryButton: {
     marginTop: 12,
-    backgroundColor: "#0f172a",
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
   retryText: {
-    color: "#fff",
+    color: colors.primaryForeground,
     fontWeight: "600",
   },
 });

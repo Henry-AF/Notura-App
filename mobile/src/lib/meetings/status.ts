@@ -56,6 +56,37 @@ export async function fetchMeetingStatus(meetingId: string): Promise<MeetingStat
   };
 }
 
+// ─── Processing steps (NOT-159) ───────────────────────────────────────────────
+// Canonical id/label list for the step checklist shown by `ProcessingState`.
+// Mirrors the same `processingStep` values `/api/meetings/[id]/status`
+// produces (see `record-api.ts`'s own copy, used for its upload-flow polling —
+// kept separate here since `record-api.test.ts` mocks this whole module).
+
+export type ProcessingStepId =
+  | "update-status-processing"
+  | "transcribe"
+  | "index-transcript-chunks"
+  | "summarize-meeting"
+  | "save-results"
+  | "send-whatsapp"
+  | "cleanup";
+
+export const PROCESSING_STEPS: { id: ProcessingStepId; label: string }[] = [
+  { id: "update-status-processing", label: "Preparando reunião" },
+  { id: "transcribe", label: "Transcrevendo áudio" },
+  { id: "index-transcript-chunks", label: "Indexando transcrição" },
+  { id: "summarize-meeting", label: "Gerando ata com IA" },
+  { id: "save-results", label: "Salvando resultados" },
+  { id: "send-whatsapp", label: "Enviando no WhatsApp" },
+  { id: "cleanup", label: "Finalizando" },
+];
+
+export function getProcessingStepIndex(step: string | null): number {
+  if (!step) return 0;
+  const index = PROCESSING_STEPS.findIndex((s) => s.id === step);
+  return index >= 0 ? index : 0;
+}
+
 export async function retryMeetingProcessing(meetingId: string): Promise<void> {
   const response = await fetchApi(`/api/meetings/${meetingId}/retry`, {
     method: "POST",

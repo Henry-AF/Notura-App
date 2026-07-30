@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { MeetingDetail } from "@/lib/meetings/meeting-detail-api";
+import { colors } from "@/lib/theme/tokens";
 
 type DetailTab =
   | "summary"
@@ -180,18 +181,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: colors.card2,
   },
   tabActive: {
-    backgroundColor: "#0f172a",
+    backgroundColor: colors.primary,
   },
   tabText: {
     fontSize: 13,
-    color: "#64748b",
+    color: colors.mutedForeground,
     fontWeight: "500",
   },
   tabTextActive: {
-    color: "#fff",
+    color: colors.primaryForeground,
   },
   content: {
     flex: 1,
@@ -203,7 +204,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0f172a",
+    color: colors.foreground,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -211,27 +212,27 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 15,
     lineHeight: 22,
-    color: "#334155",
+    color: colors.secondaryForeground,
   },
   transcript: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#334155",
+    color: colors.secondaryForeground,
     fontFamily: "monospace",
   },
   listItem: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.card2,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
   },
   listItemText: {
     fontSize: 14,
-    color: "#334155",
+    color: colors.secondaryForeground,
   },
   listItemMeta: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: colors.mutedForeground,
     marginTop: 4,
   },
   pendingItem: {
@@ -246,11 +247,11 @@ const styles = StyleSheet.create({
   },
   completed: {
     textDecorationLine: "line-through",
-    color: "#94a3b8",
+    color: colors.mutedForeground,
   },
   empty: {
     fontSize: 14,
-    color: "#94a3b8",
+    color: colors.mutedForeground,
     textAlign: "center",
     marginTop: 24,
   },

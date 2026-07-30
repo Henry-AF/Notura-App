@@ -21,11 +21,16 @@ import {
   retryMeetingProcessing,
   type MeetingStatusPayload,
 } from "@/lib/meetings/status";
-import { shareMeetingAta } from "@/lib/meetings/export-ata";
+import {
+  fetchMeetingTemplates,
+  shareMeetingAta,
+  type MeetingTemplateOption,
+} from "@/lib/meetings/export-ata";
 import { MeetingDetailTabs } from "@/components/meetings/MeetingDetailTabs";
 import { ProcessingState } from "@/components/meetings/ProcessingState";
 import { FailedState } from "@/components/meetings/FailedState";
 import { MeetingStatusBadge } from "@/components/meetings/MeetingStatusBadge";
+import { TemplatePickerSheet } from "@/components/meetings/TemplatePickerSheet";
 
 const POLLING_INTERVAL_MS = 30_000;
 
@@ -39,6 +44,8 @@ export default function MeetingDetailScreen() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [templates, setTemplates] = useState<MeetingTemplateOption[]>([]);
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
 
   const loadDetail = useCallback(async () => {
     try {
@@ -68,6 +75,21 @@ export default function MeetingDetailScreen() {
     void loadDetail();
     void loadStatus();
   }, [loadDetail, loadStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const fetched = await fetchMeetingTemplates();
+        if (!cancelled) setTemplates(fetched);
+      } catch {
+        // silent — export falls back to the default template
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const effectiveStatus = status?.status ?? meeting?.status;
@@ -113,16 +135,35 @@ export default function MeetingDetailScreen() {
     }
   }, [id]);
 
-  const handleShare = useCallback(async () => {
-    setIsSharing(true);
-    try {
-      await shareMeetingAta(id);
-    } catch (err) {
-      Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao compartilhar ata.");
-    } finally {
-      setIsSharing(false);
+  const shareWithTemplate = useCallback(
+    async (templateId?: string) => {
+      setIsSharing(true);
+      try {
+        await shareMeetingAta(id, templateId);
+      } catch (err) {
+        Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao compartilhar ata.");
+      } finally {
+        setIsSharing(false);
+      }
+    },
+    [id]
+  );
+
+  const handleShare = useCallback(() => {
+    if (templates.length > 1) {
+      setIsTemplatePickerOpen(true);
+      return;
     }
-  }, [id]);
+    void shareWithTemplate(templates[0]?.id);
+  }, [templates, shareWithTemplate]);
+
+  const handleTemplateSelected = useCallback(
+    (templateId: string) => {
+      setIsTemplatePickerOpen(false);
+      void shareWithTemplate(templateId);
+    },
+    [shareWithTemplate]
+  );
 
   const effectiveStatus = status?.status ?? meeting?.status ?? "processing";
   const displayStatus = effectiveStatus === "pending" ? "processing" : effectiveStatus;
@@ -191,6 +232,14 @@ export default function MeetingDetailScreen() {
 
         {isCompleted ? <MeetingDetailTabs meeting={meeting} /> : null}
       </ScrollView>
+
+      {isTemplatePickerOpen ? (
+        <TemplatePickerSheet
+          templates={templates}
+          onSelect={handleTemplateSelected}
+          onClose={() => setIsTemplatePickerOpen(false)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

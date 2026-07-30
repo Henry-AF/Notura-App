@@ -28,6 +28,14 @@ import {
   type PendingRecording,
 } from '@/lib/meetings/recording-recovery';
 import {
+  clearRecordingLog,
+  formatRecordingLogEntry,
+  logRecordingEvent,
+  subscribeRecordingLog,
+  type RecordingLogEntry,
+} from '@/lib/meetings/recording-log';
+import { createAutoResumeScheduler } from '@/lib/meetings/interruption-recovery';
+import {
   PROCESSING_STEP_IDS,
   POST_PROCESSING_ROUTE,
   fetchAccountWhatsappDefaults,
@@ -97,10 +105,16 @@ export default function RecordScreen() {
   const stopPollingRef = useRef<(() => void) | null>(null);
 
   useLoadInitialState({ setWhatsappGate, setPendingRecovery });
-  useInterruptionReconciliation({ phase, isRecording: recorderState.isRecording, setPhase, setErrorMessage });
+  useAutoResumeRecovery({
+    phase,
+    isRecording: recorderState.isRecording,
+    recorder,
+    setPhase,
+    setErrorMessage,
+  });
   useNetworkRetry({ phase, isConnected: netInfo.isConnected, onRetry: () => void handleUploadAndProcess() });
   usePollingCleanup(stopPollingRef);
-  useImmersiveDrawerHeader(navigation.setOptions, isImmersive);
+  useImmersiveHeader(navigation.setOptions, isImmersive);
 
   const startProcessingPoll = useCallback(
     (meetingId: string) => {
@@ -147,6 +161,7 @@ export default function RecordScreen() {
   }, [whatsappGate, startProcessingPoll]);
 
   async function handleStartRecording() {
+    clearRecordingLog();
     setErrorMessage(null);
     const current = await checkMicrophonePermission();
     const granted =
@@ -161,21 +176,25 @@ export default function RecordScreen() {
     await recorder.prepareToRecordAsync();
     recorder.record();
     setPhase('recording');
+    logRecordingEvent('started');
   }
 
   function handlePauseRecording() {
     recorder.pause();
     setPhase('paused');
+    logRecordingEvent('paused', 'manual');
   }
 
   function handleResumeRecording() {
     setErrorMessage(null);
     recorder.record();
     setPhase('recording');
+    logRecordingEvent('resumed', 'manual');
   }
 
   async function handleStopRecording() {
     setPhase('stopping');
+    logRecordingEvent('stopped');
     await recorder.stop();
     await deactivateRecordingAudioMode();
 
@@ -262,11 +281,11 @@ export default function RecordScreen() {
 
 // ─── Effects (extracted to keep the component body short) ────────────────────
 
-// The drawer header (hamburger + title) is only useful when there's
-// somewhere else to go. During an active recording it would duplicate the
-// screen's own back button and eat into the immersive AudioSphere layout,
-// so it's hidden for the `recording`/`paused` phases and restored otherwise.
-function useImmersiveDrawerHeader(
+// The app header (hamburger + title) is only useful when there's somewhere
+// else to go. During an active recording it would duplicate the screen's own
+// back button and eat into the immersive AudioSphere layout, so it's hidden
+// for the `recording`/`paused` phases and restored otherwise.
+function useImmersiveHeader(
   setOptions: (options: { headerShown: boolean }) => void,
   isImmersive: boolean
 ) {
@@ -291,29 +310,90 @@ function useLoadInitialState(deps: {
   }, []);
 }
 
-// expo-audio (SDK 54) does not expose a dedicated interruption begin/end event
-// in its public JS API. We treat "the recorder was in the `recording` phase
-// but `isRecording` flipped to false without an explicit user action" as the
-// interruption signal — this covers phone calls, another app taking the
-// microphone, and the OS pausing recording while backgrounded. Because
-// `useAudioRecorderState` polls the recorder continuously regardless of
-// `AppState`, this single check also covers app minimize/foreground
+// NOT-138: expo-audio (SDK 54) does not expose a dedicated interruption
+// begin/end event in its public JS API. We treat "the recorder was in the
+// `recording` phase but `isRecording` flipped to false without an explicit
+// user action" as the interruption signal — this covers phone calls, another
+// app taking the microphone, and the OS pausing recording while backgrounded.
+// Because `useAudioRecorderState` polls the recorder continuously regardless
+// of `AppState`, this single check also covers app minimize/foreground
 // transitions without a separate `AppState` listener.
-function useInterruptionReconciliation(args: {
+//
+// A manual pause never reaches the "interrupted" branch: `handlePauseRecording`
+// sets `phase` to `'paused'` synchronously, so by the time `isRecording`
+// itself flips false, `phase === 'recording'` is already false too — only an
+// OS-induced stop leaves `phase` at `'recording'` while `isRecording` lags
+// behind it. That's what keeps auto-resume from fighting a deliberate pause.
+function useAutoResumeRecovery(args: {
   phase: Phase;
   isRecording: boolean;
+  recorder: { record: () => void };
   setPhase: (phase: Phase) => void;
   setErrorMessage: (message: string | null) => void;
 }) {
+  const schedulerRef = useRef(createAutoResumeScheduler());
+  const isInterruptedRef = useRef(false);
+
+  // Detect the interruption once and switch to the "trying to recover" UI.
   useEffect(() => {
     if (args.phase === 'recording' && !args.isRecording) {
-      args.setPhase('paused');
-      args.setErrorMessage(
-        'A gravação foi interrompida (chamada, outro app usou o microfone ou o app foi para segundo plano).'
+      isInterruptedRef.current = true;
+      schedulerRef.current.reset();
+      logRecordingEvent(
+        'interrupted',
+        'gravação pausada pelo sistema (tela bloqueada, 2º plano ou ligação)'
       );
+      args.setPhase('paused');
+      args.setErrorMessage('A gravação foi interrompida. Tentando retomar automaticamente...');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.isRecording, args.phase]);
+
+  // Recording is active again — whether from our own retry, the OS resuming
+  // it on its own, or the user tapping resume manually. Resync the UI phase
+  // either way; this is a no-op when it was already a manual resume.
+  useEffect(() => {
+    if (args.isRecording && args.phase === 'paused') {
+      if (isInterruptedRef.current) {
+        isInterruptedRef.current = false;
+        schedulerRef.current.reset();
+        logRecordingEvent('recovered');
+        args.setErrorMessage(null);
+      }
+      args.setPhase('recording');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [args.isRecording, args.phase]);
+
+  // While we believe the recorder is mid OS-interruption, retry `record()`
+  // on the scheduler's backoff until it recovers or we run out of attempts —
+  // at which point the existing manual resume button is the fallback.
+  useEffect(() => {
+    if (!(args.phase === 'paused' && isInterruptedRef.current)) return;
+
+    const interval = setInterval(() => {
+      if (args.isRecording || !isInterruptedRef.current) return;
+
+      const scheduler = schedulerRef.current;
+      if (scheduler.hasGivenUp()) {
+        isInterruptedRef.current = false;
+        logRecordingEvent(
+          'auto-resume-gave-up',
+          `desistiu após ${scheduler.attemptCount} tentativas — toque em retomar`
+        );
+        return;
+      }
+
+      const now = Date.now();
+      if (scheduler.shouldAttempt(now)) {
+        scheduler.recordAttempt(now);
+        logRecordingEvent('auto-resume-attempt', `tentativa ${scheduler.attemptCount}`);
+        args.recorder.record();
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [args.phase, args.isRecording, args.recorder]);
 }
 
 // Converts the raw dB metering reading polled off the recorder into a
@@ -460,6 +540,8 @@ function RecordingView({
 
       {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
 
+      <RecordingLogView />
+
       <View style={styles.footer}>
         <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
         <Text style={styles.statusLabel}>{isRecording ? 'Gravando...' : 'Pausado'}</Text>
@@ -488,6 +570,29 @@ function RecordingView({
           </Pressable>
         </View>
       </View>
+    </View>
+  );
+}
+
+// NOT-138: utilitarian, not designed — this only exists so an interruption
+// (screen lock, backgrounding, phone call) leaves visible proof of what the
+// auto-resume logic actually did, since it's not reproducible with a debugger
+// attached. Remove once NOT-138 has been verified stable across a few real
+// recordings, not part of the intended recording UI long-term.
+function RecordingLogView() {
+  const [entries, setEntries] = useState<RecordingLogEntry[]>(() => []);
+
+  useEffect(() => subscribeRecordingLog(setEntries), []);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <View style={styles.logBox}>
+      {entries.slice(-4).map((entry, index) => (
+        <Text key={`${entry.at}-${index}`} style={styles.logLine}>
+          {formatRecordingLogEntry(entry)}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -615,6 +720,14 @@ const styles = StyleSheet.create({
   errorText: {
     ...footnoteStyle,
     color: DARK.error,
+  },
+  logBox: {
+    gap: 2,
+  },
+  logLine: {
+    ...footnoteStyle,
+    fontSize: 11,
+    color: DARK.mutedForeground,
   },
   row: {
     flexDirection: 'row',

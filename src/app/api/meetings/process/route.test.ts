@@ -418,7 +418,7 @@ describe("POST /api/meetings/process", () => {
     );
   });
 
-  it("still requires a WhatsApp recipient for paid users", async () => {
+  it("never blocks recording for a paid user with no saved WhatsApp number — only the send-whatsapp step is skipped", async () => {
     getWhatsAppSummaryAccess.mockResolvedValue({ canSend: true, plan: "pro" });
 
     const mod = await import("./route");
@@ -436,12 +436,15 @@ describe("POST /api/meetings/process", () => {
       { params: {} } as never
     );
 
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({
-      error: "Número de WhatsApp é obrigatório.",
-    });
-    expect(meetingsInsert).not.toHaveBeenCalled();
-    expect(inngestSend).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(meetingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ whatsapp_number: "" })
+    );
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ whatsappNumber: "" }),
+      })
+    );
   });
 
   it("returns queue error and marks meeting as failed when enqueueing fails", async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useNetInfo } from '@react-native-community/netinfo';
 import {
@@ -12,7 +13,9 @@ import {
   type RecordingFileInfo,
 } from '@/lib/audio/recorder';
 import { normalizeMeteringDb, smoothAmplitude } from '@/lib/audio/metering';
-import { VoiceWaveform } from '@/components/recording/VoiceWaveform';
+import { AudioSphere } from '@/components/recording/AudioSphere';
+import { RecordingEqualizer } from '@/components/recording/RecordingEqualizer';
+import { palette, resolveTextVariantStyle } from '@/theme';
 import {
   checkMicrophonePermission,
   openMicrophoneSettings,
@@ -25,6 +28,14 @@ import {
   type PendingRecording,
 } from '@/lib/meetings/recording-recovery';
 import {
+  clearRecordingLog,
+  formatRecordingLogEntry,
+  logRecordingEvent,
+  subscribeRecordingLog,
+  type RecordingLogEntry,
+} from '@/lib/meetings/recording-log';
+import { createAutoResumeScheduler } from '@/lib/meetings/interruption-recovery';
+import {
   PROCESSING_STEP_IDS,
   POST_PROCESSING_ROUTE,
   fetchAccountWhatsappDefaults,
@@ -33,7 +44,7 @@ import {
   resolveWhatsappGate,
   submitMeetingRecording,
   type WhatsappGate,
-} from './record-api';
+} from '@/lib/meetings/record-api';
 
 type Phase =
   | 'idle'
@@ -70,9 +81,11 @@ function formatDuration(ms: number): string {
 
 export default function RecordScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const netInfo = useNetInfo();
 
   const [phase, setPhase] = useState<Phase>('idle');
+  const isImmersive = phase === 'recording' || phase === 'paused';
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -92,9 +105,16 @@ export default function RecordScreen() {
   const stopPollingRef = useRef<(() => void) | null>(null);
 
   useLoadInitialState({ setWhatsappGate, setPendingRecovery });
-  useInterruptionReconciliation({ phase, isRecording: recorderState.isRecording, setPhase, setErrorMessage });
+  useAutoResumeRecovery({
+    phase,
+    isRecording: recorderState.isRecording,
+    recorder,
+    setPhase,
+    setErrorMessage,
+  });
   useNetworkRetry({ phase, isConnected: netInfo.isConnected, onRetry: () => void handleUploadAndProcess() });
   usePollingCleanup(stopPollingRef);
+  useImmersiveHeader(navigation.setOptions, isImmersive);
 
   const startProcessingPoll = useCallback(
     (meetingId: string) => {
@@ -141,6 +161,7 @@ export default function RecordScreen() {
   }, [whatsappGate, startProcessingPoll]);
 
   async function handleStartRecording() {
+    clearRecordingLog();
     setErrorMessage(null);
     const current = await checkMicrophonePermission();
     const granted =
@@ -155,21 +176,25 @@ export default function RecordScreen() {
     await recorder.prepareToRecordAsync();
     recorder.record();
     setPhase('recording');
+    logRecordingEvent('started');
   }
 
   function handlePauseRecording() {
     recorder.pause();
     setPhase('paused');
+    logRecordingEvent('paused', 'manual');
   }
 
   function handleResumeRecording() {
     setErrorMessage(null);
     recorder.record();
     setPhase('recording');
+    logRecordingEvent('resumed', 'manual');
   }
 
   async function handleStopRecording() {
     setPhase('stopping');
+    logRecordingEvent('stopped');
     await recorder.stop();
     await deactivateRecordingAudioMode();
 
@@ -216,30 +241,20 @@ export default function RecordScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Gravar</Text>
+    <ScrollView
+      contentContainerStyle={[styles.container, isImmersive && styles.containerImmersive]}
+    >
+      {!isImmersive && <Text style={styles.title}>Gravar</Text>}
 
       {netInfo.isConnected === false && (
         <Banner text="Sem conexão à internet. O upload será retomado automaticamente." tone="warning" />
-      )}
-
-      {whatsappGate?.blocked && (
-        <Banner
-          text="Configure um número de WhatsApp na sua conta para gravar reuniões."
-          tone="warning"
-        />
       )}
 
       {pendingRecovery && phase === 'idle' && (
         <RecoveryBanner onResume={handleResumeRecovery} onDiscard={() => void handleDiscardRecovery()} />
       )}
 
-      {phase === 'idle' && (
-        <IdleView
-          disabled={Boolean(whatsappGate?.blocked)}
-          onStart={() => void handleStartRecording()}
-        />
-      )}
+      {phase === 'idle' && <IdleView onStart={() => void handleStartRecording()} />}
       {phase === 'permission-denied' && <PermissionDeniedView />}
       {(phase === 'recording' || phase === 'paused') && (
         <RecordingView
@@ -247,6 +262,7 @@ export default function RecordScreen() {
           durationMs={recorderState.durationMillis}
           amplitude={amplitude}
           errorMessage={errorMessage}
+          onBack={() => router.back()}
           onPause={handlePauseRecording}
           onResume={handleResumeRecording}
           onStop={() => void handleStopRecording()}
@@ -265,6 +281,19 @@ export default function RecordScreen() {
 
 // ─── Effects (extracted to keep the component body short) ────────────────────
 
+// The app header (hamburger + title) is only useful when there's somewhere
+// else to go. During an active recording it would duplicate the screen's own
+// back button and eat into the immersive AudioSphere layout, so it's hidden
+// for the `recording`/`paused` phases and restored otherwise.
+function useImmersiveHeader(
+  setOptions: (options: { headerShown: boolean }) => void,
+  isImmersive: boolean
+) {
+  useEffect(() => {
+    setOptions({ headerShown: !isImmersive });
+  }, [setOptions, isImmersive]);
+}
+
 function useLoadInitialState(deps: {
   setWhatsappGate: (gate: WhatsappGate) => void;
   setPendingRecovery: (pending: PendingRecording | null) => void;
@@ -274,34 +303,97 @@ function useLoadInitialState(deps: {
       .then((defaults) => deps.setWhatsappGate(resolveWhatsappGate(defaults)))
       .catch(() => deps.setWhatsappGate({ blocked: false, whatsappNumber: '' }));
 
-    loadPendingRecording().then(deps.setPendingRecovery);
+    loadPendingRecording()
+      .then(deps.setPendingRecovery)
+      .catch(() => deps.setPendingRecovery(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
 
-// expo-audio (SDK 54) does not expose a dedicated interruption begin/end event
-// in its public JS API. We treat "the recorder was in the `recording` phase
-// but `isRecording` flipped to false without an explicit user action" as the
-// interruption signal — this covers phone calls, another app taking the
-// microphone, and the OS pausing recording while backgrounded. Because
-// `useAudioRecorderState` polls the recorder continuously regardless of
-// `AppState`, this single check also covers app minimize/foreground
+// NOT-138: expo-audio (SDK 54) does not expose a dedicated interruption
+// begin/end event in its public JS API. We treat "the recorder was in the
+// `recording` phase but `isRecording` flipped to false without an explicit
+// user action" as the interruption signal — this covers phone calls, another
+// app taking the microphone, and the OS pausing recording while backgrounded.
+// Because `useAudioRecorderState` polls the recorder continuously regardless
+// of `AppState`, this single check also covers app minimize/foreground
 // transitions without a separate `AppState` listener.
-function useInterruptionReconciliation(args: {
+//
+// A manual pause never reaches the "interrupted" branch: `handlePauseRecording`
+// sets `phase` to `'paused'` synchronously, so by the time `isRecording`
+// itself flips false, `phase === 'recording'` is already false too — only an
+// OS-induced stop leaves `phase` at `'recording'` while `isRecording` lags
+// behind it. That's what keeps auto-resume from fighting a deliberate pause.
+function useAutoResumeRecovery(args: {
   phase: Phase;
   isRecording: boolean;
+  recorder: { record: () => void };
   setPhase: (phase: Phase) => void;
   setErrorMessage: (message: string | null) => void;
 }) {
+  const schedulerRef = useRef(createAutoResumeScheduler());
+  const isInterruptedRef = useRef(false);
+
+  // Detect the interruption once and switch to the "trying to recover" UI.
   useEffect(() => {
     if (args.phase === 'recording' && !args.isRecording) {
-      args.setPhase('paused');
-      args.setErrorMessage(
-        'A gravação foi interrompida (chamada, outro app usou o microfone ou o app foi para segundo plano).'
+      isInterruptedRef.current = true;
+      schedulerRef.current.reset();
+      logRecordingEvent(
+        'interrupted',
+        'gravação pausada pelo sistema (tela bloqueada, 2º plano ou ligação)'
       );
+      args.setPhase('paused');
+      args.setErrorMessage('A gravação foi interrompida. Tentando retomar automaticamente...');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.isRecording, args.phase]);
+
+  // Recording is active again — whether from our own retry, the OS resuming
+  // it on its own, or the user tapping resume manually. Resync the UI phase
+  // either way; this is a no-op when it was already a manual resume.
+  useEffect(() => {
+    if (args.isRecording && args.phase === 'paused') {
+      if (isInterruptedRef.current) {
+        isInterruptedRef.current = false;
+        schedulerRef.current.reset();
+        logRecordingEvent('recovered');
+        args.setErrorMessage(null);
+      }
+      args.setPhase('recording');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [args.isRecording, args.phase]);
+
+  // While we believe the recorder is mid OS-interruption, retry `record()`
+  // on the scheduler's backoff until it recovers or we run out of attempts —
+  // at which point the existing manual resume button is the fallback.
+  useEffect(() => {
+    if (!(args.phase === 'paused' && isInterruptedRef.current)) return;
+
+    const interval = setInterval(() => {
+      if (args.isRecording || !isInterruptedRef.current) return;
+
+      const scheduler = schedulerRef.current;
+      if (scheduler.hasGivenUp()) {
+        isInterruptedRef.current = false;
+        logRecordingEvent(
+          'auto-resume-gave-up',
+          `desistiu após ${scheduler.attemptCount} tentativas — toque em retomar`
+        );
+        return;
+      }
+
+      const now = Date.now();
+      if (scheduler.shouldAttempt(now)) {
+        scheduler.recordAttempt(now);
+        logRecordingEvent('auto-resume-attempt', `tentativa ${scheduler.attemptCount}`);
+        args.recorder.record();
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [args.phase, args.isRecording, args.recorder]);
 }
 
 // Converts the raw dB metering reading polled off the recorder into a
@@ -377,14 +469,14 @@ function RecoveryBanner({ onResume, onDiscard }: { onResume: () => void; onDisca
   );
 }
 
-function IdleView({ disabled, onStart }: { disabled: boolean; onStart: () => void }) {
+function IdleView({ onStart }: { onStart: () => void }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Pronto para gravar</Text>
       <Text style={styles.cardSubtitle}>
         Toque no botão para começar. Você pode bloquear a tela — a gravação continua.
       </Text>
-      <PrimaryButton label="Gravar" onPress={onStart} disabled={disabled} />
+      <PrimaryButton label="Gravar" onPress={onStart} />
     </View>
   );
 }
@@ -407,6 +499,7 @@ function RecordingView({
   durationMs,
   amplitude,
   errorMessage,
+  onBack,
   onPause,
   onResume,
   onStop,
@@ -415,26 +508,91 @@ function RecordingView({
   durationMs: number;
   amplitude: number | null;
   errorMessage: string | null;
+  onBack: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
 }) {
+  const isRecording = phase === 'recording';
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
-      <VoiceWaveform amplitude={amplitude} active={phase === 'recording'} />
-      <Text style={styles.cardSubtitle}>
-        {phase === 'recording' ? 'Gravando...' : 'Pausado'}
-      </Text>
-      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-      <View style={styles.row}>
-        {phase === 'recording' ? (
-          <SecondaryButton label="Pausar" onPress={onPause} />
-        ) : (
-          <SecondaryButton label="Retomar" onPress={onResume} />
-        )}
-        <PrimaryButton label="Finalizar" onPress={onStop} />
+    <View style={styles.recordingScreen}>
+      <View style={styles.recordingHeader}>
+        <Pressable
+          onPress={onBack}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressedScale]}
+        >
+          <Ionicons name="arrow-back" size={20} color={DARK.foreground} />
+        </Pressable>
       </View>
+
+      <View style={styles.sphereSection}>
+        <AudioSphere amplitude={amplitude} active={isRecording} />
+      </View>
+
+      <View style={styles.transcriptCard}>
+        <Text style={styles.transcriptPlaceholder}>
+          A transcrição aparecerá aqui durante a gravação
+        </Text>
+      </View>
+
+      <RecordingEqualizer amplitude={amplitude} active={isRecording} />
+
+      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
+      <RecordingLogView />
+
+      <View style={styles.footer}>
+        <Text style={styles.timer}>{formatDuration(durationMs)}</Text>
+        <Text style={styles.statusLabel}>{isRecording ? 'Gravando...' : 'Pausado'}</Text>
+
+        <View style={styles.controlsRow}>
+          <Pressable
+            onPress={isRecording ? onPause : onResume}
+            style={({ pressed }) => [styles.sideControl, pressed && styles.pressedScale]}
+          >
+            <Ionicons name={isRecording ? 'pause' : 'play'} size={22} color={DARK.foreground} />
+          </Pressable>
+
+          <View style={styles.centerControl}>
+            <Ionicons name="mic" size={28} color="#FFFFFF" />
+          </View>
+
+          <Pressable
+            onPress={onStop}
+            style={({ pressed }) => [
+              styles.sideControl,
+              styles.stopControl,
+              pressed && styles.pressedScale,
+            ]}
+          >
+            <Ionicons name="stop" size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// NOT-138: utilitarian, not designed — this only exists so an interruption
+// (screen lock, backgrounding, phone call) leaves visible proof of what the
+// auto-resume logic actually did, since it's not reproducible with a debugger
+// attached. Remove once NOT-138 has been verified stable across a few real
+// recordings, not part of the intended recording UI long-term.
+function RecordingLogView() {
+  const [entries, setEntries] = useState<RecordingLogEntry[]>(() => []);
+
+  useEffect(() => subscribeRecordingLog(setEntries), []);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <View style={styles.logBox}>
+      {entries.slice(-4).map((entry, index) => (
+        <Text key={`${entry.at}-${index}`} style={styles.logLine}>
+          {formatRecordingLogEntry(entry)}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -504,70 +662,72 @@ function SecondaryButton({ label, onPress }: { label: string; onPress: () => voi
   );
 }
 
-// ─── Design tokens (see DESIGN.md) ────────────────────────────────────────────
+// ─── Design tokens (NOT-136 dark theme, see mobile/src/theme) ─────────────────
 
-const ACCENT_PRIMARY = '#5E4CEB';
-const ACCENT_SECONDARY = 'rgba(83, 65, 205, 0.12)';
-const GRAY_50 = '#FBFBFE';
-const GRAY_100 = '#F2F2F7';
-const GRAY_800 = '#1C1C1E';
+const DARK = palette.dark;
+const SECONDARY_TINT = 'rgba(139, 122, 255, 0.16)';
+
+const displayStyle = resolveTextVariantStyle('display');
+const title2Style = resolveTextVariantStyle('title2');
+const headlineStyle = resolveTextVariantStyle('headline');
+const bodyStyle = resolveTextVariantStyle('body');
+const footnoteStyle = resolveTextVariantStyle('footnote');
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
     gap: 16,
-    backgroundColor: GRAY_50,
+    backgroundColor: DARK.background,
+  },
+  containerImmersive: {
+    padding: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.02 * 28,
-    color: GRAY_800,
+    ...title2Style,
+    color: DARK.foreground,
   },
   banner: {
     borderRadius: 14,
     padding: 14,
   },
   bannerWarning: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(245, 158, 11, 0.16)',
   },
   bannerText: {
-    fontSize: 13,
-    color: '#92400E',
+    ...footnoteStyle,
+    color: '#FBBF24',
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: DARK.card,
     borderRadius: 22,
     padding: 20,
     gap: 12,
-    shadowColor: '#000',
+    shadowColor: DARK.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 2,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.01 * 17,
-    color: GRAY_800,
+    ...headlineStyle,
+    color: DARK.foreground,
   },
   cardSubtitle: {
-    fontSize: 17,
-    color: '#6B7280',
-    lineHeight: 17 * 1.4,
-  },
-  timer: {
-    fontSize: 44,
-    fontWeight: '700',
-    letterSpacing: -0.04 * 44,
-    color: GRAY_800,
-    textAlign: 'center',
+    ...bodyStyle,
+    color: DARK.mutedForeground,
   },
   errorText: {
-    fontSize: 13,
-    color: '#B91C1C',
+    ...footnoteStyle,
+    color: DARK.error,
+  },
+  logBox: {
+    gap: 2,
+  },
+  logLine: {
+    ...footnoteStyle,
+    fontSize: 11,
+    color: DARK.mutedForeground,
   },
   row: {
     flexDirection: 'row',
@@ -576,17 +736,17 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: GRAY_100,
+    backgroundColor: DARK.secondary,
     overflow: 'hidden',
   },
   progressFill: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: ACCENT_PRIMARY,
+    backgroundColor: DARK.primary,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: ACCENT_PRIMARY,
+    backgroundColor: DARK.primary,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -596,24 +756,104 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
+    ...headlineStyle,
+    color: DARK.primaryForeground,
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: ACCENT_SECONDARY,
+    backgroundColor: SECONDARY_TINT,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: ACCENT_PRIMARY,
-    fontSize: 17,
-    fontWeight: '600',
+    ...headlineStyle,
+    color: DARK.primary,
   },
   pressedScale: {
     transform: [{ scale: 0.96 }],
+  },
+
+  // ─── Immersive recording layout (NOT-136 reference) ─────────────────────────
+  recordingScreen: {
+    flex: 1,
+    justifyContent: 'space-between',
+    gap: 24,
+  },
+  recordingHeader: {
+    flexDirection: 'row',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: DARK.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sphereSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transcriptCard: {
+    flex: 1,
+    backgroundColor: DARK.card,
+    borderRadius: 22,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 96,
+  },
+  transcriptPlaceholder: {
+    ...bodyStyle,
+    color: DARK.mutedForeground,
+    textAlign: 'center',
+  },
+  footer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  timer: {
+    ...displayStyle,
+    color: DARK.foreground,
+    letterSpacing: -0.02 * displayStyle.fontSize,
+    textAlign: 'center',
+  },
+  statusLabel: {
+    ...footnoteStyle,
+    color: DARK.mutedForeground,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 28,
+    marginTop: 12,
+  },
+  sideControl: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: DARK.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopControl: {
+    backgroundColor: DARK.error,
+  },
+  centerControl: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: DARK.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -24,
+    shadowColor: DARK.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });

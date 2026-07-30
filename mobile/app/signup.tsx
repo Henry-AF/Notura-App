@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Link } from 'expo-router';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
@@ -10,6 +15,7 @@ export default function SignUpScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { signUp } = useAuth();
+  const { colors, spacing } = useTheme();
 
   async function handleSignUp() {
     if (!email || !password) {
@@ -38,88 +44,69 @@ export default function SignUpScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Criar conta</Text>
+    <Screen style={styles.container}>
+      <ThemedText variant="title1" style={styles.title}>
+        Criar conta
+      </ThemedText>
 
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
+      <View style={{ gap: spacing.sm }}>
+        <Input
+          placeholder="E-mail"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <Input
+          placeholder="Senha"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
+
+      {errorMessage ? (
+        <ThemedText variant="footnote" color={colors.error} style={styles.message}>
+          {errorMessage}
+        </ThemedText>
+      ) : null}
+      {successMessage ? (
+        <ThemedText variant="footnote" color={colors.success} style={styles.message}>
+          {successMessage}
+        </ThemedText>
+      ) : null}
+
+      <Button
+        label={isSubmitting ? 'Criando conta...' : 'Criar conta'}
+        onPress={() => void handleSignUp()}
+        disabled={isSubmitting}
+        style={styles.button}
       />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-      {successMessage ? <Text style={styles.success}>{successMessage}</Text> : null}
-
-      <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={isSubmitting}>
-        <Text style={styles.buttonText}>{isSubmitting ? 'Criando conta...' : 'Criar conta'}</Text>
-      </TouchableOpacity>
 
       <Link href="/login" asChild>
-        <TouchableOpacity style={styles.linkButton}>
-          <Text style={styles.linkText}>Já tenho conta</Text>
-        </TouchableOpacity>
+        <Button label="Já tenho conta" variant="ghost" style={styles.linkButton} />
       </Link>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
     marginBottom: 24,
     textAlign: 'center',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+  message: {
+    marginTop: 12,
+    textAlign: 'center',
   },
   button: {
-    backgroundColor: '#0f172a',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
+    marginTop: 16,
   },
   linkButton: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#2563eb',
-  },
-  error: {
-    color: '#dc2626',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  success: {
-    color: '#16a34a',
-    marginBottom: 12,
-    textAlign: 'center',
+    marginTop: 8,
   },
 });

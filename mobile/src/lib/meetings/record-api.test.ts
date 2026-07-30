@@ -61,8 +61,8 @@ beforeEach(() => {
 // ─── POST_PROCESSING_ROUTE ────────────────────────────────────────────────────
 
 describe('POST_PROCESSING_ROUTE', () => {
-  it('points to the Reuniões tab', () => {
-    expect(POST_PROCESSING_ROUTE).toBe('/(app)');
+  it('points to the Reuniões list', () => {
+    expect(POST_PROCESSING_ROUTE).toBe('/(app)/meetings');
   });
 });
 

@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useTheme } from '@/theme';
+import { Screen } from '@/components/ui/Screen';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -10,6 +15,7 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { signIn } = useAuth();
   const router = useRouter();
+  const { colors, spacing } = useTheme();
 
   async function handleLogin() {
     if (!email || !password) {
@@ -32,82 +38,64 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Entrar no Notura</Text>
+    <Screen style={styles.container}>
+      <ThemedText variant="title1" style={styles.title}>
+        Entrar no Notura
+      </ThemedText>
 
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
+      <View style={{ gap: spacing.sm }}>
+        <Input
+          placeholder="E-mail"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <Input
+          placeholder="Senha"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
+
+      {errorMessage ? (
+        <ThemedText variant="footnote" color={colors.error} style={styles.error}>
+          {errorMessage}
+        </ThemedText>
+      ) : null}
+
+      <Button
+        label={isSubmitting ? 'Entrando...' : 'Entrar'}
+        onPress={() => void handleLogin()}
+        disabled={isSubmitting}
+        style={styles.button}
       />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isSubmitting}>
-        <Text style={styles.buttonText}>{isSubmitting ? 'Entrando...' : 'Entrar'}</Text>
-      </TouchableOpacity>
 
       <Link href="/signup" asChild>
-        <TouchableOpacity style={styles.linkButton}>
-          <Text style={styles.linkText}>Criar conta</Text>
-        </TouchableOpacity>
+        <Button label="Criar conta" variant="ghost" style={styles.linkButton} />
       </Link>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
     marginBottom: 24,
     textAlign: 'center',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+  error: {
+    marginTop: 12,
+    textAlign: 'center',
   },
   button: {
-    backgroundColor: '#0f172a',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
+    marginTop: 16,
   },
   linkButton: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#2563eb',
-  },
-  error: {
-    color: '#dc2626',
-    marginBottom: 12,
-    textAlign: 'center',
+    marginTop: 8,
   },
 });

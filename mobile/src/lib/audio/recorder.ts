@@ -22,11 +22,19 @@ export function getRecordingOptions(): RecordingOptions {
 // Configures the audio session for recording, including background audio on
 // iOS (requires `UIBackgroundModes: ["audio"]` in app.json — see 6.2 in the
 // spec for Android limitations).
+//
+// NOT-138: `allowsBackgroundRecording` alone is NOT enough to survive the
+// screen locking or the app backgrounding — that flag only permits it.
+// `shouldPlayInBackground` is the field that actually keeps the native
+// session (and, on Android, the `MediaRecorder`) active once backgrounded;
+// without it the OS pauses the recorder despite the foreground service
+// running. See `recorder.test.ts` for the regression lock.
 export async function activateRecordingAudioMode(): Promise<void> {
   await setAudioModeAsync({
     allowsRecording: true,
     playsInSilentMode: true,
     allowsBackgroundRecording: true,
+    shouldPlayInBackground: true,
     interruptionMode: 'doNotMix',
   });
 }

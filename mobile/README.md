@@ -30,14 +30,27 @@ Variáveis necessárias:
 ## Como rodar
 
 ```bash
-npx expo start
+npx expo start --dev-client
 ```
 
-Depois escaneie o QR code com o app **Expo Go** no celular, ou pressione:
+Depois escaneie o QR code com o **development build** instalado no celular (não o Expo Go — o app já tem código nativo compilado que o Expo Go não suporta), ou pressione:
 
 - `a` para abrir no emulador Android
 - `i` para abrir no simulador iOS (macOS only)
 - `w` para rodar na versão web
+
+> **Precisa de um build novo sempre que uma dependência com código nativo for adicionada.**
+> Rode `eas build --profile development` de novo depois de qualquer mudança em libs como
+> `expo-dev-client`, `expo-font`, `expo-asset` ou `expo-linear-gradient` — reiniciar o
+> Metro não é suficiente, o binário instalado no celular precisa conter o novo código
+> nativo.
+>
+> O app **não usa `react-native-reanimated`/`react-native-worklets`** de propósito: o menu
+> hambúrguer (`src/components/nav/AppMenu.tsx`) e as animações da tela de gravação
+> (`src/components/recording/`) são feitas só com a `Animated` API que já vem no core do
+> React Native. Não reintroduza Reanimated sem necessidade real — a dupla reanimated/worklets
+> já causou 3 ciclos de EAS build por mismatch de versão nativa (`installTurboModule called
+> with N arguments`).
 
 ## Estrutura
 

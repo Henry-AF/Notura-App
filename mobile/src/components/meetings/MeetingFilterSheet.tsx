@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import type { MeetingGroup } from "@/lib/meetings/groups-api";
+import { colors } from "@/lib/theme/tokens";
 
 interface MeetingFilterSheetProps {
   visible: boolean;
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   sheet: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -87,11 +88,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0f172a",
+    color: colors.foreground,
   },
   close: {
     fontSize: 14,
-    color: "#64748b",
+    color: colors.mutedForeground,
   },
   option: {
     flexDirection: "row",
@@ -102,18 +103,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   optionSelected: {
-    backgroundColor: "#eff6ff",
+    backgroundColor: colors.card2,
   },
   optionText: {
     fontSize: 15,
-    color: "#334155",
+    color: colors.secondaryForeground,
   },
   optionTextSelected: {
-    color: "#2563eb",
+    color: colors.primary,
     fontWeight: "600",
   },
   count: {
     fontSize: 13,
-    color: "#94a3b8",
+    color: colors.mutedForeground,
   },
 });

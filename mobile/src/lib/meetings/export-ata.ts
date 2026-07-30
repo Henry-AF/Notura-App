@@ -9,6 +9,11 @@ export interface ExportAtaResult {
   expiresIn: number;
 }
 
+export interface MeetingTemplateOption {
+  id: string;
+  name: string;
+}
+
 interface ExportAtaApiResponse {
   url?: string;
   filename?: string;
@@ -16,9 +21,31 @@ interface ExportAtaApiResponse {
   error?: string;
 }
 
-export async function exportMeetingAta(meetingId: string): Promise<ExportAtaResult> {
+interface MeetingTemplatesApiResponse {
+  templates?: MeetingTemplateOption[];
+  error?: string;
+}
+
+// Mobile is read-only for templates (NOT-158) — lists templates already
+// registered via the web (NOT-84/130/131), no upload here.
+export async function fetchMeetingTemplates(): Promise<MeetingTemplateOption[]> {
+  const response = await fetchApi("/api/meeting-templates");
+  const body = await parseJson<MeetingTemplatesApiResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(normalizeError(body.error, "Erro ao carregar modelos de ata."));
+  }
+
+  return body.templates ?? [];
+}
+
+export async function exportMeetingAta(
+  meetingId: string,
+  templateId?: string
+): Promise<ExportAtaResult> {
   const response = await fetchApi(`/api/meetings/${meetingId}/export`, {
     method: "POST",
+    body: JSON.stringify(templateId ? { templateId } : {}),
   });
   const body = await parseJson<ExportAtaApiResponse>(response);
 
@@ -44,8 +71,8 @@ export async function downloadAtaFile(result: ExportAtaResult): Promise<string> 
   return download.uri;
 }
 
-export async function shareMeetingAta(meetingId: string): Promise<void> {
-  const result = await exportMeetingAta(meetingId);
+export async function shareMeetingAta(meetingId: string, templateId?: string): Promise<void> {
+  const result = await exportMeetingAta(meetingId, templateId);
   const localUri = await downloadAtaFile(result);
   await Sharing.shareAsync(localUri, {
     mimeType:

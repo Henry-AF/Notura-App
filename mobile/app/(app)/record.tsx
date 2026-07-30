@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAudioRecorder, useAudioRecorderState } from 'expo-audio';
@@ -25,11 +25,8 @@ import {
   type PendingRecording,
 } from '@/lib/meetings/recording-recovery';
 import {
-  PROCESSING_STEP_IDS,
-  POST_PROCESSING_ROUTE,
   fetchAccountWhatsappDefaults,
   getTodayDateStringUtc,
-  pollUntilTerminal,
   resolveWhatsappGate,
   submitMeetingRecording,
   type WhatsappGate,
@@ -42,24 +39,12 @@ type Phase =
   | 'paused'
   | 'stopping'
   | 'uploading'
-  | 'processing'
-  | 'done'
   | 'failed';
 
 // Poll fast enough for the waveform (NOT-121) to feel smooth — `Animated`
 // interpolates between updates, so this doesn't need to match a render's
 // frame rate, just be short enough that steps aren't visible.
 const METERING_POLL_INTERVAL_MS = 100;
-
-const STEP_LABELS: Record<(typeof PROCESSING_STEP_IDS)[number], string> = {
-  'update-status-processing': 'Preparando job',
-  transcribe: 'Transcrevendo áudio',
-  'index-transcript-chunks': 'Indexando transcrição',
-  'summarize-meeting': 'Analisando com IA',
-  'save-results': 'Salvando resultados',
-  'send-whatsapp': 'Enviando no WhatsApp',
-  cleanup: 'Finalizando',
-};
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -75,7 +60,6 @@ export default function RecordScreen() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [stepIndex, setStepIndex] = useState(0);
   const [whatsappGate, setWhatsappGate] = useState<WhatsappGate | null>(null);
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecording | null>(null);
 
@@ -89,31 +73,10 @@ export default function RecordScreen() {
 
   const fileInfoRef = useRef<RecordingFileInfo | null>(null);
   const meetingDateRef = useRef<string | null>(null);
-  const stopPollingRef = useRef<(() => void) | null>(null);
 
   useLoadInitialState({ setWhatsappGate, setPendingRecovery });
   useInterruptionReconciliation({ phase, isRecording: recorderState.isRecording, setPhase, setErrorMessage });
   useNetworkRetry({ phase, isConnected: netInfo.isConnected, onRetry: () => void handleUploadAndProcess() });
-  usePollingCleanup(stopPollingRef);
-
-  const startProcessingPoll = useCallback(
-    (meetingId: string) => {
-      setPhase('processing');
-      setStepIndex(0);
-      stopPollingRef.current = pollUntilTerminal(meetingId, (tick) => {
-        setStepIndex(tick.stepIndex);
-        if (tick.status === 'completed') {
-          setPhase('done');
-          if (fileInfoRef.current) deleteRecordingFile(fileInfoRef.current.uri);
-          setTimeout(() => router.replace(POST_PROCESSING_ROUTE), 1500);
-        } else if (tick.status === 'failed') {
-          setPhase('failed');
-          setErrorMessage(tick.errorMessage ?? 'Erro no processamento da reunião.');
-        }
-      });
-    },
-    [router]
-  );
 
   const handleUploadAndProcess = useCallback(async () => {
     const fileInfo = fileInfoRef.current;
@@ -133,12 +96,17 @@ export default function RecordScreen() {
       });
 
       await clearPendingRecording();
-      startProcessingPoll(meetingId);
+      deleteRecordingFile(fileInfo.uri);
+      // NOT-159: hand off to the meeting detail screen right away — it
+      // already polls status and shows the processing/failed states in
+      // place (mirrors the web's NOT-78 "route straight to meeting
+      // details", which retired the old dedicated processing page).
+      router.replace(`/(app)/meetings/${meetingId}`);
     } catch (error) {
       setPhase('failed');
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar a gravação.');
     }
-  }, [whatsappGate, startProcessingPoll]);
+  }, [whatsappGate, router]);
 
   async function handleStartRecording() {
     setErrorMessage(null);
@@ -254,8 +222,6 @@ export default function RecordScreen() {
       )}
       {phase === 'stopping' && <StatusView label="Finalizando gravação..." />}
       {phase === 'uploading' && <UploadingView progress={uploadProgress} />}
-      {phase === 'processing' && <StatusView label={STEP_LABELS[PROCESSING_STEP_IDS[stepIndex]]} />}
-      {phase === 'done' && <StatusView label="Pronto! Redirecionando..." />}
       {phase === 'failed' && (
         <FailedView message={errorMessage} onRetry={() => void handleUploadAndProcess()} />
       )}
@@ -340,16 +306,6 @@ function useNetworkRetry(args: { phase: Phase; isConnected: boolean | null; onRe
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.isConnected, args.phase]);
-}
-
-// `stopPollingRef` holds a plain callback (not a DOM node), so its `.current`
-// is intentionally read at cleanup time to stop whatever polling loop is
-// active when the screen unmounts.
-function usePollingCleanup(stopPollingRef: MutableRefObject<(() => void) | null>) {
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    return () => stopPollingRef.current?.();
-  }, [stopPollingRef]);
 }
 
 // ─── Presentational pieces ────────────────────────────────────────────────────

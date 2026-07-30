@@ -11,7 +11,6 @@ import {
   runProcess,
   submitMeetingRecording,
   pollUntilTerminal,
-  POST_PROCESSING_ROUTE,
 } from './record-api';
 
 jest.mock('@/lib/api/client', () => ({
@@ -56,14 +55,6 @@ const mockedFetchMeetingStatus = fetchMeetingStatus as jest.Mock;
 beforeEach(() => {
   jest.clearAllMocks();
   (buildRecordingFileName as jest.Mock).mockReturnValue('notura-recording-123.m4a');
-});
-
-// ─── POST_PROCESSING_ROUTE ────────────────────────────────────────────────────
-
-describe('POST_PROCESSING_ROUTE', () => {
-  it('points to the Reuniões tab', () => {
-    expect(POST_PROCESSING_ROUTE).toBe('/(app)');
-  });
 });
 
 // ─── mapStatusToStep ──────────────────────────────────────────────────────────

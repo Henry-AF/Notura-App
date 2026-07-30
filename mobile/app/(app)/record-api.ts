@@ -14,13 +14,6 @@ import {
 import { fetchMeetingStatus, type MeetingStatusPayload } from '@/lib/meetings/status';
 import { buildRecordingFileName, type RecordingFileInfo } from '@/lib/audio/recorder';
 
-// ─── Post-processing navigation (extension point for NOT-115) ────────────────
-
-// The Meetings tab (`app/(app)/index.tsx`) is the existing "Reuniões" screen.
-// NOT-115 (meeting list/detail) will likely deep-link into a specific meeting;
-// for this slice we just land back on the tab.
-export const POST_PROCESSING_ROUTE = '/(app)' as const;
-
 // ─── Processing step mapping ──────────────────────────────────────────────────
 // Mirrors the `STEPS` ids from `src/app/dashboard/processing/page.tsx` on the
 // web app — the same `processingStep` values are produced by the shared

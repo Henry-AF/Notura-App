@@ -44,6 +44,7 @@ import {
   updateMeetingTitle,
 } from "./meeting-client-api";
 import type { MeetingDetailData } from "./meeting-types";
+import { getMeetingBreadcrumbLabel, isProcessingView } from "./meeting-detail-view";
 import {
   buildMeetingTaskColumns,
   type MeetingTaskColumnId,
@@ -358,16 +359,17 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
   useEffect(() => {
     let cancelled = false;
 
-    void (async () => {
+    const loadTemplates = async () => {
       try {
         const templates = await fetchMeetingTemplates();
-        if (!cancelled) {
-          dispatch({ type: "patched", value: { exportTemplates: templates } });
-        }
+        if (cancelled) return;
+        dispatch({ type: "patched", value: { exportTemplates: templates } });
       } catch {
         // silent — export button falls back to the default template
       }
-    })();
+    };
+
+    void loadTemplates();
 
     return () => {
       cancelled = true;
@@ -663,9 +665,13 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
     }
   }, [id, router, show]);
 
+  // While the meeting is still processing this route is the processing view,
+  // not the details view — the tab bar has nothing to switch between yet.
+  const showsProcessingView = isProcessingView(meetingStatus);
+
   // ─── Main content per active tab ──────────────────────────────────────────
   function renderMainContent() {
-    if (meetingStatus === "processing") {
+    if (showsProcessingView) {
       return (
         <MeetingProcessingCard
           clientName={clientName}
@@ -681,17 +687,6 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         <FailedState
           onRetry={() => { void handleRetry(); }}
           isRetrying={isRetrying}
-        />
-      );
-    }
-    if (meetingStatus !== "completed") {
-      return (
-        <MeetingProcessingCard
-          clientName={clientName}
-          processingStep={processingStep}
-          isDone={isProcessingDone}
-          isCancelingProcessing={isCancelingProcessing}
-          onCancelProcessing={() => { void handleCancelProcessing(); }}
         />
       );
     }
@@ -987,7 +982,7 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
           breadcrumbs={[
             { label: "Dashboard", href: "/dashboard" },
             { label: "Reuniões", href: "/dashboard/meetings" },
-            { label: "Detalhes" },
+            { label: getMeetingBreadcrumbLabel(meetingStatus) },
           ]}
           clientName={clientName}
           date={meetingDate}
@@ -1024,15 +1019,17 @@ export function MeetingDetailClient({ id, initialMeeting }: MeetingDetailClientP
         />
       </div>
 
-      {/* Tabs */}
-      <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
-        <MeetingTabs
-          activeTab={activeTab}
-          onChange={(activeTab) =>
-            dispatch({ type: "patched", value: { activeTab } })
-          }
-        />
-      </div>
+      {/* Tabs — details-only chrome, hidden while the meeting processes */}
+      {!showsProcessingView && (
+        <div className="anim-in mt-6" style={{ animationDelay: "40ms" }}>
+          <MeetingTabs
+            activeTab={activeTab}
+            onChange={(activeTab) =>
+              dispatch({ type: "patched", value: { activeTab } })
+            }
+          />
+        </div>
+      )}
 
       <div
         style={{ minWidth: 0 }}

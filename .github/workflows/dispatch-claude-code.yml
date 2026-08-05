@@ -31,6 +31,9 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  # A claude-code-action troca um token OIDC do GitHub por credencial na API da
+  # Anthropic. Sem isto ela falha logo no início com "Could not fetch an OIDC token".
+  id-token: write
 
 concurrency:
   group: dispatch-${{ inputs.issue_key }}

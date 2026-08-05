@@ -1,0 +1,211 @@
+name: "Dispatch: Codex"
+
+# Despacho MANUAL de uma issue do Linear para o Codex (NOT-163 v2).
+#
+# Gêmeo do dispatch-claude-code.yml, com uma diferença de fundo: a
+# `openai/codex-action` NÃO abre PR sozinha — ela só devolve um `final-message`
+# e as escritas no workspace não persistem em git por conta própria. Todo o
+# encanamento de branch, commit, push e PR é feito por este workflow, que é
+# exatamente o mesmo do workflow do Claude. Os dois agentes ficam simétricos e
+# nenhum deles tem capacidade de merge.
+#
+# Título, descrição e a resposta final do agente nunca são interpolados em
+# shell: chegam sempre por variável de ambiente.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_key:
+        description: 'Chave da issue no Linear (ex.: NOT-164)'
+        required: true
+        type: string
+      extra_instructions:
+        description: 'Instruções adicionais para o agente (opcional)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: dispatch-${{ inputs.issue_key }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Codex — ${{ inputs.issue_key }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Sem credencial de git em disco durante a execução do agente.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Buscar a issue no Linear
+        id: linear
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_KEY: ${{ inputs.issue_key }}
+        run: |
+          mkdir -p .dispatch
+          node .github/scripts/linear-dispatch.mjs fetch "$ISSUE_KEY" .dispatch/issue.md
+
+      - name: Montar o prompt
+        env:
+          EXTRA: ${{ inputs.extra_instructions }}
+        run: |
+          {
+            cat .dispatch/issue.md
+            echo
+            echo '## Instruções de execução'
+            echo
+            echo 'Implemente a issue acima neste repositório.'
+            echo
+            echo 'Antes de escrever qualquer código, leia AGENTS.md e ARCHITECTURE.md por'
+            echo 'inteiro. As regras do ARCHITECTURE.md não são negociáveis — em especial'
+            echo 'a proibição de instanciar Supabase no frontend, a exigência de withAuth +'
+            echo 'requireOwnership em toda rota com :id, e o arquivo companion de API mais'
+            echo 'teste para cada página nova.'
+            echo
+            echo 'Rode `npm run lint:changed` e `npm test` e deixe os dois passando.'
+            echo
+            echo 'Não use git nem gh, e não tente dar push nem abrir PR: isso é feito'
+            echo 'automaticamente depois que você terminar. Apenas deixe as alterações'
+            echo 'no diretório de trabalho.'
+            echo
+            echo 'Se concluir que a issue está mal especificada ou que a mudança é'
+            echo 'arriscada, não invente escopo: faça a menor mudança correta e explique'
+            echo 'a ressalva na sua mensagem final.'
+            if [ -n "$EXTRA" ]; then
+              echo
+              echo '## Instruções adicionais do Henry'
+              echo
+              printf '%s\n' "$EXTRA"
+            fi
+          } > .dispatch/prompt.md
+          echo "Prompt montado: $(wc -c < .dispatch/prompt.md) bytes"
+
+      - name: Criar a branch
+        env:
+          SLUG: ${{ steps.linear.outputs.slug }}
+        run: |
+          BRANCH="codex/${SLUG}-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar o Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .dispatch/prompt.md
+          # :workspace dá escrita no diretório de trabalho e nada além dele.
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+
+      - name: Verificar se houve alteração
+        id: diff
+        run: |
+          rm -rf .dispatch
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "O agente não alterou nenhum arquivo."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git status --short
+          fi
+
+      - name: Commit e push
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDENTIFIER: ${{ steps.linear.outputs.identifier }}
+          TITLE: ${{ steps.linear.outputs.title }}
+          ISSUE_URL: ${{ steps.linear.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git config user.name "notura-dispatch[bot]"
+          git config user.email "notura-dispatch[bot]@users.noreply.github.com"
+          git add -A
+          printf '%s\n\n%s\n%s\n%s\n' \
+            "${IDENTIFIER}: ${TITLE}" \
+            "Implementado pelo Codex via dispatch manual (NOT-163 v2)." \
+            "Issue: ${ISSUE_URL}" \
+            "Run: ${RUN_URL}" > .commit-msg.txt
+          git commit -F .commit-msg.txt
+          rm -f .commit-msg.txt
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$BRANCH"
+
+      - name: Abrir o PR
+        if: steps.diff.outputs.changed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDENTIFIER: ${{ steps.linear.outputs.identifier }}
+          TITLE: ${{ steps.linear.outputs.title }}
+          ISSUE_URL: ${{ steps.linear.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
+        run: |
+          {
+            echo "Aberto automaticamente pelo dispatch manual da ${IDENTIFIER} para o **Codex**."
+            echo
+            echo "Issue no Linear: ${ISSUE_URL}"
+            echo "Run: ${RUN_URL}"
+            echo
+            echo "Draft de propósito: merge é sempre manual, com CI verde e revisão do Henry."
+            echo
+            echo "<details><summary>Resposta final do Codex</summary>"
+            echo
+            printf '%s\n' "$FINAL_MESSAGE"
+            echo
+            echo "</details>"
+          } > .pr-body.md
+
+          # --draft: sinaliza que precisa de revisão humana. gh pr create nunca mergeia.
+          URL=$(gh pr create \
+            --draft \
+            --base main \
+            --head "$BRANCH" \
+            --title "${IDENTIFIER}: ${TITLE}" \
+            --body-file .pr-body.md)
+          rm -f .pr-body.md
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "PR aberto: $URL"
+
+      - name: Registrar o resultado no Linear
+        if: always()
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_KEY: ${{ inputs.issue_key }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          CHANGED: ${{ steps.diff.outputs.changed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$PR_URL" ]; then
+            printf '%s\n\n%s\n' \
+              "🤖 **Codex** abriu um PR em draft: ${PR_URL}" \
+              "Merge continua manual, depois de CI verde e revisão. [Run](${RUN_URL})" > .comment.md
+          elif [ "$CHANGED" = "false" ]; then
+            printf '%s\n' "🤖 **Codex** rodou mas não alterou nenhum arquivo. Nenhum PR foi aberto. [Run](${RUN_URL})" > .comment.md
+          else
+            printf '%s\n' "🤖 **Codex** falhou antes de abrir o PR. [Run](${RUN_URL})" > .comment.md
+          fi
+          node .github/scripts/linear-dispatch.mjs comment "$ISSUE_KEY" .comment.md
+          node .github/scripts/linear-dispatch.mjs label "$ISSUE_KEY" "dispatch:codex"
+          rm -f .comment.md

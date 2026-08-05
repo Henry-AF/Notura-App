@@ -1,0 +1,208 @@
+name: "Dispatch: Claude Code"
+
+# Despacho MANUAL de uma issue do Linear para o Claude Code (NOT-163 v2).
+#
+# O Notura-App não usa issues do GitHub — o rastreamento vive no Linear —
+# então o gatilho é workflow_dispatch com a chave da issue, não `issues: labeled`.
+#
+# Disciplina, igual à v1: o agente NUNCA faz merge, e nem sequer tem
+# capacidade de fazê-lo. O checkout roda com `persist-credentials: false`, então
+# não existe credencial de git em disco enquanto ele trabalha, e o allowlist de
+# ferramentas não inclui `git` nem `gh`. Quem commita, dá push e abre o PR é
+# este workflow, depois que o agente termina. O merge continua manual.
+#
+# Título e descrição da issue nunca são interpolados em shell: chegam sempre por
+# variável de ambiente. O título é gerado por LLM no pipeline de triagem, então
+# tratá-lo como texto confiável seria um caminho de injeção.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_key:
+        description: 'Chave da issue no Linear (ex.: NOT-164)'
+        required: true
+        type: string
+      extra_instructions:
+        description: 'Instruções adicionais para o agente (opcional)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: dispatch-${{ inputs.issue_key }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Claude Code — ${{ inputs.issue_key }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Sem credencial de git em disco durante a execução do agente.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Buscar a issue no Linear
+        id: linear
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_KEY: ${{ inputs.issue_key }}
+        run: |
+          mkdir -p .dispatch
+          node .github/scripts/linear-dispatch.mjs fetch "$ISSUE_KEY" .dispatch/issue.md
+
+      - name: Montar o prompt
+        env:
+          EXTRA: ${{ inputs.extra_instructions }}
+        run: |
+          {
+            cat .dispatch/issue.md
+            echo
+            echo '## Instruções de execução'
+            echo
+            echo 'Implemente a issue acima neste repositório.'
+            echo
+            echo 'Antes de escrever qualquer código, leia CLAUDE.md e ARCHITECTURE.md por'
+            echo 'inteiro. As regras do ARCHITECTURE.md não são negociáveis — em especial'
+            echo 'a proibição de instanciar Supabase no frontend, a exigência de withAuth +'
+            echo 'requireOwnership em toda rota com :id, e o arquivo companion de API mais'
+            echo 'teste para cada página nova.'
+            echo
+            echo 'Rode `npm run lint:changed` e `npm test` e deixe os dois passando.'
+            echo
+            echo 'Não use git nem gh, e não tente dar push nem abrir PR: isso é feito'
+            echo 'automaticamente depois que você terminar. Apenas deixe as alterações'
+            echo 'no diretório de trabalho.'
+            echo
+            echo 'Se concluir que a issue está mal especificada ou que a mudança é'
+            echo 'arriscada, não invente escopo: faça a menor mudança correta e explique'
+            echo 'a ressalva na sua mensagem final.'
+            if [ -n "$EXTRA" ]; then
+              echo
+              echo '## Instruções adicionais do Henry'
+              echo
+              printf '%s\n' "$EXTRA"
+            fi
+          } > .dispatch/prompt.md
+          echo "Prompt montado: $(wc -c < .dispatch/prompt.md) bytes"
+
+      - name: Criar a branch
+        env:
+          SLUG: ${{ steps.linear.outputs.slug }}
+        run: |
+          BRANCH="claude/${SLUG}-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar o Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: 'Leia o arquivo .dispatch/prompt.md deste repositório e execute integralmente a tarefa descrita nele.'
+          # Allowlist sem git e sem gh: o agente não consegue dar push nem mergear.
+          claude_args: |
+            --model claude-opus-5
+            --max-turns 60
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*)"
+
+      - name: Verificar se houve alteração
+        id: diff
+        run: |
+          rm -rf .dispatch
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "O agente não alterou nenhum arquivo."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git status --short
+          fi
+
+      - name: Commit e push
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDENTIFIER: ${{ steps.linear.outputs.identifier }}
+          TITLE: ${{ steps.linear.outputs.title }}
+          ISSUE_URL: ${{ steps.linear.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git config user.name "notura-dispatch[bot]"
+          git config user.email "notura-dispatch[bot]@users.noreply.github.com"
+          git add -A
+          printf '%s\n\n%s\n%s\n%s\n' \
+            "${IDENTIFIER}: ${TITLE}" \
+            "Implementado pelo Claude Code via dispatch manual (NOT-163 v2)." \
+            "Issue: ${ISSUE_URL}" \
+            "Run: ${RUN_URL}" > .commit-msg.txt
+          git commit -F .commit-msg.txt
+          rm -f .commit-msg.txt
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$BRANCH"
+
+      - name: Abrir o PR
+        if: steps.diff.outputs.changed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDENTIFIER: ${{ steps.linear.outputs.identifier }}
+          TITLE: ${{ steps.linear.outputs.title }}
+          ISSUE_URL: ${{ steps.linear.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Aberto automaticamente pelo dispatch manual da ${IDENTIFIER} para o **Claude Code**."
+            echo
+            echo "Issue no Linear: ${ISSUE_URL}"
+            echo "Run: ${RUN_URL}"
+            echo
+            echo "Draft de propósito: merge é sempre manual, com CI verde e revisão do Henry."
+          } > .pr-body.md
+
+          # --draft: sinaliza que precisa de revisão humana. gh pr create nunca mergeia.
+          URL=$(gh pr create \
+            --draft \
+            --base main \
+            --head "$BRANCH" \
+            --title "${IDENTIFIER}: ${TITLE}" \
+            --body-file .pr-body.md)
+          rm -f .pr-body.md
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "PR aberto: $URL"
+
+      - name: Registrar o resultado no Linear
+        if: always()
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_KEY: ${{ inputs.issue_key }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          CHANGED: ${{ steps.diff.outputs.changed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$PR_URL" ]; then
+            printf '%s\n\n%s\n' \
+              "🤖 **Claude Code** abriu um PR em draft: ${PR_URL}" \
+              "Merge continua manual, depois de CI verde e revisão. [Run](${RUN_URL})" > .comment.md
+          elif [ "$CHANGED" = "false" ]; then
+            printf '%s\n' "🤖 **Claude Code** rodou mas não alterou nenhum arquivo. Nenhum PR foi aberto. [Run](${RUN_URL})" > .comment.md
+          else
+            printf '%s\n' "🤖 **Claude Code** falhou antes de abrir o PR. [Run](${RUN_URL})" > .comment.md
+          fi
+          node .github/scripts/linear-dispatch.mjs comment "$ISSUE_KEY" .comment.md
+          node .github/scripts/linear-dispatch.mjs label "$ISSUE_KEY" "dispatch:claude-code"
+          rm -f .comment.md

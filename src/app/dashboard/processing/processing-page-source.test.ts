@@ -14,10 +14,11 @@ describe("processing page source", () => {
     const source = readProcessingPage();
 
     expect(source).toContain("router.replace");
-    expect(source).toContain("/dashboard/meetings/");
+    expect(source).toContain("meetingId ? `/dashboard/meetings/${meetingId}`");
     expect(source).toContain('"/dashboard"');
     expect(source).toContain("useSearchParams");
     expect(source).toContain("Suspense");
+    expect(source).not.toMatch(/router\.(?:push|replace)\([^)]*\/dashboard\/processing/);
   });
 
   it("no longer renders the retired processing UI", () => {

@@ -114,6 +114,8 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .dispatch/prompt.md
+          # Variante atual voltada a workloads sensíveis a custo.
+          model: gpt-5.6-luna
           # :workspace dá escrita no diretório de trabalho e nada além dele.
           permission-profile: ':workspace'
           safety-strategy: drop-sudo

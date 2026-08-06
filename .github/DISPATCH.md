@@ -117,8 +117,16 @@ A Claude GitHub App precisa estar instalada no repositório. Instale rodando
 
 Cada dispatch é uma execução de agente cobrada na API do fabricante, proporcional
 ao tamanho da issue e do repositório. Não há teto configurado nos workflows além
-do `timeout-minutes: 45` e do `--max-turns 60` do Claude Code. Despachar uma
-issue grande custa dinheiro de verdade — o gesto manual é a trava.
+do `timeout-minutes: 45` e do `--max-turns 60` do Claude Code.
+
+Para impedir que o default das actions aumente o custo sem decisão explícita,
+os modelos ficam fixados nos workflows:
+
+- Claude Code: `claude-sonnet-4-6`;
+- Codex: `gpt-5.6-luna`, variante voltada a workloads sensíveis a custo.
+
+Qualquer troca de modelo deve atualizar também o teste
+`tests/dispatch-model-cost-policy.test.ts`. PR continua em draft e merge manual.
 
 ## Arquivos
 

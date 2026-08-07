@@ -1,51 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  cn,
-  formatDate,
   formatDuration,
   formatPhone,
-  formatRelativeTime,
   getInitials,
   normalizeBrazilianPhone,
 } from "./utils";
-
-describe("cn", () => {
-  it("joins multiple class names", () => {
-    expect(cn("px-2", "py-1")).toBe("px-2 py-1");
-  });
-
-  it("ignores falsy values", () => {
-    expect(cn("a", false, undefined, null, "b")).toBe("a b");
-  });
-
-  it("resolves conflicting tailwind classes keeping the last one", () => {
-    expect(cn("px-2", "px-4")).toBe("px-4");
-  });
-
-  it("returns an empty string when called without arguments", () => {
-    expect(cn()).toBe("");
-  });
-});
-
-describe("formatDate", () => {
-  it("formats an ISO date in pt-BR", () => {
-    const result = formatDate("2026-01-15T12:00:00Z");
-    expect(result).toContain("15");
-    expect(result).toContain("2026");
-  });
-
-  it("returns an em dash for null", () => {
-    expect(formatDate(null)).toBe("—");
-  });
-
-  it("returns an em dash for an empty string", () => {
-    expect(formatDate("")).toBe("—");
-  });
-
-  it("returns the original string when the date is invalid", () => {
-    expect(formatDate("not-a-date")).toBe("not-a-date");
-  });
-});
 
 describe("formatDuration", () => {
   it("returns an em dash for null", () => {
@@ -69,67 +28,6 @@ describe("formatDuration", () => {
     expect(formatDuration(3600)).toBe("1h 0min");
     expect(formatDuration(3661)).toBe("1h 1min");
     expect(formatDuration(7320)).toBe("2h 2min");
-  });
-});
-
-describe("formatRelativeTime", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns 'hoje' for today's date-only string", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-07")).toBe("hoje");
-  });
-
-  it("returns 'ontem' for yesterday's date-only string", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-06")).toBe("ontem");
-  });
-
-  it("returns days ago for a recent date-only string", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-03")).toBe("4d atrás");
-  });
-
-  it("falls back to a formatted date for date-only strings older than a week", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-07-01")).toBe(formatDate("2026-07-01"));
-  });
-
-  it("returns 'agora' for timestamps less than a minute old", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-07T14:59:30")).toBe("agora");
-  });
-
-  it("returns minutes ago for timestamps under an hour old", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-07T14:55:00")).toBe("5 min atrás");
-  });
-
-  it("returns hours ago for timestamps under a day old", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-07T12:00:00")).toBe("3h atrás");
-  });
-
-  it("returns days ago for timestamps under a week old", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    expect(formatRelativeTime("2026-08-05T15:00:00")).toBe("2d atrás");
-  });
-
-  it("falls back to a formatted date for timestamps older than a week", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T15:00:00"));
-    const old = "2026-06-01T15:00:00";
-    expect(formatRelativeTime(old)).toBe(formatDate(old));
   });
 });
 

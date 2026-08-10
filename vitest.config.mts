@@ -9,6 +9,6 @@ export default defineConfig({
     // mobile/ is a separate Expo package with its own tsconfig (extends
     // expo/tsconfig.base, only installed under mobile/node_modules) and its
     // own Jest runner — vitest must never try to collect its tests.
-    exclude: [...configDefaults.exclude, "mobile/**"],
+    exclude: [...configDefaults.exclude, "mobile/**", "**/.worktrees/**"],
   },
 });

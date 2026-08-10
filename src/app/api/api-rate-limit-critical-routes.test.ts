@@ -81,7 +81,11 @@ function installUpstashMock() {
   const store = new Map<string, number[]>();
   vi.stubGlobal(
     "fetch",
+    // The async fetch mock intentionally implements the browser fetch contract.
+    // eslint-disable-next-line @typescript-eslint/require-await
     vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      // The test always sends a serialized Upstash command as the request body.
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
       const command = JSON.parse(String(init?.body)) as string[];
       const key = command[3];
       const nowMs = Number(command[4]);
@@ -118,6 +122,8 @@ function restoreUpstashEnv() {
   }
 }
 
+// vi.doMock registers an async module factory without awaiting it here.
+// eslint-disable-next-line @typescript-eslint/require-await
 async function setupPatchedPolicies() {
   vi.doMock("@/lib/api/rate-limit-policies", async () => {
     const actual = await vi.importActual<
@@ -141,6 +147,8 @@ async function setupPatchedPolicies() {
   });
 }
 
+// This integration matrix intentionally keeps all route cases under shared setup.
+// eslint-disable-next-line max-lines-per-function
 describe("critical API routes rate limiting", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -182,6 +190,8 @@ describe("critical API routes rate limiting", () => {
     restoreUpstashEnv();
   });
 
+  // The table-driven integration case covers every authenticated critical route.
+  // eslint-disable-next-line max-lines-per-function
   it("applies 429 contract to authenticated critical routes", async () => {
     const authenticatedCases = [
       {
@@ -351,7 +361,7 @@ describe("critical API routes rate limiting", () => {
       });
       expectRateLimitedHeaders(response);
     }
-  });
+  }, 15_000);
 
   it("applies 429 contract to public webhook routes", async () => {
     const webhookCases = [

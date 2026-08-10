@@ -46,6 +46,16 @@ export function isPaidCheckoutSession(session: Stripe.Checkout.Session): boolean
   return session.status === "complete" && session.payment_status === "paid";
 }
 
+export function readStripeId(value: string | { id?: unknown } | null): string | null {
+  if (typeof value === "string") return value;
+  return typeof value?.id === "string" ? value.id : null;
+}
+
+export function readInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const subscription = invoice.parent?.subscription_details?.subscription;
+  return readStripeId(subscription ?? null);
+}
+
 export interface StripeSubscriptionBillingPeriod {
   billingCycle: BillingCycle;
   currentPeriodStart: string;

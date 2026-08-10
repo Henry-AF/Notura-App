@@ -20,11 +20,13 @@ const isAbacatePaySubscriptionPaid = vi.fn();
 const withBillingSpan = vi.fn((_options, callback) =>
   callback({ setAttribute: vi.fn() })
 );
+const dispatchTrialStartedEmailEvent = vi.fn();
 
 vi.mock("@/lib/billing", () => ({
   getOrCreateBillingAccount,
   resetSubscriptionPeriod,
   setAbacatePayAutoRenew,
+  StaleBillingProviderError: class StaleBillingProviderError extends Error {},
 }));
 
 vi.mock("@/lib/stripe", () => ({
@@ -60,6 +62,10 @@ vi.mock("@/lib/abacatepay", () => ({
 
 vi.mock("@/lib/billing-observability", () => ({
   withBillingSpan,
+}));
+
+vi.mock("@/lib/billing/trial-email-events", () => ({
+  dispatchTrialStartedEmailEvent,
 }));
 
 function createAdminClient() {
@@ -158,6 +164,7 @@ describe("billing gateway providers", () => {
       currentPeriodEnd: "2026-06-14T12:00:00.000Z",
       renewalStatus: "active",
     });
+    dispatchTrialStartedEmailEvent.mockResolvedValue(undefined);
   });
 
   it("creates Stripe subscription checkout with provider-aware return URLs", async () => {
@@ -463,6 +470,44 @@ describe("billing gateway providers", () => {
       plan: "team",
       paymentStatus: "no_payment_required",
     });
+    expect(dispatchTrialStartedEmailEvent).toHaveBeenCalledTimes(1);
+    expect(dispatchTrialStartedEmailEvent).toHaveBeenCalledWith({
+      userId: "user-1",
+      stripeSubscriptionId: "sub_123",
+      trialStartAt: "2026-04-27T12:00:00.000Z",
+      trialEndAt: "2027-04-27T12:00:00.000Z",
+    });
+  });
+
+  it("does not dispatch a trial_started email event when resetSubscriptionPeriod fails", async () => {
+    resetSubscriptionPeriod.mockRejectedValueOnce(new Error("db unavailable"));
+    getStripe.mockReturnValueOnce({
+      checkout: {
+        sessions: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: "cs_123",
+            mode: "subscription",
+            status: "complete",
+            payment_status: "no_payment_required",
+            client_reference_id: "user-1",
+            customer: "cus_123",
+            subscription: "sub_123",
+            metadata: {
+              user_id: "user-1",
+              plan: "team",
+              is_trial: "true",
+            },
+          }),
+        },
+      },
+    });
+    const { verifyStripeTrialCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      verifyStripeTrialCheckout({ userId: "user-1", sessionId: "cs_123" })
+    ).rejects.toThrow("db unavailable");
+
+    expect(dispatchTrialStartedEmailEvent).not.toHaveBeenCalled();
   });
 
   it("rejects trial verification when the session metadata is not a trial", async () => {

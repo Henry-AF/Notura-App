@@ -11,6 +11,7 @@ import { dispatchMeetingChatOutbox } from "@/inngest/meeting-chat-outbox";
 import { preindexMeetingRag } from "@/inngest/preindex-meeting-rag";
 import { renewAbacatePaySubscription } from "@/inngest/renew-abacatepay-subscription";
 import { applyAbacatePayRenewal } from "@/inngest/abacatepay-renewal";
+import { dispatchResendTrialEvent } from "@/inngest/resend-trial-events";
 import {
   captureObservedError,
   createRequestId,
@@ -93,6 +94,7 @@ const handler = serve({
     preindexMeetingRag,
     renewAbacatePaySubscription,
     applyAbacatePayRenewal,
+    dispatchResendTrialEvent,
   ],
 });
 

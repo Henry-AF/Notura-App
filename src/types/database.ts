@@ -72,6 +72,8 @@ export interface Database {
           trial_end_at: string | null
           trial_offer_dismissed_at: string | null
           trial_offer_dismiss_count: number
+          trial_started_email_event_at: string | null
+          trial_converted_email_event_at: string | null
           created_at: string
           updated_at: string
         }
@@ -110,6 +112,8 @@ export interface Database {
           trial_end_at?: string | null
           trial_offer_dismissed_at?: string | null
           trial_offer_dismiss_count?: number
+          trial_started_email_event_at?: string | null
+          trial_converted_email_event_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -148,6 +152,8 @@ export interface Database {
           trial_end_at?: string | null
           trial_offer_dismissed_at?: string | null
           trial_offer_dismiss_count?: number
+          trial_started_email_event_at?: string | null
+          trial_converted_email_event_at?: string | null
           created_at?: string
           updated_at?: string
         }

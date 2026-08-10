@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const createServiceRoleClient = vi.fn();
 const constructEvent = vi.fn();
 const retrieveSubscription = vi.fn();
+const inngestSend = vi.fn();
 
 vi.mock("stripe", () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -20,6 +21,10 @@ vi.mock("stripe", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
+}));
+
+vi.mock("@/lib/inngest", () => ({
+  inngest: { send: inngestSend },
 }));
 
 function createAdminClient(
@@ -78,6 +83,7 @@ describe("POST /api/webhooks/stripe", () => {
         ],
       },
     });
+    inngestSend.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -157,6 +163,109 @@ describe("POST /api/webhooks/stripe", () => {
         trial_started_at: expect.any(String),
         trial_end_at: "2027-04-27T12:00:00.000Z",
       })
+    );
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "resend-event:trial_started:sub-1",
+        name: "email/resend.trial-event",
+        data: expect.objectContaining({
+          resendEvent: "notura.trial_started",
+          userId: "user-1",
+          payload: expect.objectContaining({
+            user_id: "user-1",
+            trial_start_at: "2026-04-27T12:00:00.000Z",
+            trial_end_at: "2027-04-27T12:00:00.000Z",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("does not dispatch a trial_started email event when checkout metadata has no is_trial flag", async () => {
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs-1",
+          metadata: { user_id: "user-1", plan: "team" },
+          customer: "cus-1",
+          subscription: "sub-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("dispatches nothing for a stale checkout session", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        stripe_customer_id: null,
+        stripe_pending_checkout_session_id: null,
+      })
+    );
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs-stale",
+          metadata: { user_id: "user-1", plan: "team", is_trial: "true" },
+          customer: "cus-1",
+          subscription: "sub-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps a 200 response and the billing update when inngest.send rejects on trial start", async () => {
+    inngestSend.mockRejectedValueOnce(new Error("inngest unavailable"));
+    constructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs-1",
+          metadata: { user_id: "user-1", plan: "team", is_trial: "true" },
+          customer: "cus-1",
+          subscription: "sub-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: "team", has_used_trial: true })
     );
   });
 
@@ -298,6 +407,211 @@ describe("POST /api/webhooks/stripe", () => {
       })
     );
     expect(adminClient.updateEq).toHaveBeenCalledWith("stripe_customer_id", "cus-1");
+  });
+
+  it("dispatches a trial_converted email event when the renewal invoice matches trial_end", async () => {
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        user_id: "user-1",
+        stripe_customer_id: "cus-1",
+        stripe_pending_checkout_session_id: "cs-1",
+      })
+    );
+    retrieveSubscription.mockResolvedValue({
+      id: "sub-1",
+      trial_start: 1_700_000_000,
+      trial_end: 1_777_291_200,
+      metadata: { is_trial: "true" },
+      items: {
+        data: [
+          {
+            current_period_start: 1_777_291_200,
+            current_period_end: 1_808_827_200,
+            price: { recurring: { interval: "year" } },
+          },
+        ],
+      },
+    });
+    constructEvent.mockReturnValue({
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          customer: "cus-1",
+          parent: { subscription_details: { subscription: "sub-1" } },
+          billing_reason: "subscription_cycle",
+          amount_paid: 1000,
+          lines: {
+            data: [
+              {
+                parent: { type: "subscription_item_details" },
+                period: { start: 1_777_291_200, end: 1_808_827_200 },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ meetings_used: 0 })
+    );
+    expect(inngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "resend-event:trial_converted:sub-1",
+        name: "email/resend.trial-event",
+        data: expect.objectContaining({
+          resendEvent: "notura.trial_converted",
+          userId: "user-1",
+        }),
+      })
+    );
+  });
+
+  it("resets quota but does not dispatch trial_converted on a month-2 renewal invoice", async () => {
+    retrieveSubscription.mockResolvedValue({
+      id: "sub-1",
+      trial_start: 1_700_000_000,
+      trial_end: 1_700_000_000,
+      metadata: { is_trial: "true" },
+      items: {
+        data: [
+          {
+            current_period_start: 1_777_291_200,
+            current_period_end: 1_808_827_200,
+            price: { recurring: { interval: "year" } },
+          },
+        ],
+      },
+    });
+    constructEvent.mockReturnValue({
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          customer: "cus-1",
+          parent: { subscription_details: { subscription: "sub-1" } },
+          billing_reason: "subscription_cycle",
+          amount_paid: 1000,
+          lines: {
+            data: [
+              {
+                parent: { type: "subscription_item_details" },
+                period: { start: 1_777_291_200, end: 1_808_827_200 },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ meetings_used: 0 })
+    );
+    expect(inngestSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps a 200 response and the quota reset when inngest.send rejects on trial conversion", async () => {
+    inngestSend.mockRejectedValueOnce(new Error("inngest unavailable"));
+    createServiceRoleClient.mockReturnValue(
+      createAdminClient({
+        user_id: "user-1",
+        stripe_customer_id: "cus-1",
+        stripe_pending_checkout_session_id: "cs-1",
+      })
+    );
+    retrieveSubscription.mockResolvedValue({
+      id: "sub-1",
+      trial_start: 1_700_000_000,
+      trial_end: 1_777_291_200,
+      metadata: { is_trial: "true" },
+      items: {
+        data: [
+          {
+            current_period_start: 1_777_291_200,
+            current_period_end: 1_808_827_200,
+            price: { recurring: { interval: "year" } },
+          },
+        ],
+      },
+    });
+    constructEvent.mockReturnValue({
+      type: "invoice.payment_succeeded",
+      data: {
+        object: {
+          customer: "cus-1",
+          parent: { subscription_details: { subscription: "sub-1" } },
+          billing_reason: "subscription_cycle",
+          amount_paid: 1000,
+          lines: {
+            data: [
+              {
+                parent: { type: "subscription_item_details" },
+                period: { start: 1_777_291_200, end: 1_808_827_200 },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    const adminClient = createServiceRoleClient.mock.results[0]?.value;
+    expect(response.status).toBe(200);
+    expect(adminClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({ meetings_used: 0 })
+    );
+  });
+
+  it("does not dispatch any trial email event on subscription cancellation", async () => {
+    constructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: {
+        object: {
+          customer: "cus-1",
+        },
+      },
+    });
+
+    const mod = await import("./route");
+    const response = await mod.POST(
+      new NextRequest("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(inngestSend).not.toHaveBeenCalled();
   });
 
   it("acknowledges failed Stripe invoice payments for support observability", async () => {

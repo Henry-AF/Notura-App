@@ -1,9 +1,15 @@
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+
+const require = createRequire(import.meta.url);
+const eslintPackageRoot = dirname(dirname(require.resolve("eslint")));
+const eslintCliPath = join(eslintPackageRoot, "bin", "eslint.js");
 
 function runLint(target: string) {
   try {
-    execFileSync("npm", ["run", "lint:strict", "--", target], {
+    execFileSync(process.execPath, [eslintCliPath, ...lintArgs(target)], {
       stdio: "pipe",
       encoding: "utf8",
     });
@@ -23,6 +29,16 @@ function runLint(target: string) {
   }
 }
 
+function lintArgs(target: string): string[] {
+  return [
+    "--config",
+    ".eslintrc.strict.cjs",
+    "--max-warnings=0",
+    "--no-error-on-unmatched-pattern",
+    target,
+  ];
+}
+
 describe("lint enforcement", () => {
   it("accepts the compliant fixture under strict lint", () => {
     const result = runLint("tests/lint-fixtures/strict-pass.ts");
@@ -34,5 +50,6 @@ describe("lint enforcement", () => {
     const result = runLint("tests/lint-fixtures/strict-fail.ts");
 
     expect(result.status).not.toBe(0);
+    expect(result.output).toContain("complexity");
   }, 15_000);
 });

@@ -1,4 +1,10 @@
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+const require = createRequire(import.meta.url);
+const eslintPackageRoot = dirname(dirname(require.resolve("eslint")));
+const eslintCliPath = join(eslintPackageRoot, "bin", "eslint.js");
 
 function readLines(command, args) {
   try {
@@ -89,9 +95,9 @@ if (lintTargets.length === 0) {
 }
 
 execFileSync(
-  "npx",
+  process.execPath,
   [
-    "eslint",
+    eslintCliPath,
     "--config",
     ".eslintrc.strict.cjs",
     "--max-warnings=0",

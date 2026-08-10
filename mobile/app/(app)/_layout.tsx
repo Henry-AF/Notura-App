@@ -82,6 +82,7 @@ export default function AppLayout() {
           tabBarLabel: ({ focused }) => <TabBarLabel title="Perfil" focused={focused} />,
         }}
       />
+      <Tabs.Screen name="processing/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

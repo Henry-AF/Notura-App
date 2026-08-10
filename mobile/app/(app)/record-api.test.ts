@@ -1,16 +1,13 @@
 import { fetchApi } from '@/lib/api/client';
 import { initUpload, uploadToR2, processMeeting, MeetingUploadError } from '@/lib/meetings/upload';
-import { fetchMeetingStatus } from '@/lib/meetings/status';
 import { buildRecordingFileName } from '@/lib/audio/recorder';
 import {
-  mapStatusToStep,
   resolveWhatsappGate,
   fetchAccountWhatsappDefaults,
   getTodayDateStringUtc,
   startMeetingUpload,
   runProcess,
   submitMeetingRecording,
-  pollUntilTerminal,
 } from './record-api';
 
 jest.mock('@/lib/api/client', () => ({
@@ -27,9 +24,6 @@ jest.mock('@/lib/meetings/upload', () => {
   };
 });
 
-jest.mock('@/lib/meetings/status', () => ({
-  fetchMeetingStatus: jest.fn(),
-}));
 
 // Not using `jest.requireActual` here: the real module imports `expo-audio`,
 // which pulls in native-only dependencies that don't resolve under Jest.
@@ -50,7 +44,6 @@ const mockedFetchApi = fetchApi as jest.Mock;
 const mockedInitUpload = initUpload as jest.Mock;
 const mockedUploadToR2 = uploadToR2 as jest.Mock;
 const mockedProcessMeeting = processMeeting as jest.Mock;
-const mockedFetchMeetingStatus = fetchMeetingStatus as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -58,20 +51,6 @@ beforeEach(() => {
 });
 
 // ─── mapStatusToStep ──────────────────────────────────────────────────────────
-
-describe('mapStatusToStep', () => {
-  it('returns 0 when processingStep is null', () => {
-    expect(mapStatusToStep(null)).toBe(0);
-  });
-
-  it('returns the matching index for a known step id', () => {
-    expect(mapStatusToStep('summarize-meeting')).toBe(3);
-  });
-
-  it('returns 0 for an unrecognized step id', () => {
-    expect(mapStatusToStep('some-unknown-step')).toBe(0);
-  });
-});
 
 // ─── resolveWhatsappGate ──────────────────────────────────────────────────────
 
@@ -296,105 +275,9 @@ describe('submitMeetingRecording', () => {
 
 // ─── pollUntilTerminal ────────────────────────────────────────────────────────
 
-describe('pollUntilTerminal', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it('polls until a completed status is reached, then stops automatically', async () => {
-    mockedFetchMeetingStatus
-      .mockResolvedValueOnce({
-        id: 'meeting-1',
-        title: 'Reunião',
-        status: 'processing',
-        processingStep: 'transcribe',
-        jobStatus: null,
-        errorMessage: null,
-        taskCount: 0,
-        decisionCount: 0,
-      })
-      .mockResolvedValueOnce({
-        id: 'meeting-1',
-        title: 'Reunião',
-        status: 'completed',
-        processingStep: 'cleanup',
-        jobStatus: null,
-        errorMessage: null,
-        taskCount: 3,
-        decisionCount: 1,
-      });
-
-    const onTick = jest.fn();
-    pollUntilTerminal('meeting-1', onTick, 1000);
-
-    await jest.advanceTimersByTimeAsync(0);
-    expect(onTick).toHaveBeenNthCalledWith(1, {
-      status: 'processing',
-      stepIndex: 1,
-      meta: { title: 'Reunião', taskCount: 0, decisionCount: 0 },
-      errorMessage: null,
-    });
-
-    await jest.advanceTimersByTimeAsync(1000);
-    expect(onTick).toHaveBeenNthCalledWith(2, {
-      status: 'completed',
-      stepIndex: 6,
-      meta: { title: 'Reunião', taskCount: 3, decisionCount: 1 },
-      errorMessage: null,
-    });
-
-    // Polling should have stopped itself after the terminal tick.
-    await jest.advanceTimersByTimeAsync(5000);
-    expect(mockedFetchMeetingStatus).toHaveBeenCalledTimes(2);
-  });
-
-  it('stops polling when stop() is called manually', async () => {
-    mockedFetchMeetingStatus.mockResolvedValue({
-      id: 'meeting-1',
-      title: null,
-      status: 'processing',
-      processingStep: null,
-      jobStatus: null,
-      errorMessage: null,
-      taskCount: 0,
-      decisionCount: 0,
-    });
-
-    const onTick = jest.fn();
-    const stop = pollUntilTerminal('meeting-1', onTick, 1000);
-
-    await jest.advanceTimersByTimeAsync(0);
-    stop();
-
-    await jest.advanceTimersByTimeAsync(5000);
-    expect(mockedFetchMeetingStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps polling through transient network errors', async () => {
-    mockedFetchMeetingStatus
-      .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce({
-        id: 'meeting-1',
-        title: null,
-        status: 'processing',
-        processingStep: null,
-        jobStatus: null,
-        errorMessage: null,
-        taskCount: 0,
-        decisionCount: 0,
-      });
-
-    const onTick = jest.fn();
-    pollUntilTerminal('meeting-1', onTick, 1000);
-
-    await jest.advanceTimersByTimeAsync(0);
-    expect(onTick).not.toHaveBeenCalled();
-
-    await jest.advanceTimersByTimeAsync(1000);
-    expect(onTick).toHaveBeenCalledTimes(1);
+describe('processing polling ownership', () => {
+  it('does not expose polling from the recording companion', () => {
+    const recordApi = jest.requireActual('./record-api') as Record<string, unknown>;
+    expect(recordApi.pollUntilTerminal).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
-// Companion helper for `record.tsx` (Rule #8). Orchestrates the upload +
-// process + status-polling pipeline. The screen never calls fetch directly —
+// Companion helper for `record.tsx` (Rule #8). Orchestrates the upload and
+// process pipeline. The screen never calls fetch directly —
 // it only calls the functions exported here.
 
 import { fetchApi } from '@/lib/api/client';
@@ -11,7 +11,6 @@ import {
   MeetingUploadError,
   type UploadProgressListener,
 } from '@/lib/meetings/upload';
-import { fetchMeetingStatus, type MeetingStatusPayload } from '@/lib/meetings/status';
 import { buildRecordingFileName, type RecordingFileInfo } from '@/lib/audio/recorder';
 
 // ─── Processing step mapping ──────────────────────────────────────────────────
@@ -19,31 +18,6 @@ import { buildRecordingFileName, type RecordingFileInfo } from '@/lib/audio/reco
 // web app — the same `processingStep` values are produced by the shared
 // `/api/meetings/[id]/status` route, so the ids must stay in sync with that
 // list. Labels/icons for these ids live in `record.tsx` (presentation only).
-
-export type ProcessingStepId =
-  | 'update-status-processing'
-  | 'transcribe'
-  | 'index-transcript-chunks'
-  | 'summarize-meeting'
-  | 'save-results'
-  | 'send-whatsapp'
-  | 'cleanup';
-
-export const PROCESSING_STEP_IDS: readonly ProcessingStepId[] = [
-  'update-status-processing',
-  'transcribe',
-  'index-transcript-chunks',
-  'summarize-meeting',
-  'save-results',
-  'send-whatsapp',
-  'cleanup',
-];
-
-export function mapStatusToStep(processingStep: string | null): number {
-  if (!processingStep) return 0;
-  const index = PROCESSING_STEP_IDS.indexOf(processingStep as ProcessingStepId);
-  return index >= 0 ? index : 0;
-}
 
 // ─── WhatsApp number gating ────────────────────────────────────────────────────
 // Per product decision: reuse the number already saved on the account, no
@@ -190,63 +164,10 @@ export async function submitMeetingRecording(input: SubmitMeetingRecordingInput)
 
 // ─── Status polling ───────────────────────────────────────────────────────────
 
-export interface StatusTick {
-  status: MeetingStatusPayload['status'];
-  stepIndex: number;
-  meta: { title: string | null; taskCount: number; decisionCount: number };
-  errorMessage: string | null;
-}
-
-function buildStatusTick(data: MeetingStatusPayload): StatusTick {
-  return {
-    status: data.status,
-    stepIndex: mapStatusToStep(data.processingStep),
-    meta: { title: data.title, taskCount: data.taskCount, decisionCount: data.decisionCount },
-    errorMessage: data.errorMessage,
-  };
-}
-
-export const POLL_INTERVAL_MS = 4000;
-
 // Polls `/api/meetings/[id]/status` every `intervalMs` and calls `onTick` with
 // a mapped `StatusTick`. Stops itself automatically once a terminal status
 // (`completed`/`failed`) is reached. Returns a `stop()` function for the
 // caller to invoke on unmount.
-export function pollUntilTerminal(
-  meetingId: string,
-  onTick: (tick: StatusTick) => void,
-  intervalMs: number = POLL_INTERVAL_MS
-): () => void {
-  let cancelled = false;
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  function stop() {
-    cancelled = true;
-    if (timer) clearInterval(timer);
-  }
-
-  async function tick() {
-    if (cancelled) return;
-    try {
-      const data = await fetchMeetingStatus(meetingId);
-      if (cancelled) return;
-
-      const statusTick = buildStatusTick(data);
-      onTick(statusTick);
-
-      if (statusTick.status === 'completed' || statusTick.status === 'failed') {
-        stop();
-      }
-    } catch {
-      // Transient network errors are ignored — polling keeps retrying.
-    }
-  }
-
-  void tick();
-  timer = setInterval(tick, intervalMs);
-  return stop;
-}
-
 // ─── Misc ─────────────────────────────────────────────────────────────────────
 
 export function getTodayDateStringUtc(now: Date = new Date()): string {

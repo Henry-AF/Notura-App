@@ -97,11 +97,9 @@ export default function RecordScreen() {
 
       await clearPendingRecording();
       deleteRecordingFile(fileInfo.uri);
-      // NOT-159: hand off to the meeting detail screen right away — it
-      // already polls status and shows the processing/failed states in
-      // place (mirrors the web's NOT-78 "route straight to meeting
-      // details", which retired the old dedicated processing page).
-      router.replace(`/(app)/meetings/${meetingId}`);
+      // NOT-180 supersedes the earlier web-parity choice from ce32989:
+      // mobile intentionally uses a dedicated post-upload processing screen.
+      router.replace(`/(app)/processing/${meetingId}`);
     } catch (error) {
       setPhase('failed');
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao enviar a gravação.');

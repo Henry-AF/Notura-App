@@ -25,6 +25,7 @@ env:
   ABACATEPAY_API_KEY: "abacatepay-ci-key"
   ABACATEPAY_PRO_PRODUCT_ID: "abacatepay-ci-pro"
   ABACATEPAY_PLATINUM_PRODUCT_ID: "abacatepay-ci-team"
+  RESEND_API_KEY: "resend-ci-key"
   ASSEMBLYAI_API_KEY: "assemblyai-ci-key"
   GEMINI_API_KEY: "gemini-ci-key"
   R2_ACCOUNT_ID: "ci-account"

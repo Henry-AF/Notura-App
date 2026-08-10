@@ -21,6 +21,7 @@ import {
 } from "@/lib/billing";
 import { BillingGatewayError } from "@/lib/billing-gateway-errors";
 import { withBillingSpan } from "@/lib/billing-observability";
+import { dispatchTrialStartedEmailEvent } from "@/lib/billing/trial-email-events";
 import type {
   BillingAutoRenewStatus,
   BillingCheckoutInput,
@@ -667,6 +668,13 @@ async function activateTrialSubscription(input: {
     }
     throw error;
   }
+
+  await dispatchTrialStartedEmailEvent({
+    userId: input.userId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    trialStartAt: billingPeriod.currentPeriodStart,
+    trialEndAt: billingPeriod.currentPeriodEnd,
+  });
 }
 
 function checkTrialSessionAlreadyActive(input: {

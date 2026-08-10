@@ -17,23 +17,22 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   downgradeToFree,
   getOrCreateBillingAccount,
+  loadUserIdByStripeCustomerId,
   resetSubscriptionPeriod,
 } from "@/lib/billing";
-import { getStripeSubscriptionBillingPeriod } from "@/lib/stripe";
+import {
+  getStripeSubscriptionBillingPeriod,
+  readInvoiceSubscriptionId,
+  readStripeId,
+} from "@/lib/stripe";
+import {
+  dispatchTrialStartedEmailEvent,
+  maybeDispatchTrialConvertedEmailEvent,
+} from "@/lib/billing/trial-email-events";
 import type { Plan } from "@/types/database";
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
-}
-
-function readStripeId(value: string | { id?: unknown } | null): string | null {
-  if (typeof value === "string") return value;
-  return typeof value?.id === "string" ? value.id : null;
-}
-
-function readInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  const subscription = invoice.parent?.subscription_details?.subscription;
-  return readStripeId(subscription ?? null);
 }
 
 async function loadStripeSubscriptionBillingPeriod(
@@ -72,23 +71,6 @@ async function syncStripeSubscriptionState(
   if (error) {
     throw new Error(`Failed to sync Stripe subscription state: ${error.message}`);
   }
-}
-
-async function loadUserIdByStripeCustomerId(
-  supabase: ReturnType<typeof createServiceRoleClient>,
-  stripeCustomerId: string
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("billing_accounts")
-    .select("user_id")
-    .eq("stripe_customer_id", stripeCustomerId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to load billing account for Stripe customer: ${error.message}`);
-  }
-
-  return data?.user_id ?? null;
 }
 
 export const POST = withPublicRateLimit<NextRequest>(
@@ -187,6 +169,14 @@ export const POST = withPublicRateLimit<NextRequest>(
           event: "checkout_completed",
           properties: { plan, provider: "stripe" },
         });
+        if (isTrialStart) {
+          await dispatchTrialStartedEmailEvent({
+            userId,
+            stripeSubscriptionId,
+            trialStartAt: billingPeriod.currentPeriodStart,
+            trialEndAt: billingPeriod.currentPeriodEnd,
+          });
+        }
         console.log(`[stripe-webhook] User ${userId} upgraded to ${plan}`);
         break;
       }
@@ -225,6 +215,13 @@ export const POST = withPublicRateLimit<NextRequest>(
           );
           console.log(`[stripe-webhook] Reset meeting quota for customer ${customerId}`);
         }
+        await maybeDispatchTrialConvertedEmailEvent({
+          stripe,
+          supabase,
+          invoice,
+          customerId,
+          requestId,
+        });
         break;
       }
 

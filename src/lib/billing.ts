@@ -295,6 +295,23 @@ async function getBillingAccountByLookup(
   return data;
 }
 
+export async function loadUserIdByStripeCustomerId(
+  supabase: SupabaseClient<Database>,
+  stripeCustomerId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("billing_accounts")
+    .select("user_id")
+    .eq("stripe_customer_id", stripeCustomerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing account for Stripe customer: ${error.message}`);
+  }
+
+  return data?.user_id ?? null;
+}
+
 function shouldResetAbacatePayRenewal(params: ResetSubscriptionPeriodParams): boolean {
   return (
     "abacatepayCustomerId" in params ||

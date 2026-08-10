@@ -12,6 +12,7 @@ import { preindexMeetingRag } from "@/inngest/preindex-meeting-rag";
 import { renewAbacatePaySubscription } from "@/inngest/renew-abacatepay-subscription";
 import { applyAbacatePayRenewal } from "@/inngest/abacatepay-renewal";
 import { dispatchResendTrialEvent } from "@/inngest/resend-trial-events";
+import { dispatchReengagementEmails } from "@/inngest/resend-reengagement";
 import {
   captureObservedError,
   createRequestId,
@@ -95,6 +96,7 @@ const handler = serve({
     renewAbacatePaySubscription,
     applyAbacatePayRenewal,
     dispatchResendTrialEvent,
+    dispatchReengagementEmails,
   ],
 });
 

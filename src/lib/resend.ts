@@ -9,7 +9,10 @@ const RESEND_API_BASE_URL = (
 const RESEND_EVENTS_SEND_PATH = "/events/send";
 export const RESEND_REQUEST_TIMEOUT_MS = 5000;
 
-export type NoturaResendEventName = "notura.trial_started" | "notura.trial_converted";
+export type NoturaResendEventName =
+  | "notura.trial_started"
+  | "notura.trial_converted"
+  | "notura.reengagement_48h";
 
 export interface SendResendEventInput {
   event: NoturaResendEventName;

@@ -159,6 +159,33 @@ export interface Database {
         }
         Relationships: []
       }
+      reengagement_log: {
+        Row: {
+          id: string
+          user_id: string
+          sent_at: string
+          trigger_type: string
+          variant: string
+          last_meeting_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          sent_at?: string
+          trigger_type: string
+          variant: string
+          last_meeting_at: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          sent_at?: string
+          trigger_type?: string
+          variant?: string
+          last_meeting_at?: string
+        }
+        Relationships: []
+      }
       meeting_groups: {
         Row: {
           id: string
@@ -1020,6 +1047,14 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
+      get_reengagement_email_candidates: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          last_meeting_at: string
+          days_since_last_meeting: number
+        }[]
+      }
       get_total_completed_meeting_seconds: {
         Args: {
           p_user_id: string

@@ -81,12 +81,9 @@ function installUpstashMock() {
   const store = new Map<string, number[]>();
   vi.stubGlobal(
     "fetch",
-    // The async fetch mock intentionally implements the browser fetch contract.
-    // eslint-disable-next-line @typescript-eslint/require-await
-    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      // The test always sends a serialized Upstash command as the request body.
-      // eslint-disable-next-line @typescript-eslint/no-base-to-string
-      const command = JSON.parse(String(init?.body)) as string[];
+    vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? init.body : "";
+      const command = JSON.parse(body) as string[];
       const key = command[3];
       const nowMs = Number(command[4]);
       const windowMs = Number(command[5]);
@@ -122,9 +119,7 @@ function restoreUpstashEnv() {
   }
 }
 
-// vi.doMock registers an async module factory without awaiting it here.
-// eslint-disable-next-line @typescript-eslint/require-await
-async function setupPatchedPolicies() {
+function setupPatchedPolicies() {
   vi.doMock("@/lib/api/rate-limit-policies", async () => {
     const actual = await vi.importActual<
       typeof import("@/lib/api/rate-limit-policies")
@@ -331,7 +326,7 @@ describe("critical API routes rate limiting", () => {
     for (let index = 0; index < authenticatedCases.length; index += 1) {
       const testCase = authenticatedCases[index];
       vi.resetModules();
-      await setupPatchedPolicies();
+      setupPatchedPolicies();
       createServerSupabase.mockReturnValue(
         createServerClient({ id: `rate-limit-auth-user-${index}` })
       );
@@ -402,7 +397,7 @@ describe("critical API routes rate limiting", () => {
 
     for (const testCase of webhookCases) {
       vi.resetModules();
-      await setupPatchedPolicies();
+      setupPatchedPolicies();
       const mod = (await import(testCase.routePath)) as {
         POST: (request: Request, context?: unknown) => Promise<Response>;
       };

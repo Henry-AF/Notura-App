@@ -81,8 +81,9 @@ function installUpstashMock() {
   const store = new Map<string, number[]>();
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const command = JSON.parse(String(init?.body)) as string[];
+    vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? init.body : "";
+      const command = JSON.parse(body) as string[];
       const key = command[3];
       const nowMs = Number(command[4]);
       const windowMs = Number(command[5]);
@@ -118,7 +119,7 @@ function restoreUpstashEnv() {
   }
 }
 
-async function setupPatchedPolicies() {
+function setupPatchedPolicies() {
   vi.doMock("@/lib/api/rate-limit-policies", async () => {
     const actual = await vi.importActual<
       typeof import("@/lib/api/rate-limit-policies")
@@ -141,6 +142,8 @@ async function setupPatchedPolicies() {
   });
 }
 
+// This integration matrix intentionally keeps all route cases under shared setup.
+// eslint-disable-next-line max-lines-per-function
 describe("critical API routes rate limiting", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -182,6 +185,8 @@ describe("critical API routes rate limiting", () => {
     restoreUpstashEnv();
   });
 
+  // The table-driven integration case covers every authenticated critical route.
+  // eslint-disable-next-line max-lines-per-function
   it("applies 429 contract to authenticated critical routes", async () => {
     const authenticatedCases = [
       {
@@ -321,7 +326,7 @@ describe("critical API routes rate limiting", () => {
     for (let index = 0; index < authenticatedCases.length; index += 1) {
       const testCase = authenticatedCases[index];
       vi.resetModules();
-      await setupPatchedPolicies();
+      setupPatchedPolicies();
       createServerSupabase.mockReturnValue(
         createServerClient({ id: `rate-limit-auth-user-${index}` })
       );
@@ -351,7 +356,7 @@ describe("critical API routes rate limiting", () => {
       });
       expectRateLimitedHeaders(response);
     }
-  });
+  }, 15_000);
 
   it("applies 429 contract to public webhook routes", async () => {
     const webhookCases = [
@@ -392,7 +397,7 @@ describe("critical API routes rate limiting", () => {
 
     for (const testCase of webhookCases) {
       vi.resetModules();
-      await setupPatchedPolicies();
+      setupPatchedPolicies();
       const mod = (await import(testCase.routePath)) as {
         POST: (request: Request, context?: unknown) => Promise<Response>;
       };

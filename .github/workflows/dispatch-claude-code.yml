@@ -209,3 +209,19 @@ jobs:
           node .github/scripts/linear-dispatch.mjs comment "$ISSUE_KEY" .comment.md
           node .github/scripts/linear-dispatch.mjs label "$ISSUE_KEY" "dispatch:claude-code"
           rm -f .comment.md
+
+      - name: Falhar quando o agente não produziu alteração
+        if: always() && steps.diff.outputs.changed == 'false'
+        env:
+          ISSUE_KEY: ${{ inputs.issue_key }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "::error title=Dispatch sem alteração::Claude Code rodou para ${ISSUE_KEY} mas não alterou nenhum arquivo. Nenhum PR foi aberto."
+          {
+            echo "### Dispatch sem alteração"
+            echo
+            echo "Claude Code rodou para ${ISSUE_KEY} e terminou sem alterar nenhum arquivo."
+            echo
+            echo "[Run](${RUN_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

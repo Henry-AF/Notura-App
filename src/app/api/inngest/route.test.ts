@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   applyAbacatePayRenewal: { id: "billing-abacatepay-renewal-confirmed" },
   renewAbacatePaySubscription: { id: "renew-abacatepay-subscription" },
   dispatchResendTrialEvent: { id: "email-resend-trial-event" },
+  dispatchReengagementEmails: { id: "email-resend-reengagement-48h" },
   serve: vi.fn(() => ({
     GET: vi.fn(),
     POST: vi.fn(),
@@ -57,6 +58,10 @@ vi.mock("@/inngest/resend-trial-events", () => ({
   dispatchResendTrialEvent: mocks.dispatchResendTrialEvent,
 }));
 
+vi.mock("@/inngest/resend-reengagement", () => ({
+  dispatchReengagementEmails: mocks.dispatchReengagementEmails,
+}));
+
 vi.mock("@/lib/observability", () => ({
   captureObservedError: vi.fn(),
   createRequestId: () => "request-id",
@@ -87,6 +92,7 @@ describe("/api/inngest route", () => {
         mocks.renewAbacatePaySubscription,
         mocks.applyAbacatePayRenewal,
         mocks.dispatchResendTrialEvent,
+        mocks.dispatchReengagementEmails,
       ])
     );
   });

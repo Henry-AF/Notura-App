@@ -1,10 +1,85 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cn,
+  formatDate,
   formatDuration,
   formatPhone,
+  formatRelativeTime,
   getInitials,
   normalizeBrazilianPhone,
 } from "./utils";
+
+describe("cn", () => {
+  it("joins class names and ignores falsy values", () => {
+    expect(cn("px-2", false, undefined, null, "py-1")).toBe("px-2 py-1");
+  });
+
+  it("keeps the last conflicting Tailwind class", () => {
+    expect(cn("px-2", "px-4")).toBe("px-4");
+  });
+
+  it("returns an empty string without class names", () => {
+    expect(cn()).toBe("");
+  });
+});
+
+describe("formatDate", () => {
+  it("formats an ISO timestamp in pt-BR", () => {
+    expect(formatDate("2026-01-15T12:00:00Z")).toBe("15 de jan. de 2026");
+  });
+
+  it.each([null, ""])("returns an em dash for %s", (date) => {
+    expect(formatDate(date)).toBe("—");
+  });
+
+  it("returns the original value for an invalid date", () => {
+    expect(formatDate("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ["2026-08-07", "hoje"],
+    ["2026-08-06", "ontem"],
+    ["2026-08-03", "4d atrás"],
+  ])("formats the date-only value %s as %s", (date, expected) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 15));
+
+    expect(formatRelativeTime(date)).toBe(expected);
+  });
+
+  it("formats date-only values older than one week as dates", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 15));
+
+    expect(formatRelativeTime("2026-07-01")).toBe(formatDate("2026-07-01"));
+  });
+
+  it.each([
+    ["2026-08-07T14:59:30", "agora"],
+    ["2026-08-07T14:55:00", "5 min atrás"],
+    ["2026-08-07T12:00:00", "3h atrás"],
+    ["2026-08-05T15:00:00", "2d atrás"],
+  ])("formats the timestamp %s as %s", (date, expected) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 15));
+
+    expect(formatRelativeTime(date)).toBe(expected);
+  });
+
+  it("formats timestamps older than one week as dates", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 7, 15));
+    const oldTimestamp = "2026-06-01T15:00:00";
+
+    expect(formatRelativeTime(oldTimestamp)).toBe(formatDate(oldTimestamp));
+  });
+});
 
 describe("formatDuration", () => {
   it("returns an em dash for null", () => {

@@ -8,6 +8,7 @@ import {
   logStructured,
 } from "@/lib/observability";
 import { getPlanMonthlyLimit, isPaidPlan } from "@/lib/plans";
+import { recordReferralConversion } from "@/lib/referrals";
 import { getStripe } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingCycle } from "@/lib/pricing";
@@ -857,6 +858,15 @@ export async function resetSubscriptionPeriod(
 
   if (error) {
     throw new Error(`Failed to reset subscription period: ${error.message}`);
+  }
+
+  if (params.plan && isPaidPlan(params.plan) && (!account || account.plan === "free")) {
+    try {
+      const referredUserId = "userId" in params ? params.userId : account?.user_id;
+      if (referredUserId) await recordReferralConversion(referredUserId, supabase);
+    } catch (referralError) {
+      console.error("[billing] Failed to record referral conversion:", referralError);
+    }
   }
 
   if (shouldResetAbacatePayRenewal(params)) {

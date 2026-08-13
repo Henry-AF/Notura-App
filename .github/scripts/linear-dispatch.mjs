@@ -112,6 +112,11 @@ async function commandComment(issueKey, bodyPath) {
   const issue = await findIssue(issueKey);
   const body = readFileSync(bodyPath, 'utf8');
 
+  if (await hasIdenticalComment(issue.id, body)) {
+    console.log(`Comentario identico ja existe em ${issue.identifier}; publicacao ignorada.`);
+    return;
+  }
+
   const data = await gql(
     `mutation Comment($input: CommentCreateInput!) {
       commentCreate(input: $input) { success }
@@ -121,6 +126,35 @@ async function commandComment(issueKey, bodyPath) {
 
   if (!data.commentCreate.success) throw new Error('Linear recusou a criacao do comentario.');
   console.log(`Comentario publicado em ${issue.identifier}.`);
+}
+
+async function hasIdenticalComment(issueId, body) {
+  const expectedBody = body.trim();
+  let cursor = null;
+
+  do {
+    const page = await fetchCommentPage(issueId, cursor);
+    if (page.nodes.some((comment) => comment.body.trim() === expectedBody)) return true;
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+
+  return false;
+}
+
+async function fetchCommentPage(issueId, after) {
+  const data = await gql(
+    `query IssueComments($issueId: String!, $after: String) {
+      issue(id: $issueId) {
+        comments(first: 50, after: $after) {
+          nodes { body }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }`,
+    { issueId, after },
+  );
+
+  return data.issue.comments;
 }
 
 async function commandLabel(issueKey, labelName) {

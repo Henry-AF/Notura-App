@@ -108,3 +108,38 @@ describe("dispatch-claude-code: falha visível quando não há diff", () => {
     expect(runBlock).not.toContain("${{ inputs.issue_key }}");
   });
 });
+
+describe("dispatch-claude-code: falha visível quando há diff sem PR", () => {
+  const stepName = "Falhar quando houve alteração mas nenhum PR foi aberto";
+
+  it("falha quando houve alteração e o step de PR não produziu URL", () => {
+    const workflow = readWorkflow();
+    const noPrStep = extractStepBlock(workflow, stepName);
+
+    expect(noPrStep).toContain("if: always()");
+    expect(noPrStep).toContain("steps.diff.outputs.changed == 'true'");
+    expect(noPrStep).toContain("steps.pr.outputs.url == ''");
+    expect(noPrStep).toContain("exit 1");
+    expect(noPrStep).toContain("::error");
+  });
+
+  it("executa a pós-condição depois do comentário no Linear", () => {
+    const stepNames = extractStepNames(readWorkflow());
+    const commentIndex = stepNames.indexOf("Registrar o resultado no Linear");
+    const failIndex = stepNames.indexOf(stepName);
+
+    expect(commentIndex).toBeGreaterThanOrEqual(0);
+    expect(failIndex).toBeGreaterThan(commentIndex);
+  });
+
+  it("não interpola inputs.issue_key dentro do bloco run", () => {
+    const noPrStep = extractStepBlock(readWorkflow(), stepName);
+    const runIndex = noPrStep.indexOf("run:");
+    const envBlock = noPrStep.slice(0, runIndex);
+    const runBlock = noPrStep.slice(runIndex);
+
+    expect(runIndex).toBeGreaterThan(-1);
+    expect(envBlock).toContain("${{ inputs.issue_key }}");
+    expect(runBlock).not.toContain("${{ inputs.issue_key }}");
+  });
+});

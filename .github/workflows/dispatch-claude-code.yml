@@ -225,3 +225,19 @@ jobs:
             echo "[Run](${RUN_URL})"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+      - name: Falhar quando houve alteração mas nenhum PR foi aberto
+        if: always() && steps.diff.outputs.changed == 'true' && steps.pr.outputs.url == ''
+        env:
+          ISSUE_KEY: ${{ inputs.issue_key }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "::error title=Dispatch sem PR::Claude Code alterou arquivos para ${ISSUE_KEY}, mas nenhum PR foi aberto."
+          {
+            echo "### Dispatch sem PR"
+            echo
+            echo "Claude Code alterou arquivos para ${ISSUE_KEY}, mas o fluxo terminou sem URL de PR."
+            echo
+            echo "[Run](${RUN_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1

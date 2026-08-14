@@ -4,6 +4,7 @@ import {
   type DashboardOverviewResponse,
 } from "@/lib/dashboard/overview";
 import type { DashboardOverviewData } from "./dashboard-types";
+import { getActivationMetrics, type ActivationMetrics } from "@/lib/activation";
 
 export function normalizeDashboardMeetingStatus(
   status: string
@@ -14,7 +15,8 @@ export function normalizeDashboardMeetingStatus(
 }
 
 export function mapDashboardOverview(
-  response: DashboardOverviewResponse
+  response: DashboardOverviewResponse,
+  activation: ActivationMetrics,
 ): DashboardOverviewData {
   const meetings = response.recentMeetings.map((meeting) => ({
     id: meeting.id,
@@ -57,10 +59,14 @@ export function mapDashboardOverview(
       },
     ],
     todayCount: response.todayCount,
+    activation,
   };
 }
 
 export async function fetchDashboardOverview(): Promise<DashboardOverviewData> {
-  const overview = await getDashboardOverview();
-  return mapDashboardOverview(overview);
+  const [overview, activation] = await Promise.all([
+    getDashboardOverview(),
+    getActivationMetrics(),
+  ]);
+  return mapDashboardOverview(overview, activation);
 }

@@ -9,6 +9,17 @@ export default defineConfig({
     // mobile/ is a separate Expo package with its own tsconfig (extends
     // expo/tsconfig.base, only installed under mobile/node_modules) and its
     // own Jest runner — vitest must never try to collect its tests.
-    exclude: [...configDefaults.exclude, "mobile/**", "**/.worktrees/**"],
+    // There are two distinct worktree directories: `.worktrees/` (manual,
+    // developer-created worktrees) and `.claude/worktrees/` (created
+    // automatically by Claude Code agents). They are sibling directories,
+    // not one a prefix of the other — excluding only one leaves the other's
+    // test files collected. NOT-176 excluded `.worktrees/**` but missed
+    // `.claude/worktrees/**`, which is fixed here (NOT-189).
+    exclude: [
+      ...configDefaults.exclude,
+      "mobile/**",
+      "**/.worktrees/**",
+      "**/.claude/worktrees/**",
+    ],
   },
 });

@@ -21,7 +21,7 @@ export interface SendResendEventInput {
 }
 
 export class ResendRequestError extends Error {
-  constructor(operation: string, status: number, message: string) {
+  constructor(operation: string, public readonly status: number, message: string) {
     super(`Resend request failed during ${operation} (HTTP ${status}): ${message}`);
     this.name = "ResendRequestError";
   }

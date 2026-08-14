@@ -31,18 +31,34 @@ export async function listReengagementCandidates(
   }));
 }
 
-/** Records the claim only after Resend confirms that it accepted the event. */
-export async function markReengagementEmailSent(
+export async function claimReengagementEmail(
   candidate: ReengagementCandidate,
   supabase: SupabaseClient<Database>
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await supabase.from("reengagement_log").insert({
     user_id: candidate.userId,
     trigger_type: REENGAGEMENT_TRIGGER,
     variant: REENGAGEMENT_VARIANT,
     last_meeting_at: candidate.lastMeetingAt,
   });
+  if (error?.code === "23505") return false;
   if (error) {
-    throw new Error(`Failed to mark reengagement email as sent: ${error.message}`);
+    throw new Error(`Failed to claim reengagement email: ${error.message}`);
+  }
+  return true;
+}
+
+export async function releaseReengagementEmailClaim(
+  candidate: ReengagementCandidate,
+  supabase: SupabaseClient<Database>
+): Promise<void> {
+  const { error } = await supabase
+    .from("reengagement_log")
+    .delete()
+    .eq("user_id", candidate.userId)
+    .eq("trigger_type", REENGAGEMENT_TRIGGER)
+    .eq("last_meeting_at", candidate.lastMeetingAt);
+  if (error) {
+    throw new Error(`Failed to release reengagement email claim: ${error.message}`);
   }
 }

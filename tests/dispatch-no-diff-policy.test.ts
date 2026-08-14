@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const WORKFLOW_PATH = ".github/workflows/dispatch-claude-code.yml";
+const WORKFLOWS = [
+  { file: "dispatch-claude-code.yml", agent: "Claude Code" },
+  { file: "dispatch-codex.yml", agent: "Codex" },
+] as const;
 
-function readWorkflow() {
-  return readFileSync(WORKFLOW_PATH, "utf8");
+function readWorkflow(file: string) {
+  return readFileSync(`.github/workflows/${file}`, "utf8");
 }
 
 /**
@@ -54,92 +57,190 @@ function extractStepBlock(workflow: string, stepName: string): string {
   return stepLines.join("\n");
 }
 
-describe("dispatch-claude-code: falha visível quando não há diff", () => {
-  it("contém um step que falha explicitamente quando steps.diff.outputs.changed == 'false'", () => {
-    const workflow = readWorkflow();
-    const noDiffStep = extractStepBlock(
-      workflow,
-      "Falhar quando o agente não produziu alteração"
-    );
+describe.each(WORKFLOWS)(
+  "$file: falha visível quando não há diff",
+  ({ file, agent }) => {
+    it("contém um step que falha explicitamente quando steps.diff.outputs.changed == 'false'", () => {
+      const workflow = readWorkflow(file);
+      const noDiffStep = extractStepBlock(
+        workflow,
+        "Falhar quando o agente não produziu alteração"
+      );
 
-    expect(noDiffStep).toContain("steps.diff.outputs.changed == 'false'");
-    expect(noDiffStep).toContain("exit 1");
-    expect(noDiffStep).toContain("::error");
-  });
+      expect(noDiffStep).toContain("steps.diff.outputs.changed == 'false'");
+      expect(noDiffStep).toContain("exit 1");
+      expect(noDiffStep).toContain("::error");
+    });
 
-  it("posiciona o step de falha depois do step que comenta no Linear", () => {
-    const workflow = readWorkflow();
+    it("posiciona o step de falha depois do step que comenta no Linear", () => {
+      const workflow = readWorkflow(file);
+      const stepNames = extractStepNames(workflow);
+
+      const commentIndex = stepNames.indexOf("Registrar o resultado no Linear");
+      const failIndex = stepNames.indexOf(
+        "Falhar quando o agente não produziu alteração"
+      );
+
+      expect(commentIndex).toBeGreaterThanOrEqual(0);
+      expect(failIndex).toBeGreaterThanOrEqual(0);
+      expect(failIndex).toBeGreaterThan(commentIndex);
+    });
+
+    it("mantém o step 'Registrar o resultado no Linear' rodando com if: always()", () => {
+      const workflow = readWorkflow(file);
+      const commentStep = extractStepBlock(
+        workflow,
+        "Registrar o resultado no Linear"
+      );
+
+      expect(commentStep).toContain("if: always()");
+    });
+
+    it("nunca interpola ${{ inputs.issue_key }} dentro do bloco run: do step novo", () => {
+      const workflow = readWorkflow(file);
+      const noDiffStep = extractStepBlock(
+        workflow,
+        "Falhar quando o agente não produziu alteração"
+      );
+
+      const runIndex = noDiffStep.indexOf("run:");
+      expect(runIndex).toBeGreaterThan(-1);
+
+      const envBlock = noDiffStep.slice(0, runIndex);
+      const runBlock = noDiffStep.slice(runIndex);
+
+      expect(envBlock).toContain("${{ inputs.issue_key }}");
+      expect(runBlock).not.toContain("${{ inputs.issue_key }}");
+    });
+
+    it(`step de "Falhar quando o agente não produziu alteração" tem if: always() (${agent})`, () => {
+      const workflow = readWorkflow(file);
+      const noDiffStep = extractStepBlock(
+        workflow,
+        "Falhar quando o agente não produziu alteração"
+      );
+
+      expect(noDiffStep).toContain("if: always()");
+    });
+  }
+);
+
+describe.each(WORKFLOWS)(
+  "$file: falha visível quando há diff sem PR",
+  ({ file }) => {
+    const stepName = "Falhar quando houve alteração mas nenhum PR foi aberto";
+
+    it("falha quando houve alteração e o step de PR não produziu URL", () => {
+      const workflow = readWorkflow(file);
+      const noPrStep = extractStepBlock(workflow, stepName);
+
+      expect(noPrStep).toContain("if: always()");
+      expect(noPrStep).toContain("steps.diff.outputs.changed == 'true'");
+      expect(noPrStep).toContain("steps.pr.outputs.url == ''");
+      expect(noPrStep).toContain("exit 1");
+      expect(noPrStep).toContain("::error");
+    });
+
+    it("executa a pós-condição depois do comentário no Linear", () => {
+      const stepNames = extractStepNames(readWorkflow(file));
+      const commentIndex = stepNames.indexOf("Registrar o resultado no Linear");
+      const failIndex = stepNames.indexOf(stepName);
+
+      expect(commentIndex).toBeGreaterThanOrEqual(0);
+      expect(failIndex).toBeGreaterThan(commentIndex);
+    });
+
+    it("não interpola inputs.issue_key dentro do bloco run", () => {
+      const noPrStep = extractStepBlock(readWorkflow(file), stepName);
+      const runIndex = noPrStep.indexOf("run:");
+      const envBlock = noPrStep.slice(0, runIndex);
+      const runBlock = noPrStep.slice(runIndex);
+
+      expect(runIndex).toBeGreaterThan(-1);
+      expect(envBlock).toContain("${{ inputs.issue_key }}");
+      expect(runBlock).not.toContain("${{ inputs.issue_key }}");
+    });
+  }
+);
+
+describe.each(WORKFLOWS)(
+  "$file: ordem dentro do step 'Verificar se houve alteração'",
+  ({ file }) => {
+    it("remove .dispatch antes de checar git status --porcelain", () => {
+      const workflow = readWorkflow(file);
+      const diffStep = extractStepBlock(workflow, "Verificar se houve alteração");
+
+      const rmIndex = diffStep.indexOf("rm -rf .dispatch");
+      const statusIndex = diffStep.indexOf("git status --porcelain");
+
+      expect(rmIndex).toBeGreaterThan(-1);
+      expect(statusIndex).toBeGreaterThan(-1);
+      expect(rmIndex).toBeLessThan(statusIndex);
+    });
+  }
+);
+
+describe("dispatch-codex.yml: preservação do relatório do agente", () => {
+  const file = "dispatch-codex.yml";
+
+  it("existe o step 'Preservar o relatório do agente' antes de 'Verificar se houve alteração'", () => {
+    const workflow = readWorkflow(file);
     const stepNames = extractStepNames(workflow);
 
-    const commentIndex = stepNames.indexOf("Registrar o resultado no Linear");
-    const failIndex = stepNames.indexOf(
-      "Falhar quando o agente não produziu alteração"
-    );
+    const preserveIndex = stepNames.indexOf("Preservar o relatório do agente");
+    const diffIndex = stepNames.indexOf("Verificar se houve alteração");
 
-    expect(commentIndex).toBeGreaterThanOrEqual(0);
-    expect(failIndex).toBeGreaterThanOrEqual(0);
-    expect(failIndex).toBeGreaterThan(commentIndex);
+    expect(preserveIndex).toBeGreaterThanOrEqual(0);
+    expect(diffIndex).toBeGreaterThanOrEqual(0);
+    expect(preserveIndex).toBeLessThan(diffIndex);
   });
 
-  it("mantém o step 'Registrar o resultado no Linear' rodando com if: always()", () => {
-    const workflow = readWorkflow();
-    const commentStep = extractStepBlock(
+  it("o run: do step referencia $RUNNER_TEMP e nunca escreve em .dispatch/", () => {
+    const workflow = readWorkflow(file);
+    const preserveStep = extractStepBlock(
       workflow,
-      "Registrar o resultado no Linear"
+      "Preservar o relatório do agente"
     );
 
-    expect(commentStep).toContain("if: always()");
+    expect(preserveStep).toContain("$RUNNER_TEMP");
+    expect(preserveStep).not.toContain(".dispatch/");
   });
 
-  it("nunca interpola ${{ inputs.issue_key }} dentro do bloco run: do step novo", () => {
-    const workflow = readWorkflow();
+  it("roda com if: always()", () => {
+    const workflow = readWorkflow(file);
+    const preserveStep = extractStepBlock(
+      workflow,
+      "Preservar o relatório do agente"
+    );
+
+    expect(preserveStep).toContain("if: always()");
+  });
+
+  it("o guard 'sem diff' referencia $RUNNER_TEMP/agent-report.md e escreve em $GITHUB_STEP_SUMMARY", () => {
+    const workflow = readWorkflow(file);
     const noDiffStep = extractStepBlock(
       workflow,
       "Falhar quando o agente não produziu alteração"
     );
 
-    const runIndex = noDiffStep.indexOf("run:");
+    expect(noDiffStep).toContain("$RUNNER_TEMP/agent-report.md");
+    expect(noDiffStep).toContain("$GITHUB_STEP_SUMMARY");
+  });
+
+  it("${{ steps.codex.outputs.final-message }} só aparece em posição de env:, nunca dentro do run:", () => {
+    const workflow = readWorkflow(file);
+    const preserveStep = extractStepBlock(
+      workflow,
+      "Preservar o relatório do agente"
+    );
+
+    const runIndex = preserveStep.indexOf("run:");
     expect(runIndex).toBeGreaterThan(-1);
 
-    const envBlock = noDiffStep.slice(0, runIndex);
-    const runBlock = noDiffStep.slice(runIndex);
+    const envBlock = preserveStep.slice(0, runIndex);
+    const runBlock = preserveStep.slice(runIndex);
 
-    expect(envBlock).toContain("${{ inputs.issue_key }}");
-    expect(runBlock).not.toContain("${{ inputs.issue_key }}");
-  });
-});
-
-describe("dispatch-claude-code: falha visível quando há diff sem PR", () => {
-  const stepName = "Falhar quando houve alteração mas nenhum PR foi aberto";
-
-  it("falha quando houve alteração e o step de PR não produziu URL", () => {
-    const workflow = readWorkflow();
-    const noPrStep = extractStepBlock(workflow, stepName);
-
-    expect(noPrStep).toContain("if: always()");
-    expect(noPrStep).toContain("steps.diff.outputs.changed == 'true'");
-    expect(noPrStep).toContain("steps.pr.outputs.url == ''");
-    expect(noPrStep).toContain("exit 1");
-    expect(noPrStep).toContain("::error");
-  });
-
-  it("executa a pós-condição depois do comentário no Linear", () => {
-    const stepNames = extractStepNames(readWorkflow());
-    const commentIndex = stepNames.indexOf("Registrar o resultado no Linear");
-    const failIndex = stepNames.indexOf(stepName);
-
-    expect(commentIndex).toBeGreaterThanOrEqual(0);
-    expect(failIndex).toBeGreaterThan(commentIndex);
-  });
-
-  it("não interpola inputs.issue_key dentro do bloco run", () => {
-    const noPrStep = extractStepBlock(readWorkflow(), stepName);
-    const runIndex = noPrStep.indexOf("run:");
-    const envBlock = noPrStep.slice(0, runIndex);
-    const runBlock = noPrStep.slice(runIndex);
-
-    expect(runIndex).toBeGreaterThan(-1);
-    expect(envBlock).toContain("${{ inputs.issue_key }}");
-    expect(runBlock).not.toContain("${{ inputs.issue_key }}");
+    expect(envBlock).toContain("${{ steps.codex.outputs.final-message }}");
+    expect(runBlock).not.toContain("${{ steps.codex.outputs.final-message }}");
   });
 });

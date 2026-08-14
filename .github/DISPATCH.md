@@ -38,13 +38,22 @@ para você conseguir filtrar depois o que cada agente encostou.
 ## O que esperar depois
 
 O workflow leva de 5 a 30 minutos, dependendo do tamanho da issue. Ao terminar,
-ele comenta na própria issue do Linear com o resultado. Três desfechos possíveis:
+ele comenta na própria issue do Linear com o resultado. Quatro desfechos possíveis:
 
-| Desfecho | O que aconteceu |
-|---|---|
-| PR em draft aberto | O agente alterou arquivos. O comentário no Linear traz a URL do PR. |
-| Nenhum arquivo alterado | O agente rodou e concluiu que não havia o que mudar. Nenhum PR. Vale reler a issue — normalmente significa que ela está mal especificada. |
-| Falhou antes do PR | Erro de credencial, timeout, ou o agente quebrou. O comentário traz o link do run. |
+| Desfecho | O que aconteceu | Job |
+|---|---|---|
+| PR em draft aberto | O agente alterou arquivos e o PR abriu. O comentário no Linear traz a URL do PR. | verde |
+| Nenhum arquivo alterado | O agente rodou e concluiu que não havia o que mudar. Nenhum PR. | **falha de propósito** |
+| Alterou arquivos mas nenhum PR abriu | O agente mudou algo, mas o `push`/`gh pr create` não completou. | **falha de propósito** |
+| Falhou antes do PR | Erro de credencial, timeout, ou o agente quebrou. O comentário traz o link do run. | falha |
+
+"Nenhum arquivo alterado" e "alterou mas não abriu PR" **fazem o job falhar de
+propósito** — não são mais desfechos benignos. Um dispatch verde sem PR esconde
+a falha (foi exatamente o modo de falha da NOT-168), então os dois workflows têm
+pós-condições depois do comentário no Linear que forçam `exit 1` nesses casos.
+O comentário no Linear e o `$GITHUB_STEP_SUMMARY` do run trazem o motivo — no
+caso do Codex, incluindo um trecho do relatório final do agente. Essas
+pós-condições são protegidas por `tests/dispatch-no-diff-policy.test.ts`.
 
 O PR nasce **em draft** de propósito: é um sinal visível de que aquilo saiu de um
 agente e ainda não foi revisado por ninguém. Marque como "ready for review"
@@ -80,8 +89,11 @@ commit, push e PR por fora, igual para ambos. Efeito colateral bom: nenhum dos
 dois precisa de permissão de escrita em git, e o comportamento é o mesmo
 independente do agente.
 
-No PR do Codex, a resposta final dele vai num `<details>` no corpo do PR — é o
-único lugar onde ela aparece, já que a action não comenta em nada sozinha.
+No PR do Codex, a resposta final dele vai num `<details>` no corpo do PR. Quando
+não há diff, essa mesma resposta final (truncada a 4000 caracteres) também
+aparece no comentário do Linear e no `$GITHUB_STEP_SUMMARY` do run — não é mais
+verdade que o corpo do PR é o único lugar onde ela aparece, já que nesse cenário
+não existe PR nenhum.
 
 ## Padrões do projeto
 

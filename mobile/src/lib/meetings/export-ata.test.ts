@@ -46,6 +46,7 @@ describe("exportMeetingAta", () => {
 
     expect(mockedFetchApi).toHaveBeenCalledWith("/api/meetings/meeting-1/export", {
       method: "POST",
+      body: "{}",
     });
     expect(result.url).toBe("https://r2.example.com/ata.docx?signed=1");
     expect(result.filename).toBe("ata-reuniao.docx");

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   loadUserIdByStripeCustomerId: vi.fn(),
   isTrialConversionInvoice: vi.fn(),
   readInvoiceSubscriptionId: vi.fn(),
+  recordReferralConversion: vi.fn(),
 }));
 
 vi.mock("@/lib/inngest", () => ({
@@ -28,6 +29,10 @@ vi.mock("@/lib/billing/trial-conversion", () => ({
 
 vi.mock("@/lib/stripe", () => ({
   readInvoiceSubscriptionId: mocks.readInvoiceSubscriptionId,
+}));
+
+vi.mock("@/lib/referrals", () => ({
+  recordReferralConversion: mocks.recordReferralConversion,
 }));
 
 describe("trial-email-events dispatchers", () => {
@@ -137,6 +142,7 @@ describe("maybeDispatchTrialConvertedEmailEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.send.mockResolvedValue(undefined);
+    mocks.recordReferralConversion.mockResolvedValue(undefined);
     stripe.subscriptions.retrieve.mockReset();
   });
 
@@ -190,13 +196,27 @@ describe("maybeDispatchTrialConvertedEmailEvent", () => {
     });
 
     expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.recordReferralConversion).not.toHaveBeenCalled();
   });
 
-  it("dispatches trial_converted when the invoice is a valid conversion", async () => {
+});
+
+describe("maybeDispatchTrialConvertedEmailEvent — referral conversion", () => {
+  const stripe = { subscriptions: { retrieve: vi.fn() } };
+  const supabase = {} as never;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.send.mockResolvedValue(undefined);
+    mocks.recordReferralConversion.mockResolvedValue(undefined);
     mocks.readInvoiceSubscriptionId.mockReturnValue("sub-1");
-    stripe.subscriptions.retrieve.mockResolvedValueOnce({ id: "sub-1" });
     mocks.isTrialConversionInvoice.mockReturnValue(true);
     mocks.loadUserIdByStripeCustomerId.mockResolvedValueOnce("user-1");
+    stripe.subscriptions.retrieve.mockReset();
+    stripe.subscriptions.retrieve.mockResolvedValueOnce({ id: "sub-1" });
+  });
+
+  it("records the referral conversion when the invoice is a valid conversion", async () => {
     const { maybeDispatchTrialConvertedEmailEvent } = await import("./trial-email-events");
 
     await maybeDispatchTrialConvertedEmailEvent({
@@ -208,10 +228,31 @@ describe("maybeDispatchTrialConvertedEmailEvent", () => {
     });
 
     expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "resend-event:trial_converted:sub-1",
-        name: "email/resend.trial-event",
+      expect.objectContaining({ id: "resend-event:trial_converted:sub-1" })
+    );
+    expect(mocks.recordReferralConversion).toHaveBeenCalledWith("user-1", supabase);
+  });
+
+  it("still dispatches the trial_converted email when recordReferralConversion rejects", async () => {
+    mocks.recordReferralConversion.mockRejectedValueOnce(new Error("db down"));
+    const { maybeDispatchTrialConvertedEmailEvent } = await import("./trial-email-events");
+
+    await expect(
+      maybeDispatchTrialConvertedEmailEvent({
+        stripe: stripe as never,
+        supabase,
+        invoice: { billing_reason: "subscription_cycle" } as never,
+        customerId: "cus-1",
+        requestId: "req-1",
       })
+    ).resolves.toBeUndefined();
+
+    // A referral-recording failure is its own isolated failure domain — it
+    // must never block the trial_converted email, the same way a Resend
+    // failure must never block the NOT-94 billing/quota-reset path.
+    expect(mocks.captureObservedError).toHaveBeenCalled();
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "resend-event:trial_converted:sub-1" })
     );
   });
 });

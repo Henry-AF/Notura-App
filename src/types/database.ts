@@ -1042,6 +1042,66 @@ export interface Database {
         }
         Relationships: []
       }
+      referral_codes: {
+        Row: {
+          id: string
+          influencer_name: string
+          code: string
+          commission_percent: number
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          influencer_name: string
+          code: string
+          commission_percent?: number
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          influencer_name?: string
+          code?: string
+          commission_percent?: number
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          id: string
+          referral_code_id: string
+          user_id: string
+          clicked_at: string | null
+          signed_up_at: string
+          activated_at: string | null
+          converted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          referral_code_id: string
+          user_id: string
+          clicked_at?: string | null
+          signed_up_at?: string
+          activated_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          referral_code_id?: string
+          user_id?: string
+          clicked_at?: string | null
+          signed_up_at?: string
+          activated_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

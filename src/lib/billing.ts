@@ -8,6 +8,7 @@ import {
   logStructured,
 } from "@/lib/observability";
 import { getPlanMonthlyLimit, isPaidPlan } from "@/lib/plans";
+import { recordReferralConversion } from "@/lib/referrals";
 import { getStripe } from "@/lib/stripe";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { BillingCycle } from "@/lib/pricing";
@@ -546,6 +547,51 @@ async function expirePendingStripeCheckout(
   }
 }
 
+async function maybeRecordReferralConversion(
+  params: ResetSubscriptionPeriodParams,
+  account: BillingAccount | null,
+  supabase: SupabaseClient<Database>
+): Promise<void> {
+  // isTrialStart is excluded: a trial checkout only attaches a card, it does
+  // not charge one. Recording the conversion here would credit the
+  // influencer before the user has actually paid anything. The real
+  // conversion signal for trials is the invoice.payment_succeeded /
+  // subscription_cycle event handled by maybeDispatchTrialConvertedEmailEvent.
+  if (
+    !params.plan ||
+    !isPaidPlan(params.plan) ||
+    params.isTrialStart ||
+    (account && account.plan !== "free")
+  ) {
+    return;
+  }
+
+  const referredUserId = "userId" in params ? params.userId : account?.user_id;
+  if (!referredUserId) return;
+
+  try {
+    await recordReferralConversion(referredUserId, supabase);
+  } catch (error) {
+    const requestId = createTraceId();
+    logStructured("warn", {
+      event: "billing.referral.conversion_record_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "referral_conversion_failed",
+      userId: referredUserId,
+    });
+    captureObservedError(error, {
+      event: "billing.referral.conversion_record_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "referral_conversion_failed",
+      userId: referredUserId,
+    });
+  }
+}
+
 async function cancelAbacatePaySubscriptionIfPresent(
   subscriptionId: string,
   context: Record<string, unknown>
@@ -858,6 +904,8 @@ export async function resetSubscriptionPeriod(
   if (error) {
     throw new Error(`Failed to reset subscription period: ${error.message}`);
   }
+
+  await maybeRecordReferralConversion(params, account, supabase);
 
   if (shouldResetAbacatePayRenewal(params)) {
     const userId = "userId" in params ? params.userId : account?.user_id;

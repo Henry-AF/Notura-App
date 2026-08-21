@@ -18,3 +18,4 @@ export { FloatingActionButton } from "./FloatingActionButton";
 export type { FloatingActionButtonProps } from "./FloatingActionButton";
 export { SidebarPlanWidget } from "./SidebarPlanWidget";
 export type { SidebarPlanWidgetProps } from "./SidebarPlanWidget";
+export { ActivationFunnel } from "./ActivationFunnel";

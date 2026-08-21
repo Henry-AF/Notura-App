@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReferralCookiePayload } from "@/lib/referral-cookie";
 
 const findActiveReferralCode = vi.fn();
 
@@ -25,7 +26,9 @@ describe("GET /r/[code]", () => {
 
     const cookie = response.cookies.get("notura_referral");
     expect(cookie).toBeDefined();
-    const payload = JSON.parse(decodeURIComponent(cookie!.value));
+    const payload = JSON.parse(
+      decodeURIComponent(cookie!.value)
+    ) as ReferralCookiePayload;
     expect(payload.code).toBe("fulano20");
     expect(typeof payload.clickedAt).toBe("string");
   });

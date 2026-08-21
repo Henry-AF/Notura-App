@@ -7,6 +7,7 @@ import {
   captureObservedError,
   logStructured,
 } from "@/lib/observability";
+import { recordReferralConversion } from "@/lib/referrals";
 import type { NoturaResendEventName } from "@/lib/resend";
 import { readInvoiceSubscriptionId } from "@/lib/stripe";
 import type { Database } from "@/types/database";
@@ -134,6 +135,33 @@ export async function maybeDispatchTrialConvertedEmailEvent(
 
     const userId = await resolveTrialConversionUserId(input);
     if (!userId) return;
+
+    // Real payment signal for a trial: this is the correct place to credit
+    // an influencer's referral, not checkout.session.completed (trial start
+    // only attaches a card, no charge yet — see maybeRecordReferralConversion
+    // in lib/billing.ts). Isolated in its own try/catch so a referral failure
+    // can never prevent the trial_converted email below from being sent —
+    // same failure-isolation rule as the rest of this function.
+    try {
+      await recordReferralConversion(userId, input.supabase);
+    } catch (error) {
+      logStructured("warn", {
+        event: "billing.referral.conversion_record_failed",
+        requestId: input.requestId,
+        route: "lib.billing.trial-email-events",
+        durationMs: 0,
+        status: "referral_conversion_failed",
+        userId,
+      });
+      captureObservedError(error, {
+        event: "billing.referral.conversion_record_failed",
+        requestId: input.requestId,
+        route: "lib.billing.trial-email-events",
+        durationMs: 0,
+        status: "referral_conversion_failed",
+        userId,
+      });
+    }
 
     await dispatchTrialConvertedEmailEvent({
       userId,

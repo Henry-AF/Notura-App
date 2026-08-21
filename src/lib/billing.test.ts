@@ -597,6 +597,11 @@ describe("billing helpers", () => {
       })
     );
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
+    // Trial start only attaches a card, no charge yet — recording a referral
+    // conversion here would credit the influencer before any real payment.
+    // The real signal is invoice.payment_succeeded (subscription_cycle),
+    // handled by maybeDispatchTrialConvertedEmailEvent.
+    expect(recordReferralConversion).not.toHaveBeenCalled();
   });
 
   it("keeps the renewal status active for non-trial Stripe resets", async () => {

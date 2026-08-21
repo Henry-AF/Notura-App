@@ -547,6 +547,51 @@ async function expirePendingStripeCheckout(
   }
 }
 
+async function maybeRecordReferralConversion(
+  params: ResetSubscriptionPeriodParams,
+  account: BillingAccount | null,
+  supabase: SupabaseClient<Database>
+): Promise<void> {
+  // isTrialStart is excluded: a trial checkout only attaches a card, it does
+  // not charge one. Recording the conversion here would credit the
+  // influencer before the user has actually paid anything. The real
+  // conversion signal for trials is the invoice.payment_succeeded /
+  // subscription_cycle event handled by maybeDispatchTrialConvertedEmailEvent.
+  if (
+    !params.plan ||
+    !isPaidPlan(params.plan) ||
+    params.isTrialStart ||
+    (account && account.plan !== "free")
+  ) {
+    return;
+  }
+
+  const referredUserId = "userId" in params ? params.userId : account?.user_id;
+  if (!referredUserId) return;
+
+  try {
+    await recordReferralConversion(referredUserId, supabase);
+  } catch (error) {
+    const requestId = createTraceId();
+    logStructured("warn", {
+      event: "billing.referral.conversion_record_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "referral_conversion_failed",
+      userId: referredUserId,
+    });
+    captureObservedError(error, {
+      event: "billing.referral.conversion_record_failed",
+      requestId,
+      route: "billing.resetSubscriptionPeriod",
+      durationMs: 0,
+      status: "referral_conversion_failed",
+      userId: referredUserId,
+    });
+  }
+}
+
 async function cancelAbacatePaySubscriptionIfPresent(
   subscriptionId: string,
   context: Record<string, unknown>
@@ -860,14 +905,7 @@ export async function resetSubscriptionPeriod(
     throw new Error(`Failed to reset subscription period: ${error.message}`);
   }
 
-  if (params.plan && isPaidPlan(params.plan) && (!account || account.plan === "free")) {
-    try {
-      const referredUserId = "userId" in params ? params.userId : account?.user_id;
-      if (referredUserId) await recordReferralConversion(referredUserId, supabase);
-    } catch (referralError) {
-      console.error("[billing] Failed to record referral conversion:", referralError);
-    }
-  }
+  await maybeRecordReferralConversion(params, account, supabase);
 
   if (shouldResetAbacatePayRenewal(params)) {
     const userId = "userId" in params ? params.userId : account?.user_id;

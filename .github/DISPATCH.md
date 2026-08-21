@@ -146,4 +146,5 @@ Qualquer troca de modelo deve atualizar também o teste
 .github/workflows/dispatch-claude-code.yml   Workflow do Claude Code
 .github/workflows/dispatch-codex.yml         Workflow do Codex
 .github/scripts/linear-dispatch.mjs          Ponte com a API do Linear
+.github/scripts/dispatch-postconditions.mjs  Pós-condições e relatório comuns
 ```

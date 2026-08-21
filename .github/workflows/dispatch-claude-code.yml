@@ -115,6 +115,7 @@ jobs:
         run: npm ci
 
       - name: Rodar o Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -124,6 +125,13 @@ jobs:
             --model claude-sonnet-4-6
             --max-turns 60
             --allowedTools "Read,Write,Edit,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*)"
+
+      - name: Preservar o relatório do agente
+        if: always()
+        env:
+          AGENT_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
+        run: node .github/scripts/dispatch-postconditions.mjs preserve
 
       - name: Verificar se houve alteração
         id: diff
@@ -191,53 +199,27 @@ jobs:
       - name: Registrar o resultado no Linear
         if: always()
         env:
+          AGENT_NAME: Claude Code
+          COMMENT_PATH: .comment.md
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           ISSUE_KEY: ${{ inputs.issue_key }}
           PR_URL: ${{ steps.pr.outputs.url }}
           CHANGED: ${{ steps.diff.outputs.changed }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -n "$PR_URL" ]; then
-            printf '%s\n\n%s\n' \
-              "🤖 **Claude Code** abriu um PR em draft: ${PR_URL}" \
-              "Merge continua manual, depois de CI verde e revisão. [Run](${RUN_URL})" > .comment.md
-          elif [ "$CHANGED" = "false" ]; then
-            printf '%s\n' "🤖 **Claude Code** rodou mas não alterou nenhum arquivo. Nenhum PR foi aberto. [Run](${RUN_URL})" > .comment.md
-          else
-            printf '%s\n' "🤖 **Claude Code** falhou antes de abrir o PR. [Run](${RUN_URL})" > .comment.md
-          fi
+          node .github/scripts/dispatch-postconditions.mjs comment
           node .github/scripts/linear-dispatch.mjs comment "$ISSUE_KEY" .comment.md
           node .github/scripts/linear-dispatch.mjs label "$ISSUE_KEY" "dispatch:claude-code"
           rm -f .comment.md
 
-      - name: Falhar quando o agente não produziu alteração
-        if: always() && steps.diff.outputs.changed == 'false'
+      - name: Validar pós-condições do dispatch
+        if: always()
         env:
+          AGENT_NAME: Claude Code
+          CHANGED: ${{ steps.diff.outputs.changed }}
           ISSUE_KEY: ${{ inputs.issue_key }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          echo "::error title=Dispatch sem alteração::Claude Code rodou para ${ISSUE_KEY} mas não alterou nenhum arquivo. Nenhum PR foi aberto."
-          {
-            echo "### Dispatch sem alteração"
-            echo
-            echo "Claude Code rodou para ${ISSUE_KEY} e terminou sem alterar nenhum arquivo."
-            echo
-            echo "[Run](${RUN_URL})"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
-
-      - name: Falhar quando houve alteração mas nenhum PR foi aberto
-        if: always() && steps.diff.outputs.changed == 'true' && steps.pr.outputs.url == ''
-        env:
-          ISSUE_KEY: ${{ inputs.issue_key }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          echo "::error title=Dispatch sem PR::Claude Code alterou arquivos para ${ISSUE_KEY}, mas nenhum PR foi aberto."
-          {
-            echo "### Dispatch sem PR"
-            echo
-            echo "Claude Code alterou arquivos para ${ISSUE_KEY}, mas o fluxo terminou sem URL de PR."
-            echo
-            echo "[Run](${RUN_URL})"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+        run: node .github/scripts/dispatch-postconditions.mjs validate

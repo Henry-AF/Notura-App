@@ -7,6 +7,7 @@ import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import posthog from "posthog-js";
 import { createClient } from "@/lib/supabase/client";
 import { buildOAuthCallbackUrl } from "@/lib/auth-redirect";
+import { readReferralCookie } from "@/lib/referral-cookie";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,11 +107,18 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
+      const referral = readReferralCookie();
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: name },
+          data: {
+            full_name: name,
+            ...(referral && {
+              referral_code: referral.code,
+              referral_clicked_at: referral.clickedAt,
+            }),
+          },
         },
       });
 

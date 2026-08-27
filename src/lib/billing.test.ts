@@ -4,9 +4,14 @@ const createServiceRoleClient = vi.fn();
 const inngestSend = vi.fn();
 const stripeExpire = vi.fn();
 const abacatepayCancel = vi.fn();
+const recordReferralConversion = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceRoleClient,
+}));
+
+vi.mock("@/lib/referrals", () => ({
+  recordReferralConversion,
 }));
 
 vi.mock("@/lib/inngest", () => ({
@@ -95,6 +100,7 @@ describe("billing helpers", () => {
     inngestSend.mockResolvedValue(undefined);
     stripeExpire.mockResolvedValue({});
     abacatepayCancel.mockResolvedValue(undefined);
+    recordReferralConversion.mockResolvedValue(undefined);
   });
 
   it("uses billing_accounts.meetings_used as source of truth", async () => {
@@ -491,6 +497,32 @@ describe("billing helpers", () => {
       data: { userId: "user-1", attempt: 1 },
       ts: new Date("2026-05-27T12:00:00.000Z").getTime(),
     });
+    expect(recordReferralConversion).toHaveBeenCalledWith("user-1", expect.anything());
+  });
+
+  it("does not record a referral conversion when the account was already on a paid plan", async () => {
+    const { client } = createBillingClient({
+      existingAccount: {
+        user_id: "user-1",
+        plan: "pro",
+        current_period_end: null,
+      },
+    });
+    createServiceRoleClient.mockReturnValue(client);
+
+    const mod = await import("./billing");
+    await mod.resetSubscriptionPeriod({
+      userId: "user-1",
+      plan: "team",
+      now: new Date("2026-04-27T12:00:00.000Z"),
+      stripeCustomerId: "cus-1",
+      stripeSubscriptionId: "sub-1",
+      billingCycle: "yearly",
+      currentPeriodStart: "2026-04-27T12:00:00.000Z",
+      currentPeriodEnd: "2027-04-27T12:00:00.000Z",
+    });
+
+    expect(recordReferralConversion).not.toHaveBeenCalled();
   });
 
   it("stores Stripe subscription renewal state without scheduling Notura renewal jobs", async () => {
@@ -565,6 +597,11 @@ describe("billing helpers", () => {
       })
     );
     expect(updateEq).toHaveBeenCalledWith("user_id", "user-1");
+    // Trial start only attaches a card, no charge yet — recording a referral
+    // conversion here would credit the influencer before any real payment.
+    // The real signal is invoice.payment_succeeded (subscription_cycle),
+    // handled by maybeDispatchTrialConvertedEmailEvent.
+    expect(recordReferralConversion).not.toHaveBeenCalled();
   });
 
   it("keeps the renewal status active for non-trial Stripe resets", async () => {

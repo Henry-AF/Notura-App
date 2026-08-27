@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDashboardOverview = vi.fn();
+const getActivationMetrics = vi.fn();
 
 vi.mock("@/lib/dashboard/overview", () => ({
   getDashboardOverview,
 }));
+vi.mock("@/lib/activation", () => ({ getActivationMetrics }));
 
 describe("dashboard api client", () => {
   beforeEach(() => {
@@ -13,6 +15,20 @@ describe("dashboard api client", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-07T12:00:00.000Z"));
     getDashboardOverview.mockReset();
+    getActivationMetrics.mockReset();
+    getActivationMetrics.mockResolvedValue({
+      signupCount: 100,
+      recordingCount: 40,
+      deliveredCount: 30,
+      viewedCount: 20,
+      signupToRecordingPct: 40,
+      recordingToDeliveredPct: 75,
+      deliveredToViewedPct: 66.7,
+      activationRatePct: 20,
+      medianActivationMinutes: 90,
+      inAppActivations: 12,
+      whatsappActivations: 8,
+    });
   });
 
   afterEach(() => {
@@ -65,6 +81,7 @@ describe("dashboard api client", () => {
       expect.objectContaining({ label: "Horas economizadas", value: 4 }),
     ]);
     expect(overview.todayCount).toBe(2);
+    expect(overview.activation.activationRatePct).toBe(20);
   });
 
   it("throws a useful error when the server helper fails", async () => {

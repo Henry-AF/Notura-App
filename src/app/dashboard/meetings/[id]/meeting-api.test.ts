@@ -1,19 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getOwnedMeetingWithRelations = vi.fn();
+const recordActivationEvent = vi.fn();
+const createServiceRoleClient = vi.fn(() => ({ rpc: vi.fn() }));
 
 vi.mock("@/lib/meetings/detail", () => ({
   getOwnedMeetingWithRelations,
 }));
+vi.mock("@/lib/activation", () => ({
+  ACTIVATION_EVENT: { minutesViewed: "primeira_ata_visualizada" },
+  recordActivationEvent,
+}));
+vi.mock("@/lib/supabase/server", () => ({ createServiceRoleClient }));
 
 describe("meeting detail api client", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
     getOwnedMeetingWithRelations.mockReset();
+    recordActivationEvent.mockReset();
   });
 
   it("loads meeting detail from shared server helper and maps page data", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    recordActivationEvent.mockRejectedValueOnce(new Error("analytics unavailable"));
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockRejectedValue(new Error("meeting detail should not fetch /api internally"));
@@ -141,6 +151,13 @@ describe("meeting detail api client", () => {
     const meeting = await mod.fetchMeetingDetail("meeting-1");
 
     expect(getOwnedMeetingWithRelations).toHaveBeenCalledWith("meeting-1");
+    expect(recordActivationEvent).toHaveBeenCalledWith({
+      supabase: expect.any(Object),
+      userId: "user-1",
+      eventName: "primeira_ata_visualizada",
+      meetingId: "meeting-1",
+      channel: "in_app",
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(meeting.clientName).toBe("Acme");
     expect(meeting.meetingStatus).toBe("completed");

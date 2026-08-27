@@ -15,6 +15,7 @@
     "lint:changed": "node scripts/lint-changed.mjs",
     "migration:new": "node scripts/migrations.mjs create",
     "migration:verify": "node scripts/migrations.mjs verify",
+    "worktrees:clean": "node scripts/worktree-maintenance.mjs",
     "verify:bearer-auth": "node scripts/verify-bearer-auth.mjs",
     "test": "vitest run"
   },

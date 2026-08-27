@@ -36,6 +36,33 @@ export interface Database {
         }
         Relationships: []
       }
+      activation_events: {
+        Row: {
+          id: string
+          user_id: string
+          event_name: "signup" | "primeira_gravacao_iniciada" | "primeira_ata_entregue" | "primeira_ata_visualizada"
+          meeting_id: string | null
+          channel: "in_app" | "whatsapp" | null
+          occurred_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          event_name: "signup" | "primeira_gravacao_iniciada" | "primeira_ata_entregue" | "primeira_ata_visualizada"
+          meeting_id?: string | null
+          channel?: "in_app" | "whatsapp" | null
+          occurred_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_name?: "signup" | "primeira_gravacao_iniciada" | "primeira_ata_entregue" | "primeira_ata_visualizada"
+          meeting_id?: string | null
+          channel?: "in_app" | "whatsapp" | null
+          occurred_at?: string
+        }
+        Relationships: []
+      }
       billing_accounts: {
         Row: {
           user_id: string
@@ -1042,11 +1069,100 @@ export interface Database {
         }
         Relationships: []
       }
+      referral_codes: {
+        Row: {
+          id: string
+          influencer_name: string
+          code: string
+          commission_percent: number
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          influencer_name: string
+          code: string
+          commission_percent?: number
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          influencer_name?: string
+          code?: string
+          commission_percent?: number
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          id: string
+          referral_code_id: string
+          user_id: string
+          clicked_at: string | null
+          signed_up_at: string
+          activated_at: string | null
+          converted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          referral_code_id: string
+          user_id: string
+          clicked_at?: string | null
+          signed_up_at?: string
+          activated_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          referral_code_id?: string
+          user_id?: string
+          clicked_at?: string | null
+          signed_up_at?: string
+          activated_at?: string | null
+          converted_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      record_activation_event: {
+        Args: {
+          p_user_id: string
+          p_event_name: string
+          p_meeting_id?: string
+          p_channel?: string
+          p_occurred_at?: string
+        }
+        Returns: boolean
+      }
+      get_activation_funnel_metrics: {
+        Args: {
+          p_cohort_start: string
+          p_cohort_end: string
+        }
+        Returns: {
+          signup_count: number
+          recording_count: number
+          delivered_count: number
+          viewed_count: number
+          signup_to_recording_pct: number | null
+          recording_to_delivered_pct: number | null
+          delivered_to_viewed_pct: number | null
+          activation_rate_pct: number | null
+          median_activation_minutes: number | null
+          in_app_activations: number
+          whatsapp_activations: number
+        }[]
+      }
       get_reengagement_email_candidates: {
         Args: Record<PropertyKey, never>
         Returns: {

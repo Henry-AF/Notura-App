@@ -2,11 +2,12 @@ import { readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const LEGACY_LAST_VERSION = 37;
+const LEGACY_LAST_VERSION = 38;
 const LEGACY_DUPLICATES = new Map([
   ["002", new Set(["002_assemblyai_transcript_id.sql", "002_split_profiles_billing.sql"])],
   ["007", new Set(["007_add_summary_item_dedupe_keys.sql", "007_add_task_kanban_status.sql", "007_make_tasks_meeting_optional.sql"])],
   ["018", new Set(["018_meeting_groups.sql", "018_stripe_billing_gateway.sql"])],
+  ["028", new Set(["028_activation_funnel.sql", "028_task_labels.sql"])],
   ["030", new Set(["030_integration_interest.sql", "030_meeting_templates.sql"])],
 ]);
 const FILE_PATTERN = /^(\d{3}|\d{14})_([a-z0-9]+(?:_[a-z0-9]+)*)\.sql$/;

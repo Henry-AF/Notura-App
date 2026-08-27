@@ -11,8 +11,8 @@ describe("Supabase migration numbering policy", () => {
   });
 
   it("rejects new sequential migration numbers", () => {
-    expect(verifyMigrationFiles(["038_referral_tracking.sql"])).toEqual([
-      expect.stringContaining("sequential migration numbers ended at 37"),
+    expect(verifyMigrationFiles(["039_future_change.sql"])).toEqual([
+      expect.stringContaining("sequential migration numbers ended at 38"),
     ]);
   });
 

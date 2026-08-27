@@ -123,14 +123,9 @@ jobs:
       - name: Preservar o relatório do agente
         if: always()
         env:
-          FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
-        run: |
-          REPORT="$RUNNER_TEMP/agent-report.md"
-          : > "$REPORT"
-          if [ -n "$FINAL_MESSAGE" ]; then
-            printf '%s\n' "$FINAL_MESSAGE" > "$REPORT"
-          fi
-          echo "Relatório do agente preservado: $(wc -c < "$REPORT") bytes"
+          AGENT_REPORT: ${{ steps.codex.outputs.final-message }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
+        run: node .github/scripts/dispatch-postconditions.mjs preserve
 
       - name: Verificar se houve alteração
         id: diff
@@ -205,76 +200,27 @@ jobs:
       - name: Registrar o resultado no Linear
         if: always()
         env:
+          AGENT_NAME: Codex
+          COMMENT_PATH: .comment.md
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           ISSUE_KEY: ${{ inputs.issue_key }}
           PR_URL: ${{ steps.pr.outputs.url }}
           CHANGED: ${{ steps.diff.outputs.changed }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -n "$PR_URL" ]; then
-            printf '%s\n\n%s\n' \
-              "🤖 **Codex** abriu um PR em draft: ${PR_URL}" \
-              "Merge continua manual, depois de CI verde e revisão. [Run](${RUN_URL})" > .comment.md
-          elif [ "$CHANGED" = "false" ]; then
-            REPORT="$RUNNER_TEMP/agent-report.md"
-            {
-              printf '%s\n' "🤖 **Codex** rodou mas não alterou nenhum arquivo. Nenhum PR foi aberto e o job falhou. [Run](${RUN_URL})"
-              if [ -s "$REPORT" ]; then
-                echo
-                echo "<details><summary>Relatório final do Codex</summary>"
-                echo
-                head -c 4000 "$REPORT"
-                echo
-                echo "</details>"
-              fi
-            } > .comment.md
-          else
-            printf '%s\n' "🤖 **Codex** falhou antes de abrir o PR. [Run](${RUN_URL})" > .comment.md
-          fi
+          node .github/scripts/dispatch-postconditions.mjs comment
           node .github/scripts/linear-dispatch.mjs comment "$ISSUE_KEY" .comment.md
           node .github/scripts/linear-dispatch.mjs label "$ISSUE_KEY" "dispatch:codex"
           rm -f .comment.md
 
-      - name: Falhar quando o agente não produziu alteração
-        if: always() && steps.diff.outputs.changed == 'false'
+      - name: Validar pós-condições do dispatch
+        if: always()
         env:
+          AGENT_NAME: Codex
+          CHANGED: ${{ steps.diff.outputs.changed }}
           ISSUE_KEY: ${{ inputs.issue_key }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          REPORT_PATH: ${{ runner.temp }}/agent-report.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          REPORT="$RUNNER_TEMP/agent-report.md"
-          echo "::error title=Dispatch sem alteração::Codex rodou para ${ISSUE_KEY} mas não alterou nenhum arquivo. Nenhum PR foi aberto."
-          {
-            echo "### Dispatch sem alteração"
-            echo
-            echo "Codex rodou para ${ISSUE_KEY} e terminou sem alterar nenhum arquivo."
-            echo
-            if [ -s "$REPORT" ]; then
-              echo "<details><summary>Relatório final do agente</summary>"
-              echo
-              echo '```'
-              head -c 4000 "$REPORT"
-              echo
-              echo '```'
-              echo
-              echo "</details>"
-              echo
-            fi
-            echo "[Run](${RUN_URL})"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
-
-      - name: Falhar quando houve alteração mas nenhum PR foi aberto
-        if: always() && steps.diff.outputs.changed == 'true' && steps.pr.outputs.url == ''
-        env:
-          ISSUE_KEY: ${{ inputs.issue_key }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          echo "::error title=Dispatch sem PR::Codex alterou arquivos para ${ISSUE_KEY}, mas nenhum PR foi aberto."
-          {
-            echo "### Dispatch sem PR"
-            echo
-            echo "Codex alterou arquivos para ${ISSUE_KEY}, mas o fluxo terminou sem URL de PR."
-            echo
-            echo "[Run](${RUN_URL})"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+        run: node .github/scripts/dispatch-postconditions.mjs validate

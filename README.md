@@ -1,5 +1,18 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Supabase migrations
+
+Create migrations with a UTC timestamp instead of choosing a sequential number:
+
+```bash
+npm run migration:new -- referral_tracking
+```
+
+This creates `supabase/migrations/YYYYMMDDHHMMSS_referral_tracking.sql`. CI runs
+`npm run migration:verify` and rejects malformed names, new three-digit versions,
+and duplicate timestamps. Known duplicate versions in the legacy history are
+allowlisted by exact filename only; do not reuse them.
+
 ## Getting Started
 
 First, run the development server:

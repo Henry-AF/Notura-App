@@ -26,6 +26,28 @@ export interface ActivationMetrics {
 
 type ActivationClient = SupabaseClient<Database>;
 
+export const EMPTY_ACTIVATION_METRICS: ActivationMetrics = {
+  signupCount: 0,
+  recordingCount: 0,
+  deliveredCount: 0,
+  viewedCount: 0,
+  signupToRecordingPct: 0,
+  recordingToDeliveredPct: 0,
+  deliveredToViewedPct: 0,
+  activationRatePct: 0,
+  medianActivationMinutes: null,
+  inAppActivations: 0,
+  whatsappActivations: 0,
+};
+
+function isMissingActivationMetricsFunction(error: { code?: string; message: string }) {
+  return (
+    error.code === "PGRST202" ||
+    error.message.includes("get_activation_funnel_metrics") &&
+      error.message.includes("schema cache")
+  );
+}
+
 export async function recordActivationEvent(input: {
   supabase: ActivationClient;
   userId: string;
@@ -51,7 +73,10 @@ export async function getActivationMetrics(now = new Date()): Promise<Activation
     "get_activation_funnel_metrics",
     { p_cohort_start: cohortStart.toISOString(), p_cohort_end: now.toISOString() },
   );
-  if (error) throw new Error(`Failed to load activation metrics: ${error.message}`);
+  if (error) {
+    if (isMissingActivationMetricsFunction(error)) return EMPTY_ACTIVATION_METRICS;
+    throw new Error(`Failed to load activation metrics: ${error.message}`);
+  }
   return mapActivationMetrics(data[0]);
 }
 

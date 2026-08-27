@@ -1,5 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { mapActivationMetrics } from "./activation";
+import { describe, expect, it, vi } from "vitest";
+
+const rpc = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/supabase/server", () => ({
+  createServiceRoleClient: () => ({ rpc }),
+}));
+
+import {
+  EMPTY_ACTIVATION_METRICS,
+  getActivationMetrics,
+  mapActivationMetrics,
+} from "./activation";
 
 describe("activation metrics", () => {
   it("maps database numerics and preserves a missing median", () => {
@@ -30,5 +41,30 @@ describe("activation metrics", () => {
       inAppActivations: 12,
       whatsappActivations: 8,
     });
+  });
+});
+
+describe("activation metrics availability", () => {
+  it("does not break the dashboard while the metrics migration is pending", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find public.get_activation_funnel_metrics in the schema cache",
+      },
+    });
+
+    await expect(getActivationMetrics()).resolves.toEqual(EMPTY_ACTIVATION_METRICS);
+  });
+
+  it("still reports unrelated database failures", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "permission denied" },
+    });
+
+    await expect(getActivationMetrics()).rejects.toThrow(
+      "Failed to load activation metrics: permission denied"
+    );
   });
 });

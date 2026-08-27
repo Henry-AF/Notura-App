@@ -26,8 +26,10 @@ describe("auth callback route", () => {
     );
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith("oauth-code");
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("http://localhost/onboarding");
+    expect(response.headers.get("location")).not.toContain("code=");
   });
 
   it("falls back to login when Supabase rejects the OAuth code", async () => {
@@ -42,6 +44,18 @@ describe("auth callback route", () => {
     );
 
     expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/login?error=oauth_callback_failed"
+    );
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not attempt an exchange when the callback has no code", async () => {
+    const { GET } = await import("./route");
+
+    const response = await GET(new Request("http://localhost/auth/callback"));
+
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
     expect(response.headers.get("location")).toBe(
       "http://localhost/login?error=oauth_callback_failed"
     );

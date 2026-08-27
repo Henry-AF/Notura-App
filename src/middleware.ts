@@ -8,6 +8,12 @@ function redirectAuthenticatedFromLogin(request: NextRequest): NextResponse {
   return NextResponse.redirect(target);
 }
 
+function clearSupabaseCookies(request: NextRequest, response: NextResponse) {
+  request.cookies.getAll().forEach(({ name }) => {
+    if (name.startsWith("sb-")) response.cookies.delete(name);
+  });
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -76,8 +82,7 @@ export async function middleware(request: NextRequest) {
   try {
     const result = await supabase.auth.getUser();
     user = result.data.user;
-    if (result.error?.code === "refresh_token_not_found") {
-      await supabase.auth.signOut();
+    if (result.error) {
       shouldClearAuthCookies = true;
       user = null;
     }
@@ -92,12 +97,7 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     const redirectResponse = NextResponse.redirect(loginUrl);
     if (shouldClearAuthCookies) {
-      // Clear confirmed stale auth cookies so they don't loop.
-      request.cookies.getAll().forEach(({ name }) => {
-        if (name.startsWith("sb-")) {
-          redirectResponse.cookies.delete(name);
-        }
-      });
+      clearSupabaseCookies(request, redirectResponse);
     }
     return redirectResponse;
   }
@@ -106,6 +106,8 @@ export async function middleware(request: NextRequest) {
   if (user && request.nextUrl.pathname === "/login") {
     return redirectAuthenticatedFromLogin(request);
   }
+
+  if (shouldClearAuthCookies) clearSupabaseCookies(request, response);
 
   return response;
 }

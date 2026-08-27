@@ -14,6 +14,7 @@ import type { Integration, Preference } from "@/components/settings";
 import { PlanModal } from "@/components/settings/PlanModal";
 import { ToastProvider, useToast } from "@/components/upload/Toast";
 import { getPlanTitle } from "@/lib/plans";
+import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/lib/theme-context";
 import { LoadingState, PageHeader } from "@/components/ui/app";
 import {
@@ -445,7 +446,10 @@ function SettingsPageInner() {
       show("Erro ao excluir a conta. Tente novamente.", "error");
       return;
     }
-    router.push("/");
+    const supabase = createClient();
+    await supabase.auth.signOut({ scope: "local" });
+    router.replace("/login");
+    router.refresh();
   }, [router, show]);
 
   if (loading) {

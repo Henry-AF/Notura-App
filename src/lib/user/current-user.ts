@@ -112,10 +112,15 @@ export async function getCurrentUserForIdentity(
 
 export async function getCurrentUserFromRequest(): Promise<CurrentUser | null> {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  let authResult: Awaited<ReturnType<typeof supabase.auth.getUser>>;
+
+  try {
+    authResult = await supabase.auth.getUser();
+  } catch {
+    return null;
+  }
+
+  const { data: { user }, error } = authResult;
 
   if (error || !user) {
     return null;

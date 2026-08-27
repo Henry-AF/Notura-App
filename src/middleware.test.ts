@@ -99,6 +99,26 @@ describe("middleware CORS (API)", () => {
 });
 
 describe("middleware auth", () => {
+  it.each([
+    { code: "user_not_found", status: 403 },
+    { code: "refresh_token_not_found", status: 400 },
+  ])("clears cookies when Supabase rejects the session with $code", async (error) => {
+    getUserMock.mockResolvedValueOnce({ data: { user: null }, error });
+    signOutMock.mockResolvedValueOnce({ error: null });
+    const { middleware } = await import("./middleware");
+
+    const request = new NextRequest("http://localhost:3000/dashboard", {
+      headers: { cookie: "sb-test-auth-token=abc; preference=dark" },
+    });
+    const response = await middleware(request);
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login?redirectTo=%2Fdashboard"
+    );
+    expect(response.headers.get("set-cookie")).toContain("sb-test-auth-token=");
+    expect(response.headers.get("set-cookie")).not.toContain("preference=");
+  });
+
   it("does not delete Supabase cookies when the auth check times out", async () => {
     getUserMock.mockRejectedValueOnce(new TypeError("fetch failed"));
     const { middleware } = await import("./middleware");

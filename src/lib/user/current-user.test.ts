@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createServiceRoleClient = vi.fn();
+const createServerSupabase = vi.fn();
 const getBillingStatus = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabase: vi.fn(),
+  createServerSupabase,
   createServiceRoleClient,
 }));
 
@@ -78,6 +79,33 @@ describe("current user renewal state", () => {
       abacatepayAutoRenewEnabled: false,
       abacatepayRenewalStatus: "active",
     });
+  });
+});
+
+describe("current user request authentication", () => {
+  it("returns unauthenticated when Supabase reports a deleted user", async () => {
+    createServerSupabase.mockResolvedValueOnce({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: null },
+          error: { code: "user_not_found", status: 403 },
+        }),
+      },
+    });
+    const mod = await import("./current-user");
+
+    await expect(mod.getCurrentUserFromRequest()).resolves.toBeNull();
+    expect(getBillingStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns unauthenticated when the Auth request throws", async () => {
+    createServerSupabase.mockResolvedValueOnce({
+      auth: { getUser: vi.fn().mockRejectedValue(new TypeError("fetch failed")) },
+    });
+    const mod = await import("./current-user");
+
+    await expect(mod.getCurrentUserFromRequest()).resolves.toBeNull();
+    expect(getBillingStatus).not.toHaveBeenCalled();
   });
 });
 

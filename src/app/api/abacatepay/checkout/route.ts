@@ -12,6 +12,7 @@ import {
   AbacatePayCustomerNotReadyError,
   loadAbacatePayCustomerContext,
 } from "@/lib/abacatepay-customer";
+import { isPlanActive } from "@/lib/billing";
 import { withBillingSpan } from "@/lib/billing-observability";
 import { captureObservedError, createTraceId, getErrorMessage } from "@/lib/observability";
 import type { Plan } from "@/types/database";
@@ -72,7 +73,7 @@ export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
       auth.user.id,
       source
     );
-    if (customerContext.billingAccount.plan === plan) {
+    if (isPlanActive(customerContext.billingAccount, plan)) {
       return NextResponse.json({
         alreadyActive: true,
         plan,

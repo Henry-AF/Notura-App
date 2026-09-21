@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getOrCreateBillingAccount = vi.fn();
+const isPlanActive = vi.fn();
 const resetSubscriptionPeriod = vi.fn();
 const setAbacatePayAutoRenew = vi.fn();
 const getStripe = vi.fn();
@@ -24,6 +25,7 @@ const dispatchTrialStartedEmailEvent = vi.fn();
 
 vi.mock("@/lib/billing", () => ({
   getOrCreateBillingAccount,
+  isPlanActive,
   resetSubscriptionPeriod,
   setAbacatePayAutoRenew,
   StaleBillingProviderError: class StaleBillingProviderError extends Error {},
@@ -95,6 +97,7 @@ describe("billing gateway providers", () => {
       abacatepay_pending_checkout_id: null,
       abacatepay_customer_id: "customer-1",
     });
+    isPlanActive.mockReturnValue(false);
     getStripePriceId.mockReturnValue("price_pro");
     retrieveStripeSubscriptionBillingPeriod.mockResolvedValue({
       billingCycle: "yearly",
@@ -165,6 +168,38 @@ describe("billing gateway providers", () => {
       renewalStatus: "active",
     });
     dispatchTrialStartedEmailEvent.mockResolvedValue(undefined);
+  });
+
+  it("reports alreadyActive only when the plan is entitled right now", async () => {
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+    const input = {
+      userId: "user-1",
+      userEmail: "ana@example.com",
+      plan: "team" as const,
+      source: "settings" as const,
+      requestOrigin: "http://localhost",
+      billingCycle: "monthly" as const,
+    };
+    // Expired subscription: the row still says plan = "team", but the user is no longer entitled.
+    getOrCreateBillingAccount.mockResolvedValue({
+      plan: "team",
+      current_period_end: "2026-08-13T21:44:23.000Z",
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: null,
+    });
+
+    isPlanActive.mockReturnValue(true);
+    await expect(createStripeCheckout(input)).resolves.toEqual({
+      provider: "stripe",
+      alreadyActive: true,
+      plan: "team",
+    });
+
+    isPlanActive.mockReturnValue(false);
+    await expect(createStripeCheckout(input)).resolves.toEqual({
+      provider: "stripe",
+      checkoutUrl: "https://checkout.stripe.com/session",
+    });
   });
 
   it("creates Stripe subscription checkout with provider-aware return URLs", async () => {
@@ -292,6 +327,50 @@ describe("billing gateway providers", () => {
     });
 
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("ignores a pending Stripe checkout that no longer exists and creates a new one", async () => {
+    const missingSessionError = Object.assign(
+      new Error("No such checkout session: 'cs_gone'"),
+      { type: "StripeInvalidRequestError", code: "resource_missing" }
+    );
+    getOrCreateBillingAccount.mockResolvedValueOnce({
+      plan: "free",
+      stripe_customer_id: null,
+      stripe_pending_checkout_session_id: "cs_gone",
+      abacatepay_pending_checkout_id: null,
+      abacatepay_customer_id: "customer-1",
+    });
+    const stripe = {
+      checkout: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({
+            id: "cs_new",
+            url: "https://checkout.stripe.com/session",
+          }),
+          expire: vi.fn().mockRejectedValue(missingSessionError),
+          retrieve: vi.fn(),
+        },
+      },
+    };
+    getStripe.mockReturnValue(stripe);
+    const { createStripeCheckout } = await import("./billing-gateway-providers");
+
+    await expect(
+      createStripeCheckout({
+        userId: "user-1",
+        userEmail: "ana@example.com",
+        plan: "pro",
+        source: "settings",
+        requestOrigin: "http://localhost",
+        billingCycle: "monthly",
+      })
+    ).resolves.toEqual({
+      provider: "stripe",
+      checkoutUrl: "https://checkout.stripe.com/session",
+    });
+
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
   });
 
   it("keeps fallback pending checkout when its cancellation fails before using Stripe", async () => {

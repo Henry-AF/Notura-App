@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuthRateLimit } from "@/lib/api/rate-limit-route";
 import { RATE_LIMIT_POLICIES } from "@/lib/api/rate-limit-policies";
-import { getOrCreateBillingAccount } from "@/lib/billing";
+import { getOrCreateBillingAccount, isPlanActive } from "@/lib/billing";
 import {
   captureObservedError,
   createTraceId,
@@ -38,7 +38,7 @@ export const POST = withAuthRateLimit<Record<string, never>, NextRequest>(
       }
 
       const billingAccount = await getOrCreateBillingAccount(auth.user.id);
-      if (billingAccount.plan === plan) {
+      if (isPlanActive(billingAccount, plan)) {
         return NextResponse.json({
           alreadyActive: true,
           plan,

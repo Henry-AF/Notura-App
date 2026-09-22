@@ -332,6 +332,37 @@ describe("billing helpers", () => {
     });
   });
 
+  it("only treats a plan as active while its subscription period is valid", async () => {
+    const mod = await import("./billing");
+    const now = new Date("2026-06-01T12:00:00.000Z");
+
+    expect(
+      mod.isPlanActive(
+        { plan: "team", current_period_end: "2026-06-29T12:00:00.000Z" } as never,
+        "team",
+        now
+      )
+    ).toBe(true);
+    // Expired subscription keeps plan = "team" in the row but must not block re-subscribing.
+    expect(
+      mod.isPlanActive(
+        { plan: "team", current_period_end: "2026-05-29T12:00:00.000Z" } as never,
+        "team",
+        now
+      )
+    ).toBe(false);
+    expect(
+      mod.isPlanActive(
+        { plan: "team", current_period_end: "2026-06-29T12:00:00.000Z" } as never,
+        "pro",
+        now
+      )
+    ).toBe(false);
+    expect(mod.isPlanActive({ plan: "free", current_period_end: null } as never, "pro", now)).toBe(
+      false
+    );
+  });
+
   it("resolves a trialing entitlement status from the Stripe renewal status", async () => {
     const mod = await import("./billing");
     const now = new Date("2026-06-01T12:00:00.000Z");

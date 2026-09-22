@@ -245,6 +245,17 @@ export function getBillingEntitlementStatus(
   };
 }
 
+// True only when `plan` is the plan the user is actually entitled to right now.
+// An expired subscription keeps its paid `plan` in the row, so comparing the raw
+// column would wrongly report it as active and block re-subscribing at checkout.
+export function isPlanActive(
+  account: Parameters<typeof getBillingEntitlementStatus>[0],
+  plan: Plan,
+  now: Date = new Date()
+): boolean {
+  return getBillingEntitlementStatus(account, now).effectivePlan === plan;
+}
+
 function getQuotaMessage(
   code: MeetingQuotaBlockCode,
   quotaLimit?: number

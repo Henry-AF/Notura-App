@@ -15,6 +15,7 @@ import {
 } from "@/lib/abacatepay-customer";
 import {
   getOrCreateBillingAccount,
+  isPlanActive,
   resetSubscriptionPeriod,
   setAbacatePayAutoRenew as setProviderAbacatePayAutoRenew,
   StaleBillingProviderError,
@@ -192,9 +193,23 @@ async function expireStripeCheckoutIfPending(
         PAYMENT_RECEIVED_PLAN_PENDING_CODE
       );
     }
+    if (isMissingStripeCheckoutError(error)) {
+      // The stored session is unknown to this Stripe account/mode, so it cannot be open.
+      console.warn(`[billing-gateway] Pending Stripe checkout ${sessionId} no longer exists; ignoring it.`);
+      return true;
+    }
     console.warn("[billing-gateway] Failed to expire pending Stripe checkout:", error);
     return false;
   }
+}
+
+function isMissingStripeCheckoutError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "resource_missing"
+  );
 }
 
 function readStripeErrorMessage(error: unknown): string {
@@ -335,7 +350,7 @@ export async function createStripeCheckout(
   input: BillingCheckoutInput
 ): Promise<BillingCheckoutResult> {
   const billingAccount = await getOrCreateBillingAccount(input.userId);
-  if (billingAccount.plan === input.plan) {
+  if (isPlanActive(billingAccount, input.plan)) {
     return { provider: "stripe", alreadyActive: true, plan: input.plan };
   }
 
@@ -755,7 +770,7 @@ export async function createAbacatePayCheckout(
 ): Promise<BillingCheckoutResult> {
   const db = createServiceRoleClient();
   const context = await loadAbacatePayCustomerContext(db, input.userId, input.source);
-  if (context.billingAccount.plan === input.plan) {
+  if (isPlanActive(context.billingAccount, input.plan)) {
     return { provider: "abacatepay", alreadyActive: true, plan: input.plan };
   }
 

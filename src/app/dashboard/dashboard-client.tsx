@@ -9,7 +9,6 @@ import {
   RecentMeetingsTable,
   InsightCard,
   UpgradeCard,
-  ActivationFunnel,
 } from "@/components/dashboard";
 import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
@@ -206,7 +205,6 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
           )}
         </div>
       </div>
-      <ActivationFunnel metrics={initialOverview.activation} />
     </PageShell>
   );
 }

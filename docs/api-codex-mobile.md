@@ -30,7 +30,7 @@ Supabase Auth (GoTrue), como o web faz em `src/app/(auth)/login` e `signup`:
 | Acao | Web (`supabase-js`) | Mobile (`supabase-kt`, modulo `auth-kt`) |
 |---|---|---|
 | Login com e-mail/senha | `auth.signInWithPassword` | `auth.signInWith(Email) { email; password }` |
-| Cadastro | `auth.signUp` (com `options.data.name`) | `auth.signUpWith(Email) { email; password; data }` |
+| Cadastro | `auth.signUp` (com `options.data.full_name`) | `auth.signUpWith(Email) { email; password; data = { "full_name": nome } }` |
 | Google | `auth.signInWithOAuth({ provider: "google" })` | `signInWith(IDToken)` com ID token nativo, ou OAuth via browser |
 | Renovar sessao | automatico | automatico (`autoRefresh`) |
 | Logout | `auth.signOut` | `auth.signOut()` |

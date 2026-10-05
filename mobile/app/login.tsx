@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Linking, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { useTheme } from '@/theme';
-import { Screen } from '@/components/ui/Screen';
+import { FORGOT_PASSWORD_URL, isValidEmail } from '@/lib/auth/auth-links';
+import { AuthLayout, authColors } from '@/components/auth/AuthLayout';
+import { AuthInput, PasswordInput } from '@/components/auth/AuthFields';
+import { GoogleButton, OrDivider, PrimaryAction, TextLinkRow } from '@/components/auth/AuthActions';
 import { ThemedText } from '@/components/ui/ThemedText';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+
+const GOOGLE_UNAVAILABLE_MESSAGE = 'Login com Google ainda não está disponível no app.';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -15,10 +17,11 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { signIn } = useAuth();
   const router = useRouter();
-  const { colors, spacing } = useTheme();
+
+  const isFormValid = isValidEmail(email) && password.length > 0;
 
   async function handleLogin() {
-    if (!email || !password) {
+    if (!isFormValid) {
       setErrorMessage('Preencha e-mail e senha.');
       return;
     }
@@ -38,64 +41,59 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen style={styles.container}>
-      <ThemedText variant="title1" style={styles.title}>
-        Entrar no Notura
-      </ThemedText>
-
-      <View style={{ gap: spacing.sm }}>
-        <Input
-          placeholder="E-mail"
+    <AuthLayout
+      title="Bem-vindo de volta!"
+      subtitle="Entre na sua conta para continuar organizando suas reuniões"
+    >
+      <View style={styles.fields}>
+        <AuthInput
+          placeholder="Email"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
-
-        <Input
-          placeholder="Senha"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        <PasswordInput value={password} onChangeText={setPassword} />
       </View>
 
+      <ThemedText
+        variant="caption"
+        color="#3D3D3D"
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL(FORGOT_PASSWORD_URL)}
+        style={styles.forgot}
+      >
+        Esqueceu a senha?
+      </ThemedText>
+
       {errorMessage ? (
-        <ThemedText variant="footnote" color={colors.error} style={styles.error}>
+        <ThemedText variant="footnote" color={authColors.error} style={styles.message}>
           {errorMessage}
         </ThemedText>
       ) : null}
 
-      <Button
-        label={isSubmitting ? 'Entrando...' : 'Entrar'}
+      <PrimaryAction
+        label="Sign In"
+        loading={isSubmitting}
+        disabled={!isFormValid}
         onPress={() => void handleLogin()}
-        disabled={isSubmitting}
-        style={styles.button}
       />
 
-      <Link href="/signup" asChild>
-        <Button label="Criar conta" variant="ghost" style={styles.linkButton} />
-      </Link>
-    </Screen>
+      <OrDivider />
+      <GoogleButton onPress={() => setErrorMessage(GOOGLE_UNAVAILABLE_MESSAGE)} />
+
+      <TextLinkRow
+        prefix="Novo por aqui? Crie um "
+        action="Cadastro"
+        onPress={() => router.push('/signup')}
+      />
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'center',
-  },
-  title: {
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  error: {
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  button: {
-    marginTop: 16,
-  },
-  linkButton: {
-    marginTop: 8,
-  },
+  fields: { gap: 16 },
+  forgot: { alignSelf: 'flex-end', marginTop: 10, marginBottom: 20 },
+  message: { marginBottom: 12, textAlign: 'center' },
 });

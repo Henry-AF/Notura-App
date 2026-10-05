@@ -1,7 +1,7 @@
 import { fetchDashboardOverview } from "@/app/dashboard/dashboard-api";
 import { PrototipoClient } from "./prototipo-client";
 
-export const metadata = { title: "Nova Experiência — Notura" };
+export const metadata = { title: "Notura" };
 
 export default async function PrototipoPage() {
   const overview = await fetchDashboardOverview();

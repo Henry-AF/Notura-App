@@ -17,7 +17,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Notura — Nunca mais perca o que foi decidido em reunião",
+  title: "Notura",
   description:
     "IA transcreve, resume e envia as tarefas direto no WhatsApp — em português, em minutos.",
 };

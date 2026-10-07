@@ -12,6 +12,7 @@ import {
 } from "@/components/dashboard";
 import type { QuickActionCardProps, Meeting } from "@/components/dashboard";
 import { useToast } from "@/components/upload/Toast";
+import { FirstMeetingStart } from "@/components/onboarding-funnel";
 import { PageShell } from "@/components/ui/app";
 import TextType from "@/components/ui/text-type";
 import { normalizeError, parseJson } from "@/lib/api-client";
@@ -152,7 +153,9 @@ export function DashboardClient({ initialOverview }: DashboardClientProps) {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="min-w-0">
-          <div className="animate-fade-in [animation-delay:40ms]">
+          <FirstMeetingStart hasMeetings={meetings.length > 0} />
+
+          <div className="mt-6 animate-fade-in [animation-delay:40ms]">
             <BannerCarousel />
           </div>
 
